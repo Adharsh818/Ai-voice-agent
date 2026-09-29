@@ -109,6 +109,15 @@ app = FastAPI(title="Pearl Dental Clinic — Emma Voice Agent", lifespan=lifespa
 STATIC_DIR = Path(__file__).parent / "static"
 
 
+@app.middleware("http")
+async def revalidate_page_assets(request, call_next):
+    """Browsers must revalidate the page and its scripts, so an update never runs stale JS."""
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 @app.get("/")
 async def index():
     return FileResponse(STATIC_DIR / "index.html")

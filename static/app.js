@@ -34,7 +34,7 @@ function setState(next) {
 
 function setCaption(text, who) {
   caption.textContent = text || '';
-  caption.className = who === 'user' ? 'user' : '';
+  caption.className = who === 'user' || who === 'error' ? who : '';
 }
 
 function send(obj) {
@@ -58,7 +58,9 @@ async function startCall() {
     });
   } catch (err) {
     console.error(err);
-    fail(err.name === 'NotAllowedError' ? 'Microphone access is needed to talk to Emma.' : 'Could not start audio.');
+    fail(err.name === 'NotAllowedError' || err.name === 'NotFoundError'
+      ? 'Microphone blocked. Allow mic access in your browser (icon in the address bar), then click again.'
+      : 'Could not start audio.');
     return;
   }
 
@@ -106,7 +108,7 @@ function teardown() {
 function fail(message) {
   teardown();
   setState('error');
-  setCaption(message);
+  setCaption(message, 'error');
   setTimeout(() => { if (state === 'error') setState('idle'); }, 2500);
 }
 

@@ -110,6 +110,7 @@ main {
   transition: opacity 200ms ease;
 }
 #caption.user { opacity: 0.3; font-style: italic; }
+#caption.error { opacity: 1; color: var(--error); white-space: normal; }
 
 @media (prefers-reduced-motion: reduce) {
   #orb .core, #orb .halo, #orb .ring { animation: none !important; transition: background 400ms ease; }
