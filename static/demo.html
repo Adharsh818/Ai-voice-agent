@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emma — dialogue state machine</title>
+<style>
+  :root{
+    --bg:#0c1116; --panel:#131b23; --panel2:#182230; --line:#233240;
+    --ink:#e6edf3; --dim:#8b9bab; --faint:#5c6b7a;
+    --teal:#2dd4bf; --teal-dim:#134e4a; --amber:#f59e0b;
+    --red:#f43f5e; --red-dim:#4c1220; --green:#34d399;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  header{
+    display:flex;align-items:center;gap:16px;padding:14px 22px;
+    border-bottom:1px solid var(--line);background:var(--panel);
+    position:sticky;top:0;z-index:10;flex-wrap:wrap;
+  }
+  .brand{font-weight:650;letter-spacing:.2px}
+  .brand small{display:block;font-weight:400;color:var(--faint);font-size:11.5px;letter-spacing:.3px}
+  .spacer{flex:1}
+  .seg{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px}
+  .seg button{
+    border:0;background:transparent;color:var(--dim);font:inherit;font-size:12.5px;
+    padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:550;
+  }
+  .seg button.on{background:var(--teal-dim);color:var(--teal)}
+  .seg button.on.bad{background:var(--red-dim);color:var(--red)}
+  .btn{
+    border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+    font:inherit;font-size:12.5px;padding:7px 14px;border-radius:7px;cursor:pointer;
+  }
+  .btn:hover{border-color:var(--faint)}
+  .btn.primary{background:var(--teal);color:#04201c;border-color:var(--teal);font-weight:600}
+  .tabs{display:flex;gap:2px;padding:0 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .tabs button{
+    border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dim);
+    font:inherit;font-size:13px;padding:11px 15px;cursor:pointer;
+  }
+  .tabs button.on{color:var(--teal);border-bottom-color:var(--teal)}
+  main{padding:20px 22px 60px;max-width:1500px}
+  .hide{display:none !important}
+
+  /* ---------- talk tab ---------- */
+  .cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,340px);gap:20px;align-items:start}
+  .cols>*{min-width:0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;overflow:hidden}
+  .card h3{
+    margin:0;padding:12px 16px;border-bottom:1px solid var(--line);
+    font-size:11.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--faint);font-weight:600;
+  }
+  .chat{padding:16px;height:min(52vh,460px);overflow-y:auto;display:flex;flex-direction:column;gap:11px}
+  .bub{max-width:78%;padding:9px 13px;border-radius:12px;white-space:pre-wrap;word-wrap:break-word}
+  .emma{background:var(--panel2);border:1px solid var(--line);border-top-left-radius:4px;align-self:flex-start}
+  .caller{background:#1d3a5c;border:1px solid #2a5183;border-top-right-radius:4px;align-self:flex-end}
+  .caller.attack{background:#4c1220;border-color:#7f1d33}
+  .meta{font-size:10.5px;color:var(--faint);font-family:var(--mono);margin-top:5px}
+  .compose{display:flex;gap:9px;padding:13px 16px;border-top:1px solid var(--line)}
+  .compose input{
+    flex:1;background:var(--bg);border:1px solid var(--line);border-radius:8px;
+    color:var(--ink);font:inherit;padding:10px 13px;
+  }
+  .compose input:focus{outline:none;border-color:var(--teal)}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;padding:0 16px 14px}
+  .chip{
+    border:1px solid var(--line);background:var(--bg);color:var(--dim);
+    font:inherit;font-size:11.5px;padding:5px 11px;border-radius:20px;cursor:pointer;
+  }
+  .chip:hover{color:var(--ink);border-color:var(--faint)}
+  .chip.hot{border-color:#7f1d33;color:#fca5b5}
+
+  /* ---------- inspector ---------- */
+  .ladder{padding:10px 8px}
+  .rung{
+    display:flex;align-items:center;gap:9px;padding:4px 8px;border-radius:6px;
+    font-size:12.5px;color:var(--faint);
+  }
+  .rung .n{
+    width:19px;height:19px;flex:none;border-radius:50%;border:1px solid var(--line);
+    display:grid;place-items:center;font-size:10px;font-family:var(--mono);
+  }
+  .rung.done{color:var(--dim)}
+  .rung.done .n{background:var(--teal-dim);border-color:var(--teal-dim);color:var(--teal)}
+  .rung.now{background:var(--panel2);color:var(--ink);font-weight:600}
+  .rung.now .n{background:var(--teal);border-color:var(--teal);color:#04201c;font-weight:700}
+  table.slots{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.slots td{padding:7px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.slots tr:last-child td{border-bottom:0}
+  table.slots td:first-child{color:var(--faint);width:78px}
+  .val{font-family:var(--mono);font-size:11.5px}
+  .tick{color:var(--green)}
+  .prov{color:var(--amber)}
+  .banner{
+    margin:0 16px 16px;padding:11px 14px;border-radius:9px;font-size:12.5px;font-weight:600;
+    display:flex;align-items:center;gap:9px;
+  }
+  .banner.ok{background:#052e26;border:1px solid #0f766e;color:var(--green)}
+  .banner.bad{background:var(--red-dim);border:1px solid #7f1d33;color:#fda4b4}
+
+  /* ---------- A/B tab ---------- */
+  .scn{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:12px;margin-bottom:22px}
+  .scn button{
+    text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:14px;color:var(--ink);font:inherit;cursor:pointer;
+  }
+  .scn button:hover{border-color:var(--teal)}
+  .scn button.on{border-color:var(--teal);background:var(--panel2)}
+  .scn .t{font-weight:600;font-size:13px;margin-bottom:5px}
+  .scn .b{font-size:11.5px;color:var(--faint);line-height:1.5}
+  .ab{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .ab>*{min-width:0}
+  .verdict{
+    padding:11px 16px;border-bottom:1px solid var(--line);font-size:12.5px;font-weight:600;
+    display:flex;align-items:center;gap:8px;
+  }
+  .verdict.pass{background:#052e26;color:var(--green)}
+  .verdict.fail{background:var(--red-dim);color:#fda4b4}
+  .tr{padding:14px;max-height:440px;overflow-y:auto;display:flex;flex-direction:column;gap:9px}
+  .fold{
+    align-self:center;font-size:11px;color:var(--faint);font-family:var(--mono);
+    border:1px dashed var(--line);border-radius:14px;padding:3px 12px;cursor:pointer;background:transparent;
+  }
+  pre.out{
+    margin:0;padding:16px;font-family:var(--mono);font-size:11.5px;line-height:1.65;
+    white-space:pre-wrap;color:var(--dim);max-height:65vh;overflow:auto;
+  }
+  .note{color:var(--faint);font-size:12px;margin:0 0 18px;max-width:900px;line-height:1.65}
+  .note code{font-family:var(--mono);font-size:11.5px;color:var(--dim);background:var(--panel2);padding:1px 5px;border-radius:4px}
+  .kv{font-family:var(--mono);font-size:11px;color:var(--faint);padding:0 14px 12px;white-space:pre-line}
+
+  /* One column once the pane gets narrow — the preview pane and half-width
+     laptop windows both land here. */
+  @media (max-width:980px){
+    .cols,.ab{grid-template-columns:minmax(0,1fr)}
+    .bub{max-width:92%}
+    .chat{height:min(46vh,380px)}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">Pearl Dental Clinic · Emma
+    <small>ai_engine._handle_conversation_step — driven live, offline NLU</small>
+  </div>
+  <div class="spacer"></div>
+  <div class="seg" id="mode">
+    <button data-m="fixed" class="on">Fixed</button>
+    <button data-m="legacy">Pre-fix</button>
+  </div>
+  <button class="btn" id="restart">Restart call</button>
+</header>
+
+<div class="tabs" id="tabs">
+  <button data-t="talk" class="on">Talk to Emma</button>
+  <button data-t="ab">Side by side</button>
+  <button data-t="tests">Regression suite</button>
+</div>
+
+<main>
+  <!-- ================= TALK ================= -->
+  <section id="tab-talk">
+    <p class="note">
+      Type as if you were the caller. Every reply comes from the real state machine;
+      <code>_basic_entity_fallback</code> stands in for Gemini so nothing here needs an API key —
+      which is also the exact condition under which the confirmation bug was permanent.
+      Switch to <b>Pre-fix</b> to put the old parser back and try the red phrases again.
+    </p>
+    <div class="cols">
+      <div class="card">
+        <h3>Call transcript</h3>
+        <div class="chat" id="chat"></div>
+        <div class="compose">
+          <input id="say" placeholder="Say something to Emma…" autocomplete="off">
+          <button class="btn primary" id="send">Send</button>
+        </div>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Session state</h3>
+          <div id="banner"></div>
+          <table class="slots" id="slots"></table>
+          <div class="kv" id="kv"></div>
+        </div>
+        <div class="card">
+          <h3>Step</h3>
+          <div class="ladder" id="ladder"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= A/B ================= -->
+  <section id="tab-ab" class="hide">
+    <p class="note">
+      Each scenario replays the identical caller through both versions of the code.
+      The left column is the code as it stands; the right is the pre-fix parser.
+      Only the final exchange differs — earlier turns are folded away.
+    </p>
+    <div class="scn" id="scn"></div>
+    <div id="abwrap"></div>
+  </section>
+
+  <!-- ================= TESTS ================= -->
+  <section id="tab-tests" class="hide">
+    <p class="note">
+      Runs <code>python -m unittest discover -s tests -v</code> in this project, live.
+      Twelve of these existed before this work; the rest were added to pin the bugs
+      that the review turned up.
+    </p>
+    <button class="btn primary" id="runtests" style="margin-bottom:16px">Run the suite</button>
+    <div class="card"><pre class="out" id="testout">Not run yet.</pre></div>
+  </section>
+</main>
+
+<script>
+const STEPS = ["Greeting","Name","Purpose","Phone","Service","Location",
+               "Date","Time","Recap","Availability","Confirmed","Closed"];
+const CHIPS = [
+  ["yes", 0], ["my name is Adharsh", 0], ["I need a root canal", 0],
+  ["7899377462", 0], ["next Monday", 0], ["5 pm", 0],
+  ["No, that is not right", 1], ["no problem", 1], ["not right now", 1],
+  ["None of those work", 1], ["next Monday at 5 pm", 1],
+  ["No, I don't want to book anything", 1],
+];
+
+let mode = "fixed", sid = null;
+const $ = (s) => document.querySelector(s);
+const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c;
+                          if (x !== undefined) n.textContent = x; return n; };
+
+async function post(url, body) {
+  const r = await fetch(url, {method:"POST", headers:{"Content-Type":"application/json"},
+                             body: JSON.stringify(body || {})});
+  return r.json();
+}
+
+/* ---------------- talk ---------------- */
+function bubble(who, text, meta, attack) {
+  const b = el("div", "bub " + (who === "emma" ? "emma" : "caller" + (attack ? " attack" : "")));
+  b.appendChild(el("div", null, text));
+  if (meta) b.appendChild(el("div", "meta", meta));
+  $("#chat").appendChild(b);
+  $("#chat").scrollTop = $("#chat").scrollHeight;
+}
+
+function render(st) {
+  const lad = $("#ladder"); lad.innerHTML = "";
+  STEPS.forEach((name, i) => {
+    const n = i + 1;
+    const r = el("div", "rung " + (n === st.step ? "now" : n < st.step ? "done" : ""));
+    r.appendChild(el("div", "n", n < st.step ? "✓" : String(n)));
+    r.appendChild(el("div", null, name));
+    lad.appendChild(r);
+  });
+
+  const tb = $("#slots"); tb.innerHTML = "";
+  st.slots.forEach(s => {
+    const tr = el("tr");
+    tr.appendChild(el("td", null, s.label));
+    const td = el("td");
+    if (s.confirmed && s.value) {
+      td.innerHTML = '<span class="val tick">✓ ' + esc(s.value) + '</span>';
+    } else if (s.temp) {
+      td.innerHTML = '<span class="val prov">? ' + esc(s.temp) + '</span>'
+                   + '<div class="meta">awaiting confirmation</div>';
+    } else {
+      td.innerHTML = '<span class="val" style="color:var(--faint)">—</span>';
+    }
+    tr.appendChild(td);
+    tb.appendChild(tr);
+  });
+
+  const b = $("#banner"); b.innerHTML = "";
+  if (st.booking_confirmed) {
+    b.appendChild(el("div", "banner ok", "✓ Appointment booked"));
+  } else if (st.recap_confirmed) {
+    b.appendChild(el("div", "banner bad", "⚠ Recap confirmed, not yet booked"));
+  } else if (st.closed) {
+    b.appendChild(el("div", "banner bad", "Call closed"));
+  }
+  $("#kv").textContent =
+    "recap_confirmed=" + st.recap_confirmed + "  booking_confirmed=" + st.booking_confirmed +
+    (st.purpose ? "\npurpose=" + st.purpose : "") +
+    (st.alternatives.length ? "\noffering=" + st.alternatives.join(", ") : "");
+}
+
+const esc = (s) => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+async function restart() {
+  $("#chat").innerHTML = "";
+  const r = await post("/api/reset", {mode});
+  sid = r.sid;
+  bubble("emma", r.reply);
+  render(r.state);
+}
+
+async function send(text) {
+  text = (text ?? $("#say").value).trim();
+  if (!text || !sid) return;
+  $("#say").value = "";
+  bubble("caller", text);
+  const r = await post("/api/say", {sid, text});
+  if (r.error) { bubble("emma", r.error); return; }
+  const p = r.parsed_confirmation;
+  bubble("emma", r.reply,
+    "heard as: " + (p === null ? "unclear" : p) + "   ·   step " + r.step_before + " → " + r.state.step
+    + (r.just_booked ? "   ·   BOOKED" : ""));
+  render(r.state);
+}
+
+/* ---------------- A/B ---------------- */
+let scns = [], active = null;
+
+function verdictOf(run, watch, isFixed) {
+  const s = run.state;
+  if (watch === "booking_confirmed")
+    return s.booking_confirmed
+      ? [false, "Booked — the caller's refusal was heard as consent"]
+      : [true, "Nothing booked"];
+  if (watch === "closed")
+    return s.closed ? [true, "Call closed, callback offered"]
+                    : [false, "Pressed on with the booking anyway"];
+  if (watch === "name") {
+    const n = s.slots[0];
+    return (n.temp || n.value)
+      ? [false, "Recorded the name as “" + (n.value || n.temp) + "”"]
+      : [true, "Asked for the name again"];
+  }
+  if (watch === "step")
+    return s.step >= 7 ? [true, "Accepted, moved on to step " + s.step]
+                       : [false, "Rejected — still stuck on step " + s.step];
+  return [true, "—"];
+}
+
+function panel(run, watch, label) {
+  const card = el("div", "card");
+  const [pass, why] = verdictOf(run, watch);
+  const v = el("div", "verdict " + (pass ? "pass" : "fail"));
+  v.appendChild(el("span", null, pass ? "✓" : "✕"));
+  v.appendChild(el("span", null, label + " — " + why));
+  card.appendChild(v);
+
+  const tr = el("div", "tr");
+  const fold = el("button", "fold", "▸ " + run.prelude_len + " earlier turns");
+  let open = false;
+  const early = el("div"); early.className = "hide";
+  early.style.cssText = "display:none;flex-direction:column;gap:9px";
+  run.transcript.slice(0, run.prelude_len).forEach(t => {
+    const b = el("div", "bub " + (t.who === "emma" ? "emma" : "caller"));
+    b.textContent = t.text; early.appendChild(b);
+  });
+  fold.onclick = () => { open = !open; early.style.display = open ? "flex" : "none";
+                         fold.textContent = (open ? "▾ " : "▸ ") + run.prelude_len + " earlier turns"; };
+  tr.appendChild(fold); tr.appendChild(early);
+
+  run.transcript.slice(run.prelude_len).forEach(t => {
+    const b = el("div", "bub " + (t.who === "emma" ? "emma" : "caller attack"));
+    b.appendChild(el("div", null, t.text));
+    if (t.who === "caller")
+      b.appendChild(el("div", "meta", "heard as: " +
+        (run.parsed_confirmation === null ? "unclear" : run.parsed_confirmation)));
+    tr.appendChild(b);
+  });
+  card.appendChild(tr);
+  return card;
+}
+
+async function runScn(key) {
+  active = key;
+  document.querySelectorAll("#scn button").forEach(b =>
+    b.classList.toggle("on", b.dataset.k === key));
+  $("#abwrap").innerHTML = "<p class='note'>Running both versions…</p>";
+  const r = await post("/api/scenario/" + key);
+  const wrap = el("div");
+  const h = el("p", "note");
+  h.innerHTML = "<b>" + esc(r.title) + "</b> — " + esc(r.blurb) +
+                "<br>Caller says: <code>" + esc(r.attack) + "</code> · Expected: " + esc(r.expect);
+  wrap.appendChild(h);
+  const ab = el("div", "ab");
+  ab.appendChild(panel(r.fixed, r.watch, "Fixed"));
+  ab.appendChild(panel(r.legacy, r.watch, "Pre-fix"));
+  wrap.appendChild(ab);
+  $("#abwrap").innerHTML = ""; $("#abwrap").appendChild(wrap);
+}
+
+/* ---------------- wiring ---------------- */
+$("#send").onclick = () => send();
+$("#say").addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+$("#restart").onclick = restart;
+
+CHIPS.forEach(([t, hot]) => {
+  const c = el("button", "chip" + (hot ? " hot" : ""), t);
+  c.onclick = () => send(t);
+  $("#chips").appendChild(c);
+});
+
+$("#mode").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  mode = b.dataset.m;
+  document.querySelectorAll("#mode button").forEach(x => {
+    x.classList.toggle("on", x === b);
+    x.classList.toggle("bad", x === b && mode === "legacy");
+  });
+  restart();
+});
+
+$("#tabs").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  ["talk", "ab", "tests"].forEach(t =>
+    $("#tab-" + t).classList.toggle("hide", t !== b.dataset.t));
+});
+
+$("#runtests").onclick = async () => {
+  $("#testout").textContent = "Running…";
+  const r = await fetch("/api/tests").then(x => x.json());
+  $("#testout").textContent = r.output;
+  $("#testout").style.color = r.ok ? "var(--green)" : "var(--red)";
+};
+
+(async () => {
+  scns = await fetch("/api/scenarios").then(r => r.json());
+  scns.forEach(s => {
+    const b = el("button"); b.dataset.k = s.key;
+    b.appendChild(el("div", "t", s.title));
+    b.appendChild(el("div", "b", s.blurb));
+    b.onclick = () => runScn(s.key);
+    $("#scn").appendChild(b);
+  });
+  await restart();
+  runScn(scns[0].key);
+})();
+</script>
+</body>
+</html>

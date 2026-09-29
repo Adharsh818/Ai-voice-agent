@@ -1,0 +1,43 @@
+# --- Secrets & credentials (ROTATE any key that was ever committed) ---
+.env
+.env.local
+credentials.json
+token.json
+*.pem
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Runtime / generated artifacts ---
+mock_db.json
+audio.wav
+emma_agi.log
+*.log
+
+# --- Large binaries / reports (keep locally, don't version) ---
+*.docx
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Emma runtime caches / logs / databases ---
+cache/
+logs/
+*.db
+*.db-wal
+*.db-shm
+.claude/settings.local.json
