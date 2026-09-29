@@ -1,430 +1,250 @@
+"""
+Emma voice server — the browser test harness for the real-time call pipeline.
+
+    GET  /            the single-circle talk page
+    WS   /ws/voice    one call: 16 kHz PCM up, Emma's PCM + events down
+    GET  /health      key presence, model verification, prompt-cache status
+    GET  /metrics     perceived-latency p50/p95 by tier
+
+All call logic lives in call_session.CallSession; this module only adapts the
+browser WebSocket to its Transport protocol and owns process-wide warm
+resources (HTTP pool, prompt cache, Gemini client).
+
+WebSocket protocol v2
+---------------------
+Browser -> server
+    binary                         PCM16 mono 16 kHz, 20 ms frames
+    {"type":"hello","v":2}
+    {"type":"vad","speaking":true}  local energy cue (browser ducks Emma itself)
+    {"type":"playback","turn":n,"event":"started"|"ended"|"interrupted","played_ms":x}
+    {"type":"text","text":"..."}    typed input for testing
+    {"type":"end"}
+Server -> browser
+    binary  [0x01][turn u32 LE][PCM16 16 kHz]   Emma's audio for turn n
+    {"type":"state","state":"thinking"|"listening"}
+    {"type":"caption","who":"user"|"emma","text":"...","final":bool}
+    {"type":"turn","turn":n,"phase":"start"|"audio_done"}
+    {"type":"stop","turn":n}        flush playback of turn n and older now
+    {"type":"metrics",...}  {"type":"error","message":"..."}  {"type":"bye"}
+"""
+
 import asyncio
-import base64
 import json
 import logging
-import time
-import uuid
+import struct
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 import config
+import llm
+import phrases
+from call_session import CallSession, Services
+from latency import LatencyLog
+from speech import PromptCache
 from stt_deepgram import DeepgramSTT
-from tts_elevenlabs import ElevenLabsTTS
-from ai_engine import async_get_ai_response, SessionState
-# NOTE: Google STT/TTS engines (google_stt_engine.py, google_tts_engine.py) are
-# used exclusively by the Asterisk AGI pipeline (asterisk_agi.py).
+from tts_elevenlabs import ElevenLabsStreamTTS, ElevenLabsTTS
 
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("google_genai").setLevel(logging.WARNING)
 logger = logging.getLogger("voice-server")
 
+MAX_CONCURRENT_CALLS = 1  # approved scope for version 1
+AUDIO_FRAME = 0x01
 
-# ---------------------------------------------------------------------------
-# Lifespan
-# ---------------------------------------------------------------------------
+
 @asynccontextmanager
-async def lifespan(app):
-    """Startup/shutdown lifecycle."""
-    # --- Startup ---
-    missing = []
-    if not config.GEMINI_API_KEY:
-        missing.append("GEMINI_API_KEY")
-    if not config.DEEPGRAM_API_KEY:
-        missing.append("DEEPGRAM_API_KEY")
-    if not config.ELEVENLABS_API_KEY:
-        missing.append("ELEVENLABS_API_KEY")
-
+async def lifespan(app: FastAPI):
+    missing = [name for name, value in (
+        ("GEMINI_API_KEY", config.GEMINI_API_KEY),
+        ("DEEPGRAM_API_KEY", config.DEEPGRAM_API_KEY),
+        ("ELEVENLABS_API_KEY", config.ELEVENLABS_API_KEY),
+    ) if not value]
     if missing:
-        logger.warning(
-            "⚠️  Missing API keys: %s — set them in .env file. "
-            "Voice features will be degraded.",
-            ", ".join(missing),
-        )
-    else:
-        logger.info("✅ All API keys configured")
+        logger.warning("Missing API keys: %s. Voice features will be degraded.", ", ".join(missing))
 
-    logger.info(
-        "🚀 Server starting on http://%s:%d",
-        config.SERVER_HOST,
-        config.SERVER_PORT,
+    app.state.http = httpx.AsyncClient(
+        timeout=httpx.Timeout(15.0, connect=5.0),
+        limits=httpx.Limits(max_connections=8, max_keepalive_connections=8),
     )
+    app.state.http_tts = ElevenLabsTTS(
+        api_key=config.ELEVENLABS_API_KEY,
+        voice_id=config.ELEVENLABS_VOICE_ID,
+        model_id=config.ELEVENLABS_MODEL,
+        output_format=config.ELEVENLABS_OUTPUT_FORMAT,
+        client=app.state.http,
+    )
+    app.state.cache = PromptCache(
+        config.CACHE_DIR, config.ELEVENLABS_VOICE_ID, config.ELEVENLABS_MODEL,
+        config.ELEVENLABS_OUTPUT_FORMAT, app.state.http_tts.voice_settings,
+    )
+    app.state.latency = LatencyLog(config.LOG_DIR)
+    app.state.active_calls = 0
+    app.state.cache_ready = False
+
+    # Verify the model (also warms its TLS connection) and pre-render prompts
+    # in the background; the server accepts calls immediately either way.
+    async def warm():
+        await llm.get_nlu().verify_model()
+        if config.ELEVENLABS_API_KEY:
+            await app.state.cache.warm(phrases.all_phrases(), app.state.http_tts)
+        app.state.cache_ready = True
+
+    warm_task = asyncio.create_task(warm())
+    logger.info("Emma is listening on http://localhost:%d", config.SERVER_PORT)
     yield
-    # --- Shutdown ---
-    logger.info("Server shutting down")
+    warm_task.cancel()
+    await app.state.http.aclose()
 
 
-# ---------------------------------------------------------------------------
-# FastAPI App
-# ---------------------------------------------------------------------------
 app = FastAPI(title="Pearl Dental Clinic — Emma Voice Agent", lifespan=lifespan)
-
-# Serve static frontend files
 STATIC_DIR = Path(__file__).parent / "static"
-STATIC_DIR.mkdir(exist_ok=True)
 
 
 @app.get("/")
-async def serve_index():
-    """Serve the main voice UI."""
+async def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-# ---------------------------------------------------------------------------
-# Voice Session
-# ---------------------------------------------------------------------------
-class VoiceSession:
-    """
-    Manages a single voice conversation session over WebSocket.
+class BrowserTransport:
+    """CallSession's Transport over the browser WebSocket."""
 
-    Lifecycle:
-        1. Client connects → session created
-        2. Server sends greeting audio
-        3. Client streams mic audio → Deepgram STT → transcript
-        4. On utterance end → AI Engine → response text
-        5. Response text → ElevenLabs TTS → audio → client
-        6. Repeat until conversation closes or client disconnects
-    """
+    def __init__(self, ws: WebSocket):
+        self.ws = ws
+        self._lock = asyncio.Lock()
+        self.open = True
 
-    def __init__(self, websocket: WebSocket):
-        self.ws = websocket
-        self.session_id = str(uuid.uuid4())[:8]
-
-        # Per-session conversation state (isolated from other sessions)
-        self.session_state = SessionState()
-
-        # Engines (initialized in run())
-        self.stt: DeepgramSTT | None = None
-        self.tts: ElevenLabsTTS | None = None
-
-        # Barge-in control
-        self.is_speaking = False
-        self._cancel_tts = asyncio.Event()
-        self._awaiting_playback_complete = False
-        self._playback_finished = asyncio.Event()
-        self._turn_started_at: float | None = None
-
-        # Utterance processing queue
-        self._utterance_queue: asyncio.Queue[str] = asyncio.Queue()
-
-        logger.info("[%s] Session created", self.session_id)
-
-    async def run(self):
-        """Main session lifecycle."""
-        try:
-            # Initialize TTS engine (ElevenLabs — for WebSocket/browser pipeline)
-            self.tts = ElevenLabsTTS(
-                api_key=config.ELEVENLABS_API_KEY,
-                voice_id=config.ELEVENLABS_VOICE_ID,
-                model_id=config.ELEVENLABS_MODEL,
-            )
-
-            # Initialize STT before any audio is sent.  Otherwise microphone
-            # frames buffered during the greeting are mistaken for caller speech.
-            self.stt = DeepgramSTT(
-                api_key=config.DEEPGRAM_API_KEY,
-                on_transcript=self._on_transcript,
-                on_utterance_end=self._on_utterance_end,
-            )
-            await self.stt.connect(sample_rate=16000)
-
-            # Start utterance processor in background
-            processor_task = asyncio.create_task(self._process_utterances())
-
-            # Send the greeting only after the STT and processor are ready.
-            await self._send_greeting()
-
-            # Main receive loop: audio + control messages from client
+    async def _send(self, message: dict):
+        if not self.open:
+            return
+        async with self._lock:
             try:
-                while True:
-                    message = await self.ws.receive()
+                await self.ws.send(message)
+            except Exception:
+                self.open = False
 
-                    if message["type"] == "websocket.disconnect":
-                        break
+    async def send_audio(self, turn_id: int, pcm: bytes):
+        frame = struct.pack("<BI", AUDIO_FRAME, turn_id) + pcm
+        await self._send({"type": "websocket.send", "bytes": frame})
 
-                    if "bytes" in message:
-                        # Binary frame = raw PCM audio from client mic
-                        audio_bytes = message["bytes"]
-                        if audio_bytes:
-                            # Barge-in detection: compute RMS energy to ensure user is actually speaking
-                            if self.is_speaking:
-                                try:
-                                    import numpy as np
-                                    samples = np.frombuffer(audio_bytes, dtype=np.int16)
-                                    rms = np.sqrt(np.mean(samples.astype(np.float32) ** 2)) / 32768.0 if len(samples) > 0 else 0.0
-                                except Exception:
-                                    rms = 0.0
+    async def send_event(self, event: dict):
+        await self._send({"type": "websocket.send", "text": json.dumps(event)})
 
-                                # Only cancel TTS if audio energy exceeds speech threshold (0.035)
-                                if rms > 0.035:
-                                    self._cancel_tts.set()
-                                    self.is_speaking = False
-                                    if self.stt:
-                                        self.stt.reset_utterance()
-                                    logger.info("[%s] Barge-in detected (RMS=%.3f)", self.session_id, rms)
+    async def flush(self, turn_id: int):
+        await self.send_event({"type": "stop", "turn": turn_id})
 
-                            # Forward to Deepgram STT
-                            if self.stt and self.stt.is_connected:
-                                await self.stt.send_audio(audio_bytes)
-
-                    elif "text" in message:
-                        # Text frame = JSON control message
-                        try:
-                            data = json.loads(message["text"])
-                            await self._handle_control_message(data)
-                        except json.JSONDecodeError:
-                            pass
-
-            except WebSocketDisconnect:
-                logger.info("[%s] Client disconnected", self.session_id)
-
-            # Clean up processor
-            processor_task.cancel()
+    async def close(self):
+        if self.open:
+            self.open = False
             try:
-                await processor_task
-            except asyncio.CancelledError:
+                await self.ws.close()
+            except Exception:
                 pass
 
-        except Exception as e:
-            logger.error("[%s] Session error: %s", self.session_id, e, exc_info=True)
-        finally:
-            await self._cleanup()
 
-    async def _handle_control_message(self, data: dict):
-        """Handle JSON control messages from client."""
-        msg_type = data.get("type", "")
+def _services(app_state) -> Services:
+    def stt_factory(**callbacks):
+        return DeepgramSTT(
+            api_key=config.DEEPGRAM_API_KEY,
+            model=config.DEEPGRAM_MODEL,
+            language=config.DEEPGRAM_LANGUAGE,
+            endpointing_ms=config.DEEPGRAM_ENDPOINTING_MS,
+            utterance_end_ms=config.DEEPGRAM_UTTERANCE_END_MS,
+            keyterms=config.DEEPGRAM_KEYTERMS,
+            **callbacks,
+        )
 
-        if msg_type == "barge_in":
-            if self.is_speaking:
-                self._cancel_tts.set()
-                self.is_speaking = False
-                self._awaiting_playback_complete = False
-                self._playback_finished.set()
-                await self._send_json({"type": "status", "status": "listening"})
-                logger.info("[%s] Barge-in (explicit)", self.session_id)
-
-        elif msg_type == "playback_complete":
-            # The client, not the server, knows when the caller has actually
-            # heard the last byte of audio.
-            if self._awaiting_playback_complete:
-                self._awaiting_playback_complete = False
-                self.is_speaking = False
-                self._playback_finished.set()
-                await self._send_json({"type": "status", "status": "listening"})
-
-        elif msg_type == "text_input":
-            # Fallback text input (if mic isn't available)
-            text = data.get("text", "").strip()
-            if text:
-                await self._utterance_queue.put(text)
-
-    async def _send_greeting(self):
-        """Generate and send the initial greeting."""
-        try:
-            greeting = await async_get_ai_response("", session_state=self.session_state)
-            logger.info("[%s] Greeting: %s", self.session_id, greeting[:80])
-            await self._send_response(greeting)
-        except Exception as e:
-            logger.error("[%s] Greeting error: %s", self.session_id, e)
-
-    async def _on_transcript(self, text: str, is_final: bool):
-        """Callback: Deepgram sent a transcript chunk."""
-        try:
-            await self._send_json({
-                "type": "transcript",
-                "text": text,
-                "is_final": is_final,
-            })
-        except Exception:
-            pass
-
-    async def _on_utterance_end(self, text: str):
-        """Callback: Deepgram detected end of user utterance."""
-        if text.strip():
-            self._turn_started_at = time.perf_counter()
-            logger.info("[%s] User said: %s", self.session_id, text)
-            await self._utterance_queue.put(text)
-
-    async def _process_utterances(self):
-        """Background task: process complete utterances through AI engine."""
-        while True:
-            try:
-                user_text = await self._utterance_queue.get()
-
-                if not user_text.strip():
-                    continue
-
-                # Indicate processing
-                await self._send_json({"type": "status", "status": "processing"})
-
-                # Get AI response using per-session state
-                try:
-                    response = await async_get_ai_response(
-                        user_text,
-                        session_state=self.session_state,
-                    )
-                except Exception as e:
-                    logger.error("[%s] AI engine error: %s", self.session_id, e)
-                    response = "I'm sorry, I had trouble processing that. Could you please repeat?"
-
-                logger.info("[%s] Emma: %s", self.session_id, response[:80])
-                if self._turn_started_at is not None:
-                    logger.info(
-                        "[%s] turn latency (utterance end -> response text): %.0f ms",
-                        self.session_id,
-                        (time.perf_counter() - self._turn_started_at) * 1000,
-                    )
-
-                # Send response (text + audio)
-                await self._send_response(response)
-
-                # Check if conversation is closed
-                if self.session_state.closed_conversation:
-                    logger.info("[%s] Conversation closed", self.session_id)
-                    try:
-                        await asyncio.wait_for(self._playback_finished.wait(), timeout=30)
-                    except asyncio.TimeoutError:
-                        logger.warning("[%s] Timed out waiting for final playback", self.session_id)
-                    try:
-                        await self.ws.close()
-                    except Exception:
-                        pass
-                    break
-
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error("[%s] Utterance processing error: %s", self.session_id, e)
-                try:
-                    await self._send_json({
-                        "type": "error",
-                        "message": "Sorry, something went wrong. Please try again.",
-                    })
-                except Exception:
-                    pass
-
-    async def _send_response(self, text: str):
-        """Send AI response as text + streaming TTS audio chunks to client."""
-        response_started_at = time.perf_counter()
-        self._playback_finished.clear()
-        # 1. Send response text for display
-        await self._send_json({
-            "type": "response_text",
-            "text": text,
-        })
-
-        # 2. Synthesize audio via ElevenLabs TTS (streaming mode)
-        if self.tts and config.ELEVENLABS_API_KEY:
-            self.is_speaking = True
-            self._awaiting_playback_complete = True
-            self._cancel_tts.clear()
-
-            try:
-                await self._send_json({"type": "audio_start"})
-                chunk_count = 0
-                first_chunk_at: float | None = None
-                async for chunk in self.tts.synthesize_stream(text):
-                    if self._cancel_tts.is_set():
-                        logger.info("[%s] TTS audio streaming cancelled by barge-in", self.session_id)
-                        break
-                    if chunk:
-                        chunk_count += 1
-                        if first_chunk_at is None:
-                            first_chunk_at = time.perf_counter()
-                            logger.info(
-                                "[%s] TTS first byte: %.0f ms after response start",
-                                self.session_id,
-                                (first_chunk_at - response_started_at) * 1000,
-                            )
-                        b64_chunk = base64.b64encode(chunk).decode("utf-8")
-                        await self._send_json({
-                            "type": "audio_chunk",
-                            "data": b64_chunk,
-                            "format": "mp3",
-                        })
-
-                logger.debug("[%s] Sent %d streaming audio chunks", self.session_id, chunk_count)
-
-            except Exception as e:
-                logger.error("[%s] TTS streaming error: %s", self.session_id, e)
-            finally:
-                # Keep the speaking state until browser playback has ended or
-                # the caller barges in.  Streaming bytes finishing is not the
-                # same thing as audible playback finishing.
-                pass
-
-        # 3. Signal that all audio bytes have been sent. The browser sends
-        # playback_complete when the audible response really ends.
-        await self._send_json({"type": "audio_end"})
-        if not (self.tts and config.ELEVENLABS_API_KEY):
-            self.is_speaking = False
-            self._awaiting_playback_complete = False
-            self._playback_finished.set()
-            await self._send_json({"type": "status", "status": "listening"})
-
-    async def _send_json(self, data: dict):
-        """Send a JSON message to the client."""
-        try:
-            await self.ws.send_json(data)
-        except Exception:
-            pass
-
-    async def _cleanup(self):
-        """Release all resources."""
-        if self.stt:
-            await self.stt.close()
-        if self.tts:
-            await self.tts.close()
-        logger.info("[%s] Session cleaned up", self.session_id)
+    live_tts = None
+    if config.ELEVENLABS_API_KEY and config.TTS_TRANSPORT == "ws":
+        live_tts = ElevenLabsStreamTTS(
+            api_key=config.ELEVENLABS_API_KEY,
+            voice_id=config.ELEVENLABS_VOICE_ID,
+            model_id=config.ELEVENLABS_MODEL,
+            output_format=config.ELEVENLABS_OUTPUT_FORMAT,
+            voice_settings=app_state.http_tts.voice_settings,
+        )
+    return Services(
+        stt_factory=stt_factory,
+        tts=live_tts,
+        fallback_tts=app_state.http_tts if config.ELEVENLABS_API_KEY else None,
+        cache=app_state.cache,
+        latency=app_state.latency,
+    )
 
 
-# ---------------------------------------------------------------------------
-# WebSocket Endpoint
-# ---------------------------------------------------------------------------
 @app.websocket("/ws/voice")
-async def voice_websocket(websocket: WebSocket):
-    """Accept a voice session WebSocket connection."""
-    await websocket.accept()
-    session = VoiceSession(websocket)
-    await session.run()
+async def voice_websocket(ws: WebSocket):
+    await ws.accept()
+    state = ws.app.state
+    if state.active_calls >= MAX_CONCURRENT_CALLS:
+        await ws.send_text(json.dumps({"type": "error", "message": "Emma is on another call. Try again shortly."}))
+        await ws.close()
+        return
+
+    state.active_calls += 1
+    transport = BrowserTransport(ws)
+    session = CallSession(transport, _services(state))
+    try:
+        await session.start()
+        while not session.closed:
+            message = await ws.receive()
+            if message["type"] == "websocket.disconnect":
+                break
+            if message.get("bytes"):
+                await session.on_audio(message["bytes"])
+            elif message.get("text"):
+                try:
+                    await session.on_control(json.loads(message["text"]))
+                except json.JSONDecodeError:
+                    pass
+    except (WebSocketDisconnect, RuntimeError):
+        pass
+    except Exception as exc:
+        logger.error("[%s] session error: %s", session.call_id, exc, exc_info=True)
+    finally:
+        transport.open = False
+        await session.close()
+        state.active_calls -= 1
 
 
-# ---------------------------------------------------------------------------
-# Health Check
-# ---------------------------------------------------------------------------
 @app.get("/health")
 async def health():
+    nlu = llm.get_nlu()
     services = {
-        "gemini": bool(config.GEMINI_API_KEY),
+        "gemini": bool(config.GEMINI_API_KEY) and nlu.available is not False,
         "deepgram": bool(config.DEEPGRAM_API_KEY),
         "elevenlabs": bool(config.ELEVENLABS_API_KEY),
     }
     return {
         "status": "ok" if all(services.values()) else "degraded",
         **services,
+        "llm": nlu.status(),
+        "prompt_cache_ready": app.state.cache_ready,
+        "tier0": config.TIER0_ENABLED,
+        "tts_transport": config.TTS_TRANSPORT,
     }
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+@app.get("/metrics")
+async def metrics():
+    return {
+        "latency": app.state.latency.summary(),
+        "recent": list(app.state.latency.records)[-20:],
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        app,
-        host=config.SERVER_HOST,
-        port=config.SERVER_PORT,
-        log_level="info",
-    )
+    uvicorn.run(app, host=config.SERVER_HOST, port=config.SERVER_PORT, log_level="info")

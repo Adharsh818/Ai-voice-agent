@@ -1,0 +1,118 @@
+:root {
+  --bg: #0b0d12;
+  --caption: #e8ecf4;
+  --idle: #6f7d99;
+  --listening: #2dd4bf;
+  --thinking: #8b9cf9;
+  --speaking: #f4f1ea;
+  --error: #f87171;
+  --lvl: 0;
+  --tint: var(--idle);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 48px;
+  padding: 16px;
+}
+
+#orb {
+  --size: min(40vmin, 240px);
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#orb:focus-visible { outline: 2px solid var(--tint); outline-offset: 12px; }
+
+#orb .core,
+#orb .halo,
+#orb .ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+#orb .core {
+  background: radial-gradient(circle at 38% 32%,
+    color-mix(in srgb, var(--tint) 55%, white) 0%,
+    var(--tint) 48%,
+    color-mix(in srgb, var(--tint) 45%, black) 100%);
+  transform: scale(calc(0.9 + var(--lvl) * 0.22));
+  transition: background 400ms ease, transform 60ms linear;
+  box-shadow: 0 0 60px -10px var(--tint);
+}
+
+#orb .halo {
+  inset: -18%;
+  background: radial-gradient(circle, var(--tint) 0%, transparent 65%);
+  opacity: calc(0.12 + var(--lvl) * 0.6);
+  filter: blur(8px);
+  transition: opacity 80ms linear;
+}
+
+#orb .ring {
+  inset: -7%;
+  opacity: 0;
+  background: conic-gradient(from 0deg, transparent 0 70%, var(--tint) 100%);
+  -webkit-mask: radial-gradient(circle, transparent 66%, #000 67%, #000 70%, transparent 71%);
+          mask: radial-gradient(circle, transparent 66%, #000 67%, #000 70%, transparent 71%);
+  transition: opacity 300ms ease;
+}
+
+#orb[data-state="idle"] { --tint: var(--idle); }
+#orb[data-state="idle"]:hover .core { transform: scale(0.95); }
+#orb[data-state="connecting"] { --tint: var(--idle); }
+#orb[data-state="connecting"] .core { animation: pulse 1.4s ease-in-out infinite; }
+#orb[data-state="listening"] { --tint: var(--listening); }
+#orb[data-state="listening"] .halo { animation: breathe 4s ease-in-out infinite; }
+#orb[data-state="thinking"] { --tint: var(--thinking); }
+#orb[data-state="thinking"] .ring { opacity: 1; animation: spin 1.4s linear infinite; }
+#orb[data-state="speaking"] { --tint: var(--speaking); }
+#orb[data-state="error"] { --tint: var(--error); }
+
+@keyframes pulse { 50% { transform: scale(0.84); opacity: 0.7; } }
+@keyframes breathe { 50% { transform: scale(1.06); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#caption {
+  margin: 0;
+  max-width: min(80vw, 640px);
+  min-height: 1.4em;
+  color: var(--caption);
+  opacity: 0.45;
+  font-size: 16px;
+  line-height: 1.4;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 200ms ease;
+}
+#caption.user { opacity: 0.3; font-style: italic; }
+
+@media (prefers-reduced-motion: reduce) {
+  #orb .core, #orb .halo, #orb .ring { animation: none !important; transition: background 400ms ease; }
+  #orb .core { transform: none; }
+  #orb[data-state="thinking"] .ring { opacity: 0.6; }
+}

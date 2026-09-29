@@ -1,43 +1,35 @@
 /**
- * Audio Worklet Processor — PCM capture with 16kHz downsampling.
+ * Mic capture: native-rate Float32 -> 16 kHz Int16 PCM in 20 ms frames.
  *
- * Converts incoming Float32 mic audio to 16kHz Int16 PCM chunks (~100ms)
- * for real-time WebSocket streaming to Deepgram STT.
+ * 20 ms (320 samples) matches telephony framing and gets audio to the
+ * recognizer ~80 ms sooner than the previous 100 ms frames. Each frame also
+ * carries its RMS level for the orb animation and the local barge-in cue.
  */
 class PCMCaptureProcessor extends AudioWorkletProcessor {
     constructor(options) {
         super();
         const processorOptions = options.processorOptions || {};
-        this._nativeSampleRate = processorOptions.nativeSampleRate || 16000;
+        this._nativeSampleRate = processorOptions.nativeSampleRate || sampleRate;
         this._targetSampleRate = 16000;
-
-        // Downsample factor (e.g., 44100 / 16000 = 2.75625)
         this._ratio = this._nativeSampleRate / this._targetSampleRate;
 
-        // Buffers preserve resampling phase between 128-sample render blocks.
-        // Resetting the phase every block changes the effective sample rate on
-        // common 44.1 kHz devices and makes speech recognition less accurate.
+        // Buffers preserve resampling phase between 128-sample render blocks;
+        // resetting it per block would shift the effective sample rate.
         this._inputBuffer = [];
         this._nextInputPosition = 0;
         this._pcmBuffer = [];
 
-        // 100ms of 16kHz audio = 1600 Int16 samples
-        this._chunkSize = 1600;
-
+        this._chunkSize = 320; // 20 ms at 16 kHz
     }
 
-    /**
-     * Convert Float32 sample [-1.0, 1.0] to Int16 [-32768, 32767]
-     */
     _toInt16(s) {
         const clamped = Math.max(-1, Math.min(1, s));
         return clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
     }
 
-    process(inputs, outputs, parameters) {
+    process(inputs) {
         const input = inputs[0];
         if (!input || input.length === 0) return true;
-
         const channelData = input[0];
         if (!channelData || channelData.length === 0) return true;
 
@@ -45,8 +37,6 @@ class PCMCaptureProcessor extends AudioWorkletProcessor {
             this._inputBuffer.push(channelData[i]);
         }
 
-        // Linear interpolation is sufficient here and, unlike the previous
-        // per-block decimation, keeps timing continuous across callbacks.
         while (this._nextInputPosition + 1 < this._inputBuffer.length) {
             const i0 = Math.floor(this._nextInputPosition);
             const fraction = this._nextInputPosition - i0;
@@ -62,27 +52,17 @@ class PCMCaptureProcessor extends AudioWorkletProcessor {
             this._nextInputPosition -= consumed;
         }
 
-        // Send every ~100ms frame.  Silence is meaningful to the recognizer's
-        // endpoint detector; suppressing quiet frames loses soft speech and
-        // makes pauses appear longer than they really are.
+        // Silence is sent too: the recognizer's endpointer needs it.
         while (this._pcmBuffer.length >= this._chunkSize) {
-            const chunk = this._pcmBuffer.splice(0, this._chunkSize);
-            const int16Array = new Int16Array(chunk);
-
-            // Compute RMS energy for VAD
+            const int16Array = new Int16Array(this._pcmBuffer.splice(0, this._chunkSize));
             let sumSq = 0;
             for (let k = 0; k < int16Array.length; k++) {
                 const norm = int16Array[k] / 32768.0;
                 sumSq += norm * norm;
             }
             const rms = Math.sqrt(sumSq / int16Array.length);
-
-            this.port.postMessage(
-                { type: 'audio', buffer: int16Array.buffer, rms: rms },
-                [int16Array.buffer]
-            );
+            this.port.postMessage({ type: 'audio', buffer: int16Array.buffer, rms }, [int16Array.buffer]);
         }
-
         return true;
     }
 }

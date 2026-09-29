@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Emma</title>
+  <meta name="description" content="Talk to Emma, Pearl Dental's automated receptionist.">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <main>
+    <button id="orb" data-state="idle" aria-label="Start call" aria-pressed="false">
+      <span class="halo" aria-hidden="true"></span>
+      <span class="ring" aria-hidden="true"></span>
+      <span class="core" aria-hidden="true"></span>
+    </button>
+    <p id="caption" aria-live="polite"></p>
+  </main>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
