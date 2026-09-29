@@ -14,8 +14,7 @@ httpx>=0.25.0
 # LLM — Gemini (google-genai, async streaming SDK)
 google-genai>=1.0.0
 
-# Local LLM fallback (last-resort provider; wired up in Phase 8)
-ollama>=0.1.0
+
 
 # Google Calendar + Sheets APIs
 google-api-python-client>=2.100.0

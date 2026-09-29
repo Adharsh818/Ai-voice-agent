@@ -12,8 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 import config
-from stt_engine_deepgram_deprecated import DeepgramSTT
-from tts_engine_elevenlabs_deprecated import ElevenLabsTTS
+from stt_deepgram import DeepgramSTT
+from tts_elevenlabs import ElevenLabsTTS
 from ai_engine import async_get_ai_response, SessionState
 # NOTE: Google STT/TTS engines (google_stt_engine.py, google_tts_engine.py) are
 # used exclusively by the Asterisk AGI pipeline (asterisk_agi.py).

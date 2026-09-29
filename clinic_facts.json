@@ -1,0 +1,61 @@
+{
+  "version": "2026-09-29.1",
+  "_note": "Emma only speaks facts with \"verified\": true. Replace every PLACEHOLDER with real clinic data and flip verified to true once confirmed.",
+  "clinic_name": "Pearl Dental Clinic",
+  "hours": {
+    "verified": true,
+    "text": "Monday to Saturday, 7 AM to 9 PM, with a lunch break from 2 to 2:30 PM. Closed on Sundays."
+  },
+  "services": {
+    "verified": true,
+    "list": [
+      "General Check-up", "Consultation", "Teeth Cleaning", "Tooth Filling",
+      "Root Canal Treatment", "Tooth Extraction", "Braces", "Invisalign",
+      "Pediatric Dentistry"
+    ]
+  },
+  "pricing_policy": {
+    "verified": true,
+    "text": "Prices depend on the procedure; the doctor gives an exact quote after examining the patient."
+  },
+  "insurance_policy": {
+    "verified": false,
+    "text": "PLACEHOLDER"
+  },
+  "escalation": {
+    "verified": false,
+    "phone": "PLACEHOLDER",
+    "text": "I'll have our clinic staff call you back to confirm that."
+  },
+  "branches": [
+    {
+      "name": "Nagarbhavi",
+      "verified": true,
+      "bookable": true,
+      "address": "Nagarbhavi, Bengaluru, Karnataka",
+      "phone": "PLACEHOLDER"
+    },
+    {
+      "name": "Indiranagar",
+      "verified": false,
+      "bookable": false,
+      "address": "PLACEHOLDER",
+      "phone": "PLACEHOLDER"
+    },
+    {
+      "name": "Jayanagar",
+      "verified": false,
+      "bookable": false,
+      "address": "PLACEHOLDER",
+      "phone": "PLACEHOLDER"
+    },
+    {
+      "name": "Whitefield",
+      "verified": false,
+      "bookable": false,
+      "address": "PLACEHOLDER",
+      "phone": "PLACEHOLDER"
+    }
+  ],
+  "doctors": []
+}

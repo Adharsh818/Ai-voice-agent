@@ -124,7 +124,7 @@ def resolve_date(date_str, base_date=None):
                 if resolved < base_date and not year_explicit:
                     resolved = resolved + relativedelta(years=1)
             except Exception:
-                return None, "", f"Could not understand the date '{date_str}'."
+                return None, "", "Sorry, I didn't catch the date. Which day would you like to come in?"
 
     # Validate Sunday constraint
     if resolved < base_date:
@@ -169,7 +169,7 @@ def resolve_time(time_str):
             dt = parse_date(cleaned)
             resolved_time = dt.time()
         except Exception:
-            return None, "", f"Could not understand the time '{time_str}'."
+            return None, "", "Sorry, I didn't catch the time. What time works best for you?"
             
     # Check working hours (7:00 AM to 9:00 PM)
     start_time = time(config.CLINIC_START_HOUR, 0)
