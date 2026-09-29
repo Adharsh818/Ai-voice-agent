@@ -1,0 +1,65 @@
+Project Title: AI-Powered Voice Receptionist Agent
+
+Subject Area: Conversational AI, Voice Processing, Real-Time Systems, API Integration
+
+Project Goal:
+To design and build a fully custom, end-to-end AI voice agent that autonomously handles inbound phone calls for a business. The agent replaces a human receptionist for routine tasks like answering queries, checking availability, and booking appointments — without using any pre-built voice agent platforms.
+
+Problem Statement:
+Small businesses like dental clinics, salons, and diagnostic centers receive a high volume of routine calls daily — mostly for appointment bookings. This ties up staff time and leads to missed calls outside working hours. An AI voice agent can handle these calls 24/7, reduce operational costs, and improve customer experience.
+
+What We Are Building:
+A real-time voice pipeline where:
+1. A caller dials a phone number
+2. The AI agent picks up and introduces itself
+3. It asks qualifying questions (which service, preferred time)
+4. It checks Google Calendar for availability in real time
+5. It confirms and books the appointment
+6. It handles follow-up questions and ends the call gracefully
+
+Every component of this pipeline is integrated manually using individual APIs — no third-party voice agent platforms like Vapi, Retell, or Twilio.
+
+Tech Stack:
+- Call Handling: Asterisk (open source, self-hosted VoIP)
+- Speech-to-Text: Google Speech-to-Text API (real-time streaming)
+- LLM (Brain of the Agent): Google Gemini (free tier)
+- Text-to-Speech: Google TTS (converts response back to audio)
+- Calendar Integration: Google Calendar API
+- Backend: Python
+- Hosting: Local or cloud VM
+
+---
+
+Core Focus Areas:
+1. Real-time audio pipeline — capturing voice, converting to text, generating response, converting back to audio, all with minimal latency
+2. Conversation state management — keeping track of what the caller said across multiple turns so the agent doesn't lose context
+3. Intent extraction — understanding what the caller wants (book, reschedule, enquire) from natural language
+4. Google Calendar integration — live availability checks and writing confirmed bookings
+5. Edge case handling— what happens when the caller is unclear, the slot is unavailable, or they go off-script
+
+---
+
+Expected Outcomes:
+- A working voice agent that can handle a real inbound call from start to finish
+- Appointment booking reflected live in Google Calendar
+- Clean conversation flow with natural-sounding responses
+- A system that can be adapted to any business type (clinic, salon, restaurant, etc.)
+
+---
+
+What This Project Demonstrates:
+- Understanding of real-time audio processing
+- LLM prompt engineering for structured conversations
+- API integration across multiple services
+- Backend system design and state management
+- Practical application of AI in a real-world business context
+
+---
+
+Constraints:
+- Free or near-free tools only (student budget)
+- No pre-built voice agent platforms — everything custom
+- 2-3 month timeline
+- Must be fully explainable and defensible for university evaluation
+
+Current Status: Planning phase. Starting from scratch. Ready to begin with Step 1 — setting up Asterisk for call handling.

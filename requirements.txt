@@ -1,0 +1,36 @@
+# Core server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+python-dotenv>=1.0.0
+
+# Speech-to-Text (Google Cloud)
+google-cloud-speech>=2.0.0,<3.0.0
+
+# Text-to-Speech (Google Cloud)
+google-cloud-texttospeech>=2.0.0
+httpx>=0.25.0
+
+# LLM — Gemini (google-genai, async streaming SDK)
+google-genai>=1.0.0
+
+# Local LLM fallback (last-resort provider; wired up in Phase 8)
+ollama>=0.1.0
+
+# Google Calendar + Sheets APIs
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.1.0
+google-auth-oauthlib>=1.1.0
+
+# Date parsing
+python-dateutil>=2.8.0
+tzdata>=2024.1  # Required for IANA time zones on Windows
+
+# Audio processing (Asterisk AGI / WAV handling)
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Telephony audio: µ-law <-> linear PCM for the Asterisk AudioSocket path.
+# Python 3.13 removed the stdlib `audioop` module. Recommended: run on Python
+# 3.12 (audioop is built in). On 3.13+, this backport restores it:
+audioop-lts>=0.2.1; python_version >= "3.13"
