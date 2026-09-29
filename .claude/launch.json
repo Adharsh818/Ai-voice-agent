@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "emma-demo",
+      "name": "emma",
       "runtimeExecutable": "./.venv/Scripts/python.exe",
-      "runtimeArgs": ["demo_live.py"],
-      "port": 8100
+      "runtimeArgs": ["server.py"],
+      "port": 8000
     }
   ]
 }

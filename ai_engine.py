@@ -3,59 +3,77 @@ import json
 import re
 import logging
 import time
+from dataclasses import dataclass, field
 from datetime import datetime
 import config
 import backend_actions
+import llm
+import tier0
 
 logger = logging.getLogger(__name__)
 
-# Gemini SDK (google-genai) — the async client used by the real-time pipeline.
-try:
-    from google import genai as genai_new
-    from google.genai import types as genai_types
-    GENAI_NEW_AVAILABLE = True
-except ImportError:
-    GENAI_NEW_AVAILABLE = False
-
 
 # ==========================================
-# EMMA PERSONA & RESPONSE GENERATION PROMPT
+# CLINIC FACTS & NLU PROMPT
 # ==========================================
 
-EMMA_RECEPTIONIST_SYSTEM_PROMPT = """You are Emma, the warm, professional, and friendly receptionist for Pearl Dental Clinic, Nagarbhavi, Bangalore.
+def _load_clinic_facts():
+    """
+    Render only verified facts from clinic_facts.json for the model's context.
+    Unverified entries are left out entirely, so the model has nothing to repeat
+    and falls back to the staff-escalation line instead of inventing an answer.
+    Returns (facts_text, escalation_line).
+    """
+    try:
+        with open(config.CLINIC_FACTS_PATH, encoding="utf-8") as fh:
+            facts = json.load(fh)
+    except (OSError, ValueError) as exc:
+        logger.warning("clinic_facts.json unavailable (%s); using hours and services only", exc)
+        facts = {}
 
-PERSONALITY & VOICE:
-- Speak naturally and conversationally, exactly like a real human receptionist on a phone call.
-- Use contractions freely: "I'll", "we're", "that's", "you've", "it's", "don't".
-- Use warm, natural fillers occasionally: "Sure thing!", "Absolutely!", "Of course!", "Perfect!", "Great!", "Wonderful!".
-- Keep every response SHORT — maximum 1-2 sentences and under 30 words. Voice conversations must be concise.
-- Match the caller's energy: be upbeat if they are, calm if they seem nervous.
-- Never sound robotic. Never say "I have noted your information." Instead say "Got it!".
-- Vary your phrasing slightly each time — don't repeat the exact same words.
+    lines = [f"- Clinic: {facts.get('clinic_name', config.CLINIC_NAME)}"]
+    for key, label in (("hours", "Hours"), ("pricing_policy", "Pricing"),
+                       ("insurance_policy", "Insurance")):
+        entry = facts.get(key) or {}
+        if entry.get("verified") and entry.get("text"):
+            lines.append(f"- {label}: {entry['text']}")
+    services = facts.get("services") or {}
+    lines.append("- Services: " + ", ".join(
+        services.get("list", []) if services.get("verified") else config.ALLOWED_SERVICES
+    ))
+    for branch in facts.get("branches", []):
+        if branch.get("verified"):
+            detail = branch.get("address", "")
+            if branch.get("phone") and branch["phone"] != "PLACEHOLDER":
+                detail += f", phone {branch['phone']}"
+            lines.append(f"- Branch {branch['name']}: {detail}"
+                         + ("" if branch.get("bookable") else " (not bookable by phone)"))
+    escalation = ((facts.get("escalation") or {}).get("text")
+                  or "I'll have our clinic staff call you back to confirm that.")
+    return "\n".join(lines), escalation
 
-PEARL DENTAL CLINIC — KNOWLEDGE BASE:
-- Name: Pearl Dental Clinic
-- Location: Nagarbhavi, Bangalore, Karnataka.
-- Working Hours: Monday to Saturday, 7:00 AM to 9:00 PM. Closed on Sundays.
-- Lunch Break: 2:00 PM to 2:30 PM daily.
-- Services: General Check-up, Consultation, Teeth Cleaning, Tooth Filling, Root Canal Treatment, Tooth Extraction, Braces, Invisalign, Pediatric Dentistry.
-- Pricing: Varies by procedure — suggest the caller ask the doctor directly or visit in person for an exact quote. Keep it reassuring.
-- Phone: They can reach the clinic directly for any urgent queries.
 
-HOW TO RESPOND:
-- You are given a "Dialogue Directive" — this is what you MUST communicate or ask next. Rephrase it naturally.
-- You may also be given a "User Query" — an off-topic question the caller asked. Answer it briefly using the Knowledge Base, then transition back to the Dialogue Directive smoothly.
-- If no User Query, just rephrase the Dialogue Directive warmly.
-- NEVER mention "Dialogue Directive" or "User Query" in your response.
-- Speak as if you are on a live phone call. Keep it flowing and natural.
-"""
+CLINIC_FACTS, ESCALATION_LINE = _load_clinic_facts()
 
-# NLU Extraction prompt (for async_extract_entities_with_llm)
-EMMA_NLU_SYSTEM_PROMPT = """You are an NLU parser for Pearl Dental Clinic's voice receptionist.
-Your job is to extract structured data from a patient's spoken response.
-Output ONLY valid JSON with no markdown, no explanation.
-"""
+# One merged request per Tier-1 turn: slot extraction AND, when the caller asked
+# something off-topic, a one-sentence grounded answer. Python decides every
+# transition; the model's `answer` is only ever spoken text.
+EMMA_NLU_SYSTEM_PROMPT = """You are the language-understanding layer for Emma, the automated phone receptionist of Pearl Dental Clinic in Bengaluru.
+Read the caller's latest words and output ONLY a JSON object, no markdown.
 
+Keys (use null when absent):
+- patient_name: the caller's name if they state it in THIS response.
+- phone_number: a 10-digit mobile number stated in THIS response, digits only (convert spoken words such as "double nine" to digits).
+- dental_service: the dental service they ask for.
+- appointment_date: the date they prefer, as they said it (e.g. "next Monday", "25th August", "tomorrow").
+- appointment_time: the time they prefer, as they said it (e.g. "5 PM", "10:30 AM", "evening").
+- confirmation: "yes" if they agreed with or confirmed Emma's last question, "no" if they disagreed or refused, else null.
+- user_query: if they asked a question that is not itself booking information (hours, location, price, services...), their question in a few words, else null.
+- answer: ONLY when user_query is set: one short spoken sentence (under 25 words) answering it strictly from CLINIC FACTS below. If the facts do not cover it, answer exactly: "@ESCALATION@". Never invent prices, addresses, doctors, insurance terms or medical advice. Do not ask a question in `answer`; Emma continues with her own next question.
+
+CLINIC FACTS:
+@FACTS@
+""".replace("@ESCALATION@", ESCALATION_LINE).replace("@FACTS@", CLINIC_FACTS)
 
 
 # ==========================================
@@ -148,116 +166,9 @@ class SessionState:
         }
 
 
-# Global session state (used by sync/legacy functions only)
-state = SessionState()
-
-# Async Gemini client (lazy-initialized)
-_genai_client = None
-_nlu_unavailable_until = 0.0
-
-def _get_genai_client():
-    """Lazy-initialize the google-genai async client."""
-    global _genai_client
-    if _genai_client is None and GENAI_NEW_AVAILABLE and config.GEMINI_API_KEY:
-        _genai_client = genai_new.Client(api_key=config.GEMINI_API_KEY)
-    return _genai_client
-
-
 # ==========================================
 # LLM NLU EXTRACTION
 # ==========================================
-def extract_entities_with_llm(user_text):
-    """
-    Calls the LLM to extract booking slots (patient_name, phone_number,
-    dental_service, appointment_date, appointment_time, confirmation).
-    """
-    # Build prompt
-    state_desc = (
-        f"Step: {state.step}\n"
-        f"Name: {state.name or state.temp_name or 'None'}\n"
-        f"Phone: {state.phone or state.temp_phone or 'None'}\n"
-        f"Service: {state.service or state.temp_service or 'None'}\n"
-        f"Date: {state.date_str or state.temp_date or 'None'}\n"
-        f"Time: {state.time_str or state.temp_time or 'None'}"
-    )
-
-    prompt = f"""
-You are an NLU parser extracting values from a patient's voice response.
-Current Session State:
-{state_desc}
-
-User Voice Response: "{user_text}"
-
-Extract the following values based on what the user said (only extract if explicitly stated or clearly implied):
-1. patient_name: If the user states their name (e.g. "My name is Adharsh", "I am Bob"). Keep it capitalized.
-2. phone_number: If the user states their mobile phone number (e.g. "9876543210").
-3. dental_service: If the user states the service they want (e.g., "Consultation", "Root Canal").
-4. appointment_date: If the user states their preferred date (e.g., "tomorrow", "Monday", "next Friday", "25 August").
-5. appointment_time: If the user states their preferred time (e.g., "5:30 PM", "morning", "around 5 PM").
-6. confirmation: If the user says "yes", "no", "correct", "wrong", "is correct", "that's wrong", "sure", "no problem", or answers a yes/no question. Map to "yes" or "no".
-
-Format output strictly as a JSON object:
-{{
-  "patient_name": "extracted_name_or_null",
-  "phone_number": "extracted_phone_or_null",
-  "dental_service": "extracted_service_or_null",
-  "appointment_date": "extracted_date_or_null",
-  "appointment_time": "extracted_time_or_null",
-  "confirmation": "yes_or_no_or_null"
-}}
-Output ONLY the JSON and nothing else.
-"""
-
-    response_text = ""
-    provider = config.LLM_PROVIDER
-
-    # 1. Use Gemini if configured
-    if provider == "gemini" and GEMINI_AVAILABLE and config.GEMINI_API_KEY:
-        try:
-            genai.configure(api_key=config.GEMINI_API_KEY)
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content(
-                prompt,
-                generation_config={"response_mime_type": "application/json"}
-            )
-            response_text = response.text
-        except Exception as e:
-            # Fall back to Ollama for THIS call only — never mutate global config.
-            logger.warning("Gemini generation failed: %s. Falling back to Ollama.", e)
-            provider = "ollama"
-
-    # 2. Use Ollama
-    if not response_text or provider == "ollama":
-        try:
-            response = ollama.chat(
-                model=config.OLLAMA_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                options={"temperature": 0.0}
-            )
-            response_text = response['message']['content']
-        except Exception as e:
-            logger.warning("Ollama generation failed: %s", e)
-            # Stub fallback if both fail
-            response_text = "{}"
-
-    # Parse JSON
-    try:
-        # Extract JSON if surrounded by markdown code blocks
-        clean_json = re.sub(r"^```json\s*|```$", "", response_text.strip(), flags=re.MULTILINE)
-        data = json.loads(clean_json)
-    except Exception:
-        # Fallback empty structure
-        data = {}
-        
-    # Standardize values (turn "null" strings into actual None)
-    for k in ["patient_name", "phone_number", "dental_service", "appointment_date", "appointment_time", "confirmation"]:
-        val = data.get(k)
-        if val == "null" or val == "None" or val == "":
-            data[k] = None
-            
-    return data
-
-
 # A few idioms are affirmative even though they contain a negative word. They are
 # matched first and win outright, so "no problem" is never heard as a refusal.
 _AFFIRMATIVE_IDIOMS = (
@@ -385,14 +296,14 @@ def _recent_history(s, turns=6):
     return "\n".join(lines)
 
 
-async def async_extract_entities_with_llm(user_text, s=None):
+async def async_extract_entities_with_llm(user_text, s):
     """
-    Async NLU extraction using Gemini 3.6 Flash.
-    Extracts booking entities + detects off-topic user queries.
+    Tier-1 NLU: one bounded Gemini request extracting booking slots, an
+    off-topic question, and a grounded one-sentence answer to it.
+    Falls back to deterministic hints when the model is slow, down or disabled.
     """
     if s is None:
-        s = state
-
+        raise ValueError("async_extract_entities_with_llm requires a per-call SessionState")
     if not user_text or not user_text.strip():
         return {}
 
@@ -404,148 +315,60 @@ async def async_extract_entities_with_llm(user_text, s=None):
         f"Date: {s.date_str or s.temp_date or 'None'}\n"
         f"Time: {s.time_str or s.temp_time or 'None'}"
     )
-
     history_block = _recent_history(s)
     context_section = (
-        f"Recent conversation (context only — do NOT extract from these lines):\n{history_block}\n\n"
+        "Recent conversation (context only; do NOT extract from these lines, use them "
+        "only to resolve references like \"the second one\" or \"same time\"):\n"
+        f"{history_block}\n\n"
         if history_block else ""
     )
+    prompt = (
+        f"Booking session state:\n{state_desc}\n\n"
+        f"{context_section}"
+        f"Caller's latest words: \"{user_text}\""
+    )
 
-    prompt = f"""Current appointment booking session state:
-{state_desc}
-
-{context_section}Patient's spoken response: "{user_text}"
-
-Extract the following from what the patient said. Only extract if clearly stated.
-Use the recent conversation above only to resolve references such as "the second
-one", "that time", or "same as before" — never to fill a slot the patient did not
-actually mention in this response:
-1. patient_name - their full name if stated (e.g. "My name is Adharsh" → "Adharsh")
-2. phone_number - their 10-digit mobile number if stated (digits only)
-3. dental_service - the dental service they want if stated (e.g. "root canal", "cleaning")
-4. appointment_date - the date they prefer if stated (e.g. "tomorrow", "next Monday", "25th August")
-5. appointment_time - the time they prefer if stated (e.g. "5 PM", "morning", "10:30 AM")
-6. confirmation - "yes" if they confirmed/agreed, "no" if they denied/disagreed, null otherwise
-7. user_query - if the patient asked a general question unrelated to giving booking info (e.g. "where are you located?", "what are your hours?", "how much does it cost?", "do you do braces?") — extract their exact question/intent here. Otherwise null.
-
-Output ONLY this JSON, no markdown, no explanation:
-{{
-  "patient_name": null,
-  "phone_number": null,
-  "dental_service": null,
-  "appointment_date": null,
-  "appointment_time": null,
-  "confirmation": null,
-  "user_query": null
-}}"""
-
-    global _nlu_unavailable_until
-    response_text = ""
-    client = _get_genai_client()
-
-    # Avoid adding a network timeout to every caller turn when the provider is
-    # temporarily unavailable.  The deterministic fallback still handles the
-    # booking flow during this short cooldown.
-    if client and time.monotonic() >= _nlu_unavailable_until:
-        try:
-            response = await client.aio.models.generate_content(
-                model=config.GEMINI_MODEL,
-                contents=prompt,
-                config={
-                    "system_instruction": EMMA_NLU_SYSTEM_PROMPT,
-                    "response_mime_type": "application/json",
-                    "temperature": 0.0,
-                },
-            )
-            response_text = response.text
-        except Exception as e:
-            logger.error("Async Gemini NLU extraction failed: %s", e)
-            _nlu_unavailable_until = time.monotonic() + 30
-            return _basic_entity_fallback(user_text)
-    else:
+    data = await llm.get_nlu().generate_json(prompt, EMMA_NLU_SYSTEM_PROMPT)
+    if data is None:
         return _basic_entity_fallback(user_text)
-
-    # Parse JSON
-    try:
-        clean_json = re.sub(r"^```json\s*|```$", "", response_text.strip(), flags=re.MULTILINE)
-        data = json.loads(clean_json)
-    except Exception:
-        data = {}
-
-    # Normalize null-like strings to actual None
-    for k in ["patient_name", "phone_number", "dental_service",
-              "appointment_date", "appointment_time", "confirmation", "user_query"]:
-        val = data.get(k)
-        if val in ("null", "None", "", "undefined"):
-            data[k] = None
-
+    for k in ("patient_name", "phone_number", "dental_service", "appointment_date",
+              "appointment_time", "confirmation", "user_query", "answer"):
+        data.setdefault(k, None)
+    if data["confirmation"] not in ("yes", "no"):
+        data["confirmation"] = None
+    if data["phone_number"] is not None:
+        data["phone_number"] = str(data["phone_number"])
     return data
 
 
-async def generate_emma_response(directive: str, s, user_text: str = "", user_query: str = None) -> str:
+def _remember(s, user_text, reply):
+    if user_text:
+        s.history.append({"role": "user", "content": user_text})
+    s.history.append({"role": "assistant", "content": reply})
+    if len(s.history) > 20:
+        s.history = s.history[-20:]
+
+
+async def generate_emma_response(directive: str, s, user_text: str = "",
+                                 user_query: str = None, answer: str = None) -> str:
     """
-    Delivers Emma's verbal response. If an off-topic user_query was asked,
-    uses Gemini to answer it briefly first before continuing with the directive.
-    Otherwise, delivers the directive cleanly with full accuracy and zero truncation.
+    Emma's spoken reply for this turn: the state machine's directive, preceded
+    by a one-sentence grounded answer when the caller asked something off-topic.
+    The answer comes from the same NLU request, so this makes no second model
+    call. Without an answer (model down or silent) Emma simply carries on.
     """
     if not directive:
         directive = "Could you please repeat that?"
-
-    # If no off-topic user query, use directive directly for 100% accuracy on spelling/numbers/questions
-    if not user_query:
-        if user_text:
-            s.history.append({"role": "user", "content": user_text})
-        s.history.append({"role": "assistant", "content": directive})
-        if len(s.history) > 20:
-            s.history = s.history[-20:]
-        logger.info("Emma (Directive): %s", directive[:100])
-        return directive
-
-    # Handle off-topic user query with Gemini
-    client = _get_genai_client()
-    if not client:
-        return directive
-
-    history_block = _recent_history(s)
-    context_section = f"Recent conversation so far:\n{history_block}\n\n" if history_block else ""
-
-    prompt = (
-        f"{context_section}"
-        f"Answer this user question briefly (1 sentence) using the clinic knowledge base, "
-        f"then seamlessly transition into asking/saying: \"{directive}\"\n"
-        f"User Question: {user_query}"
-    )
-
-    try:
-        response = await client.aio.models.generate_content(
-            model=config.GEMINI_MODEL,
-            contents=prompt,
-            config={
-                "system_instruction": EMMA_RECEPTIONIST_SYSTEM_PROMPT,
-                "temperature": 0.5,
-                "max_output_tokens": 250,  # Prevent any truncation
-            },
-        )
-        generated = response.text.strip() if response.text else f"I can help with that. {directive}"
-        if user_text:
-            s.history.append({"role": "user", "content": user_text})
-        s.history.append({"role": "assistant", "content": generated})
-        if len(s.history) > 20:
-            s.history = s.history[-20:]
-        logger.info("Emma (Gemini+Query): %s", generated[:100])
-        return generated
-    except Exception as e:
-        logger.error("Gemini response error: %s", e)
-        if user_text:
-            s.history.append({"role": "user", "content": user_text})
-        s.history.append({"role": "assistant", "content": directive})
-        return directive
-
-
+    reply = directive
+    if user_query and answer and answer.strip():
+        reply = f"{answer.strip()} {directive}"
+    _remember(s, user_text, reply)
+    logger.info("Emma: %s", reply[:100])
+    return reply
 
 
 # ==========================================
-# DIALOGUE MANAGEMENT â€” SHARED STATE MACHINE
+# DIALOGUE MANAGEMENT - SHARED STATE MACHINE
 # ==========================================
 
 def _confirmation_message(service: str, formatted_date: str, time_str: str) -> str:
@@ -682,6 +505,45 @@ def _time_prompt(s):
     return "What time works best for you?"
 
 
+def _current_question(s):
+    """
+    Re-ask whatever Emma is waiting for, without changing any state. Used after
+    answering an off-topic question so the booking picks up where it left off.
+    """
+    if s.step == 1:
+        return "Would you like to book an appointment?"
+    if s.step == 2:
+        return _name_prompt(s) if s.temp_name else "May I have your full name, please?"
+    if s.step == 3:
+        return "How may I help you today?"
+    if s.step == 4:
+        return _phone_prompt(s, lead="").strip()
+    if s.step == 5:
+        return _service_prompt(s, lead="").strip()
+    if s.step == 6:
+        return "Is it okay to book your appointment at our Nagarbhavi clinic?"
+    if s.step == 7:
+        return _date_prompt(s)
+    if s.step == 8:
+        return _time_prompt(s)
+    if s.step == 9:
+        return "Shall I go ahead and book the appointment with those details?"
+    if s.step == 10 and s.alternative_slots:
+        return "Would " + " or ".join(s.alternative_slots[:2]) + " work for you?"
+    if s.step == 11:
+        return "Is there anything else I can help you with?"
+    return "How can I help you?"
+
+
+def _is_pure_question(entities):
+    """An off-topic question that carries no booking information or yes/no."""
+    if not entities.get("user_query"):
+        return False
+    slots = ("patient_name", "phone_number", "dental_service", "appointment_date",
+             "appointment_time", "confirmation")
+    return not any(entities.get(k) for k in slots)
+
+
 def _recap_message(s, updated=False):
     """
     Read the booking back to the caller.  The name is spoken normally — spelling
@@ -707,26 +569,31 @@ def _recap_message(s, updated=False):
     )
 
 
+def _resolve_confirmation(user_text, entities):
+    """
+    The NLU's reading wins when it has one, since it sees the whole utterance in
+    context. The one exception is an outright disagreement: if the NLU heard
+    "yes" while the deterministic parser heard an explicit refusal, Emma treats
+    the turn as unclear and re-asks rather than picking a side. Guessing "yes"
+    here is what let a rejected recap commit a booking.
+    """
+    raw_conf = entities.get("confirmation")
+    text_conf = _parse_confirmation(user_text)
+    if raw_conf and text_conf and raw_conf != text_conf:
+        logger.info("Confirmation conflict (nlu=%s text=%s); re-asking", raw_conf, text_conf)
+        return None
+    return raw_conf or text_conf
+
+
 def _handle_conversation_step(user_text, entities, s):
     """
     Core conversation state machine. Takes user text and pre-extracted entities.
-    Uses session state object `s` (supports both global and per-session state).
+    Uses the per-call session state object `s`.
     Returns Emma's next verbal response string.
     """
     user_lower = user_text.lower().strip() if user_text else ""
 
-    # The NLU's reading wins when it has one, since it sees the whole utterance in
-    # context. The one exception is an outright disagreement: if the NLU heard
-    # "yes" while the deterministic parser heard an explicit refusal, Emma treats
-    # the turn as unclear and re-asks rather than picking a side. Guessing "yes"
-    # here is what let a rejected recap commit a booking.
-    raw_conf = entities.get("confirmation")
-    text_conf = _parse_confirmation(user_text)
-    if raw_conf and text_conf and raw_conf != text_conf:
-        conf = None
-        logger.info("Confirmation conflict (nlu=%s text=%s); re-asking", raw_conf, text_conf)
-    else:
-        conf = raw_conf or text_conf
+    conf = _resolve_confirmation(user_text, entities)
 
     # Handle corrections at Step 9 Recap
     if s.step == 9 and conf == "no":
@@ -795,7 +662,7 @@ def _handle_conversation_step(user_text, entities, s):
                 return f"Wonderful! Let's get your appointment scheduled. {_name_prompt(s)}"
             return "Wonderful! Let's get your appointment scheduled. May I have your full name, please?"
 
-        return "Is this a good time to talk?"
+        return "I can help you book an appointment. Would you like to schedule one?"
 
     # --- STEP 2: COLLECT NAME ---
     elif s.step == 2:
@@ -1160,87 +1027,103 @@ def _handle_conversation_step(user_text, entities, s):
 
 
 # ==========================================
-# DIALOGUE MANAGEMENT â€” PUBLIC API
+# DIALOGUE MANAGEMENT - PUBLIC API
 # ==========================================
 
-def get_ai_response(user_text):
+CLOSED_REPLY = "Thank you for choosing Pearl Dental Clinic. We look forward to seeing you. Have a wonderful day!"
+
+
+@dataclass
+class TurnResult:
+    text: str
+    tier: int                  # 0 = deterministic fast path, 1 = LLM NLU, -1 = no NLU (greeting/closed)
+    entities: dict = field(default_factory=dict)
+    nlu_ms: float = 0.0
+    step_before: int = 0
+    step_after: int = 0
+
+
+def _noop_progress(event, **data):
+    return None
+
+
+async def async_process_turn(user_text, s, progress=None) -> TurnResult:
     """
-    Sync version: Updates the global session state based on user_text NLU,
-    runs backend validations, and returns Emma's next verbal response.
-    Used by legacy main.py and run_demo.py.
+    Process one caller turn and return Emma's reply with timing metadata.
+
+    Order: greeting -> Tier-0 -> (Tier-1 LLM NLU) -> Python state machine ->
+    reply. The model is limited to NLU; every progression, validation and
+    booking decision is made by `_handle_conversation_step`, so a model reply
+    can never book an appointment the caller did not explicitly confirm.
+
+    `progress(event)` lets the real-time layer react without polling:
+      "llm_start"     Tier-0 declined; a model round trip is starting
+      "before_action" the caller just confirmed the recap; a slow availability
+                      check and booking are about to run
+      "commit"        the state machine is about to mutate `s`; from here the
+                      turn can no longer be cancelled and restarted
     """
-    if state.closed_conversation:
-        return "Thank you for choosing Pearl Dental Clinic. Have a wonderful day."
-
-    # Step 1 Check - Initial greeting
-    if state.step == 1 and not state.greeting_spoken:
-        if user_text:
-            extracted = extract_entities_with_llm(user_text)
-            conf = extracted.get("confirmation")
-            if conf == "yes":
-                state.greeting_spoken = True
-                state.step = 2
-                return "Wonderful! Let's get your appointment scheduled. May I have your full name, please?"
-            elif conf == "no":
-                state.greeting_spoken = True
-                state.closed_conversation = True
-                return "No problem. When would be a better time for me to call you back?"
-
-        state.greeting_spoken = True
-        return (
-            "Hello! You've reached Pearl Dental Clinic. "
-            "I'm Emma, your virtual dental assistant. "
-            "I'll help you schedule your appointment today. "
-            "Is this a good time to talk?"
-        )
-
-    # Extract slots and delegate to shared state machine
-    entities = extract_entities_with_llm(user_text)
-    return _handle_conversation_step(user_text, entities, state)
-
-
-
-async def async_get_ai_response(user_text, session_state=None):
-    """
-    Process one appointment turn.
-
-    Gemini is deliberately limited to NLU extraction.  All progression,
-    validation, confirmation and booking decisions are made by the Python state
-    machine below.  This prevents a model response from booking an appointment
-    before the caller has explicitly confirmed the final recap.
-    """
-    s = session_state or state
+    if s is None:
+        raise ValueError("async_process_turn requires a per-call SessionState")
+    emit = progress or _noop_progress
+    step_before = s.step
 
     if s.closed_conversation:
-        return "Thank you for choosing Pearl Dental Clinic. We look forward to seeing you. Have a wonderful day!"
+        return TurnResult(CLOSED_REPLY, tier=-1, step_before=step_before, step_after=s.step)
 
-    # Handle initial greeting when no user text has been spoken yet
     if s.step == 1 and not s.greeting_spoken and not user_text:
         s.greeting_spoken = True
-        greeting = (
-            "Hello! You've reached Pearl Dental Clinic. I'm Emma, your virtual dental assistant. "
-            "I'll help you schedule your appointment today. Is this a good time to talk?"
-        )
-        s.history.append({"role": "assistant", "content": greeting})
-        return greeting
+        s.history.append({"role": "assistant", "content": config.GREETING})
+        return TurnResult(config.GREETING, tier=-1, step_before=step_before, step_after=s.step)
 
-    try:
-        entities = await async_extract_entities_with_llm(user_text, s=s)
-    except Exception as e:
-        # The deterministic flow still handles simple confirmations even when
-        # the NLU provider is unavailable.
-        logger.error("NLU extraction failed: %s", e)
-        entities = {}
+    started = time.perf_counter()
+    entities = tier0.fast_entities(user_text, s) if config.TIER0_ENABLED else None
+    tier = 0
+    if entities is None:
+        tier = 1
+        emit("llm_start")
+        try:
+            # Looked up on the module at call time so tests can patch it.
+            entities = await async_extract_entities_with_llm(user_text, s=s)
+        except Exception as e:
+            # The deterministic flow still handles simple confirmations even when
+            # the NLU provider is unavailable.
+            logger.error("NLU extraction failed: %s", e)
+            entities = _basic_entity_fallback(user_text)
+    entities = entities or {}
+    if tier == 1 and not entities.get("user_query") and "answer" not in entities \
+            and tier0.looks_like_question(user_text):
+        # The model was unavailable (deterministic fallback). A question must not
+        # be consumed as a slot value, e.g. adopted as the caller's name.
+        entities["user_query"] = user_text
+    nlu_ms = (time.perf_counter() - started) * 1000
 
+    if _is_pure_question(entities):
+        # Answer (or escalate) and re-ask the pending question. The state machine
+        # is not run, so the question text can never be taken as a slot value.
+        answer = (entities.get("answer") or "").strip() or ESCALATION_LINE
+        reply = f"{answer} {_current_question(s)}"
+        _remember(s, user_text, reply)
+        logger.info("turn tier=%d off-topic question at step %d", tier, s.step)
+        return TurnResult(reply, tier=tier, entities=entities, nlu_ms=nlu_ms,
+                          step_before=step_before, step_after=s.step)
+
+    if s.step == 9 and _resolve_confirmation(user_text, entities) == "yes":
+        emit("before_action")
+    emit("commit")
     # Availability and calendar operations are synchronous today.  Keep them
-    # off FastAPI's event loop so one calendar request cannot stall every call.
+    # off the event loop so one calendar request cannot stall every call.
     directive = await asyncio.to_thread(_handle_conversation_step, user_text, entities, s)
-    response = await generate_emma_response(
-        directive,
-        s,
-        user_text=user_text,
-        user_query=entities.get("user_query"),
+    reply = await generate_emma_response(
+        directive, s, user_text=user_text,
+        user_query=entities.get("user_query"), answer=entities.get("answer"),
     )
-    logger.info("State-machine Emma response (step=%d): %s", s.step, response[:100])
-    return response
+    logger.info("turn tier=%d step %d->%d nlu=%.0fms", tier, step_before, s.step, nlu_ms)
+    return TurnResult(reply, tier=tier, entities=entities, nlu_ms=nlu_ms,
+                      step_before=step_before, step_after=s.step)
 
+
+async def async_get_ai_response(user_text, session_state):
+    """Text-only entry point (main.py, asterisk_agi.py, tests): Emma's reply."""
+    result = await async_process_turn(user_text, session_state)
+    return result.text
