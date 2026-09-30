@@ -5,9 +5,13 @@ Raw WebSocket to Deepgram's streaming API (no SDK). PCM in, JSON events out:
 
     on_speech_started(timestamp)        VAD: the caller started speaking (barge-in cue)
     on_transcript(text, is_final)       live caption; interim text confirms a barge-in
-    on_utterance_end(text, end_sec)     the caller finished a turn; `end_sec` is the
+    on_utterance_end(text, end_sec, source)
+                                        the caller finished a turn; `end_sec` is the
                                         audio-stream time the last word ended, so the
-                                        real "caller stopped talking" moment is known
+                                        real "caller stopped talking" moment is known;
+                                        `source` says which event ended it:
+                                        "speech_final" (endpointing silence) or
+                                        "utterance_end" (the slower backstop)
 
 Audio that arrives before the socket is open (the greeting plays while it
 connects) is buffered, not dropped. A KeepAlive is sent whenever no audio has
@@ -203,18 +207,18 @@ class DeepgramSTT:
 
         # speech_final: Deepgram's endpointer says the utterance is complete.
         if is_final and speech_final:
-            await self._emit_utterance()
+            await self._emit_utterance("speech_final")
 
     async def _handle_utterance_end(self):
         """Deepgram's silence-based UtteranceEnd: the backstop when speech_final never came."""
-        await self._emit_utterance()
+        await self._emit_utterance("utterance_end")
 
-    async def _emit_utterance(self):
+    async def _emit_utterance(self, source: str):
         text = self._current_utterance.strip()
         end_sec = self._last_word_end
         self._current_utterance = ""
         if text and self.on_utterance_end:
-            await self.on_utterance_end(text, end_sec)
+            await self.on_utterance_end(text, end_sec, source)
 
     def reset_utterance(self):
         """Reset the current utterance buffer."""

@@ -8,6 +8,7 @@ from datetime import datetime
 import config
 import backend_actions
 import llm
+import logredact
 import tier0
 
 logger = logging.getLogger(__name__)
@@ -363,7 +364,8 @@ async def generate_emma_response(directive: str, s, user_text: str = "",
     if user_query and answer and answer.strip():
         reply = f"{answer.strip()} {directive}"
     _remember(s, user_text, reply)
-    logger.info("Emma: %s", reply[:100])
+    # Mask before truncating: a cut read-back ("9 8 7 6") is too short to be caught later.
+    logger.info("Emma: %s", logredact.mask_phones(reply)[:120])
     return reply
 
 
@@ -1124,6 +1126,6 @@ async def async_process_turn(user_text, s, progress=None) -> TurnResult:
 
 
 async def async_get_ai_response(user_text, session_state):
-    """Text-only entry point (main.py, asterisk_agi.py, tests): Emma's reply."""
+    """Text-only entry point (tests, tools): Emma's reply."""
     result = await async_process_turn(user_text, session_state)
     return result.text

@@ -53,14 +53,12 @@ CALENDAR_ID = os.getenv("GOOGLE_CALENDAR_ID", "primary")
 SPREADSHEET_ID = os.getenv("GOOGLE_SPREADSHEET_ID", "")
 
 # LLM Config — Gemini
+# One key only. Rotating several free-tier keys to stretch quota is not allowed
+# by the provider's terms; quota pressure is handled by Tier-0 and the breaker.
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-# Optional comma-separated key pool for round-robin rotation across free-tier
-# quota (wired up in Phase 2). A single GEMINI_API_KEY still works on its own.
-GEMINI_API_KEYS = [k.strip() for k in os.getenv("GEMINI_API_KEYS", "").split(",") if k.strip()]
-if GEMINI_API_KEY and GEMINI_API_KEY not in GEMINI_API_KEYS:
-    GEMINI_API_KEYS.insert(0, GEMINI_API_KEY)
-elif not GEMINI_API_KEY and GEMINI_API_KEYS:
-    GEMINI_API_KEY = GEMINI_API_KEYS[0]
+# While the startup model check is failing, re-check this often (seconds), so a
+# transient quota or network blip at startup does not disable Gemini for good.
+GEMINI_REVERIFY_S = float(os.getenv("GEMINI_REVERIFY_S", "60"))
 
 # Gemini model for the real-time pipeline. Keep this a Flash-Lite model you have
 # verified: server.py checks it at startup and, if the check fails, runs the call
@@ -110,26 +108,19 @@ FILLER_AFTER_MS = int(os.getenv("FILLER_AFTER_MS", "450"))
 BARGE_IN_ENABLED = os.getenv("BARGE_IN_ENABLED", "true").lower() == "true"
 BARGE_IN_MIN_WORDS = int(os.getenv("BARGE_IN_MIN_WORDS", "2"))
 
-# Google Cloud Speech-to-Text — used by the Asterisk AGI pipeline (asterisk_agi.py)
-# Set GOOGLE_APPLICATION_CREDENTIALS to path of your service account JSON.
-GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
-GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
-
-# Google Cloud Text-to-Speech voice settings — used by asterisk_agi.py
-# See: https://cloud.google.com/text-to-speech/docs/voices
-GOOGLE_TTS_LANGUAGE_CODE = os.getenv("GOOGLE_TTS_LANGUAGE_CODE", "en-IN")
-GOOGLE_TTS_VOICE_NAME = os.getenv("GOOGLE_TTS_VOICE_NAME", "en-IN-Wavenet-D")
-GOOGLE_TTS_SPEAKING_RATE = float(os.getenv("GOOGLE_TTS_SPEAKING_RATE", "1.0"))
-GOOGLE_TTS_PITCH = float(os.getenv("GOOGLE_TTS_PITCH", "0.0"))
-
-# Asterisk AGI configuration
-ASTERISK_AGI_PORT = int(os.getenv("ASTERISK_AGI_PORT", "4573"))
-ASTERISK_AGI_HOST = os.getenv("ASTERISK_AGI_HOST", "0.0.0.0")
-ASTERISK_SAMPLE_RATE = int(os.getenv("ASTERISK_SAMPLE_RATE", "8000"))  # Asterisk default: 8000 Hz
-
-# Server settings
-SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
+# Server settings. Loopback by default: the voice socket spends API credit and
+# (from Day 4) the dashboard shows patient data, so nothing is exposed to the
+# network unless SERVER_HOST is set deliberately, behind TLS and a login.
+SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
+# Extra browser origins allowed to open /ws/voice, comma-separated
+# (e.g. "https://emma.example.org"). The page's own origin is always allowed.
+ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+
+# Development only: save each caller's raw audio (16 kHz mono WAV) plus the
+# utterances Deepgram heard, for the STT comparison and the replay harness.
+# Off by default — these files contain people's voices.
+DEV_CAPTURE_AUDIO = os.getenv("DEV_CAPTURE_AUDIO", "false").lower() == "true"
 
 # Local Mock Database Path
 MOCK_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mock_db.json")
@@ -138,6 +129,7 @@ MOCK_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mock_db
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.getenv("EMMA_CACHE_DIR", os.path.join(BASE_DIR, "cache"))
 LOG_DIR = os.getenv("EMMA_LOG_DIR", os.path.join(BASE_DIR, "logs"))
+CAPTURE_DIR = os.getenv("EMMA_CAPTURE_DIR", os.path.join(BASE_DIR, "captures"))
 
 # Versioned clinic knowledge. Only entries marked "verified": true are ever
 # spoken; anything else is escalated to staff rather than guessed.

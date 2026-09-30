@@ -19,6 +19,8 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
+import logredact
+
 logger = logging.getLogger(__name__)
 
 # 200 ms of 16 kHz PCM16 per transport frame: small enough that a barge-in
@@ -207,7 +209,7 @@ class Speaker:
                             await self._send(turn_id, chunk, timer, "live")
                             sent = True
                     else:
-                        logger.error("No TTS available for: %.60s", seg.text)
+                        logger.error("No TTS available for: %s", logredact.mask_phones(seg.text)[:60])
             finally:
                 for seg in segments:
                     if seg.stream is not None:
