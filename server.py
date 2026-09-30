@@ -34,6 +34,7 @@ import logging
 import struct
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -42,6 +43,7 @@ from fastapi.staticfiles import StaticFiles
 
 import config
 import llm
+import logredact
 import phrases
 from call_session import CallSession, Services
 from latency import LatencyLog
@@ -53,6 +55,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+logredact.install()  # mask phone numbers in every log line
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("google_genai").setLevel(logging.WARNING)
 logger = logging.getLogger("voice-server")
@@ -98,10 +101,17 @@ async def lifespan(app: FastAPI):
             await app.state.cache.warm(phrases.all_phrases(), app.state.http_tts)
         app.state.cache_ready = True
 
-    warm_task = asyncio.create_task(warm())
-    logger.info("Emma is listening on http://localhost:%d", config.SERVER_PORT)
+    background = [
+        asyncio.create_task(warm()),
+        asyncio.create_task(llm.get_nlu().keep_verified()),
+    ]
+    logger.info("Emma is listening on http://%s:%d", config.SERVER_HOST, config.SERVER_PORT)
+    if config.SERVER_HOST not in ("127.0.0.1", "localhost", "::1"):
+        logger.warning("SERVER_HOST=%s exposes Emma to the network; keep it on 127.0.0.1 "
+                       "unless it is behind TLS and a login.", config.SERVER_HOST)
     yield
-    warm_task.cancel()
+    for task in background:
+        task.cancel()
     await app.state.http.aclose()
 
 
@@ -192,8 +202,29 @@ def _services(app_state) -> Services:
     )
 
 
+def origin_allowed(headers) -> bool:
+    """
+    Only this page (or an origin listed in ALLOWED_ORIGINS) may open a call.
+    Browsers always send Origin on a WebSocket handshake, so without this any
+    website open in the same browser could start calls on this machine and
+    spend its API credit. Clients with no Origin at all are not browsers
+    (tests, tools) and are not a cross-site risk.
+    """
+    origin = (headers.get("origin") or "").rstrip("/")
+    if not origin:
+        return True
+    if origin in config.ALLOWED_ORIGINS:
+        return True
+    host = (headers.get("host") or "").lower()
+    return bool(host) and urlsplit(origin).netloc.lower() == host
+
+
 @app.websocket("/ws/voice")
 async def voice_websocket(ws: WebSocket):
+    if not origin_allowed(ws.headers):
+        logger.warning("Rejected /ws/voice from origin %r", ws.headers.get("origin"))
+        await ws.close(code=1008)
+        return
     await ws.accept()
     state = ws.app.state
     if state.active_calls >= MAX_CONCURRENT_CALLS:

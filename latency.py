@@ -59,6 +59,12 @@ class TurnTimer:
     step_before: Optional[int] = None
     step_after: Optional[int] = None
     user_end: Optional[float] = None        # caller stopped speaking (wall clock)
+    # How the end of the caller's turn was detected. endpoint_ms (user_end ->
+    # committed) splits into stt_ms (user_end -> the STT's end-of-utterance
+    # event: endpointing silence + recognizer delay) and hold_ms (that event ->
+    # committed: our own wait for a trailing word or the rest of a phone number).
+    endpoint_source: Optional[str] = None   # speech_final | utterance_end | text
+    stt_event: Optional[float] = None       # the STT's end-of-utterance event arrived
     committed: Optional[float] = None       # turn handed to the engine
     nlu_ms: Optional[float] = None
     reply_ready: Optional[float] = None     # reply text available
@@ -82,6 +88,9 @@ class TurnTimer:
             "step_before": self.step_before,
             "step_after": self.step_after,
             "endpoint_ms": self._ms(self.user_end, self.committed),
+            "endpoint_source": self.endpoint_source,
+            "stt_ms": self._ms(self.user_end, self.stt_event),
+            "hold_ms": self._ms(self.stt_event, self.committed),
             "nlu_ms": None if self.nlu_ms is None else round(self.nlu_ms, 1),
             "engine_ms": self._ms(self.committed, self.reply_ready),
             "first_audio_ms": self._ms(self.user_end, self.first_audio_sent),
@@ -139,9 +148,22 @@ class LatencyLog:
                 "barge_in_p50_ms": _percentile(barge, 50),
             }
 
+        def endpointing(rows):
+            """Where the wait for the end of the caller's speech goes, per detection event."""
+            out = {}
+            for source in sorted({r.get("endpoint_source") for r in rows if r.get("endpoint_source")}):
+                subset = [r for r in rows if r.get("endpoint_source") == source]
+                out[source] = {
+                    "turns": len(subset),
+                    **{f"{k}_p50_ms": _percentile([r[k] for r in subset if r.get(k) is not None], 50)
+                       for k in ("endpoint_ms", "stt_ms", "hold_ms")},
+                }
+            return out
+
         rows = [r for r in self.records if r["tier"] is not None and r["tier"] >= 0]
         return {
             "all": stats(rows),
             "tier0": stats([r for r in rows if r["tier"] == 0]),
             "tier1": stats([r for r in rows if r["tier"] == 1]),
+            "endpointing": endpointing(rows),
         }

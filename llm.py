@@ -2,9 +2,10 @@
 Gemini NLU client for the real-time pipeline.
 
 One bounded JSON request per Tier-1 turn. Everything that can stall a live call
-is capped here: a hard deadline per turn, at most one retry (on a different key,
-and only if enough budget is left), and a per-key circuit breaker so a key that
-is rate-limited or erroring is skipped instead of retried on every turn.
+is capped here: a hard deadline per turn, at most one retry (only if enough
+budget is left), and a circuit breaker so a key that is rate-limited or erroring
+is skipped instead of retried on every turn. A failed startup check is retried
+in the background (keep_verified) instead of disabling Gemini for good.
 
 The model only extracts and phrases. It never decides a state transition — see
 ai_engine._handle_conversation_step — so any failure here degrades to the
@@ -19,6 +20,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import date
 
+import clock
 import config
 
 logger = logging.getLogger(__name__)
@@ -68,12 +70,12 @@ class _Key:
     value: str
     client: object = None
     cooldown_until: float = 0.0
-    day: date = field(default_factory=date.today)
+    day: date = field(default_factory=clock.today)
     requests: int = 0
     failures: int = 0
 
     def count(self, failed: bool = False):
-        today = date.today()
+        today = clock.today()
         if today != self.day:
             self.day, self.requests, self.failures = today, 0, 0
         self.requests += 1
@@ -91,7 +93,8 @@ def _thinking_config(value: str):
 
 class GeminiNLU:
     def __init__(self, keys=None, model=None, timeout=None, thinking=None):
-        keys = config.GEMINI_API_KEYS if keys is None else keys
+        if keys is None:
+            keys = [config.GEMINI_API_KEY] if config.GEMINI_API_KEY else []
         self.keys = [_Key(alias=f"key{i + 1}", value=k) for i, k in enumerate(keys)]
         self.model = config.GEMINI_MODEL if model is None else model
         self.timeout = config.GEMINI_TIMEOUT if timeout is None else timeout
@@ -178,13 +181,14 @@ class GeminiNLU:
                 logger.warning("Gemini NLU failed on %s (%s): %s", key.alias, model, _short(exc))
         return None
 
-    async def verify_model(self, timeout: float = 10.0) -> bool:
-        """Startup health check: the configured model must answer a tiny request."""
+    async def verify_model(self, timeout: float = 10.0, quiet: bool = False) -> bool:
+        """Health check: the configured model must answer a tiny request."""
         if not GENAI_AVAILABLE or not self.keys or not self.model:
             self.available = False
             logger.warning("Gemini disabled: %s", "no API key" if not self.keys else "no GEMINI_MODEL")
             return False
         key = self.keys[0]
+        was_down = self.available is False
         try:
             await asyncio.wait_for(
                 self._client(key).aio.models.generate_content(
@@ -195,16 +199,34 @@ class GeminiNLU:
                 timeout=timeout,
             )
             self.available = True
-            logger.info("Gemini model verified: %s", self.model)
+            logger.info("Gemini model %s: %s", "recovered" if was_down else "verified", self.model)
             return True
         except Exception as exc:
             self.available = False
-            logger.error(
-                "Gemini model %r failed its startup check (%s). Calls will run on "
-                "Tier-0 + templates. Available Flash-Lite models: %s",
-                self.model, _short(exc), await self._flash_lite_models(key),
-            )
+            if quiet:
+                logger.warning("Gemini model %r still failing its check: %s", self.model, _short(exc))
+            else:
+                logger.error(
+                    "Gemini model %r failed its startup check (%s). Calls will run on "
+                    "Tier-0 + templates until it recovers. Available Flash-Lite models: %s",
+                    self.model, _short(exc), await self._flash_lite_models(key),
+                )
             return False
+
+    async def keep_verified(self, interval: float | None = None):
+        """
+        Background task: while the model check is failing, re-run it every
+        `interval` seconds. A quota or network blip at startup would otherwise
+        leave every call on the fallback path until the server restarts.
+        Does nothing when Gemini is simply not configured.
+        """
+        interval = config.GEMINI_REVERIFY_S if interval is None else interval
+        if not GENAI_AVAILABLE or not self.keys or not self.model:
+            return
+        while True:
+            await asyncio.sleep(interval)
+            if self.available is False:
+                await self.verify_model(quiet=True)
 
     async def _flash_lite_models(self, key) -> str:
         try:

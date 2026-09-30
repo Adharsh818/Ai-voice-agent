@@ -5,6 +5,7 @@ credentials.json
 token.json
 *.pem
 *.key
+secrets/
 
 # --- Python ---
 __pycache__/
@@ -37,6 +38,9 @@ Thumbs.db
 # --- Emma runtime caches / logs / databases ---
 cache/
 logs/
+# Caller voices: dev captures and call recordings
+captures/
+recordings/
 *.db
 *.db-wal
 *.db-shm

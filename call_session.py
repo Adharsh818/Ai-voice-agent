@@ -39,6 +39,7 @@ import ai_engine
 import config
 import phrases
 import tier0
+from capture import CallCapture
 from latency import AudioClock, LatencyLog, TurnTimer
 from speech import Speaker, PromptCache
 
@@ -74,6 +75,12 @@ class CallSession:
         self.clock = AudioClock(16000)
         self.speaker = Speaker(transport, services.cache, services.tts, services.fallback_tts)
         self.stt = None
+        self.capture: Optional[CallCapture] = None
+        if config.DEV_CAPTURE_AUDIO:
+            try:
+                self.capture = CallCapture(config.CAPTURE_DIR, self.call_id)
+            except OSError as exc:
+                logger.warning("[%s] audio capture disabled: %s", self.call_id, exc)
 
         self.turn_id = 0
         self._turn_task: Optional[asyncio.Task] = None
@@ -89,6 +96,7 @@ class CallSession:
 
         self._held_text = ""
         self._held_end: Optional[float] = None
+        self._held_meta: tuple = ("text", None)   # (endpoint source, STT event time)
         self._hold_task: Optional[asyncio.Task] = None
 
         self._turns_since_filler = 99
@@ -138,6 +146,8 @@ class CallSession:
         if self.closed or not pcm:
             return
         self.clock.add(len(pcm))
+        if self.capture is not None:
+            self.capture.audio(pcm)
         if self.stt is not None:
             await self.stt.send_audio(pcm)
 
@@ -149,7 +159,8 @@ class CallSession:
             text = (msg.get("text") or "").strip()
             if text:
                 await self._send({"type": "caption", "who": "user", "text": text, "final": True})
-                await self._accept_utterance(text, time.perf_counter(), hold=False)
+                now = time.perf_counter()
+                await self._accept_utterance(text, now, hold=False, source="text", received=now)
         elif kind == "end":
             await self.close()
         elif kind == "hello":
@@ -188,13 +199,16 @@ class CallSession:
         if self._speaking_turn is not None and config.BARGE_IN_ENABLED and self._is_barge_in(text):
             await self.interrupt("caller speech")
 
-    async def _on_utterance_end(self, text: str, end_sec):
+    async def _on_utterance_end(self, text: str, end_sec, source: str = "speech_final"):
+        received = time.perf_counter()
         self._user_speaking = False
+        if self.capture is not None:
+            self.capture.utterance(text, end_sec, source)
         if self._speaking_turn is not None and self._is_echo(text):
             logger.info("[%s] ignored echo of Emma's speech: %r", self.call_id, text)
             return
-        end_wall = self.clock.wall_at(end_sec) or time.perf_counter()
-        await self._accept_utterance(text, end_wall)
+        end_wall = self.clock.wall_at(end_sec) or received
+        await self._accept_utterance(text, end_wall, source=source, received=received)
 
     # ------------------------------------------------------------------ turn detection
     def _hold_ms(self, text: str) -> int:
@@ -207,9 +221,11 @@ class CallSession:
             return HOLD_TRAILING_WORD_MS
         return 0
 
-    async def _accept_utterance(self, text: str, end_wall: float, hold: bool = True):
+    async def _accept_utterance(self, text: str, end_wall: float, hold: bool = True,
+                                source: str = "text", received: Optional[float] = None):
         if self.closed:
             return
+        received = received or time.perf_counter()
         if self._hold_task is not None:
             self._hold_task.cancel()
             self._hold_task = None
@@ -218,9 +234,10 @@ class CallSession:
         wait = self._hold_ms(text) if hold else 0
         if wait:
             self._held_text, self._held_end = text, end_wall
+            self._held_meta = (source, received)
             self._hold_task = self._spawn(self._release_after(wait))
             return
-        await self._start_turn(text, end_wall)
+        await self._start_turn(text, end_wall, source, received)
 
     async def _release_after(self, wait_ms: int):
         waited = 0
@@ -231,9 +248,10 @@ class CallSession:
         except asyncio.CancelledError:
             return
         text, end_wall = self._held_text, self._held_end
+        source, received = self._held_meta
         self._held_text, self._hold_task = "", None
         if text:
-            await self._start_turn(text, end_wall or time.perf_counter())
+            await self._start_turn(text, end_wall or time.perf_counter(), source, received)
 
     # ------------------------------------------------------------------ turns
     def _timer(self, tid: int, text: str) -> TurnTimer:
@@ -244,7 +262,8 @@ class CallSession:
             self._timers.pop(old, None)
         return timer
 
-    async def _start_turn(self, text: str, end_wall: float):
+    async def _start_turn(self, text: str, end_wall: float, source: str = "text",
+                          received: Optional[float] = None):
         if self._speaking_turn is not None:
             await self.interrupt("new utterance")
         prev, phase = self._turn_task, self._turn_phase
@@ -263,6 +282,8 @@ class CallSession:
         self._turns_since_filler += 1
         timer = self._timer(self.turn_id, text)
         timer.user_end = end_wall
+        timer.endpoint_source = source
+        timer.stt_event = received
         timer.committed = time.perf_counter()
         self._start_turn_task(self._run_turn(self.turn_id, text, timer, wait_for))
 
@@ -440,6 +461,8 @@ class CallSession:
             if task is not current:
                 task.cancel()
         self.speaker.cancel()
+        if self.capture is not None:
+            self.capture.close()
         for engine in (self.stt, self.sv.tts):
             if engine is not None:
                 try:

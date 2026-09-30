@@ -5,11 +5,11 @@ import threading
 from datetime import datetime, date, time, timedelta
 from dateutil.parser import parse as parse_date
 from dateutil.relativedelta import relativedelta
-from zoneinfo import ZoneInfo
+import clock
 import config
 
 _booking_lock = threading.RLock()
-_clinic_tz = ZoneInfo(config.CLINIC_TIMEZONE)
+_clinic_tz = clock.TZ
 
 # Try importing Google API client libraries, but don't fail if they aren't installed yet.
 try:
@@ -60,8 +60,8 @@ def resolve_date(date_str, base_date=None):
     Returns (resolved_date_obj, resolved_date_formatted_str, error_message)
     """
     if base_date is None:
-        # Use current local date
-        base_date = date.today()
+        # The clinic's date, not the server's: they differ on a UTC host.
+        base_date = clock.today()
         
     if not date_str:
         return None, "", "Date string is empty."
@@ -179,7 +179,7 @@ def resolve_time(time_str):
     lunch_start = time(config.LUNCH_START_HOUR, config.LUNCH_START_MIN)
     lunch_end = time(config.LUNCH_END_HOUR, config.LUNCH_END_MIN)
     
-    latest_start = (datetime.combine(date.today(), end_time) - timedelta(minutes=30)).time()
+    latest_start = (datetime.combine(clock.today(), end_time) - timedelta(minutes=30)).time()
     if resolved_time < start_time or resolved_time > latest_start:
         return None, "", "Our clinic operates from 7:00 AM to 9:00 PM. Could you choose another time?"
         
@@ -199,7 +199,7 @@ def _is_bookable_time(t: time) -> bool:
     """
     start = time(config.CLINIC_START_HOUR, 0)
     last_start = (
-        datetime.combine(date.today(), time(config.CLINIC_END_HOUR, 0))
+        datetime.combine(clock.today(), time(config.CLINIC_END_HOUR, 0))
         - timedelta(minutes=30)
     ).time()
     lunch_start = time(config.LUNCH_START_HOUR, config.LUNCH_START_MIN)
@@ -465,7 +465,7 @@ def book_appointment(name, phone, service, date_str, time_str, age=None):
             if sheets_service and config.SPREADSHEET_ID:
                 try:
                     values = [[name, clean_phone, str(age) if age else "N/A", service,
-                               date_str, time_str, datetime.now().strftime("%Y-%m-%d %H:%M:%S")]]
+                               date_str, time_str, clock.now().strftime("%Y-%m-%d %H:%M:%S")]]
                     sheets_service.spreadsheets().values().append(
                         spreadsheetId=config.SPREADSHEET_ID,
                         range="Sheet1!A:G",
@@ -493,7 +493,7 @@ def book_appointment(name, phone, service, date_str, time_str, age=None):
             "service": service,
             "date": date_str,
             "time": time_str,
-            "booked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "booked_at": clock.now().strftime("%Y-%m-%d %H:%M:%S"),
         })
         _save_mock_db(db)
         return True, "Booked successfully (logged in local mock database)."
