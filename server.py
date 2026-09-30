@@ -264,6 +264,20 @@ async def voice_websocket(ws: WebSocket):
         state.active_calls -= 1
 
 
+@app.get("/client-config")
+async def client_config():
+    """Sound settings for the talk page (phone-line filter, clinic sound)."""
+    return {
+        "phone_line": config.PHONE_LINE_EFFECT,
+        "ambience": {
+            "enabled": config.AMBIENCE_ENABLED,
+            "murmur_db": config.AMBIENCE_MURMUR_DB,
+            "event_db": config.AMBIENCE_EVENT_DB,
+        },
+        "typing": config.TYPING_SFX,
+    }
+
+
 def _db_summary(conn) -> dict:
     count = lambda sql: conn.execute(sql).fetchone()[0]
     return {

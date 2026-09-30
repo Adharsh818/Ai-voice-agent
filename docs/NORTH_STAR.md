@@ -13,7 +13,10 @@ Every feature, fix and trade-off is judged against this. If a change works but m
 - **Wording.** Everyday receptionist phrasing: short sentences, one question at a time, and varied so she doesn't say the same line twice in a call.
 - **Confirmations.** Implicit where a person would be ("Priya, got it."). The phone number is read back in groups, and there's one natural summary before booking. Never a form-style recap ("Name: X. Phone Number: Y.").
 - **Timing.** Natural: a quick "Okay," or "Sure," while she thinks, and "Let me just check..." with the sound of typing when she looks something up.
-- **Room sound.** A subtle clinic ambience sits under the whole call: room tone, distant waiting-room murmur, the odd far-off phone. It never repeats in an audible loop and is never louder than a real clinic line would be.
+- **Room sound follows the call.** Nothing plays constantly.
+  - The clinic (a distant waiting-room murmur, an occasional door, chair or footsteps) is heard only while Emma's line is active, meaning while she speaks or types, like a real headset with a noise gate. It never loops audibly and is never louder than a real clinic line would be.
+  - When the caller gives her something to write down (name, number, date, what the visit is for), she types for a moment before answering.
+  - While the caller talks, her side is silent.
 - **Voice.** The ElevenLabs voice stays exactly as it is.
 
 ### 2. Listen like a local

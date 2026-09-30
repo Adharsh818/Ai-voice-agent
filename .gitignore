@@ -43,6 +43,8 @@ data/
 # Caller voices: dev captures and call recordings
 captures/
 recordings/
+# Clinic sound recordings: fetched by tools/fetch_ambience.py (the manifest is tracked)
+static/ambience/*.mp3
 *.db
 *.db-wal
 *.db-shm

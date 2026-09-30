@@ -8,7 +8,14 @@
  * Audio: mic -> capture worklet (16 kHz, 20 ms frames) -> WebSocket.
  * Emma's PCM arrives as binary frames tagged with a turn id and goes straight
  * into the playback worklet; a `stop` event flushes it instantly (barge-in).
+ *
+ * Realism (docs/NORTH_STAR.md): Emma's voice and the clinic's sound go through
+ * an optional phone-line filter, so it sounds like a real call to a real
+ * clinic. The clinic is only heard while Emma's line is active (she is
+ * speaking or typing); see ambience.js. Settings come from /client-config.
  */
+import { Ambience, phoneLine } from './ambience.js';
+
 const orb = document.getElementById('orb');
 const caption = document.getElementById('caption');
 
@@ -17,7 +24,7 @@ const VAD_FRAMES = 2;          // consecutive 20 ms frames above it
 const DUCK_GAIN = 0.3;         // Emma's volume while a barge-in is being confirmed
 const DUCK_RELEASE_MS = 600;   // restore if the server does not confirm
 
-let ctx, micStream, capture, player, sink, ws;
+let ctx, micStream, capture, player, sink, ws, ambience;
 let state = 'idle';
 let minTurn = 0;
 let micLevel = 0, playLevel = 0, shownLevel = 0;
@@ -64,9 +71,18 @@ async function startCall() {
     return;
   }
 
+  let cfg = {};
+  try { cfg = await (await fetch('/client-config', { cache: 'no-cache' })).json(); } catch (_) {}
+  // Everything Emma's side of the line produces goes through one output,
+  // band-limited like a phone call when phone_line is on.
+  const out = cfg.phone_line ? phoneLine(ctx, ctx.destination) : ctx.destination;
+
   player = new AudioWorkletNode(ctx, 'pcm-player', { outputChannelCount: [1] });
-  player.connect(ctx.destination);
+  player.connect(out);
   player.port.onmessage = (e) => onPlayer(e.data);
+  ambience = cfg.ambience && cfg.ambience.enabled
+    ? new Ambience(ctx, out, { murmurDb: cfg.ambience.murmur_db, eventDb: cfg.ambience.event_db })
+    : null;
 
   capture = new AudioWorkletNode(ctx, 'pcm-capture-processor', {
     processorOptions: { nativeSampleRate: ctx.sampleRate },
@@ -86,6 +102,7 @@ async function startCall() {
   ws.onopen = () => {
     send({ type: 'hello', v: 2 });
     setState('listening');
+    if (ambience) ambience.start().catch((err) => console.warn('ambience', err));
   };
   ws.onmessage = (e) => (typeof e.data === 'string' ? onEvent(JSON.parse(e.data)) : onAudio(e.data));
   ws.onclose = () => { if (state !== 'idle' && state !== 'error') teardown(); };
@@ -98,6 +115,8 @@ function endCall() {
 }
 
 function teardown() {
+  try { ambience && ambience.stop(); } catch (_) {}
+  ambience = null;
   try { ws && ws.close(); } catch (_) {}
   try { micStream && micStream.getTracks().forEach((t) => t.stop()); } catch (_) {}
   try { ctx && ctx.close(); } catch (_) {}
@@ -155,6 +174,7 @@ function onEvent(ev) {
       if (ev.phase === 'audio_done') player && player.port.postMessage({ type: 'end', turn: ev.turn });
       break;
     case 'stop':
+      if (ambience) ambience.stopTyping();
       minTurn = Math.max(minTurn, ev.turn + 1);
       player && player.port.postMessage({ type: 'flush' });
       clearTimeout(duckTimer);
@@ -168,6 +188,12 @@ function onEvent(ev) {
       break;
     case 'error':
       fail(ev.message || 'Something went wrong.');
+      break;
+    case 'sfx':
+      // Keyboard typing while Emma checks something (R6).
+      if (ev.name === 'typing' && ambience) {
+        ambience.typing(ev.after_ms || 0, ev.duration_ms || 1500, { turn: ev.turn || 0, untilSpeech: !!ev.until_speech });
+      }
       break;
     case 'bye':
       setTimeout(teardown, 300);
@@ -183,14 +209,17 @@ function onPlayer(msg) {
     case 'started':
       speakingTurn = msg.turn;
       setState('speaking');
+      if (ambience) ambience.speechStarted(msg.turn);   // the line opens; note-taking typing stops
       send({ type: 'playback', turn: msg.turn, event: 'started' });
       break;
     case 'ended':
       if (speakingTurn === msg.turn) speakingTurn = null;
+      if (ambience) ambience.speaking(false);
       send({ type: 'playback', turn: msg.turn, event: 'ended', played_ms: msg.playedMs });
       if (ws) setState('listening');
       break;
     case 'flushed':
+      if (ambience) ambience.speaking(false);
       send({ type: 'playback', turn: msg.turn, event: 'interrupted', played_ms: msg.playedMs });
       break;
   }

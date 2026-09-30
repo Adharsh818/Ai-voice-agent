@@ -138,7 +138,7 @@ class BookingFlowTests(unittest.TestCase):
         reply = ai_engine._handle_conversation_step(
             "9876543210", entities(phone_number="9876543210"), s
         )
-        self.assertIn("9 8 7 6 5 4 3 2 1 0", reply)
+        self.assertIn("9 8 7 6 5, 4 3 2 1 0", reply)   # grouped read-back
 
         yes = entities(confirmation="yes")
         reply = ai_engine._handle_conversation_step("yes", yes, s)
@@ -160,7 +160,7 @@ class BookingFlowTests(unittest.TestCase):
 
         reply = ai_engine._handle_conversation_step("yes", yes, s)
         self.assertEqual(s.step, 9)
-        self.assertIn("Is everything correct?", reply)
+        self.assertIn("Shall I book it?", reply)
 
     def test_purpose_question_skipped_when_intent_already_clear(self):
         s = ai_engine.SessionState()
@@ -213,9 +213,12 @@ class BookingFlowTests(unittest.TestCase):
         s.date_str = "2026-08-24"
         s.time_str = "05:00 PM"
         recap = ai_engine._recap_message(s)
-        self.assertIn("Name: Adharsh.", recap)
+        # One conversational summary, not a form: no "Name:" / "Phone Number:" labels.
+        self.assertIn("for Adharsh", recap)
+        self.assertNotIn("Name:", recap)
         self.assertNotIn("A D H A R S H", recap)
-        self.assertIn("7 8 9 9 3 7 7 4 6 2", recap)
+        self.assertIn("7 8 9 9 3, 7 7 4 6 2", recap)       # read back in two groups
+        self.assertTrue(recap.endswith("?"))
 
     def test_short_service_fragments_do_not_match(self):
         self.assertEqual(ai_engine._match_service("root canal"), "Root Canal Treatment")
@@ -287,7 +290,7 @@ class ConfirmationParsingTests(unittest.TestCase):
         self.assertEqual(s.step, 9)
         self.assertFalse(s.recap_confirmed)
         self.assertFalse(s.booking_confirmed)
-        self.assertIn("incorrect", reply)
+        self.assertIn("change", reply)
 
     def test_nlu_and_text_disagreement_is_treated_as_unclear(self):
         # NLU says yes, the words say no -> Emma re-asks instead of committing.
@@ -308,7 +311,7 @@ class ConfirmationParsingTests(unittest.TestCase):
         )
         self.assertTrue(s.closed_conversation)
         self.assertEqual(s.step, 1)
-        self.assertIn("call you back", reply)
+        self.assertIn("whenever you're ready", reply)
 
 
 class NameCaptureTests(unittest.TestCase):
@@ -384,7 +387,7 @@ class NameCaptureTests(unittest.TestCase):
         s.temp_date = backend_actions.resolve_date("next monday")[1]
         reply = ai_engine._handle_conversation_step("not Monday", entities(confirmation="no"), s)
         self.assertEqual(s.temp_date, "")
-        self.assertIn("Which date would you prefer", reply)
+        self.assertIn("What day would suit you", reply)
 
     def test_rejected_date_accepts_a_new_date_from_the_same_turn(self):
         s = ai_engine.SessionState()

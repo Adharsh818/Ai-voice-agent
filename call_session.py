@@ -49,6 +49,10 @@ HOLD_PARTIAL_PHONE_MS = 1200
 HOLD_TRAILING_WORD_MS = 600
 HOLD_MAX_MS = 3000
 FINAL_PLAYBACK_TIMEOUT_S = 20
+# Pause after "Let me just check that for you." while typing plays (ms).
+CHECK_PAUSE_MS = (900, 1600)
+# Longest note-taking typing burst; it stops as soon as Emma starts speaking.
+TYPING_MAX_MS = 3000
 # Approximate speaking rate, used to estimate how much of a reply was heard.
 CHARS_PER_SECOND = 15
 
@@ -304,15 +308,25 @@ class CallSession:
         self._turn_phase = "nlu"
         logger.info("[%s] caller: %s", self.call_id, text)
         await self._send({"type": "state", "state": "thinking"})
+        started = time.perf_counter()
+
+        # A receptionist writes down what the caller just told her: a short burst
+        # of typing before she answers. Decided before the state machine moves on.
+        beat_ms = 0
+        if config.TYPING_SFX and ai_engine.expects_information(self.s, text):
+            beat_ms = random.randint(*config.TYPING_BEAT_MS)
+            await self._send({"type": "sfx", "name": "typing", "turn": tid, "after_ms": 120,
+                              "duration_ms": TYPING_MAX_MS, "until_speech": True})
 
         filler: list[asyncio.Task] = []
+        checking: list[bool] = []
 
         def progress(event, **_):
-            if event == "llm_start":
+            if event == "llm_start" and not beat_ms:     # typing already fills the pause
                 filler.append(self._spawn(self._filler_after(tid, timer)))
             elif event == "before_action":
-                # Not cancellable: it must play before the booking result.
-                self._spawn(self._say_cached(tid, phrases.CHECKING, timer))
+                # Played just before the result, with a short typing pause (see _checking_pause).
+                checking.append(True)
             elif event == "commit":
                 self._turn_phase = "commit"
 
@@ -339,9 +353,38 @@ class CallSession:
             self._log(timer)
             return
         self._turn_phase = "speak"
+        if beat_ms:
+            # Let the typing be heard: the reply starts at least beat_ms after the
+            # caller stopped (LLM turns usually take longer than that anyway).
+            remaining = beat_ms / 1000 - (time.perf_counter() - started)
+            if remaining > 0:
+                timer.pause_ms = round(remaining * 1000)
+                await asyncio.sleep(remaining)
+            if tid != self.turn_id:
+                logger.info("[%s] turn %d superseded while typing; not spoken", self.call_id, tid)
+                self._log(timer)
+                return
+        if checking:
+            await self._checking_pause(tid, timer)
         await self._speak(tid, result.text, timer)
         if self.s.closed_conversation:
             self._spawn(self._finish_call(tid))
+
+    async def _checking_pause(self, tid: int, timer: TurnTimer):
+        """
+        "Let me just check that for you." then about a second of keyboard typing
+        before the answer, the way a receptionist looks something up. The
+        database answers in milliseconds, but an instant reply after "let me
+        check" is exactly what gives a machine away (docs/NORTH_STAR.md).
+        """
+        phrase_ms = self.speaker.cached_ms(phrases.CHECKING)
+        if not await self._say_cached(tid, phrases.CHECKING, timer):
+            return
+        gap_ms = random.randint(CHECK_PAUSE_MS[0], CHECK_PAUSE_MS[1])
+        if config.TYPING_SFX:
+            await self._send({"type": "sfx", "name": "typing", "turn": tid, "after_ms": phrase_ms + 150,
+                              "duration_ms": gap_ms - 250, "until_speech": False})
+        await self.speaker.play_silence(tid, gap_ms)
 
     async def _speak(self, tid: int, text: str, timer: TurnTimer):
         self._speaking_turn = tid
