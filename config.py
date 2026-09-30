@@ -45,12 +45,9 @@ ALLOWED_SERVICES = [
     "Pediatric Dentistry"
 ]
 
-# API Configuration
-USE_MOCK_APIS = os.getenv("USE_MOCK_APIS", "True").lower() == "true"
-CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
-TOKEN_FILE = os.getenv("GOOGLE_TOKEN_FILE", "token.json")
-CALENDAR_ID = os.getenv("GOOGLE_CALENDAR_ID", "primary")
-SPREADSHEET_ID = os.getenv("GOOGLE_SPREADSHEET_ID", "")
+# Google Calendar is a one-way mirror of SQLite, written by a background worker
+# with a service account (Day 4). Nothing reads it during a call, and Google
+# Sheets is not used (a CSV export replaces it).
 
 # LLM Config — Gemini
 # One key only. Rotating several free-tier keys to stretch quota is not allowed
@@ -122,11 +119,23 @@ ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("ALLOWED_ORIGINS", "
 # Off by default — these files contain people's voices.
 DEV_CAPTURE_AUDIO = os.getenv("DEV_CAPTURE_AUDIO", "false").lower() == "true"
 
-# Local Mock Database Path
-MOCK_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mock_db.json")
-
 # Runtime directories (git-ignored)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Appointments store: SQLite in WAL mode, the single source of truth.
+DB_PATH = os.getenv("EMMA_DB_PATH", os.path.join(BASE_DIR, "data", "emma.db"))
+# Seed the DEMO clinic (4 branches, 8 doctors, sample appointments) into an empty database.
+DEMO_SEED_ON_EMPTY = os.getenv("DEMO_SEED_ON_EMPTY", "true").lower() == "true"
+
+# Scheduling policy (decisions Q4, Q5, Q9, Q14)
+SLOT_GRID_MIN = 30                      # appointments start on :00 and :30
+BOOKING_HORIZON_DAYS = int(os.getenv("BOOKING_HORIZON_DAYS", "60"))
+BOOKING_LEAD_MIN = int(os.getenv("BOOKING_LEAD_MIN", "120"))      # earliest start = now + 2 h
+EMERGENCY_LEAD_MIN = int(os.getenv("EMERGENCY_LEAD_MIN", "30"))   # urgent same-day slots
+HOLD_TTL_S = int(os.getenv("HOLD_TTL_S", "300"))                  # offered slots are held 5 min
+MAX_FUTURE_APPOINTMENTS_PER_PHONE = int(os.getenv("MAX_FUTURE_APPOINTMENTS_PER_PHONE", "3"))
+# Branch used by the current single-branch dialogue until the Day 2 workflows land.
+DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "Nagarbhavi")
 CACHE_DIR = os.getenv("EMMA_CACHE_DIR", os.path.join(BASE_DIR, "cache"))
 LOG_DIR = os.getenv("EMMA_LOG_DIR", os.path.join(BASE_DIR, "logs"))
 CAPTURE_DIR = os.getenv("EMMA_CAPTURE_DIR", os.path.join(BASE_DIR, "captures"))

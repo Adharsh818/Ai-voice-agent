@@ -11,10 +11,8 @@ python-dotenv>=1.0.0
 # LLM (Gemini, async)
 google-genai>=1.0.0
 
-# Google Calendar (one-way sync from Day 4)
+# Google Calendar (one-way mirror from Day 4, service-account auth; no browser OAuth)
 google-api-python-client>=2.100.0
-google-auth-httplib2>=0.1.0
-google-auth-oauthlib>=1.1.0
 
 # Dates and time zones (tzdata is required for IANA zones on Windows)
 python-dateutil>=2.8.0

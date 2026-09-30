@@ -67,8 +67,12 @@ class Services:
 
 
 class CallSession:
-    def __init__(self, transport, services: Services, call_id: Optional[str] = None):
+    def __init__(self, transport, services: Services, call_id: Optional[str] = None,
+                 listen_only: bool = False):
         self.t = transport
+        # Listen-only (dev capture): transcribe and record what the caller says,
+        # but never greet or reply. Used to record the STT comparison set.
+        self.listen_only = listen_only
         self.sv = services
         self.call_id = call_id or uuid.uuid4().hex[:8]
         self.s = ai_engine.SessionState()
@@ -117,7 +121,8 @@ class CallSession:
             on_speech_started=self._on_speech_started,
         )
         # The greeting plays from the prompt cache while both sockets open.
-        self._start_turn_task(self._greet())
+        if not self.listen_only:
+            self._start_turn_task(self._greet())
         connects = [self.stt.connect(sample_rate=16000)]
         if self.sv.tts is not None and hasattr(self.sv.tts, "connect"):
             connects.append(self.sv.tts.connect())
@@ -264,6 +269,9 @@ class CallSession:
 
     async def _start_turn(self, text: str, end_wall: float, source: str = "text",
                           received: Optional[float] = None):
+        if self.listen_only:
+            logger.info("[%s] heard (%s): %s", self.call_id, source, text)
+            return
         if self._speaking_turn is not None:
             await self.interrupt("new utterance")
         prev, phase = self._turn_task, self._turn_phase

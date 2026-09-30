@@ -42,6 +42,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import config
+import db
 import llm
 import logredact
 import phrases
@@ -90,6 +91,8 @@ async def lifespan(app: FastAPI):
         config.ELEVENLABS_OUTPUT_FORMAT, app.state.http_tts.voice_settings,
     )
     app.state.latency = LatencyLog(config.LOG_DIR)
+    # The appointments database: migrated on start, DEMO-seeded when empty.
+    app.state.db = await asyncio.to_thread(db.get_db)
     app.state.active_calls = 0
     app.state.cache_ready = False
 
@@ -113,6 +116,7 @@ async def lifespan(app: FastAPI):
     for task in background:
         task.cancel()
     await app.state.http.aclose()
+    await asyncio.to_thread(db.reset)
 
 
 app = FastAPI(title="Pearl Dental Clinic — Emma Voice Agent", lifespan=lifespan)
@@ -234,7 +238,9 @@ async def voice_websocket(ws: WebSocket):
 
     state.active_calls += 1
     transport = BrowserTransport(ws)
-    session = CallSession(transport, _services(state))
+    # ?mode=listen records the STT test set: captions and capture, no replies.
+    listen_only = ws.query_params.get("mode") == "listen" and config.DEV_CAPTURE_AUDIO
+    session = CallSession(transport, _services(state), listen_only=listen_only)
     try:
         await session.start()
         while not session.closed:
@@ -258,6 +264,17 @@ async def voice_websocket(ws: WebSocket):
         state.active_calls -= 1
 
 
+def _db_summary(conn) -> dict:
+    count = lambda sql: conn.execute(sql).fetchone()[0]
+    return {
+        "branches": count("SELECT COUNT(*) FROM branches WHERE active = 1"),
+        "doctors": count("SELECT COUNT(*) FROM doctors WHERE active = 1"),
+        "upcoming_appointments": count(
+            f"SELECT COUNT(*) FROM appointments WHERE status = 'booked' AND start_utc > '{db.now_str()}'"),
+        "demo_data": bool(count("SELECT COUNT(*) FROM branches WHERE is_demo = 1")),
+    }
+
+
 @app.get("/health")
 async def health():
     nlu = llm.get_nlu()
@@ -273,6 +290,7 @@ async def health():
         "prompt_cache_ready": app.state.cache_ready,
         "tier0": config.TIER0_ENABLED,
         "tts_transport": config.TTS_TRANSPORT,
+        "database": await app.state.db.run(_db_summary),
     }
 
 

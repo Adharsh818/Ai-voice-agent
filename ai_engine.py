@@ -375,19 +375,15 @@ async def generate_emma_response(directive: str, s, user_text: str = "",
 
 def _confirmation_message(service: str, formatted_date: str, time_str: str) -> str:
     """
-    Booking confirmation text. Only promises a Google Calendar invitation when
-    real Google APIs are in use — in mock mode no invitation is actually sent,
-    so Emma must not claim one is coming.
+    Booking confirmation text. Confirmations are spoken only (decision Q11): no
+    email is collected and no invitation is sent, so none is promised.
     """
-    msg = (
+    return (
         "Your appointment has been successfully confirmed. "
         f"Your appointment for {service} has been confirmed for {formatted_date} "
-        f"at {time_str} at Pearl Dental Clinic, Nagarbhavi. "
+        f"at {time_str} at Pearl Dental Clinic, {config.DEFAULT_BRANCH}. "
+        "Is there anything else I can help you with today?"
     )
-    if not config.USE_MOCK_APIS:
-        msg += "You will also receive a Google Calendar invitation shortly. "
-    msg += "Is there anything else I can help you with today?"
-    return msg
 
 
 def _match_service(spoken):
@@ -908,7 +904,7 @@ def _handle_conversation_step(user_text, entities, s):
         if conf == "yes":
             s.recap_confirmed = True
             s.step = 10
-            is_available, alts = backend_actions.check_availability(s.date_str, s.time_str)
+            is_available, alts = backend_actions.check_availability(s.date_str, s.time_str, s.service)
             if is_available:
                 success, msg = backend_actions.book_appointment(
                     s.name, s.phone, s.service, s.date_str, s.time_str
