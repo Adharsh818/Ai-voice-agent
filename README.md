@@ -30,6 +30,16 @@ Without keys the server still starts, and `/health` reports what is missing. For
 | `/health` | API keys present, Gemini model check, prompt cache status |
 | `/metrics` | Perceived latency p50/p95 by tier, and where end-of-speech time goes |
 
+## Demo data
+
+To start again from a fresh DEMO clinic (this deletes `data/emma.db`):
+
+```powershell
+.\.venv\Scripts\python.exe seed_demo.py --reset
+```
+
+Scheduling rules (hours, lunch, durations, 60-day horizon, 2-hour notice, doctor rotas, closures, holds) live in `scheduling.py`. Date and time phrases are parsed in `dateparse.py`.
+
 ## Tests
 
 ```powershell
@@ -40,6 +50,7 @@ Without keys the server still starts, and `/health` reports what is missing. For
 
 | Folder | Contents |
 |---|---|
+| `data/emma.db` | Appointments (SQLite, WAL). Created on first start and filled with the DEMO clinic: 4 branches, 8 fictional doctors, sample bookings |
 | `cache/` | Pre-rendered prompt audio, keyed by voice and settings |
 | `logs/turns.jsonl` | Per-turn latency records (no caller text) |
 | `captures/` | Caller audio + STT utterances when `DEV_CAPTURE_AUDIO=true` (development only) |

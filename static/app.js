@@ -79,7 +79,9 @@ async function startCall() {
   capture.port.onmessage = (e) => onMicFrame(e.data);
 
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws/voice`);
+  // /?mode=listen (with DEV_CAPTURE_AUDIO=true): Emma only listens, for recording STT test audio.
+  const mode = new URLSearchParams(location.search).get('mode') === 'listen' ? '?mode=listen' : '';
+  ws = new WebSocket(`${proto}://${location.host}/ws/voice${mode}`);
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => {
     send({ type: 'hello', v: 2 });

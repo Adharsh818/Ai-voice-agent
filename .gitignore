@@ -38,6 +38,8 @@ Thumbs.db
 # --- Emma runtime caches / logs / databases ---
 cache/
 logs/
+# Appointments database (SQLite + WAL files)
+data/
 # Caller voices: dev captures and call recordings
 captures/
 recordings/

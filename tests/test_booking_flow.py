@@ -1,15 +1,13 @@
 """Regression tests for booking correctness without external API calls."""
 
 import asyncio
-import os
-import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import patch
 
 import backend_actions
-import config
 import ai_engine
+from tests.support import TempClinic
 
 
 async def local_nlu(text, s=None):
@@ -33,16 +31,13 @@ def entities(**overrides):
 
 class BookingFlowTests(unittest.TestCase):
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.old_path = config.MOCK_DB_PATH
-        self.old_mock = config.USE_MOCK_APIS
-        config.MOCK_DB_PATH = os.path.join(self.temp_dir.name, "appointments.json")
-        config.USE_MOCK_APIS = True
+        # A throwaway SQLite clinic, with the clock in August 2026 so the
+        # August dates below are still in the future.
+        self.clinic = TempClinic(now=datetime(2026, 8, 20, 9, 0))
+        self.clinic.__enter__()
 
     def tearDown(self):
-        config.MOCK_DB_PATH = self.old_path
-        config.USE_MOCK_APIS = self.old_mock
-        self.temp_dir.cleanup()
+        self.clinic.__exit__(None, None, None)
 
     def test_booking_requires_final_recap_confirmation(self):
         async def run_flow():
@@ -68,7 +63,7 @@ class BookingFlowTests(unittest.TestCase):
         with patch.object(ai_engine, "async_extract_entities_with_llm", local_nlu):
             asyncio.run(run_flow())
 
-    def test_mock_booking_rejects_conflicting_slot_and_allows_idempotent_retry(self):
+    def test_booking_rejects_conflicting_slot_and_allows_idempotent_retry(self):
         self.assertTrue(backend_actions.book_appointment(
             "Alex", "9876543210", "Consultation", "2026-08-22", "05:00 PM"
         )[0])
@@ -111,18 +106,11 @@ class BookingFlowTests(unittest.TestCase):
         self.assertNotIn("02:00 PM", alts)
         self.assertEqual(alts, ["01:00 PM", "12:30 PM"])
 
-    def test_confirmation_message_hides_calendar_invite_in_mock_mode(self):
-        config.USE_MOCK_APIS = True
-        mock_msg = ai_engine._confirmation_message(
-            "Root Canal Treatment", "Monday, 24 August 2026", "05:00 PM"
-        )
-        self.assertNotIn("Google Calendar", mock_msg)
-
-        config.USE_MOCK_APIS = False
-        real_msg = ai_engine._confirmation_message(
-            "Root Canal Treatment", "Monday, 24 August 2026", "05:00 PM"
-        )
-        self.assertIn("Google Calendar", real_msg)
+    def test_confirmation_never_promises_a_calendar_invitation(self):
+        # Confirmations are spoken only (Q11): no email is collected, nothing is sent.
+        msg = ai_engine._confirmation_message("Root Canal Treatment", "Monday, 24 August 2026", "05:00 PM")
+        self.assertNotIn("Calendar", msg)
+        self.assertNotIn("invitation", msg)
 
     def test_volunteered_slots_are_confirmed_never_reasked(self):
         s = ai_engine.SessionState()
@@ -241,16 +229,13 @@ class ConfirmationParsingTests(unittest.TestCase):
     """A refusal must never be heard as consent, and vice versa."""
 
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.old_path = config.MOCK_DB_PATH
-        self.old_mock = config.USE_MOCK_APIS
-        config.MOCK_DB_PATH = os.path.join(self.temp_dir.name, "appointments.json")
-        config.USE_MOCK_APIS = True
+        # A throwaway SQLite clinic, with the clock in August 2026 so the
+        # August dates below are still in the future.
+        self.clinic = TempClinic(now=datetime(2026, 8, 20, 9, 0))
+        self.clinic.__enter__()
 
     def tearDown(self):
-        config.MOCK_DB_PATH = self.old_path
-        config.USE_MOCK_APIS = self.old_mock
-        self.temp_dir.cleanup()
+        self.clinic.__exit__(None, None, None)
 
     def test_negation_wins_over_affirmative_words_inside_it(self):
         # Every one of these contains a word from the affirmative vocabulary
