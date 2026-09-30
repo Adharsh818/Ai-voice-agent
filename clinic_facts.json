@@ -1,10 +1,11 @@
 {
-  "version": "2026-09-29.1",
-  "_note": "Emma only speaks facts with \"verified\": true. Replace every PLACEHOLDER with real clinic data and flip verified to true once confirmed.",
+  "version": "2026-09-30.2",
+  "_note": "DEMO knowledge base for the fictional Pearl Dental clinic (decision R8). Emma only speaks entries with \"verified\": true; each has an id so the LLM can pick facts instead of inventing them. Replace with real clinic data before any real deployment.",
   "clinic_name": "Pearl Dental Clinic",
+  "demo": true,
   "hours": {
     "verified": true,
-    "text": "Monday to Saturday, 7 AM to 9 PM, with a lunch break from 2 to 2:30 PM. Closed on Sundays."
+    "text": "We're open Monday to Saturday, 7 in the morning to 9 at night, with a short lunch break from 2 to 2:30. We're closed on Sundays."
   },
   "services": {
     "verified": true,
@@ -16,44 +17,95 @@
   },
   "pricing_policy": {
     "verified": true,
-    "text": "Prices depend on the procedure; the doctor gives an exact quote after examining the patient."
+    "text": "Prices depend on the tooth and the treatment, so the doctor confirms the exact cost after a quick look, but I can give you a rough range."
   },
   "insurance_policy": {
-    "verified": false,
-    "text": "PLACEHOLDER"
+    "verified": true,
+    "text": "We don't do cashless insurance, but we give you itemised bills and reports so you can claim it back from your insurer."
   },
   "escalation": {
-    "verified": false,
-    "phone": "PLACEHOLDER",
-    "text": "I'll have our clinic staff call you back to confirm that."
+    "verified": true,
+    "text": "The doctor can go through that with you at your visit."
   },
+  "facts": [
+    {"id": "price.consultation", "topic": "consultation or check-up fee", "verified": true,
+     "text": "A consultation or check-up is 400 rupees, and it's adjusted against any treatment you start that day."},
+    {"id": "price.cleaning", "topic": "teeth cleaning price", "verified": true,
+     "text": "A cleaning is usually between 1,000 and 1,500 rupees."},
+    {"id": "price.filling", "topic": "filling price", "verified": true,
+     "text": "A filling is usually 1,000 to 2,500 rupees, depending on the size and the material."},
+    {"id": "price.root_canal", "topic": "root canal price", "verified": true,
+     "text": "A root canal is usually 5,000 to 8,000 rupees per tooth, and a crown afterwards is extra, from about 4,000."},
+    {"id": "price.extraction", "topic": "extraction price", "verified": true,
+     "text": "A simple extraction is about 800 to 1,500 rupees; a wisdom tooth can be 3,000 to 6,000."},
+    {"id": "price.braces", "topic": "braces price", "verified": true,
+     "text": "Braces usually come to 35,000 to 70,000 rupees for the full treatment, and there's a no-cost EMI option."},
+    {"id": "price.invisalign", "topic": "Invisalign price", "verified": true,
+     "text": "Invisalign is usually between one and a half and three lakh rupees, depending on how much correction is needed."},
+    {"id": "price.pediatric", "topic": "children's visit price", "verified": true,
+     "text": "A children's visit is usually 400 to 600 rupees."},
+    {"id": "price.whitening", "topic": "teeth whitening", "verified": true,
+     "text": "We do whitening too, usually 6,000 to 12,000 rupees; the doctor sees you briefly first to check it suits your teeth."},
+    {"id": "price.implant", "topic": "dental implants", "verified": true,
+     "text": "We do implants as well, usually 25,000 to 45,000 rupees per tooth; it starts with a consultation."},
+    {"id": "payment.methods", "topic": "payment methods", "verified": true,
+     "text": "You can pay by UPI, card or cash."},
+    {"id": "payment.emi", "topic": "EMI or instalments", "verified": true,
+     "text": "For braces and Invisalign there's a no-cost EMI option over six to twelve months."},
+    {"id": "visit.what_to_bring", "topic": "what to bring", "verified": true,
+     "text": "Just bring any old X-rays or prescriptions, and a list of any medicines you take."},
+    {"id": "visit.first_visit", "topic": "how long the first visit takes", "verified": true,
+     "text": "A first visit takes about 30 to 45 minutes, including the check-up and an X-ray if it's needed."},
+    {"id": "visit.children", "topic": "children and minors", "verified": true,
+     "text": "We see children of all ages; a parent just needs to come along for anyone under 18."},
+    {"id": "visit.root_canal_sittings", "topic": "how many visits a root canal takes", "verified": true,
+     "text": "A root canal usually takes two or three visits of about an hour each."},
+    {"id": "visit.xray", "topic": "X-rays", "verified": true,
+     "text": "All our branches have digital X-rays, so you get it done right there."},
+    {"id": "visit.comfort", "topic": "whether treatment hurts", "verified": true,
+     "text": "Treatments are done with local anaesthetic, so it's usually very comfortable, and the doctor checks in with you throughout."},
+    {"id": "visit.hygiene", "topic": "sterilisation and hygiene", "verified": true,
+     "text": "All instruments are sterilised after every patient, and we use disposables wherever we can."},
+    {"id": "policy.cancellation", "topic": "cancelling or rescheduling", "verified": true,
+     "text": "There's no fee to cancel or move an appointment, just let us know."},
+    {"id": "policy.emergency", "topic": "dental emergencies", "verified": true,
+     "text": "If you're in a lot of pain or have swelling, we'll fit you in the same day."},
+    {"id": "policy.walk_in", "topic": "walk-ins", "verified": true,
+     "text": "Walk-ins are welcome, but booking ahead means you won't have to wait."},
+    {"id": "clinic.languages", "topic": "languages spoken at the clinic", "verified": true,
+     "text": "Our staff speak English, Kannada and Hindi."}
+  ],
   "branches": [
     {
       "name": "Nagarbhavi",
       "verified": true,
       "bookable": true,
-      "address": "Nagarbhavi, Bengaluru, Karnataka",
+      "address": "80 Feet Road, 2nd Stage Nagarbhavi, on the first floor above the pharmacy near the bus stop",
+      "parking": "There's street parking right outside, and two-wheeler parking in front.",
       "phone": "PLACEHOLDER"
     },
     {
       "name": "Indiranagar",
-      "verified": false,
+      "verified": true,
       "bookable": false,
-      "address": "PLACEHOLDER",
+      "address": "12th Main, Indiranagar, about five minutes' walk from the Indiranagar metro station",
+      "parking": "Parking is limited on 12th Main, so the metro is easiest.",
       "phone": "PLACEHOLDER"
     },
     {
       "name": "Jayanagar",
-      "verified": false,
+      "verified": true,
       "bookable": false,
-      "address": "PLACEHOLDER",
+      "address": "4th Block, Jayanagar, near the shopping complex",
+      "parking": "There's paid parking at the shopping complex next door.",
       "phone": "PLACEHOLDER"
     },
     {
       "name": "Whitefield",
-      "verified": false,
+      "verified": true,
       "bookable": false,
-      "address": "PLACEHOLDER",
+      "address": "ITPL Main Road, Whitefield, opposite the tech park gate",
+      "parking": "We have a few free parking spots in the building's basement.",
       "phone": "PLACEHOLDER"
     }
   ],

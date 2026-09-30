@@ -4,7 +4,152 @@
 
 **Scope for the demo:** Milestone A (safe conversational browser demo) and Milestone B (production-like scheduling) complete; Milestone C (doctor-unavailability recovery) at demo grade. Milestones D (Asterisk) and E (evaluation hardening) follow after the demo (section 13).
 
+**Read [NORTH_STAR.md](NORTH_STAR.md) first.** Callers should feel they are talking to a real, skilled receptionist. Section 0 turns that into work and comes before everything else; where it conflicts with a later section, section 0 wins.
+
 ---
+
+## 0. Realism upgrade: first priority (added 30 Sep)
+
+### 0.1 Decisions (realism MCQ, 30 Sep)
+
+| # | Topic | Decision |
+|---|---|---|
+| R1 | Greeting | No disclaimers or "automated assistant". Rotate between "Hi, this is Emma at Pearl Dental, how can I help?", "Hello, Pearl Dental. How can I help you?", "Pearl Dental, Emma here. Go ahead." and "Hi, I'm Emma from Pearl Dental. How can I help you?" |
+| R2 | Honesty | Emma never volunteers being automated. If sincerely asked whether she's a real person or a bot: "Yeah, you caught me, I'm the clinic's virtual receptionist," then straight back to helping. She never claims to be human |
+| R3 | Recording | **No audio recording.** Text transcripts kept 30 days (replaces Q12). No recording notice is needed in the greeting |
+| R4 | Ambience source | Free-licence (CC0) recordings you approved: two waiting-room murmurs, a wooden door, a chair, footsteps on tile, laptop typing ([tools/ambience_sources.json](../tools/ambience_sources.json), fetched by `tools/fetch_ambience.py`). The AC room tone and phone ring were not approved and aren't used |
+| R5 | Ambience behaviour | **Nothing plays constantly; sound follows the call** (owner's note, 30 Sep). The clinic murmur and occasional door / chair / footsteps are heard only while Emma's line is active (speaking or typing), like a headset with a noise gate. Her side is silent while the caller talks |
+| R6 | Realism extras | Typing when the caller gives something to write down (a 650–1000 ms beat before she replies) and while she checks the diary; phone-line sound in the browser demo; short openers ("Okay,", "Sure,", "Right,"); occasional light "umm" / "so" (capped); soft breath before long sentences |
+| R7 | Asked for a person | Offer to help first; if they insist again, take a callback message. No reflexive handoff anywhere |
+| R8 | Knowledge | A full DEMO knowledge base (price ranges, insurance, parking, payment, what to bring, branch landmarks) so she can answer almost everything |
+| R9 | Listening symptoms reported | Mishears words or names; cuts the caller off mid-sentence; waits too long after they stop; sometimes doesn't hear at all |
+| R10 | STT bake-off | Deepgram Nova-3 (current baseline), Deepgram Nova-2 Indian English, Google Chirp (en-IN), Sarvam AI. Flux dropped |
+| R11 | LLM | Test Gemini Flash-Lite vs Flash on 20 scripted messy-caller conversations; pick on naturalness and speed |
+| R12 | LLM coverage | Hybrid: simple turns (yes/no, digits, clear picks) get instant, human-written, varied lines; the LLM writes every other reply |
+| R13 | Tone | Friendly-professional: warm, efficient, never chatty |
+| R14 | Cut first | Dashboard extras (manual edit forms, audit viewer), then recovery calls |
+
+### 0.2 What this changes in the architecture
+
+- **The LLM now writes Emma's words**, within guardrails. Python still decides every action and owns every fact.
+- **Per-turn brief.** Python builds a brief for each turn:
+  - Slots known so far.
+  - Slots still missing, in priority order (intent → name → phone → service → branch → when → offer → summary → wrap-up).
+  - Verified facts that may be used.
+  - The exact slots on offer and their spoken forms.
+  - The rules: one question at a time; at most 2 sentences / 35 words; the R13 tone; never claim to have booked anything; never mention being a bot unless sincerely asked (R2); never offer a person (R7).
+- **One streamed Gemini call** returns JSON in this key order: `intent`, `entities`, `faq_ids`, `emergency`, `wants_human`, `correction`, `choice_index`, `next_goal`, `reply`.
+- **Python applies the entities and computes its own next goal.**
+  - If it matches the model's `next_goal` and the reply passes the validators, the reply is spoken, sentence by sentence as it streams.
+  - Otherwise Emma speaks a natural pre-written line for Python's goal.
+  - Any sentence that fails validation is dropped.
+- **Validators:**
+  - Every number, date, time, price, doctor, branch and name in the reply must appear in the brief.
+  - Forbidden: bot/AI/assistant/automated wording unless answering a sincere question; "real person", "transfer", "connect you"; "booked", "confirmed" or "cancelled" unless Python committed it this turn; medication or dosage advice.
+  - Maximum length and one question.
+- **Commit-critical lines** are pre-written, with variants, so they're always exact: phone read-back, the final summary, and booking / cancel / reschedule confirmations.
+- **Callers can go in any order.** "On the 2nd of October I want an appointment" stores the date, and the next missing item is the name: "Sure, the 2nd. Can I get your name first?" Nothing already given is asked again.
+- **Natural confirmations** replace field-by-field checks:
+  - Name, service, branch and date are confirmed implicitly: "Priya, got it."
+  - The phone number is read back in groups.
+  - One conversational summary comes before booking: "So that's a cleaning with Dr Rao at Jayanagar, Monday the 5th at 5. Shall I book it?"
+- **Unchanged invariants:** no action without a clear yes to a summary the caller heard; only real slots are offered; idempotent transactions; NLU/parser disagreement means Emma asks again.
+
+### 0.3 R1: Sound like a person (1 Oct, morning)
+- [x] **R1.1** Greetings (R1) replace `GREETING` and `DISCLOSE_AI`. Pre-render all four; rotate so repeat callers don't hear the same one twice in a row.
+- [x] **R1.2** Remove every disclaimer and robotic line: "automated assistant", "At the moment I can assist only…", "Name: X. Phone Number: Y.", "currently has one location". A test scans all speakable text for banned phrases.
+- [x] **R1.3** Call-driven clinic sound in the browser (`static/ambience.js`, R5):
+  - **Nothing constant.** A gate opens (about 80 ms) when Emma speaks or types and closes (about 350 ms, after a 250 ms hold) when she stops. Her side is silent while the caller talks, so nothing leaks into their microphone.
+  - **Murmur.** The two approved waiting-room recordings run behind the gate as 40–110 s segments from random offsets, crossfaded, with ±1.5 dB drift, so they never loop audibly. Normalised to the median half-second level (−38 dBFS), so loud moments in a recording don't make the rest too quiet.
+  - **Movement.** Door, chair or footsteps: at most one every 25 s, 35 % chance per line-open, only while the line is open; long files contribute a random 3–6 s slice.
+  - Measured by offline render: silence when idle; murmur −37 to −42 dBFS while she speaks; typing peaks around −24 to −31 dBFS.
+- [x] **R1.4** Sound effects:
+  - **Note-taking typing:** when the caller gives something to write down (`ai_engine.expects_information`), typing starts 120 ms after they stop and Emma's reply waits 650–1000 ms. The typing stops the moment she speaks, and the pause is logged as `pause_ms`.
+  - **Checking typing:** "Let me just check that for you." plus a 0.9–1.6 s pause with typing.
+  - **Breath:** a soft synthetic breath before sentences of 20+ words (never two turns running), to A/B test and drop if it sounds fake.
+- [x] **R1.5** Phone-line sound in the browser demo: 300–3400 Hz band-pass plus gentle compression on Emma's voice and the ambience; switch `PHONE_LINE_EFFECT`.
+- [x] **R1.6** DEMO knowledge base (R8) in `clinic_facts.json`, every entry with a fact ID and marked DEMO:
+  - Price ranges in ₹ per service, insurance and reimbursement, payment methods (UPI, cards, cash).
+  - Parking, what to bring, first-visit notes, children's visits.
+  - Branch landmarks and per-branch hours from the rota.
+- [x] **R1.7** The six approved CC0 files are fetched by `tools/fetch_ambience.py` into `static/ambience/` (git-ignored, 10.9 MB), and the manifest is generated.
+
+**Exit:**
+- Greeting audio under 2.5 s.
+- Zero banned phrases anywhere.
+- Nothing plays while Emma is idle; the clinic is heard only while her line is active; no audible loop.
+- Typing plays after information answers and during a check, never after a bare yes/no.
+- All previous tests pass.
+
+### 0.4 R2: A real conversation, the same outcome (1–2 Oct; replaces Day 2 and Day 3 items 3.1–3.3)
+- [ ] **R2.1** `dialogue/context.py`: call context with slots, attempts, offered holds and history; the checklist and priority order; `next_goal()`.
+- [ ] **R2.2** `dialogue/brief.py` plus the streamed LLM contract (0.2) in `nlu.py`; structured output; partial-JSON streaming parser.
+- [ ] **R2.3** `dialogue/validate.py`: reply validators (0.2), each with unit tests.
+- [ ] **R2.4** `prompts.py`: human-written varied lines for every goal (the fallbacks), commit-critical lines, openers ("Okay,", "Sure,", "Right,"), light "umm"/"so" (at most once every 4 turns, never in summaries or numbers), and the honesty line (R2). No line repeats word-for-word within a call.
+- [ ] **R2.5** Tier-0 hybrid (R12): yes/no, digits, clear picks, repeat, wait and "are you a bot" resolved instantly with varied lines.
+- [ ] **R2.6** Workflows on the natural engine, all on the Day 1 scheduling engine:
+  - **BOOK:** any-order slots, family bookings, duplicate and max-3 checks.
+  - **MANAGE:** verify, check, reschedule, cancel.
+  - **Emergency:** urgent → same-day slot + task; red flag → 108/ER advice + task.
+  - **FAQ:** from the knowledge base; unknown → "the doctor can go through that at your visit".
+  - **Asked for a person (R7):** help first; take a callback only if they insist.
+  - **Off-topic:** answer briefly, then steer back.
+  - **Language:** English only, gently.
+- [ ] **R2.7** Model bake-off (R11): 20 scripted messy-caller conversations (jump-ahead, off-topic, corrections, rambling, silence, bot question, human request, emergency, family, reschedule, cancel) on Flash-Lite and Flash. Score correct outcome, validator rejections, naturalness (read aloud, 1–5) and reply latency. Pick one and record the numbers.
+- [ ] **R2.8** Port the old dialogue tests to the new engine; remove the 12-step machine.
+
+**Exit:**
+- All 20 scripted conversations end with the correct booking / change / cancel outcome.
+- Nothing already given is asked again.
+- Model/Python disagreement never causes an action.
+- Validators block invented numbers, names, bot wording and booking claims.
+- The honesty line fires only on a sincere question.
+- A person is offered only after the caller insists.
+- Median time to first reply audio within the Day 6 gate.
+
+### 0.5 R3: Listen like a local (3 Oct; replaces Flux spike 3.6; needs your recordings and accounts)
+- [ ] **R3.1** Diagnose each reported symptom (R9) from the Day 0 endpoint diagnostics and your captures:
+  - **Cut-offs:** `speech_final` firing on natural mid-sentence pauses.
+  - **Long waits:** the `utterance_end` fallback plus holds.
+  - **Not heard:** the echo filter dropping real answers that repeat Emma's words, browser noise suppression, or the 2 s pre-connect buffer.
+- [ ] **R3.2** Adaptive end-of-turn:
+  - Raise raw endpointing to about 400 ms.
+  - Commit immediately when the text is a complete answer to the question just asked (yes/no, a full 10-digit number, a complete date or time, a name after "my name is").
+  - Wait up to 2 s when it's clearly unfinished (trailing "and", "so", "my number is", partial digits).
+  - Tune on your recordings; measure the cut-off rate and end-of-turn p50 before and after.
+- [ ] **R3.3** Echo filter only while Emma's audio is actually audible, with stricter overlap, so a caller repeating her words ("yes, Monday at 5") is never dropped. Review the browser `noiseSuppression` / `autoGainControl` settings. Fix the microphone resampler (moved up from Day 4.5).
+- [ ] **R3.4** STT bake-off (R10) with adapters behind the same callbacks: Nova-3 (baseline), Nova-2 Indian English, Google Chirp en-IN streaming, Sarvam streaming.
+  - Score word errors, names, phone digits, dates/times, end-of-turn latency and dropped utterances on your recordings.
+  - Switch if a candidate is clearly better on names and digits without adding more than 200 ms.
+  - Check each provider's current streaming model names and languages during the test.
+- [ ] **R3.5** Boost the clinic vocabulary: doctor names, branch names, services, Indian number words ("double", "triple").
+- [ ] **R3.6** Recover from mishearing like a person:
+  - The LLM uses context ("route canal" → root canal).
+  - For names, "Sorry, could you spell that for me?" after one failed confirmation.
+  - Fuzzy-match heard names against the names already in this call.
+- [ ] **R3.7** Real-time robustness moved from Day 3: `playout.py`, recap-heard rule, backchannel filter, silence ladder, maximum call length, call gate, Deepgram reconnect, Piper fallback.
+
+**Exit:**
+- An STT choice recorded with numbers.
+- Cut-offs and long waits measurably reduced on the recordings.
+- No real answer dropped as an echo in the replay test.
+- The old Day 3 exit tests.
+
+### 0.6 Revised schedule
+
+| Date | Work |
+|---|---|
+| 30 Sep | Day 0 + Day 1 ✓ (a day ahead of plan) |
+| 1 Oct | R1 + R2.1–R2.5 |
+| 2 Oct | R2.6–R2.8 |
+| 3 Oct | R3 (bake-off needs your recordings and API keys) |
+| 4 Oct | Day 4: dashboard, Calendar sync, transcript retention (no audio recording) |
+| 5 Oct | Day 5: recovery calls, demo grade |
+| 6 Oct | Day 6: latency, fault drills, regression |
+| 7 Oct | Day 7: freeze at noon, rehearse |
+| 8 Oct | Demo |
+
+The phone-path versions of the ambience, typing and phone-line effects (mixed server-side in the playout queue) move to Milestone D with Asterisk.
 
 ## 1. Locked decisions
 
@@ -21,16 +166,16 @@
 | 9 | Family | Up to 3 future appointments per phone number; patient name stored separately from the caller |
 | 10 | Verification | Phone + appointment date + patient name before reschedule, cancel or reading details |
 | 11 | Confirmation | Spoken only. The Google Calendar invitation promise is removed |
-| 12 | Recording | Audio + transcript, kept 30 days, consent notice in the greeting |
+| 12 | Recording | ~~Audio + transcript, consent notice in the greeting~~ **Replaced by R3:** no audio recording; text transcripts kept 30 days; no notice in the greeting |
 | 13 | Tiers | Single Gemini key (multi-key rotation removed). Paid/no-training tiers before any real patient data; the demo uses fictitious callers |
 | 14 | Emergency | Severe pain/swelling/bleeding → earliest same-day slot + urgent staff task. Breathing/swallowing trouble or spreading swelling → advise 108/ER, urgent task, end call |
-| 15 | Handoff | Dashboard callback task now; live transfer after Asterisk |
+| 15 | Handoff | Only for emergencies, doctor-initiated problems or the truly unresolvable (R7). Asked for a person: help first, callback task only if they insist. Live transfer after Asterisk |
 | 16 | Busy | Only one call at a time. Outbound runner pauses while any call is active; an extra inbound caller hears a busy message (+ callback task once caller ID exists) |
 | 17 | Calendar | One-way: SQLite is the source of truth, a worker mirrors it to Google Calendar; staff calendars are view-only; the dashboard is the only editor |
 | 18 | Sheets | Dropped. CSV export from the dashboard |
 | 19 | Fallbacks | Piper (local, free) as fallback TTS. Ollama dropped; Tier-0 + templates are the LLM fallback |
 | 20 | Legacy | Delete `main.py`, `asterisk_agi.py`, `google_stt_engine.py`, `google_tts_engine.py`, `mock_db.json` (kept in git history) |
-| 21 | STT | Time-boxed Deepgram Flux spike against Nova-3, decided by measured numbers |
+| 21 | STT | ~~Flux spike~~ **Replaced by R10:** bake-off of Nova-3 (baseline), Nova-2 Indian English, Google Chirp en-IN and Sarvam on Indian-accent recordings |
 
 ---
 
@@ -41,13 +186,15 @@
 | LLM "speaks and extracts"; returns a `reply` | LLM only extracts. Every spoken sentence comes from Python templates | Free LLM text was spoken verbatim (problem 10): prompt injection or hallucinated prices could reach the caller |
 | Off-topic answers generated by the LLM, grounded in facts | LLM returns a **fact ID**; Python speaks the verified text or escalates with a real callback task | Same reason; also makes answers pre-renderable (lower latency) |
 | 12 fixed steps incl. separate date and time confirmations | Intent router + small workflows; date/time are confirmed once, inside the slot offer and recap | Removes dead-end loops and 2–4 turns per booking |
+| `DISCLOSE_AI=true` and a disclosure in the greeting | Natural greeting with no disclaimer (R1). Emma never volunteers being automated but answers truthfully if sincerely asked (R2) | Owner's North Star; the honesty boundary protects the clinic |
+| "LLM only extracts; every sentence from templates" (this plan's first version) | The LLM writes replies inside strict validators; commit-critical lines stay pre-written (section 0.2) | Natural conversation (North Star, principle 4) without letting the model invent facts or actions |
 | OAuth with a clinic account | Google **service account** owns the 4 branch calendars and shares them to a demo Gmail as view-only | OAuth apps in "Testing" issue refresh tokens that expire after 7 days (a token made on 1 Oct dies on the demo day), and the old code could open a browser login mid-call |
 | Calendar and Sheets projections | Calendar only; CSV export | Q17/Q18 |
 | 8–10 paraphrases per prompt | 2–3 for frequent prompts, 1 elsewhere | ElevenLabs free tier is 10,000 characters/month; 8–10 variants of ~80 prompts would need ~40,000 characters just to pre-render |
 | `GEMINI_API_KEYS` rotation | One key, periodic re-verification | Rotating free keys to raise quota likely breaks the provider's terms (Q13) |
 | Optional Ollama fallback | Dropped; Piper TTS added | Q19 |
 | p50 < 900 ms for common turns | Demo gate: Tier-0 p50 ≤ 900 ms / p95 ≤ 1.8 s, Tier-1 p50 ≤ 1.8 s / p95 ≤ 3 s. The original numbers stay as stretch goals | Measured today: Tier-0 p50 1.31 s, Tier-1 p50 3.08 s, dominated by end-of-speech detection (~1.2 s). The Flux spike decides how close we get |
-| AudioSocket in Phase 7 only | A server-side **playout queue** is built now | Needed for recording (Q12), accurate barge-in and AudioSocket later; one code path for browser and phone |
+| AudioSocket in Phase 7 only | A server-side **playout queue** is built now | Needed for accurate barge-in, the recap-heard rule and AudioSocket later (where it also mixes the ambience); one code path for browser and phone |
 
 ---
 
@@ -69,10 +216,10 @@
 | `prompts.py` | Template IDs → variants; everything Emma can say | from `phrases.py` |
 | `ai_engine.py` | Thin facade: `async_process_turn(text, ctx, progress) -> TurnResult` | shrinks |
 | `call_session.py` | Turn-taking, barge-in, silence ladder, recap-heard rule, reconnects | extended |
-| `playout.py` | Per-call paced audio queue, flush, playout clock, recording tap | new |
+| `playout.py` | Per-call paced audio queue, flush, playout clock (and the server-side ambience mix for the phone path) | new |
 | `speech.py` / `tts_elevenlabs.py` / `tts_piper.py` | TTS chain: ElevenLabs WS → HTTP → Piper, per-voice prompt caches | extended / new |
 | `stt_deepgram.py` (+ `stt_flux.py` if the spike wins) | Streaming STT with reconnect | extended |
-| `recording.py` | Stereo WAV per call, consent state, 30-day purge | new |
+| `recording.py` | Transcript retention: 30-day purge, delete-on-request (no audio, R3) | new |
 | `calendar_sync.py` | Outbox worker mirroring appointments to Google Calendar | new |
 | `outbound.py` | Blocks → preview → campaigns → job runner → browser ring | new |
 | `events.py` | In-process pub/sub for SSE (bounded queues) | new |
@@ -85,7 +232,7 @@
 
 ```
 caller audio ─► STT (interim/final) ─► turn detector (holds for digits / trailing words)
-   ─► globals (repeat · wait · human · end · robot · emergency · language · abuse · recording objection)
+   ─► globals (repeat · wait · human · end · bot question · emergency · language · abuse · don't-keep request)
    ─► Tier-0 for the current state ─► else Tier-1 NLU (structured JSON, 2.5 s budget) ─► else deterministic fallback
    ─► entity validation (Python) ─► router (intent switch?) ─► workflow.handle()
    ─► scheduling actions (transactions, holds) ─► reply = template id + params
@@ -122,7 +269,7 @@ caller audio ─► STT (interim/final) ─► turn detector (holds for digits /
 - `slot_claims(doctor_id, cell_start_utc, appointment_id NULL, hold_id NULL)` — **UNIQUE(doctor_id, cell_start_utc)**
 - `slot_holds(id, doctor_id, start_utc, end_utc, call_id, expires_at)`
 - `actions(idempotency_key PK, action, result_json, created_at)`
-- `calls(id, direction, started_at, ended_at, caller_phone_e164, outcome, workflow, recording_consent, recording_path, purge_after)`
+- `calls(id, direction, started_at, ended_at, caller_phone_e164, outcome, workflow, recording_consent, recording_path, purge_after)`. Since R3 there is no audio: `recording_consent` means "keep the transcript", and `recording_path` stays empty.
 - `call_turns(call_id, turn, role, text, tier, state_before, state_after, entities_json, latency_json, ts)`
 - `tasks(id, kind[callback|emergency|red_flag|recovery_failed|escalation|language|abandoned], priority, call_id, appointment_id, phone_e164, note, status, created_at, due_at, done_by)`
 - `contact_prefs(phone_e164 PK, do_not_call, updated_at)`
@@ -223,7 +370,7 @@ The LLM may supply `date_iso_hint`. It is used only if Python can't parse the ph
   "date_phrase": null, "time_phrase": null, "date_iso_hint": null,
   "confirmation": null, "correction": false, "choice_index": null,
   "faq_ids": [], "emergency": "none|urgent|red_flag",
-  "cancel_reason": null, "recording_objection": false
+  "cancel_reason": null, "keep_objection": false
 }
 ```
 
@@ -239,7 +386,7 @@ Unknown keys are dropped. Every value is validated by Python (enums, digits, len
 ### 5.5 Tier-0 (no LLM)
 
 Tier-0 handles:
-- **Globals:** repeat, wait, human, end, robot question, recording objection, English-only language requests.
+- **Globals:** repeat, wait, human, end, sincere bot question, don't-keep request, English-only language requests.
 - **Answers to the current slot:** yes/no, digits, service aliases (word-boundary matching, with ambiguity detection: "tooth" → "a filling, an extraction or a check-up?"), branch names, doctor names and "lady/male doctor", dates and times via `dateparse`, alternative picks ("the first one", "5:30").
 
 Anything mixed, long, or containing a question goes to Tier-1. Returning "don't know" is always safe; a wrong answer is not, so the rules stay conservative.
@@ -252,13 +399,13 @@ Anything mixed, long, or containing a question goes to Tier-1. Returning "don't 
 |---|---|
 | "sorry?", "come again", "repeat that", lone "what?" | Re-speak the last prompt (cached). No state change |
 | "hold on", "one second" | "Sure, take your time." Silence timers extend to 30 s |
-| wants a human / receptionist | Confirm the callback number (collect it if missing) → `callback` task → close warmly |
-| "are you a robot?" | Honest answer ("I'm Emma, the clinic's automated assistant…"), then re-ask |
+| wants a human / receptionist | First time: "I can help you with that. What's it about?" If they insist: confirm the callback number → `callback` task → close warmly (R7) |
+| sincerely asks "are you a real person / a bot?" | "Yeah, you caught me, I'm the clinic's virtual receptionist," then straight back to the task (R2). Never claims to be human, never raises it unprompted |
 | red-flag emergency | 108/ER advice, `red_flag` task, end call. Checked first, before anything else |
 | urgent dental emergency | Short path: name → phone → branch → earliest same-day slot (lead time 30 min) → recap → book + `emergency` task. No slot today → earliest tomorrow + task marked "no same-day slot" |
 | other language (explicit request, or 2 low-confidence turns in a row) | "I can only help in English right now. I'll ask our staff to call you back." → `language` task if a number can be captured |
 | abuse | One calm warning, then polite close |
-| recording objection | Stop recording, delete audio and transcript captured so far, mark consent false, confirm, continue |
+| asks not to be recorded / kept | No audio is recorded (R3). Mark the call so its transcript is not kept, confirm, and continue |
 | FAQ | Verified fact text, then re-ask the pending question. Unknown or unverified → "I don't have that information; I can ask our staff to call you back" → `escalation` task |
 | intent switch mid-flow ("actually I want to cancel") | Confirm the switch if booking data would be abandoned; caller name and phone carry over |
 | long monologue with no usable content | "To help quickly, could you tell me in a few words what you need?" |
@@ -303,7 +450,7 @@ Checks before search:
 
 - **Playout queue:**
   - TTS audio goes into a per-call queue that sends 20 ms frames in real time, at most 300 ms ahead of playback.
-  - `flush()` empties it instantly. The server knows exactly what was played (`played_ms`), which feeds barge-in, trimming Emma's history and recording.
+  - `flush()` empties it instantly. The server knows exactly what was played (`played_ms`), which feeds barge-in, trimming Emma's history and the recap-heard rule.
   - The browser keeps its 60 ms prebuffer and still reports when audio became audible, for latency metrics.
 - **Silence ladder** (timer starts when Emma's audio finishes; paused while the caller speaks or a turn is processing):
   - 8 s: "Are you still there?" + the current question.
@@ -317,13 +464,13 @@ Checks before search:
   - The browser talk page, dashboard test calls and outbound jobs all acquire it.
   - An extra inbound caller gets the busy message.
   - The gate is always released in `finally`, including on errors and hang-ups.
-- **Hang-up at any point:** release holds, save the transcript and outcome (`abandoned@<state>` with the extracted slots), finalise the recording. A commit already running finishes and is recorded as `booked_hangup`.
+- **Hang-up at any point:** release holds, save the transcript and outcome (`abandoned@<state>` with the extracted slots). A commit already running finishes and is recorded as `booked_hangup`.
 
-### 5.8 Recording and retention (`recording.py`)
+### 5.8 Transcripts and retention (`recording.py`)
 
-- **Greeting:** "Pearl Dental, this is Emma, the clinic's automated assistant. This call is recorded for quality and booking. How can I help you today?" The outbound disclosure is equivalent.
-- **Format:** stereo 16 kHz WAV (left = caller, right = Emma from the playout tap) in `recordings/YYYY-MM-DD/<call_id>.wav`, which is git-ignored and served only through an authenticated dashboard route.
-- **Purge:** runs at startup and every 6 h. It deletes audio and blanks transcript text older than 30 days. Appointment records are business records and are kept. Staff can "Delete call data" on request (audited).
+- **No audio recording** (R3). The greeting is the natural one from R1, with no recording notice. Development captures (`DEV_CAPTURE_AUDIO`) stay a local, off-by-default tool for your own test calls only.
+- **Transcripts:** caller and Emma turns are stored in `call_turns`, shown on the dashboard, and never written to log files.
+- **Purge:** runs at startup and every 6 h. It blanks transcript text older than 30 days. Appointment records are business records and are kept. Staff can "Delete call data" on request (audited). A caller who asks not to be kept gets their transcript blanked at hang-up.
 - **Logs:** `logs/turns.jsonl` stops storing caller text, and app logs mask phone numbers (last 4 digits only).
 
 ### 5.9 Google Calendar one-way sync (`calendar_sync.py`)
@@ -340,12 +487,12 @@ Checks before search:
 
 - **Access:** login required (password hash from `.env`, `SameSite=Strict` HttpOnly cookie, login rate limit). The server binds 127.0.0.1 by default; the WebSocket checks Origin and a per-page token.
 - **Live call:**
-  - Interim and final captions, workflow and state, slots, holds, tier, per-turn STT/NLU/TTS/perceived latency, recording indicator.
+  - Interim and final captions, workflow and state, slots, holds, tier, per-turn STT/NLU/TTS/perceived latency.
   - **Take over** — Emma announces "A member of our team is taking over", automation pauses, and typed operator lines are spoken.
   - **Hand back to Emma** / **End call + task**.
 - **Appointments:** today / by branch / by doctor, search, manual book/reschedule/cancel using the same engine, CSV export (audited).
 - **Tasks:** callbacks, emergencies, escalations, language, recovery failures, with priority and done state.
-- **Calls:** history, transcript, audio playback, outcome, delete-data button.
+- **Calls:** history, transcript, outcome, delete-data button (no audio, R3).
 - **Doctor unavailability and recovery** (5.11).
 - **System:** sync outbox (failed + retry), provider health, ElevenLabs characters left, audit log, do-not-call list.
 
@@ -357,7 +504,7 @@ Checks before search:
 4. **Runner:** one job at a time. It waits for the call gate and respects the calling window (09:00–20:00, configurable) and do-not-call. It re-checks each appointment's version against the snapshot; if staff or the patient already changed it, the job is `skipped (stale)`.
 5. **Ring:** the logged-in `/patient` tab shows "Incoming call from Pearl Dental" with Answer / Decline. There is no answer after 30 s, or the patient declines → **one attempt only** → `recovery_failed` task.
 6. **Call script:**
-   - Disclosure + recording notice.
+   - A natural opener: "Hi, is this Priya? This is Emma from Pearl Dental." No disclaimer (R1); the honesty line if sincerely asked (R2).
    - "Am I speaking with <first name>?" No details are shared before identity is confirmed.
    - Wrong person → ask them to have the patient call the clinic, no details → task.
    - "Is this a scam / who is this?" → clinic name, invite them to call the clinic directly → task.
@@ -400,7 +547,9 @@ Every stage ends with its exit tests green. Tests run after every step.
 - A failed reschedule leaves the original intact.
 - A replayed idempotency key returns the same result.
 
-### Day 2 — 2 Oct: dialogue engine and BOOK (Milestone A core)
+> **Days 2 and 3 are replaced by section 0 (R1–R3).** They're kept below for reference: R2 covers 2.1–2.6 and 3.1–3.3 on the natural engine, and R3 covers 3.4–3.6.
+
+### Day 2 — 2 Oct: dialogue engine and BOOK (Milestone A core), superseded by R2
 - [ ] **2.1** `dialogue/context.py` (serialisable call context), `router.py`, `globals.py`.
 - [ ] **2.2** `nlu.py` structured schema + prompt; `facts.py` with fact IDs; unknown → escalation task.
 - [ ] **2.3** Tier-0 v2 (5.5): phone accumulator, name spelling, service ambiguity.
@@ -413,9 +562,9 @@ Every stage ends with its exit tests green. Tests run after every step.
 - NLU/parser disagreement never commits.
 - Clean confirmations use no LLM.
 
-### Day 3 — 3 Oct: manage, safety flows, real-time robustness
+### Day 3 — 3 Oct: manage, safety flows, real-time robustness, superseded by R2 and R3
 - [ ] **3.1** MANAGE workflows: verify, check, cancel, reschedule.
-- [ ] **3.2** Emergency (urgent + red flag), human/callback, language, abuse, robot, recording objection.
+- [ ] **3.2** Emergency (urgent + red flag), human/callback, language, abuse, bot question, don't-keep request.
 - [ ] **3.3** No-dead-end fuzz test across all states.
 - [ ] **3.4** `playout.py`; recap-heard rule; backchannel filter; silence ladder; max length; call gate; hang-up handling.
 - [ ] **3.5** Deepgram reconnect; TTS chain with Piper (voice chosen by user) and a Piper prompt cache.
@@ -427,11 +576,11 @@ Every stage ends with its exit tests green. Tests run after every step.
 - A Deepgram drop recovers mid-call.
 - A barged-in recap can't be confirmed.
 
-### Day 4 — 4 Oct: dashboard, calendar, recording (Milestone B complete)
+### Day 4 — 4 Oct: dashboard, calendar, transcripts (Milestone B complete)
 - [ ] **4.1** `auth.py`, `events.py` (SSE), dashboard shell with htmx vendored.
 - [ ] **4.2** Live call panel + takeover; appointments views + manual edits + CSV; tasks; calls + audio; audit; system page.
 - [ ] **4.3** `tools/setup_calendars.py` + `calendar_sync.py` worker; health checks for credentials and calendar access.
-- [ ] **4.4** `recording.py`: consent line, stereo WAV, objection handling, purge job.
+- [ ] **4.4** `recording.py`: transcript retention, don't-keep requests, 30-day purge job (no audio, R3).
 - [ ] **4.5** Talk page: clear states for connecting, busy, connection lost (reconnect button) and mic blocked; anti-aliased resampling (AudioContext at 16 kHz where supported).
 
 **Exit:**
@@ -541,7 +690,7 @@ Run `docs/DEMO_SCRIPT.md`. Backups: typed-input mode (`emma.say()`), the recorde
 | | ElevenLabs down / out of characters | Piper for rest of call; balance on health page | 5.7 |
 | | Deepgram drop | Reconnect with buffer → graceful end | 5.7 |
 | | Google Calendar down / token issues | Outbox retries; service account (no expiring refresh token) | 5.9 |
-| Privacy | Caller objects to recording | Stop + delete + continue | 5.8 |
+| Privacy | Caller asks not to be recorded or kept | No audio is ever recorded; transcript blanked at hang-up; continue | 5.8 |
 | | Data older than 30 days | Purge | 5.8 |
 | | PII in logs / calendar | Masked / minimised | 5.8, 5.9 |
 | | Unauthenticated access | Login, localhost bind, origin/token | 5.10 |
@@ -634,13 +783,12 @@ Backups: typed input, the recorded full run, reseed script.
 ## 11. Cut line (if we fall behind, cut from the top)
 
 1. Speculative NLU
-2. Paraphrase variants (keep 1 per prompt)
+2. Dashboard extras: manual edit forms (keep manual cancel), audit viewer (R14)
 3. Typed-speech takeover (keep "End call + task")
-4. Dashboard manual reschedule form (keep manual cancel + book)
-5. Flux adapter (stay on tuned Nova-3)
-6. Audio recording (fall back to transcripts only, and tell you before cutting it, since you chose audio)
+4. Recovery calls reduced to preview + one scripted call, then moved after the demo (R14)
+5. STT candidates beyond the best two in the bake-off
 
-**Never cut:** invariants in 3.3, scheduling rules and transactions, idempotency, verification, emergency handling, no-dead-end guarantee, silence ladder, calendar outbox.
+**Never cut:** the North Star realism work (R1–R3), invariants in 3.3, scheduling rules and transactions, idempotency, verification, emergency handling, no-dead-end guarantee, silence ladder, calendar outbox.
 
 ---
 
@@ -649,7 +797,9 @@ Backups: typed input, the recorded full run, reseed script.
 | When | Task | Cost |
 |---|---|---|
 | Day 0–1 | Create a new Gmail for the demo; create a Google Cloud project; enable the Calendar API; create a service account and download its JSON key to `secrets/google-service-account.json` (I'll give exact clicks) | free |
-| Day 1 | Record the 30-utterance test set on the talk page with capture on. The script mixes names, phone numbers in groups, dates, times, services, corrections, questions and yes/no, spoken naturally | 10 min |
+| by 2 Oct | Record the 30-line test set ([STT_TEST_SET.md](STT_TEST_SET.md)); a second speaker is a bonus | 10 min |
+| by 2 Oct | For the STT bake-off: enable Speech-to-Text on the same Google Cloud project as Calendar (new accounts get free credit; billing must be switched on for Chirp), and sign up at Sarvam AI for an API key | free credits |
+| 1 Oct | Approve the ambience and sound-effect downloads I propose (each with file, source, licence and size) | free |
 | Day 1 | Check ElevenLabs characters left. Rehearsals may exhaust the free 10,000; either take the Starter plan for the week or accept Piper as the voice when it runs out | optional ~$5 |
 | Day 3 | Pick a Piper voice from 2–3 samples | free |
 | Day 4 | Set the dashboard password in `.env` | free |

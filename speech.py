@@ -9,16 +9,20 @@ Turning Emma's reply text into audio as fast as possible.
   so its synthesis overlaps with the cached audio already playing.
 """
 
+import array
 import asyncio
 import hashlib
 import json
 import logging
+import math
 import os
+import random
 import re
 import time
 from dataclasses import dataclass
 from typing import Optional
 
+import config
 import logredact
 
 logger = logging.getLogger(__name__)
@@ -143,6 +147,27 @@ class _Segment:
     stream: object = None
 
 
+def _synth_breath(seed: int, rate: int = 16000) -> bytes:
+    """
+    A soft ~0.3 s inhale: band-limited noise under a rise-and-fall envelope,
+    about -34 dBFS, so it reads as a quiet breath rather than a sound effect.
+    """
+    rng = random.Random(seed)
+    n = int(rate * rng.uniform(0.26, 0.36))
+    out = array.array("h")
+    low = high = 0.0
+    for i in range(n):
+        white = rng.uniform(-1.0, 1.0)
+        low += 0.18 * (white - low)          # remove the harshest highs
+        high += 0.02 * (low - high)          # and the rumble: roughly 400-3000 Hz
+        env = math.sin(math.pi * i / n) ** 1.6
+        out.append(int(32767 * 0.02 * (low - high) * 3.2 * env))
+    return out.tobytes()
+
+
+BREATHS = [_synth_breath(seed) for seed in (11, 23, 37)]
+
+
 class Speaker:
     """Plays replies for one call through a transport, cache first, live TTS second."""
 
@@ -153,6 +178,7 @@ class Speaker:
         self.fallback_tts = fallback_tts
         self.lock = asyncio.Lock()
         self._live: list = []
+        self._last_breath_turn = -10
 
     def _cached(self, text: str) -> Optional[bytes]:
         return self.cache.get(text) if self.cache else None
@@ -205,6 +231,8 @@ class Speaker:
                         await self._send(turn_id, seg.pcm, timer, "cache")
                         sent = True
                     elif seg.stream is not None:
+                        if self._wants_breath(turn_id, seg.text):
+                            await self._send(turn_id, random.choice(BREATHS), timer, "breath")
                         async for chunk in seg.stream:
                             await self._send(turn_id, chunk, timer, "live")
                             sent = True
@@ -226,6 +254,24 @@ class Speaker:
         async with self.lock:
             await self._send(turn_id, pcm, timer, source)
         return True
+
+    def _wants_breath(self, turn_id: int, text: str) -> bool:
+        """A breath before a long sentence: at most once per turn, never two turns running (R6)."""
+        threshold = config.BREATH_BEFORE_WORDS
+        if threshold <= 0 or len(text.split()) < threshold or turn_id - self._last_breath_turn <= 1:
+            return False
+        self._last_breath_turn = turn_id
+        return True
+
+    def cached_ms(self, text: str) -> int:
+        """Length of a pre-rendered phrase in milliseconds (0 if not cached)."""
+        pcm = self._cached(speakable(text))
+        return int(len(pcm) / 32) if pcm else 0   # 16 kHz PCM16: 32 bytes per ms
+
+    async def play_silence(self, turn_id: int, ms: int):
+        """A deliberate pause inside a turn (keeps the turn's audio in order)."""
+        async with self.lock:
+            await self._send(turn_id, bytes(2) * (16 * max(0, ms)), None, "pause")
 
     def cancel(self):
         """Barge-in: stop generating everything still in flight."""

@@ -1,0 +1,29 @@
+{
+  "_note": "Clinic sounds approved by the project owner on 30 Sep 2026. All are CC0 (public domain) on Freesound; no attribution is required, but sources are recorded here. Files are 128 kbps MP3 previews, downloaded by tools/fetch_ambience.py into static/ambience/ (git-ignored).",
+  "sounds": [
+    {"file": "murmur_dentist_waiting_room.mp3", "group": "murmur",
+     "title": "Medical Waiting Room Ambience", "author": "mht23SD",
+     "page": "https://freesound.org/people/mht23SD/sounds/707881/",
+     "url": "https://cdn.freesound.org/previews/707/707881_15272986-hq.mp3", "license": "CC0"},
+    {"file": "murmur_quiet_doctors_office.mp3", "group": "murmur",
+     "title": "Quiet Doctor's Office Waiting Room", "author": "qubodup",
+     "page": "https://freesound.org/people/qubodup/sounds/870989/",
+     "url": "https://cdn.freesound.org/previews/870/870989_71257-hq.mp3", "license": "CC0"},
+    {"file": "door_wooden.mp3", "group": "movement",
+     "title": "Wooden-Door-opening+closing_mono.wav", "author": "hannagreen",
+     "page": "https://freesound.org/people/hannagreen/sounds/256214/",
+     "url": "https://cdn.freesound.org/previews/256/256214_4717814-hq.mp3", "license": "CC0"},
+    {"file": "chair_slide.mp3", "group": "movement",
+     "title": "chair slid back.wav", "author": "vestibule-door",
+     "page": "https://freesound.org/people/vestibule-door/sounds/669054/",
+     "url": "https://cdn.freesound.org/previews/669/669054_14100561-hq.mp3", "license": "CC0"},
+    {"file": "footsteps_tile.mp3", "group": "movement",
+     "title": "Walking on Tile with Shoes", "author": "PandaKub",
+     "page": "https://freesound.org/people/PandaKub/sounds/256904/",
+     "url": "https://cdn.freesound.org/previews/256/256904_2461989-hq.mp3", "license": "CC0"},
+    {"file": "typing_laptop.mp3", "group": "typing",
+     "title": "Typing (HP laptop)", "author": "sonically_sound",
+     "page": "https://freesound.org/people/sonically_sound/sounds/636044/",
+     "url": "https://cdn.freesound.org/previews/636/636044_12946258-hq.mp3", "license": "CC0"}
+  ]
+}

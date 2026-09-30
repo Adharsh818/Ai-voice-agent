@@ -9,6 +9,8 @@ import config
 import backend_actions
 import llm
 import logredact
+import phones
+import phrases
 import tier0
 
 logger = logging.getLogger(__name__)
@@ -42,15 +44,19 @@ def _load_clinic_facts():
     lines.append("- Services: " + ", ".join(
         services.get("list", []) if services.get("verified") else config.ALLOWED_SERVICES
     ))
+    for entry in facts.get("facts", []):
+        if entry.get("verified") and entry.get("text"):
+            lines.append(f"- {entry.get('topic', entry.get('id'))}: {entry['text']}")
     for branch in facts.get("branches", []):
         if branch.get("verified"):
             detail = branch.get("address", "")
+            if branch.get("parking"):
+                detail += f". Parking: {branch['parking']}"
             if branch.get("phone") and branch["phone"] != "PLACEHOLDER":
                 detail += f", phone {branch['phone']}"
-            lines.append(f"- Branch {branch['name']}: {detail}"
-                         + ("" if branch.get("bookable") else " (not bookable by phone)"))
+            lines.append(f"- Branch {branch['name']}: {detail}")
     escalation = ((facts.get("escalation") or {}).get("text")
-                  or "I'll have our clinic staff call you back to confirm that.")
+                  or "The doctor can go through that with you at your visit.")
     return "\n".join(lines), escalation
 
 
@@ -59,7 +65,7 @@ CLINIC_FACTS, ESCALATION_LINE = _load_clinic_facts()
 # One merged request per Tier-1 turn: slot extraction AND, when the caller asked
 # something off-topic, a one-sentence grounded answer. Python decides every
 # transition; the model's `answer` is only ever spoken text.
-EMMA_NLU_SYSTEM_PROMPT = """You are the language-understanding layer for Emma, the automated phone receptionist of Pearl Dental Clinic in Bengaluru.
+EMMA_NLU_SYSTEM_PROMPT = """You are the language-understanding layer for Emma, the receptionist at Pearl Dental Clinic in Bengaluru.
 Read the caller's latest words and output ONLY a JSON object, no markdown.
 
 Keys (use null when absent):
@@ -70,11 +76,11 @@ Keys (use null when absent):
 - appointment_time: the time they prefer, as they said it (e.g. "5 PM", "10:30 AM", "evening").
 - confirmation: "yes" if they agreed with or confirmed Emma's last question, "no" if they disagreed or refused, else null.
 - user_query: if they asked a question that is not itself booking information (hours, location, price, services...), their question in a few words, else null.
-- answer: ONLY when user_query is set: one short spoken sentence (under 25 words) answering it strictly from CLINIC FACTS below. If the facts do not cover it, answer exactly: "@ESCALATION@". Never invent prices, addresses, doctors, insurance terms or medical advice. Do not ask a question in `answer`; Emma continues with her own next question.
+- answer: ONLY when user_query is set: one short spoken sentence (under 25 words) answering it strictly from CLINIC FACTS below. If the facts do not cover it, answer exactly: "@ESCALATION@". Never invent prices, addresses, doctors, insurance terms or medical advice. Do not ask a question in `answer`; Emma continues with her own next question. Sound like a friendly receptionist and never bring up being an AI, a bot or automated. The one exception: if the caller sincerely asks whether they are talking to a real person or a bot, set user_query and answer exactly "@HONEST@" (never claim to be human).
 
 CLINIC FACTS:
 @FACTS@
-""".replace("@ESCALATION@", ESCALATION_LINE).replace("@FACTS@", CLINIC_FACTS)
+""".replace("@ESCALATION@", ESCALATION_LINE).replace("@FACTS@", CLINIC_FACTS).replace("@HONEST@", config.HONEST_LINE)
 
 
 # ==========================================
@@ -379,10 +385,8 @@ def _confirmation_message(service: str, formatted_date: str, time_str: str) -> s
     email is collected and no invitation is sent, so none is promised.
     """
     return (
-        "Your appointment has been successfully confirmed. "
-        f"Your appointment for {service} has been confirmed for {formatted_date} "
-        f"at {time_str} at Pearl Dental Clinic, {config.DEFAULT_BRANCH}. "
-        "Is there anything else I can help you with today?"
+        f"Done, you're booked for a {service} on {formatted_date} at {time_str}, "
+        f"at our {config.DEFAULT_BRANCH} branch. Anything else I can help with?"
     )
 
 
@@ -454,19 +458,23 @@ def _name_prompt(s, spell=False):
     """Confirm the candidate name.  Spelled out letter-by-letter only on retry."""
     if spell:
         spelled = " ".join(list(s.temp_name.upper()))
-        return f"Just to confirm — your name is {s.temp_name}, spelled {spelled}. Is that correct?"
-    return f"You said {s.temp_name} — did I get that right?"
+        return f"Sorry, let me just check the spelling. {spelled}. Is that right?"
+    return f"{s.temp_name}, did I get that right?"
 
 
 def _purpose_prompt():
-    return "Thank you! How may I help you today?"
+    return "Thanks! And what can I do for you today?"
 
 
-def _phone_prompt(s, lead="Great!"):
+def _spoken_phone(number):
+    """Read back in two groups, the way people check numbers: '9 8 7 6 5, 4 3 2 1 0'."""
+    return phones.spoken(phones.to_e164(number) or number)
+
+
+def _phone_prompt(s, lead="Great."):
     if s.temp_phone:
-        spaced = " ".join(list(s.temp_phone))
-        return f"{lead} Just to confirm, your phone number is {spaced}. Is that correct?"
-    return f"{lead} What is the best mobile number to reach you?"
+        return f"{lead} So that's {_spoken_phone(s.temp_phone)}, right?"
+    return f"{lead} And what's the best mobile number to reach you on?"
 
 
 def _after_name(s):
@@ -484,22 +492,22 @@ def _after_name(s):
     return _purpose_prompt()
 
 
-def _service_prompt(s, lead="Thank you."):
+def _service_prompt(s, lead="Thanks."):
     if s.temp_service:
-        return f"{lead} Just to confirm, you'd like to book a {s.temp_service}. Is that correct?"
-    return f"{lead} Which dental service would you like to book?"
+        return f"{lead} And that's for a {s.temp_service}, is that right?"
+    return f"{lead} And what's the visit for?"
 
 
 def _date_prompt(s):
     if s.temp_date:
         formatted = datetime.strptime(s.temp_date, "%Y-%m-%d").strftime("%A, %d %B")
-        return f"You'd like to visit on {formatted}. Is that correct?"
-    return "Which date would you prefer for your appointment?"
+        return f"So {formatted}, is that right?"
+    return "What day would suit you?"
 
 
 def _time_prompt(s):
     if s.temp_time:
-        return f"You'd like to visit at {s.temp_time}. Is that correct?"
+        return f"At {s.temp_time}, is that right?"
     return "What time works best for you?"
 
 
@@ -509,28 +517,52 @@ def _current_question(s):
     answering an off-topic question so the booking picks up where it left off.
     """
     if s.step == 1:
-        return "Would you like to book an appointment?"
+        return "Would you like to book a visit?"
     if s.step == 2:
         return _name_prompt(s) if s.temp_name else "May I have your full name, please?"
     if s.step == 3:
-        return "How may I help you today?"
+        return "What can I do for you today?"
     if s.step == 4:
         return _phone_prompt(s, lead="").strip()
     if s.step == 5:
         return _service_prompt(s, lead="").strip()
     if s.step == 6:
-        return "Is it okay to book your appointment at our Nagarbhavi clinic?"
+        return f"Is our {config.DEFAULT_BRANCH} branch okay for you?"
     if s.step == 7:
         return _date_prompt(s)
     if s.step == 8:
         return _time_prompt(s)
     if s.step == 9:
-        return "Shall I go ahead and book the appointment with those details?"
+        return "Shall I go ahead and book it?"
     if s.step == 10 and s.alternative_slots:
         return "Would " + " or ".join(s.alternative_slots[:2]) + " work for you?"
     if s.step == 11:
         return "Is there anything else I can help you with?"
     return "How can I help you?"
+
+
+def expects_information(s, text: str) -> bool:
+    """
+    True when the caller has just given Emma something a receptionist would
+    write down: an answer to her question for a name, number, service, date or
+    time, a first description of what they need, or a correction at the recap.
+    Not a bare yes/no, and not a question. The call session then plays a short
+    burst of typing before Emma answers (docs/NORTH_STAR.md, decision R6).
+    """
+    words = re.findall(r"[a-z0-9']+", (text or "").lower())
+    if not words or tier0.looks_like_question(text):
+        return False
+    confirmation = _parse_confirmation(text)
+    if len(words) <= 3 and confirmation:
+        return False
+    awaiting = ((s.step == 2 and not s.temp_name) or s.step == 3 or (s.step == 4 and not s.temp_phone)
+                or (s.step == 5 and not s.temp_service) or (s.step == 7 and not s.temp_date)
+                or (s.step == 8 and not s.temp_time))
+    if awaiting:
+        return True
+    if s.step == 1:
+        return len(words) >= 4                          # explaining what they need
+    return s.step == 9 and confirmation == "no" and len(words) >= 4   # "no, the number is ..."
 
 
 def _is_pure_question(entities):
@@ -548,22 +580,12 @@ def _recap_message(s, updated=False):
     it out letter-by-letter on every recap is slow and robotic on a voice call —
     but the phone number stays digit-by-digit, which is how people verify numbers.
     """
-    spaced_phone = " ".join(list(s.phone))
-    formatted_date = datetime.strptime(s.date_str, "%Y-%m-%d").strftime("%d %B %Y")
-    lead = (
-        "Thank you. Let me recap the updated details. " if updated
-        else "Before I book your appointment, let me confirm everything. "
-    )
-    tail = "Is everything correct now?" if updated else "Is everything correct?"
+    formatted_date = datetime.strptime(s.date_str, "%Y-%m-%d").strftime("%A the %d %B")
+    lead = "Okay, so now that's" if updated else "So that's"
     return (
-        f"{lead}"
-        f"Name: {s.name}. "
-        f"Phone Number: {spaced_phone}. "
-        f"Service: {s.service}. "
-        f"Clinic: Pearl Dental Clinic, Nagarbhavi. "
-        f"Appointment Date: {formatted_date}. "
-        f"Appointment Time: {s.time_str}. "
-        f"{tail}"
+        f"{lead} a {s.service} for {s.name} on {formatted_date} at {s.time_str}, "
+        f"at our {config.DEFAULT_BRANCH} branch, and your number is {_spoken_phone(s.phone)}. "
+        "Shall I book it?"
     )
 
 
@@ -628,7 +650,7 @@ def _handle_conversation_step(user_text, entities, s):
         if has_new_val:
             return _recap_message(s, updated=True)
         else:
-            return "Which information is incorrect? Please tell me what to update."
+            return "Sure, what should I change?"
 
     # Absorb anything the caller volunteered ahead of schedule, so no step below
     # re-asks for a slot Emma has already been given.
@@ -648,7 +670,7 @@ def _handle_conversation_step(user_text, entities, s):
         # contains a booking keyword, and must not be read as consent because of it.
         if conf == "no" or "later" in user_lower or "busy" in user_lower:
             s.closed_conversation = True
-            return "No problem. When would be a better time for me to call you back?"
+            return "No problem at all. Just give us a call whenever you're ready. Take care!"
 
         if conf == "yes" or wants_booking or volunteered or raw_slots or ready:
             if wants_booking or volunteered:
@@ -657,10 +679,10 @@ def _handle_conversation_step(user_text, entities, s):
             # temp_name may already be filled by _absorb_volunteered_slots when
             # the caller introduced themselves in the same breath.
             if s.temp_name:
-                return f"Wonderful! Let's get your appointment scheduled. {_name_prompt(s)}"
-            return "Wonderful! Let's get your appointment scheduled. May I have your full name, please?"
+                return f"Sure, I can help with that. {_name_prompt(s)}"
+            return "Sure, I can help with that. May I have your full name, please?"
 
-        return "I can help you book an appointment. Would you like to schedule one?"
+        return "Sure. Would you like to book a visit?"
 
     # --- STEP 2: COLLECT NAME ---
     elif s.step == 2:
@@ -683,7 +705,7 @@ def _handle_conversation_step(user_text, entities, s):
                     if corrected.lower() != rejected.lower():
                         s.temp_name = corrected
                         return f"Sorry about that. {_name_prompt(s)}"
-                return "Sorry about that. Could you please tell me your full name again?"
+                return "Sorry about that. Could you tell me your full name again?"
             else:
                 # NLU couldn't determine yes or no.
                 # Check if the user re-stated the same name (implicit confirmation)
@@ -749,9 +771,9 @@ def _handle_conversation_step(user_text, entities, s):
         if is_booking:
             s.purpose = "booking"
             s.step = 4
-            return _phone_prompt(s, lead="I can help with that.")
+            return _phone_prompt(s, lead="Sure.")
         else:
-            return "At the moment, I can assist only with scheduling appointments."
+            return "I can help you set up a visit. Would you like to book one?"
 
     # --- STEP 4: COLLECT PHONE ---
     elif s.step == 4:
@@ -759,14 +781,10 @@ def _handle_conversation_step(user_text, entities, s):
             phone_input = entities.get("phone_number") or user_text
             is_valid, cleaned_phone = backend_actions.validate_phone(phone_input)
             if not is_valid:
-                return (
-                    "That doesn't appear to be a valid 10-digit Indian mobile number. "
-                    "Could you please repeat it?"
-                )
+                return "Sorry, I think I missed a digit there. Could you say the number again?"
             s.temp_phone = cleaned_phone
             s.phone_confirm_attempts = 0
-            spaced = " ".join(list(s.temp_phone))
-            return f"Just to confirm, your phone number is {spaced}. Is that correct?"
+            return f"So that's {_spoken_phone(s.temp_phone)}, right?"
         else:
             if conf == "yes":
                 s.phone = s.temp_phone
@@ -784,7 +802,7 @@ def _handle_conversation_step(user_text, entities, s):
                     if ok and cleaned != rejected:
                         s.temp_phone = cleaned
                         return _phone_prompt(s, lead="Sorry about that.")
-                return "No problem. What is the best mobile number to reach you?"
+                return "No problem. What's the best mobile number to reach you on?"
             else:
                 s.phone_confirm_attempts += 1
                 if s.phone_confirm_attempts >= 2:
@@ -793,8 +811,7 @@ def _handle_conversation_step(user_text, entities, s):
                     s.phone_confirm_attempts = 0
                     s.step = 5
                     return _service_prompt(s)
-                spaced = " ".join(list(s.temp_phone))
-                return f"Is your mobile number {spaced}? Is that correct?"
+                return f"Sorry, is that {_spoken_phone(s.temp_phone)}?"
 
     # --- STEP 5: SERVICE SELECTION ---
     elif s.step == 5:
@@ -802,18 +819,17 @@ def _handle_conversation_step(user_text, entities, s):
             matched_service = _match_service(entities.get("dental_service") or user_text)
             if not matched_service:
                 return (
-                    "I'm sorry, but that service is currently unavailable through this booking assistant. "
-                    "We offer: General Check-up, Consultation, Teeth Cleaning, Tooth Filling, Root Canal Treatment, "
-                    "Tooth Extraction, Braces, Invisalign, and Pediatric Dentistry. Which of these would you like to book?"
+                    "Sorry, which treatment is it for? A check-up, a cleaning, a filling, a root canal, "
+                    "an extraction, or braces?"
                 )
             s.temp_service = matched_service
-            return f"Just to confirm, you'd like to book a {s.temp_service}. Is that correct?"
+            return f"A {s.temp_service}, is that right?"
         else:
             if conf == "yes":
                 s.service = s.temp_service
                 s.service_confirmed = True
                 s.step = 6
-                return "Pearl Dental Clinic currently has one location. Your appointment will be at our Nagarbhavi clinic. Is that okay?"
+                return f"Great. And that'd be at our {config.DEFAULT_BRANCH} branch, is that okay?"
             elif conf == "no":
                 rejected = s.temp_service
                 s.temp_service = ""
@@ -821,9 +837,9 @@ def _handle_conversation_step(user_text, entities, s):
                 if corrected and corrected != rejected:
                     s.temp_service = corrected
                     return _service_prompt(s, lead="Sorry about that.")
-                return "No problem. Which dental service would you like to book?"
+                return "No problem. What's the visit for?"
             else:
-                return f"Just to confirm, you'd like to book a {s.temp_service}. Is that correct?"
+                return f"A {s.temp_service}, is that right?"
 
     # --- STEP 6: LOCATION CONFIRMATION ---
     elif s.step == 6:
@@ -832,9 +848,9 @@ def _handle_conversation_step(user_text, entities, s):
             s.step = 7
             return _date_prompt(s)
         elif conf == "no":
-            return "I understand, but Pearl Dental Clinic only operates at our Nagarbhavi clinic. Is it okay to schedule your appointment there?"
+            return f"Sorry, on this call I can only book our {config.DEFAULT_BRANCH} branch. Would that still work?"
         else:
-            return "Your appointment will be at our Nagarbhavi clinic. Is that okay?"
+            return f"That'd be at our {config.DEFAULT_BRANCH} branch, is that okay?"
 
     # --- STEP 7: PREFERRED DATE ---
     elif s.step == 7:
@@ -865,7 +881,7 @@ def _handle_conversation_step(user_text, entities, s):
                 if resolved and resolved != rejected:
                     s.temp_date = resolved
                     return f"Sorry about that. {_date_prompt(s)}"
-                return "No problem. Which date would you prefer for your appointment?"
+                return "No problem. What day would suit you?"
             else:
                 return _date_prompt(s)
 
@@ -911,34 +927,25 @@ def _handle_conversation_step(user_text, entities, s):
                 )
                 if not success:
                     s.step = 9
-                    return "I couldn't secure that slot just now. Would you like me to check another time?"
+                    return "Sorry, that slot just went. Shall I look at another time?"
                 s.booking_confirmed = True
                 s.step = 11
                 dt_obj = datetime.strptime(s.date_str, "%Y-%m-%d")
-                formatted_date = dt_obj.strftime("%A, %d %B %Y")
+                formatted_date = dt_obj.strftime("%A the %d %B")
                 return _confirmation_message(s.service, formatted_date, s.time_str)
             else:
                 s.offering_alternatives = True
                 s.alternative_slots = alts
                 if len(alts) >= 2:
-                    return (
-                        f"Unfortunately that slot isn't available. "
-                        f"Would either {alts[0]} or {alts[1]} work instead?"
-                    )
+                    return f"Ah, that one's taken. I could do {alts[0]} or {alts[1]}, would either work?"
                 elif len(alts) == 1:
-                    return (
-                        f"Unfortunately that slot isn't available. "
-                        f"Would {alts[0]} work instead?"
-                    )
+                    return f"Ah, that one's taken. I could do {alts[0]}, would that work?"
                 else:
-                    return (
-                        "Unfortunately that slot isn't available and we don't have other open slots near that time. "
-                        "Could you please choose another time or date?"
-                    )
+                    return "Hmm, that time's full and there's nothing close to it that day. Would another time work?"
         elif conf == "no":
-            return "Which details are incorrect? Please let me know what to update."
+            return "Sure, what should I change?"
         else:
-            return "Is everything correct? Please say yes to confirm or let me know what to change."
+            return "Sorry, shall I go ahead and book that?"
 
     # --- STEP 10: ALTERNATIVE BOOKING SLOTS ---
     elif s.step == 10:
@@ -978,48 +985,35 @@ def _handle_conversation_step(user_text, entities, s):
                     s.name, s.phone, s.service, s.date_str, s.time_str
                 )
                 if not success:
-                    return "I couldn't secure that alternative just now. Could you choose another time or date?"
+                    return "Sorry, that one just went too. What other time would work?"
                 s.booking_confirmed = True
                 s.step = 11
                 dt_obj = datetime.strptime(s.date_str, "%Y-%m-%d")
-                formatted_date = dt_obj.strftime("%A, %d %B %Y")
+                formatted_date = dt_obj.strftime("%A the %d %B")
                 return _confirmation_message(s.service, formatted_date, s.time_str)
             else:
                 if len(s.alternative_slots) >= 2:
-                    return (
-                        f"I'm sorry, I didn't catch that. "
-                        f"Would either {s.alternative_slots[0]} or {s.alternative_slots[1]} work instead?"
-                    )
+                    return f"Sorry, was that {s.alternative_slots[0]} or {s.alternative_slots[1]}?"
                 elif len(s.alternative_slots) == 1:
-                    return (
-                        f"I'm sorry, I didn't catch that. "
-                        f"Would {s.alternative_slots[0]} work instead?"
-                    )
+                    return f"Sorry, would {s.alternative_slots[0]} work?"
                 else:
-                    return "Could you please choose another time or date?"
+                    return "What other time would work for you?"
         else:
             s.step = 9
-            return "Let me check availability again. Is everything correct?"
+            return "Let me just check that again. Shall I go ahead and book it?"
 
     # --- STEP 11: CLOSING CHECK ---
     elif s.step == 11:
         if conf == "no" or "nothing" in user_text.lower() or "no thanks" in user_text.lower() or "that's all" in user_text.lower() or "bye" in user_text.lower():
             s.step = 12
             s.closed_conversation = True
-            return (
-                "Thank you for choosing Pearl Dental Clinic. "
-                "We look forward to seeing you. "
-                "Have a wonderful day."
-            )
+            return "Great, we'll see you then. Take care, bye!"
         else:
-            return (
-                "I can assist only with scheduling appointments today. "
-                "Since we've confirmed your booking, is there another appointment you'd like to schedule?"
-            )
+            return "Sure, anything else I can help with?"
 
     # --- STEP 12: CLOSED ---
     elif s.step == 12:
-        return "Thank you for choosing Pearl Dental Clinic. Have a wonderful day."
+        return "Take care, bye!"
 
     return "Sorry, I didn't catch that. Could you please repeat?"
 
@@ -1028,7 +1022,7 @@ def _handle_conversation_step(user_text, entities, s):
 # DIALOGUE MANAGEMENT - PUBLIC API
 # ==========================================
 
-CLOSED_REPLY = "Thank you for choosing Pearl Dental Clinic. We look forward to seeing you. Have a wonderful day!"
+CLOSED_REPLY = "Great, we'll see you then. Take care, bye!"
 
 
 @dataclass
@@ -1071,8 +1065,9 @@ async def async_process_turn(user_text, s, progress=None) -> TurnResult:
 
     if s.step == 1 and not s.greeting_spoken and not user_text:
         s.greeting_spoken = True
-        s.history.append({"role": "assistant", "content": config.GREETING})
-        return TurnResult(config.GREETING, tier=-1, step_before=step_before, step_after=s.step)
+        greeting = phrases.next_greeting()
+        s.history.append({"role": "assistant", "content": greeting})
+        return TurnResult(greeting, tier=-1, step_before=step_before, step_after=s.step)
 
     started = time.perf_counter()
     entities = tier0.fast_entities(user_text, s) if config.TIER0_ENABLED else None

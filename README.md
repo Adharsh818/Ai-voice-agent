@@ -15,6 +15,7 @@ The build plan, decisions and edge cases are in [docs/IMPLEMENTATION_PLAN.md](do
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 copy .env.example .env      # then fill in GEMINI_API_KEY, DEEPGRAM_API_KEY, ELEVENLABS_API_KEY
+.\.venv\Scripts\python.exe tools\fetch_ambience.py   # the approved clinic sounds (CC0), about 11 MB
 .\.venv\Scripts\python.exe server.py
 ```
 

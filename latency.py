@@ -74,6 +74,7 @@ class TurnTimer:
     barge_in: bool = False
     barge_in_ms: Optional[float] = None
     filler: bool = False
+    pause_ms: Optional[float] = None        # deliberate pause (typing beat), part of perceived_ms
     logged: bool = field(default=False, repr=False)
 
     def _ms(self, a, b):
@@ -97,6 +98,7 @@ class TurnTimer:
             "first_audio_source": self.first_audio_source,
             "perceived_ms": self._ms(self.user_end, self.audible),
             "filler": self.filler,
+            "pause_ms": self.pause_ms,
             "barge_in": self.barge_in,
             "barge_in_ms": None if self.barge_in_ms is None else round(self.barge_in_ms, 1),
         }

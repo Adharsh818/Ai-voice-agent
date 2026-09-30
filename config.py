@@ -9,18 +9,30 @@ CLINIC_NAME = "Pearl Dental Clinic"
 CLINIC_LOCATION = "Nagarbhavi"
 CLINIC_TIMEZONE = os.getenv("CLINIC_TIMEZONE", "Asia/Kolkata")
 
-# Agent persona / greeting
-# DISCLOSE_AI: Emma states up front that she is the clinic's automated assistant.
-# On by default (approved plan): naturalness comes from responsiveness and voice
-# quality, never from concealment. Outbound calls must always disclose.
-DISCLOSE_AI = os.getenv("DISCLOSE_AI", "true").lower() == "true"
-CLINIC_GREETING = os.getenv(
-    "CLINIC_GREETING", "Pearl Dental, this is Emma. How can I help you today?"
-)
-GREETING = (
-    "Pearl Dental, this is Emma, the clinic's automated assistant. How can I help you today?"
-    if DISCLOSE_AI else CLINIC_GREETING
-)
+# Agent persona / greeting (docs/NORTH_STAR.md, decisions R1 and R2).
+# A short natural greeting, rotated; no disclaimers. Emma never volunteers that
+# she is automated, and never claims to be human: if a caller sincerely asks,
+# she says HONEST_LINE and carries straight on helping.
+GREETINGS = [
+    "Hi, this is Emma at Pearl Dental, how can I help?",
+    "Hello, Pearl Dental. How can I help you?",
+    "Pearl Dental, Emma here. Go ahead.",
+    "Hi, I'm Emma from Pearl Dental. How can I help you?",
+]
+HONEST_LINE = "Yeah, you caught me, I'm the clinic's virtual receptionist."
+
+# Browser demo realism (R1, R5, R6). Nothing plays constantly: the clinic is
+# heard only while Emma's line is active (speaking or typing), see static/ambience.js.
+PHONE_LINE_EFFECT = os.getenv("PHONE_LINE_EFFECT", "true").lower() == "true"
+AMBIENCE_ENABLED = os.getenv("AMBIENCE_ENABLED", "true").lower() == "true"
+AMBIENCE_MURMUR_DB = float(os.getenv("AMBIENCE_MURMUR_DB", "-38"))  # waiting-room level, dBFS RMS
+AMBIENCE_EVENT_DB = float(os.getenv("AMBIENCE_EVENT_DB", "-34"))    # door / chair / footsteps peak
+TYPING_SFX = os.getenv("TYPING_SFX", "true").lower() == "true"
+# After the caller gives something to write down (name, number, date...), Emma
+# types for a moment before answering, as a receptionist would. Min/max ms.
+TYPING_BEAT_MS = (int(os.getenv("TYPING_BEAT_MIN_MS", "650")), int(os.getenv("TYPING_BEAT_MAX_MS", "1000")))
+# A soft breath before sentences at least this long (words); 0 turns it off.
+BREATH_BEFORE_WORDS = int(os.getenv("BREATH_BEFORE_WORDS", "20"))
 
 # Clinic Working Hours
 WORKING_DAYS = [0, 1, 2, 3, 4, 5]  # Monday (0) to Saturday (5)
