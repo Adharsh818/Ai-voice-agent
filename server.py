@@ -271,7 +271,6 @@ async def client_config():
         "phone_line": config.PHONE_LINE_EFFECT,
         "ambience": {
             "enabled": config.AMBIENCE_ENABLED,
-            "murmur_db": config.AMBIENCE_MURMUR_DB,
             "event_db": config.AMBIENCE_EVENT_DB,
         },
         "typing": config.TYPING_SFX,

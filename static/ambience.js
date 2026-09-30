@@ -1,24 +1,22 @@
 /**
  * Clinic sound that follows the call (docs/NORTH_STAR.md, decisions R4-R6, and
- * the owner's note: "don't play anything constantly, play according to the call").
+ * the owner's notes: "don't play anything constantly, play according to the
+ * call"; on 1 Oct the waiting-room murmur was removed because it still felt
+ * constant).
  *
- * Nothing plays on its own. The clinic is heard only while Emma's line is
- * active, i.e. while she speaks or types, the way a headset with a noise gate
- * sounds on a real phone call:
+ * There is no background bed. Only two kinds of sound, both tied to the call:
  *
- *   murmur    waiting-room recordings running silently behind a gate that
- *             opens in about 80 ms when Emma's line opens and closes over about
- *             350 ms after a short hold. Played as 40-110 s segments from random
- *             offsets, crossfaded, so the clinic never sounds looped.
- *   movement  an occasional door, chair or footsteps: at most one every 25 s,
- *             only while the line is open (a random 3-6 s slice of long files).
+ *   movement  an occasional door, chair or footsteps, heard only while Emma's
+ *             line is active (she is speaking or typing), like a headset with a
+ *             noise gate: at most one every 25 s, a random 3-6 s slice of long
+ *             files, faded out if the line closes.
  *   typing    when Emma writes down what the caller just said, or checks the
- *             diary. Triggered by the server; stops when she starts speaking.
+ *             diary. Triggered by the server; note-taking typing stops when she
+ *             starts speaking.
  *
  * While the caller talks, Emma's side is silent, so nothing leaks back into
  * their microphone. Files come from static/ambience/manifest.json (sounds the
- * owner approved; see tools/ambience_sources.json). Levels are normalised on
- * load: murmur to a target RMS, events and typing to a target peak.
+ * owner approved; see tools/ambience_sources.json), normalised to a target peak.
  */
 
 const dbToGain = (db) => Math.pow(10, db / 20);
@@ -34,12 +32,12 @@ const MOVEMENT = { chance: 0.35, cooldown: 25 };        // per line-open, second
 export class Ambience {
   constructor(ctx, output, cfg = {}) {
     this.ctx = ctx;
-    this.cfg = { murmurDb: -38, eventDb: -34, ...cfg };
+    this.cfg = { eventDb: -34, ...cfg };
     this.out = output;
     this.gate = ctx.createGain();
     this.gate.gain.value = 0;
     this.gate.connect(output);
-    this.buffers = { murmur: [], movement: [], typing: [] };
+    this.buffers = { movement: [], typing: [] };
     this.timers = [];
     this.sources = new Set();
     this.running = false;
@@ -52,30 +50,18 @@ export class Ambience {
   }
 
   // ------------------------------------------------------------------ loading
-  /**
-   * Level of a recording as heard: `rms` is the median of half-second windows of
-   * the mono mix, so a few loud moments (a door, a cough) don't make the typical
-   * stretch play too quietly; `peak` is the loudest sample of the mono mix.
-   */
-  static _stats(buffer) {
+  /** Loudest sample of the mono mix, used to set each sound's level. */
+  static _peak(buffer) {
     const n = buffer.length, chans = buffer.numberOfChannels;
     const data = Array.from({ length: chans }, (_, c) => buffer.getChannelData(c));
-    const win = Math.max(1, Math.floor(buffer.sampleRate / 2));
-    const levels = [];
     let peak = 0;
-    for (let s = 0; s < n; s += win) {
-      let e = 0, m = 0;
-      for (let i = s; i < Math.min(n, s + win); i += 2) {
-        let v = 0;
-        for (let c = 0; c < chans; c++) v += data[c][i];
-        v /= chans;
-        e += v * v; m++;
-        if (Math.abs(v) > peak) peak = Math.abs(v);
-      }
-      levels.push(Math.sqrt(e / Math.max(1, m)));
+    for (let i = 0; i < n; i += 2) {
+      let v = 0;
+      for (let c = 0; c < chans; c++) v += data[c][i];
+      v = Math.abs(v / chans);
+      if (v > peak) peak = v;
     }
-    levels.sort((a, b) => a - b);
-    return { rms: levels[Math.floor(levels.length / 2)] || 1e-6, peak: peak || 1e-6 };
+    return peak || 1e-6;
   }
 
   async load() {
@@ -83,14 +69,14 @@ export class Ambience {
     try {
       const res = await fetch('/static/ambience/manifest.json', { cache: 'no-cache' });
       if (res.ok) manifest = await res.json();
-    } catch (_) { /* no recordings: typing falls back to synthesis, the rest stays silent */ }
+    } catch (_) { /* no recordings: typing falls back to synthesis, nothing else plays */ }
     await Promise.all(Object.keys(this.buffers).map(async (group) => {
       for (const file of manifest[group] || []) {
         try {
           const res = await fetch(`/static/ambience/${file}`);
           if (!res.ok) throw new Error(res.status);
           const buffer = await this.ctx.decodeAudioData(await res.arrayBuffer());
-          this.buffers[group].push({ buffer, ...Ambience._stats(buffer) });
+          this.buffers[group].push({ buffer, peak: Ambience._peak(buffer) });
         } catch (err) {
           console.warn('ambience: could not load', file, err);
         }
@@ -137,50 +123,6 @@ export class Ambience {
         g.setTargetAtTime(0, t, GATE.close);
       }, GATE.hold * 1000);
     }
-  }
-
-  // ------------------------------------------------------------------ murmur
-  _startMurmur() {
-    const items = this.buffers.murmur;
-    if (!items.length) return;
-    const bus = this.ctx.createGain();
-    bus.connect(this.gate);
-    const fade = 3;
-    let previous = null;
-
-    const segment = (when) => {
-      if (!this.running) return;
-      const item = pick(items, previous);
-      previous = item;
-      const length = rand(40, 110);
-      // A recording shorter than the segment loops inside it; longer ones play a random stretch.
-      const loop = item.buffer.duration < length + 1;
-      const offset = loop ? rand(0, item.buffer.duration) : rand(0, item.buffer.duration - length);
-      const src = this.ctx.createBufferSource();
-      src.buffer = item.buffer;
-      src.loop = loop;
-      const g = this.ctx.createGain();
-      const level = dbToGain(this.cfg.murmurDb) / item.rms;
-      g.gain.setValueAtTime(0, when);
-      g.gain.linearRampToValueAtTime(level, when + fade);
-      g.gain.setValueAtTime(level, when + length - fade);
-      g.gain.linearRampToValueAtTime(0, when + length);
-      src.connect(g).connect(bus);
-      src.start(when, offset, length);
-      this.sources.add(src);
-      src.onended = () => this.sources.delete(src);
-      const next = when + length - fade;      // crossfade into the next segment
-      this._later((next - this.ctx.currentTime - 1) * 1000, () => segment(next));
-    };
-
-    // Slow, small level drift (about +/-1.5 dB), like a real room.
-    const drift = () => {
-      if (!this.running) return;
-      bus.gain.linearRampToValueAtTime(dbToGain(rand(-1.5, 1.5)), this.ctx.currentTime + rand(6, 12));
-      this._later(rand(8000, 15000), drift);
-    };
-    segment(this.ctx.currentTime + 0.05);
-    drift();
   }
 
   // ------------------------------------------------------------------ movement
@@ -298,7 +240,6 @@ export class Ambience {
     if (this.running) return;
     await this.load();
     this.running = true;
-    this._startMurmur();
     this._refresh();
   }
 

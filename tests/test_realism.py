@@ -95,7 +95,8 @@ class SoundRealismTests(unittest.TestCase):
         import server
         body = TestClient(server.app).get("/client-config").json()
         self.assertEqual(set(body), {"phone_line", "ambience", "typing"})
-        self.assertLess(body["ambience"]["murmur_db"], -30)        # subtle, never loud
+        self.assertLess(body["ambience"]["event_db"], -30)         # subtle, never loud
+        self.assertNotIn("murmur_db", body["ambience"])            # no background bed (owner, 1 Oct)
 
     def test_checking_pauses_with_typing_before_the_answer(self):
         import asyncio
