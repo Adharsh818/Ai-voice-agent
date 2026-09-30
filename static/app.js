@@ -9,10 +9,11 @@
  * Emma's PCM arrives as binary frames tagged with a turn id and goes straight
  * into the playback worklet; a `stop` event flushes it instantly (barge-in).
  *
- * Realism (docs/NORTH_STAR.md): Emma's voice and the clinic's sound go through
+ * Realism (docs/NORTH_STAR.md): Emma's voice and the clinic's sounds go through
  * an optional phone-line filter, so it sounds like a real call to a real
- * clinic. The clinic is only heard while Emma's line is active (she is
- * speaking or typing); see ambience.js. Settings come from /client-config.
+ * clinic. There is no background bed: only typing and an occasional door,
+ * chair or footsteps while Emma's line is active; see ambience.js. Settings
+ * come from /client-config.
  */
 import { Ambience, phoneLine } from './ambience.js';
 
@@ -81,7 +82,7 @@ async function startCall() {
   player.connect(out);
   player.port.onmessage = (e) => onPlayer(e.data);
   ambience = cfg.ambience && cfg.ambience.enabled
-    ? new Ambience(ctx, out, { murmurDb: cfg.ambience.murmur_db, eventDb: cfg.ambience.event_db })
+    ? new Ambience(ctx, out, { eventDb: cfg.ambience.event_db })
     : null;
 
   capture = new AudioWorkletNode(ctx, 'pcm-capture-processor', {

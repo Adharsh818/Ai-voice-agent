@@ -21,11 +21,10 @@ GREETINGS = [
 ]
 HONEST_LINE = "Yeah, you caught me, I'm the clinic's virtual receptionist."
 
-# Browser demo realism (R1, R5, R6). Nothing plays constantly: the clinic is
-# heard only while Emma's line is active (speaking or typing), see static/ambience.js.
+# Browser demo realism (R1, R5, R6). No background bed: only an occasional door,
+# chair or footsteps while Emma's line is active, and typing (static/ambience.js).
 PHONE_LINE_EFFECT = os.getenv("PHONE_LINE_EFFECT", "true").lower() == "true"
 AMBIENCE_ENABLED = os.getenv("AMBIENCE_ENABLED", "true").lower() == "true"
-AMBIENCE_MURMUR_DB = float(os.getenv("AMBIENCE_MURMUR_DB", "-38"))  # waiting-room level, dBFS RMS
 AMBIENCE_EVENT_DB = float(os.getenv("AMBIENCE_EVENT_DB", "-34"))    # door / chair / footsteps peak
 TYPING_SFX = os.getenv("TYPING_SFX", "true").lower() == "true"
 # After the caller gives something to write down (name, number, date...), Emma

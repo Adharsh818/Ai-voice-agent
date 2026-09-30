@@ -17,8 +17,8 @@
 | R1 | Greeting | No disclaimers or "automated assistant". Rotate between "Hi, this is Emma at Pearl Dental, how can I help?", "Hello, Pearl Dental. How can I help you?", "Pearl Dental, Emma here. Go ahead." and "Hi, I'm Emma from Pearl Dental. How can I help you?" |
 | R2 | Honesty | Emma never volunteers being automated. If sincerely asked whether she's a real person or a bot: "Yeah, you caught me, I'm the clinic's virtual receptionist," then straight back to helping. She never claims to be human |
 | R3 | Recording | **No audio recording.** Text transcripts kept 30 days (replaces Q12). No recording notice is needed in the greeting |
-| R4 | Ambience source | Free-licence (CC0) recordings you approved: two waiting-room murmurs, a wooden door, a chair, footsteps on tile, laptop typing ([tools/ambience_sources.json](../tools/ambience_sources.json), fetched by `tools/fetch_ambience.py`). The AC room tone and phone ring were not approved and aren't used |
-| R5 | Ambience behaviour | **Nothing plays constantly; sound follows the call** (owner's note, 30 Sep). The clinic murmur and occasional door / chair / footsteps are heard only while Emma's line is active (speaking or typing), like a headset with a noise gate. Her side is silent while the caller talks |
+| R4 | Ambience source | Free-licence (CC0) recordings you approved: a wooden door, a chair, footsteps on tile, laptop typing ([tools/ambience_sources.json](../tools/ambience_sources.json), fetched by `tools/fetch_ambience.py`). The two waiting-room murmurs were removed on 1 Oct (they still felt constant). The AC room tone and phone ring were never approved |
+| R5 | Ambience behaviour | **Nothing plays constantly; sound follows the call; no background bed** (owner, 30 Sep and 1 Oct). Only an occasional door / chair / footsteps while Emma's line is active (speaking or typing), like a headset with a noise gate, plus typing (R6). Her side is silent while the caller talks |
 | R6 | Realism extras | Typing when the caller gives something to write down (a 650–1000 ms beat before she replies) and while she checks the diary; phone-line sound in the browser demo; short openers ("Okay,", "Sure,", "Right,"); occasional light "umm" / "so" (capped); soft breath before long sentences |
 | R7 | Asked for a person | Offer to help first; if they insist again, take a callback message. No reflexive handoff anywhere |
 | R8 | Knowledge | A full DEMO knowledge base (price ranges, insurance, parking, payment, what to bring, branch landmarks) so she can answer almost everything |
@@ -59,10 +59,10 @@
 - [x] **R1.1** Greetings (R1) replace `GREETING` and `DISCLOSE_AI`. Pre-render all four; rotate so repeat callers don't hear the same one twice in a row.
 - [x] **R1.2** Remove every disclaimer and robotic line: "automated assistant", "At the moment I can assist only…", "Name: X. Phone Number: Y.", "currently has one location". A test scans all speakable text for banned phrases.
 - [x] **R1.3** Call-driven clinic sound in the browser (`static/ambience.js`, R5):
-  - **Nothing constant.** A gate opens (about 80 ms) when Emma speaks or types and closes (about 350 ms, after a 250 ms hold) when she stops. Her side is silent while the caller talks, so nothing leaks into their microphone.
-  - **Murmur.** The two approved waiting-room recordings run behind the gate as 40–110 s segments from random offsets, crossfaded, with ±1.5 dB drift, so they never loop audibly. Normalised to the median half-second level (−38 dBFS), so loud moments in a recording don't make the rest too quiet.
+  - **Nothing constant, no background bed.** A gate opens (about 80 ms) when Emma speaks or types and closes (about 350 ms, after a 250 ms hold) when she stops. Her side is silent while the caller talks, so nothing leaks into their microphone.
   - **Movement.** Door, chair or footsteps: at most one every 25 s, 35 % chance per line-open, only while the line is open; long files contribute a random 3–6 s slice.
-  - Measured by offline render: silence when idle; murmur −37 to −42 dBFS while she speaks; typing peaks around −24 to −31 dBFS.
+  - **Murmur removed on 1 Oct.** The waiting-room layer was dropped because, with Emma talking for much of the call, it still felt constant.
+  - Measured by offline render: silence when idle and while she speaks (apart from the occasional movement sound); typing peaks around −24 to −31 dBFS.
 - [x] **R1.4** Sound effects:
   - **Note-taking typing:** when the caller gives something to write down (`ai_engine.expects_information`), typing starts 120 ms after they stop and Emma's reply waits 650–1000 ms. The typing stops the moment she speaks, and the pause is logged as `pause_ms`.
   - **Checking typing:** "Let me just check that for you." plus a 0.9–1.6 s pause with typing.
@@ -72,12 +72,12 @@
   - Price ranges in ₹ per service, insurance and reimbursement, payment methods (UPI, cards, cash).
   - Parking, what to bring, first-visit notes, children's visits.
   - Branch landmarks and per-branch hours from the rota.
-- [x] **R1.7** The six approved CC0 files are fetched by `tools/fetch_ambience.py` into `static/ambience/` (git-ignored, 10.9 MB), and the manifest is generated.
+- [x] **R1.7** The approved CC0 files are fetched by `tools/fetch_ambience.py` into `static/ambience/` (git-ignored, about 2.2 MB since the murmurs were removed), and the manifest is generated.
 
 **Exit:**
 - Greeting audio under 2.5 s.
 - Zero banned phrases anywhere.
-- Nothing plays while Emma is idle; the clinic is heard only while her line is active; no audible loop.
+- Nothing plays while Emma is idle; no background bed at any time; movement sounds only while her line is active.
 - Typing plays after information answers and during a check, never after a bare yes/no.
 - All previous tests pass.
 
