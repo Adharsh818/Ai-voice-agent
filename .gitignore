@@ -49,3 +49,8 @@ static/ambience/*.mp3
 *.db-wal
 *.db-shm
 .claude/settings.local.json
+# Conversation test harness output (python -m harness, tools/converse.py)
+harness_runs/
+
+# Piper voice models (downloaded, ~63 MB each)
+models/

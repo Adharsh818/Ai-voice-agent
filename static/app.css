@@ -6,6 +6,7 @@
   --thinking: #8b9cf9;
   --speaking: #f4f1ea;
   --error: #f87171;
+  --busy: #fbbf24;
   --lvl: 0;
   --tint: var(--idle);
   color-scheme: dark;
@@ -89,7 +90,10 @@ main {
 #orb[data-state="thinking"] { --tint: var(--thinking); }
 #orb[data-state="thinking"] .ring { opacity: 1; animation: spin 1.4s linear infinite; }
 #orb[data-state="speaking"] { --tint: var(--speaking); }
-#orb[data-state="error"] { --tint: var(--error); }
+#orb[data-state="error"],
+#orb[data-state="lost"],
+#orb[data-state="blocked"] { --tint: var(--error); }
+#orb[data-state="busy"] { --tint: var(--busy); }
 
 @keyframes pulse { 50% { transform: scale(0.84); opacity: 0.7; } }
 @keyframes breathe { 50% { transform: scale(1.06); } }
@@ -110,7 +114,25 @@ main {
   transition: opacity 200ms ease;
 }
 #caption.user { opacity: 0.3; font-style: italic; }
+#caption.notice { opacity: 0.7; white-space: normal; }
 #caption.error { opacity: 1; color: var(--error); white-space: normal; }
+
+/* "Try again" / "Call again" under the caption when a call can't start or drops. */
+#action {
+  margin-top: -24px;
+  padding: 10px 22px;
+  border: 1px solid color-mix(in srgb, var(--caption) 30%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--caption);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+#action:hover { background: color-mix(in srgb, var(--caption) 8%, transparent); }
+#action:focus-visible { outline: 2px solid var(--listening); outline-offset: 3px; }
+#action[hidden] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   #orb .core, #orb .halo, #orb .ring { animation: none !important; transition: background 400ms ease; }

@@ -129,6 +129,23 @@ _IDIOMS = [
     (r"\bfirst\s+thing(?:\s+in\s+the\s+morning)?\b", " early morning "),
 ]
 
+_MONTH_WORDS = "|".join(sorted(MONTHS, key=len, reverse=True))
+_FIRST = re.compile(
+    r"(?<!\bthe )(?<!\bon )(?<!twenty.)(?<!thirty.)\bfirst\b(?!\s+(?:of\s+)?(?:" + _MONTH_WORDS +
+    r"|week|weekend|mon|tue|wed|thu|fri|sat|monday|tuesday|wednesday|thursday|friday|saturday|available|thing)\b)")
+_MONTH_BEFORE = re.compile(r"\b(?:" + _MONTH_WORDS + r")\s+$")
+
+
+def _drop_adverbial_first(t: str) -> str:
+    """
+    "Tell me about the clinic first", "first of all": an adverb, not the 1st.
+    "first" stays a date after "the" or "on", in "twenty-first" / "thirty
+    first", next to a month ("October first", "first of November"), or
+    before week / a weekday.
+    """
+    return _FIRST.sub(lambda m: m.group(0) if _MONTH_BEFORE.search(t[:m.start()]) else " ", t)
+
+
 # Time-of-day windows (clinic-local, end exclusive). Longer phrases first.
 _WINDOWS = [
     ("early morning", time(7, 0), time(9, 0)),
@@ -202,6 +219,7 @@ def normalize(text: str) -> str:
     t = re.sub(r"(?<!\d)\.|\.(?!\d)", " ", t)          # keep only time dots (5.30)
     for pattern, repl in _IDIOMS:
         t = re.sub(pattern, repl, t)
+    t = _drop_adverbial_first(t)
     # Keep digit dashes ("05-10") but split word dashes ("twenty-five").
     t = re.sub(r"(?<=[a-z])-(?=[a-z])", " ", t)
     t = _words_to_digits(t)
@@ -342,7 +360,23 @@ def _find_date(t: str, today: date, expecting: Optional[str]):
         last = 3 if m.group(1).startswith("couple") else 4
         return DateConstraint(today + timedelta(days=2), today + timedelta(days=last), "range"), None, m.group(0)
 
-    # 6. weekdays
+    # 6. weekdays. "Wednesday the 14th" names one date twice: the day number is
+    #    the precise part, so it wins over "the next Wednesday" (which would be
+    #    the 7th). The first day-number match on that weekday is preferred, so a
+    #    slip of the weekday still lands on the date the caller read off.
+    m = re.search(rf"\b({_WD})\s*,?\s+(?:the\s+)?(\d{{1,2}})(?:st|nd|rd|th)\b", t)
+    if m:
+        day, wd = int(m.group(2)), WEEKDAYS[m.group(1)]
+        if not 1 <= day <= 31:
+            return None, Issue("INVALID_DAY", {"day": day}), m.group(0)
+        first = _next_day_number(today, day)
+        d, probe = first, first
+        for _ in range(3):                       # the same weekday within the next few months
+            if probe is None or probe.weekday() == wd:
+                d = probe or first
+                break
+            probe = _next_day_number(probe + timedelta(days=1), day)
+        return _exact_date(d), None, m.group(0)
     m = re.search(rf"\bnext\s+to\s+next\s+({_WD})\b|\b({_WD})\s+after\s+next\b", t)
     if m:
         d = _next_weekday(today, WEEKDAYS[m.group(1) or m.group(2)]) + timedelta(days=7)
@@ -630,6 +664,29 @@ def _clock_hm(m: re.Match):
 # ---------------------------------------------------------------- public API
 
 
+_SELF_CORRECTION = re.compile(r"\b(?:i mean|no wait|wait no|sorry,? no|no,? sorry|or rather|make that|make it)\b")
+
+
+def _self_corrected(t: str, today: date, expecting: Optional[str]) -> Optional[When]:
+    """
+    "Tuesday, sorry, no, I mean coming Monday": the words after the last
+    correction cue are what the caller means. A time alone after the cue
+    keeps the date said before it ("Monday at 4, I mean 5").
+    """
+    cues = list(_SELF_CORRECTION.finditer(t))
+    if not cues:
+        return None
+    head, tail = t[:cues[-1].start()], t[cues[-1].end():]
+    later = parse_when(tail, today=today, expecting=expecting)
+    if later.empty:
+        return None
+    if later.date is None:
+        earlier = parse_when(head, today=today, expecting=expecting)
+        if earlier.date is not None:
+            return When(earlier.date, later.time, tuple(earlier.issues) + tuple(later.issues))
+    return later
+
+
 def parse_when(text: str, *, today: Optional[date] = None, expecting: Optional[str] = None) -> When:
     """
     Find a date and/or a time in `text`.
@@ -641,6 +698,9 @@ def parse_when(text: str, *, today: Optional[date] = None, expecting: Optional[s
     t = normalize(text)
     if not t:
         return When()
+    fixed = _self_corrected(t, today, expecting)
+    if fixed is not None:
+        return fixed
     dc, date_issue, span = _find_date(t, today, expecting)
     issues = [date_issue] if date_issue else []
     if dc is not None:
