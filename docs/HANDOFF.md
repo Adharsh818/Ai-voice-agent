@@ -9,7 +9,7 @@ Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_
 
 ## 0. Sprint 1b integration (5 Oct): R2 works end to end, still off by default
 
-**How to switch.** The 12-step machine is still the engine the talk page uses. `R2_ENGINE=true` in `.env` (then restart the server) runs the R2 engine for every call: the talk page through `call_session`, the harness (`python -m harness run sim --engine r2`) and `python tools/converse.py new --r2`. Nothing has been committed; HEAD is still `e997b66`.
+**How to switch.** The 12-step machine is still the engine the talk page uses. `R2_ENGINE=true` in `.env` (then restart the server) runs the R2 engine for every call: the talk page through `call_session`, the harness (`python -m harness run sim --engine r2`) and `python tools/converse.py new --r2`. Committed as `06c3aa6` on `day2-r2-engine`. **On 5 Oct evening the owner's local `.env` was switched to `R2_ENGINE=true` for voice testing** (see the latency note below).
 
 **Tests.** 829 tests pass with `R2_ENGINE` off and on (40 expected failures: the 12-step machine's known bugs in `tests/test_conversations.py`). Every HANDOFF section 5 call passes as a plain test on R2 (`R2Scenarios`): the location "No" loop, cancel at the recap, braces at Nagarbhavi, the time-only fragment, meta and price questions, fragments. `tests/test_r2_booking_flow.py` is the old booking tests ported to R2 (its docstring lists each dropped test and its replacement); `tests/test_r2_integration.py` pins this round's fixes.
 
@@ -19,6 +19,7 @@ Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_
 
 **Before switching R2 on for voice tests:**
 - **Model latency.** On 5 Oct the first streamed answer from `gemini-3.5-flash-lite` took about 2.3 s in a fresh process, above the 1.6 s head deadline (`NLU_HEAD_DEADLINE_S`) and close to the 2.5 s reply limit (`GEMINI_TIMEOUT`). Turns that miss it are answered by the no-model fallback, which works but is less natural. Measure on the running server (warm client) and, if needed, set `NLU_HEAD_DEADLINE_S=2.2` and `GEMINI_TIMEOUT=4` in `.env`. Live harness runs and `converse.py --live` already allow 4 s / 6 s, so they score the conversation rather than the cold start.
+- **Measured 5 Oct (warm client, one process, 4 live R2 sim calls, 16 model turns):** head 1.7-3.4 s, median about 2.0 s. All 16 missed 1.6 s, 4 missed 2.2 s, 3 missed 2.5 s. The local `.env` now has `NLU_HEAD_DEADLINE_S=2.2` and `GEMINI_TIMEOUT=4`, so about 3 in 4 model turns get the model, at the cost of a pause of about 2 s on those turns. The real fix is a faster head (trim the brief or cache its fixed part); that is the top latency task before the demo. Run: `harness_runs/20261005-225210-sim-live-r2-latency` (git-ignored).
 - **T5.** A simple booking takes 10 caller turns in the sim. The exact time asked for is offered first ("Monday at 4 is free with Dr Rao. Shall I take that?") and then summarised, which is two yeses for one slot (R2_DESIGN 10.1 says `offer.exact`). Going straight to the summary when the exact slot is free would save a turn; it changes the locked design, so it is the owner's call.
 - **Logs.** `LOG_CALLER_TEXT=false` keeps the caller's words out of the console log (default true for development).
 
