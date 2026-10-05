@@ -26,6 +26,8 @@ from typing import Callable, Optional
 import httpx
 import websockets
 
+import logredact
+
 logger = logging.getLogger(__name__)
 
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
@@ -140,7 +142,7 @@ class ElevenLabsTTS:
                     if chunk:
                         yield chunk
         except httpx.TimeoutException:
-            logger.error("ElevenLabs TTS timeout for text: %.50s...", text)
+            logger.error("ElevenLabs TTS timeout for text: %s...", logredact.mask_phones(text)[:50])
         except httpx.HTTPError as exc:
             logger.error("ElevenLabs HTTP error: %s", exc)
 
