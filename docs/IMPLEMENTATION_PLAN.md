@@ -6,6 +6,8 @@
 
 **Read [NORTH_STAR.md](NORTH_STAR.md) first.** Callers should feel they are talking to a real, skilled receptionist. Section 0 turns that into work and comes before everything else; where it conflicts with a later section, section 0 wins.
 
+**Acceptance gate:** [SUCCESS_CRITERIA.md](SUCCESS_CRITERIA.md) (the owner's twelve criteria, metrics M1–M10, zero-tolerance Z1–Z7, turn-taking T1–T5) scores every sprint. **R2 engine design:** [R2_DESIGN.md](R2_DESIGN.md). **Language:** Indian-accented English is in scope; Hinglish (Hindi words mixed into English) is out of scope by the owner's decision (1 Oct), as are other languages.
+
 ---
 
 ## 0. Realism upgrade: first priority (added 30 Sep)
@@ -38,9 +40,10 @@
   - Verified facts that may be used.
   - The exact slots on offer and their spoken forms.
   - The rules: one question at a time; at most 2 sentences / 35 words; the R13 tone; never claim to have booked anything; never mention being a bot unless sincerely asked (R2); never offer a person (R7).
-- **One streamed Gemini call** returns JSON in this key order: `intent`, `entities`, `faq_ids`, `emergency`, `wants_human`, `correction`, `choice_index`, `next_goal`, `reply`.
+- **One streamed Gemini call** returns JSON with the understanding first (`acts`, `intent`, `emergency`, `confirmation`, `correction`, the details, `faq_ids`, `clinical`), then `next_goal`, then the reply in two parts: `say` (acknowledge or answer, no question) and `ask` (at most one question). The full schema is in [R2_DESIGN.md](R2_DESIGN.md) section 6.
 - **Python applies the entities and computes its own next goal.**
-  - If it matches the model's `next_goal` and the reply passes the validators, the reply is spoken, sentence by sentence as it streams.
+  - The model's `say` is spoken sentence by sentence as it streams, each sentence only if it passes the validators.
+  - The model's `ask` is used only if its `next_goal` matches Python's, the goal isn't commit-critical, and it validates.
   - Otherwise Emma speaks a natural pre-written line for Python's goal.
   - Any sentence that fails validation is dropped.
 - **Validators:**
@@ -81,53 +84,66 @@
 - Typing plays after information answers and during a check, never after a bare yes/no.
 - All previous tests pass.
 
-### 0.4 R2: A real conversation, the same outcome (1–2 Oct; replaces Day 2 and Day 3 items 3.1–3.3)
-- [ ] **R2.1** `dialogue/context.py`: call context with slots, attempts, offered holds and history; the checklist and priority order; `next_goal()`.
-- [ ] **R2.2** `dialogue/brief.py` plus the streamed LLM contract (0.2) in `nlu.py`; structured output; partial-JSON streaming parser.
-- [ ] **R2.3** `dialogue/validate.py`: reply validators (0.2), each with unit tests.
-- [ ] **R2.4** `prompts.py`: human-written varied lines for every goal (the fallbacks), commit-critical lines, openers ("Okay,", "Sure,", "Right,"), light "umm"/"so" (at most once every 4 turns, never in summaries or numbers), and the honesty line (R2). No line repeats word-for-word within a call.
-- [ ] **R2.5** Tier-0 hybrid (R12): yes/no, digits, clear picks, repeat, wait and "are you a bot" resolved instantly with varied lines.
-- [ ] **R2.6** Workflows on the natural engine, all on the Day 1 scheduling engine:
-  - **BOOK:** any-order slots, family bookings, duplicate and max-3 checks.
-  - **MANAGE:** verify, check, reschedule, cancel.
-  - **Emergency:** urgent → same-day slot + task; red flag → 108/ER advice + task.
-  - **FAQ:** from the knowledge base; unknown → "the doctor can go through that at your visit".
-  - **Asked for a person (R7):** help first; take a callback only if they insist.
-  - **Off-topic:** answer briefly, then steer back.
-  - **Language:** English only, gently.
-- [ ] **R2.7** Model bake-off (R11): 20 scripted messy-caller conversations (jump-ahead, off-topic, corrections, rambling, silence, bot question, human request, emergency, family, reschedule, cancel) on Flash-Lite and Flash. Score correct outcome, validator rejections, naturalness (read aloud, 1–5) and reply latency. Pick one and record the numbers.
-- [ ] **R2.8** Port the old dialogue tests to the new engine; remove the 12-step machine.
+### 0.4 R2: A real conversation, the same outcome (design 1 Oct, Sprint 1b 2 Oct, integration 3 Oct; replaces Day 2 and Day 3 items 3.1–3.3)
 
-**Exit:**
-- All 20 scripted conversations end with the correct booking / change / cancel outcome.
-- Nothing already given is asked again.
-- Model/Python disagreement never causes an action.
-- Validators block invented numbers, names, bot wording and booking claims.
-- The honesty line fires only on a sincere question.
-- A person is offered only after the caller insists.
-- Median time to first reply audio within the Day 6 gate.
+Full design, interfaces and traceability: [R2_DESIGN.md](R2_DESIGN.md). Scored against [SUCCESS_CRITERIA.md](SUCCESS_CRITERIA.md). The interface stubs are in the repo (`dialogue/`, `nlu.py`, `prompts.py`, `facts.py`).
+
+- [x] **R2.0** Design and interface stubs: `dialogue/context.py` (every enum and dataclass, picklable), `nlu.py` schema + `FakeNLU`, the `prompts.py` line registry, `facts.py` types, `dialogue/testing.py` (`DemoClinic`).
+- [x] **R2.1** Context and policy (`dialogue/context.py`, `policy.py`, `apply.py`, `engine.py`; E1):
+  - A checklist plus a priority order instead of fixed steps; details in any order, nothing re-asked (M2), corrections anywhere, intent switches at any point carrying name and phone.
+  - The loop breaker: never the same line twice in a row; per-goal rungs ask → rephrase → choices → exit (default or callback offer); a non-answer goes straight to choices.
+  - The steer-back rule: the caller's question is always answered first; the pending ask returns at most every other question turn, in new wording; OFFER_HELP at most every second answer.
+  - The facade (`new_session`, `async_process_turn(..., on_sentence)`, `listening_hint`, `expects_information`) behind `config.R2_ENGINE` until integration.
+- [x] **R2.2** One streamed structured Gemini call per LLM turn (`nlu.py`, `llm.py` streaming, `dialogue/brief.py`; E2). Understanding first, then `next_goal`, `say` and `ask`; a partial-JSON parser releases each finished sentence; one request per turn, never a second call.
+- [x] **R2.3** Validators (`dialogue/validate.py`; E2): facts only from the brief (incl. price consistency), no bot / handoff / callback-promise / doctor-deflection wording, no false booked / cancelled / moved, one question, length caps, no medicine or diagnosis, no near-repeats, English only. Each rule unit-tested.
+- [x] **R2.4** Lines and knowledge (`prompts.py`, `facts.py`, `clinic_facts.json`, `phrases.py`; E3):
+  - Varied human-written lines for every goal (the fallbacks) and pre-written commit-critical lines (phone read-back, offers, summary, outcomes).
+  - Openers and light "umm" / "so" with caps; the honesty line (R2); no line repeated word for word in a call; pre-render budget kept small (ElevenLabs quota).
+  - The capability answer; knowledge from the verified base and the DB catalog (branches, doctors, which branch offers which service, hours); the doctor line only for clinical questions; an honest "not sure" otherwise. The old escalation line is removed.
+- [x] **R2.5** Tier-0 v2 (`tier0.understand`, `dialogue/match.py`; E4): yes/no, digits accumulated across turns (incl. "double nine" and Deepgram's "(789) 937-7462"), spelled names, fuzzy names, services, branches, doctors, dates / times, picks, fragments, and the global patterns (repeat, wait, bye, bot question, capability). Plus a lenient mode as the no-model fallback.
+- [x] **R2.6** Workflows on the Day 1 scheduling engine:
+  - **BOOK** (E6): branch-aware from the DB (never a service at a branch that doesn't offer it; name the branches that do), doctor preference incl. unknown names and lady / male doctor, family bookings, max-3 and duplicate checks, real held slots, the summary gate (heard in full, clear yes), commit.
+  - **MANAGE** (E5): verify phone + name + date, reveal nothing before; check, cancel, reschedule.
+  - **Handlers** (E5):
+    - Emergency: urgent → same-day slot + task; red flag → 108 / ER + task + end.
+    - Asked for a person (R7): help first, callback task only if they insist.
+    - Honesty line only on a sincere question.
+    - English only, gently (Hinglish out of scope).
+    - Abuse; repeat / wait; fragments ("Sorry, go on", merged with the next turn); silence ladder; closing; don't-keep.
+  - **Questions:** answered from the knowledge base, the DB or general non-clinical dental knowledge. Unknown → an honest "I'm not sure about that one" plus an offer (a callback task only if they want it). Never a reflexive "the doctor can go through that".
+- [ ] **R2.7** Model bake-off (R11) on the conversation harness: Flash-Lite vs Flash, scored on correct outcome, validator rejections, naturalness (read aloud, 1–5) and reply latency. Pick one and record the numbers.
+- [x] **R2.8** Integration (5 Oct), changed by the owner: the 12-step machine stays the default and R2 runs end to end behind `R2_ENGINE=true` (or an R2 `CallContext`), through `call_session`, the harness (`--engine r2`), `tools/converse.py --r2` and `tests/test_r2_booking_flow.py` (the old booking tests ported; the originals still test the 12-step machine). Every HANDOFF section 5 scenario passes as a plain test on R2 (`tests/test_conversations.py` `R2Scenarios`). Removing the 12-step machine and `backend_actions.py`'s helpers waits for the owner to switch.
+
+**Exit** (from [SUCCESS_CRITERIA.md](SUCCESS_CRITERIA.md), on at least 200 simulated calls per round):
+- **Zero-tolerance:** Z1–Z7 never happen.
+- **Outcomes:** M1 = 0; M7 > 95 %; M9 < 1 %; M10 < 2 %.
+- **Repetition and answers:** M2 < 2 %; M3 < 1 %; M4 < 2 %; M5 < 2 %; M6 > 95 %.
+- **Latency and turns:** T2 p50 ≤ 1.8 s / p95 ≤ 3 s; T5 median ≤ 9.
+- **Regressions:** every failing call in [HANDOFF.md](HANDOFF.md) section 5 passes as a regression scenario.
+- **Model / Python disagreement** never causes an action; the honesty line fires only on a sincere question; a person is offered only after the caller insists.
+- **Degradation:** with Gemini off, every scenario still reaches an outcome on Tier-0 and pre-written lines.
 
 ### 0.5 R3: Listen like a local (3 Oct; replaces Flux spike 3.6; needs your recordings and accounts)
 - [ ] **R3.1** Diagnose each reported symptom (R9) from the Day 0 endpoint diagnostics and your captures:
   - **Cut-offs:** `speech_final` firing on natural mid-sentence pauses.
   - **Long waits:** the `utterance_end` fallback plus holds.
   - **Not heard:** the echo filter dropping real answers that repeat Emma's words, browser noise suppression, or the 2 s pre-connect buffer.
-- [ ] **R3.2** Adaptive end-of-turn:
+- [x] **R3.2** Adaptive end-of-turn:
   - Raise raw endpointing to about 400 ms.
   - Commit immediately when the text is a complete answer to the question just asked (yes/no, a full 10-digit number, a complete date or time, a name after "my name is").
   - Wait up to 2 s when it's clearly unfinished (trailing "and", "so", "my number is", partial digits).
   - Tune on your recordings; measure the cut-off rate and end-of-turn p50 before and after.
-- [ ] **R3.3** Echo filter only while Emma's audio is actually audible, with stricter overlap, so a caller repeating her words ("yes, Monday at 5") is never dropped. Review the browser `noiseSuppression` / `autoGainControl` settings. Fix the microphone resampler (moved up from Day 4.5).
+- [x] **R3.3** Echo filter only while Emma's audio is actually audible, with stricter overlap, so a caller repeating her words ("yes, Monday at 5") is never dropped. Review the browser `noiseSuppression` / `autoGainControl` settings. Fix the microphone resampler (moved up from Day 4.5).
 - [ ] **R3.4** STT bake-off (R10) with adapters behind the same callbacks: Nova-3 (baseline), Nova-2 Indian English, Google Chirp en-IN streaming, Sarvam streaming.
   - Score word errors, names, phone digits, dates/times, end-of-turn latency and dropped utterances on your recordings.
   - Switch if a candidate is clearly better on names and digits without adding more than 200 ms.
   - Check each provider's current streaming model names and languages during the test.
-- [ ] **R3.5** Boost the clinic vocabulary: doctor names, branch names, services, Indian number words ("double", "triple").
+- [x] **R3.5** Boost the clinic vocabulary: doctor names, branch names, services, Indian number words ("double", "triple").
 - [ ] **R3.6** Recover from mishearing like a person:
   - The LLM uses context ("route canal" → root canal).
   - For names, "Sorry, could you spell that for me?" after one failed confirmation.
   - Fuzzy-match heard names against the names already in this call.
-- [ ] **R3.7** Real-time robustness moved from Day 3: `playout.py`, recap-heard rule, backchannel filter, silence ladder, maximum call length, call gate, Deepgram reconnect, Piper fallback.
+- [x] **R3.7** Real-time robustness moved from Day 3: `playout.py`, recap-heard rule, backchannel filter, silence ladder, maximum call length, call gate, Deepgram reconnect, Piper fallback. (Realtime parts done in Sprint 1a/1b; Piper fallback still open.)
 
 **Exit:**
 - An STT choice recorded with numbers.
@@ -140,9 +156,9 @@
 | Date | Work |
 |---|---|
 | 30 Sep | Day 0 + Day 1 ✓ (a day ahead of plan) |
-| 1 Oct | R1 + R2.1–R2.5 |
-| 2 Oct | R2.6–R2.8 |
-| 3 Oct | R3 (bake-off needs your recordings and API keys) |
+| 1 Oct | R1 ✓, conversation test harness, R2 design + interface stubs ([R2_DESIGN.md](R2_DESIGN.md)) |
+| 2 Oct | R2 Sprint 1b: R2.1–R2.6 in parallel (six developer tasks with disjoint files) |
+| 3 Oct | R2.7–R2.8 (bake-off, integration); R3 (bake-off needs your recordings and API keys) |
 | 4 Oct | Day 4: dashboard, Calendar sync, transcript retention (no audio recording) |
 | 5 Oct | Day 5: recovery calls, demo grade |
 | 6 Oct | Day 6: latency, fault drills, regression |
@@ -210,11 +226,11 @@ The phone-path versions of the ambience, typing and phone-line effects (mixed se
 | `seed_demo.py` | Idempotent DEMO seed (branches, doctors, services, rules, closures, appointments) | new |
 | `scheduling.py` | Slot search, holds, book/reschedule/cancel transactions, idempotency | new, replaces `backend_actions.py` |
 | `facts.py` + `clinic_facts.json` | Single source of clinic facts by ID (hours, services and branches read from the DB) | new |
-| `nlu.py` | Gemini structured-output request (schema in 5.4), timeout, breaker, re-verify | from `llm.py` + `ai_engine.py` |
-| `tier0.py` | Deterministic fast path, extended (5.5) | extended |
-| `dialogue/` `context.py` `router.py` `book.py` `manage.py` `recovery.py` `globals.py` | Call context, intent routing, workflows, global intents | new, replaces the 12-step machine in `ai_engine.py` |
-| `prompts.py` | Template IDs → variants; everything Emma can say | from `phrases.py` |
-| `ai_engine.py` | Thin facade: `async_process_turn(text, ctx, progress) -> TurnResult` | shrinks |
+| `nlu.py` | One streamed structured Gemini call per LLM turn: understanding, then `next_goal`, `say`, `ask` ([R2_DESIGN.md](R2_DESIGN.md) 6); stream parser; backend switch and `FakeNLU` for tests | new, streaming added to `llm.py` |
+| `tier0.py` + `dialogue/match.py` | Deterministic fast path (`tier0.understand`, 5.5) and the matchers: yes/no, digits, names, catalog, fragments | extended / new |
+| `dialogue/` `context.py` `runtime.py` `engine.py` `apply.py` `policy.py` `brief.py` `validate.py` `book.py` `manage.py` `handlers.py` `recovery.py` | Call context and checklist, turn pipeline, entity application and intent switching, next goal and loop breaker, the per-turn brief, reply validators, workflows, global handlers ([R2_DESIGN.md](R2_DESIGN.md) 2) | new, replaces the 12-step machine in `ai_engine.py` |
+| `prompts.py` | Line ids → variants: the fallback for every goal and the commit-critical lines; rotation with no repeats in a call | new; `phrases.py` keeps fillers and the pre-render list |
+| `ai_engine.py` | Thin facade: `new_session`, `async_process_turn(text, ctx, progress, on_sentence) -> TurnResult`, `listening_hint`, `expects_information` | shrinks |
 | `call_session.py` | Turn-taking, barge-in, silence ladder, recap-heard rule, reconnects | extended |
 | `playout.py` | Per-call paced audio queue, flush, playout clock (and the server-side ambience mix for the phone path) | new |
 | `speech.py` / `tts_elevenlabs.py` / `tts_piper.py` | TTS chain: ElevenLabs WS → HTTP → Piper, per-voice prompt caches | extended / new |
@@ -230,6 +246,8 @@ The phone-path versions of the ambience, typing and phone-line effects (mixed se
 
 ### 3.2 Turn pipeline
 
+> **R2 replaces the middle of this pipeline** (Tier-0 / one streamed model call → handlers → apply → workflow actions → `next_goal` → validated `say` + notices + ask): see [R2_DESIGN.md](R2_DESIGN.md) section 5. The transport, turn detection and playout ends are unchanged.
+
 ```
 caller audio ─► STT (interim/final) ─► turn detector (holds for digits / trailing words)
    ─► globals (repeat · wait · human · end · bot question · emergency · language · abuse · don't-keep request)
@@ -241,7 +259,7 @@ caller audio ─► STT (interim/final) ─► turn detector (holds for digits /
 
 ### 3.3 Invariants (each has a test)
 
-1. Only Python changes appointments. The LLM output is validated and never spoken.
+1. Only Python changes appointments. The LLM's understanding is validated before use, and its reply is spoken only sentence by sentence after passing the validators; commit-critical lines are always pre-written (section 0.2).
 2. No booking, reschedule or cancel without an explicit "yes" to a recap the caller heard in full (5.6).
 3. If the NLU and the deterministic parser disagree about yes/no, Emma re-asks. Neither wins.
 4. No double booking: a UNIQUE constraint on grid cells plus a single writer (4.2).
@@ -358,6 +376,8 @@ The LLM may supply `date_iso_hint`. It is used only if Python can't parse the ph
 
 ### 5.4 NLU contract (`nlu.py`)
 
+> **Superseded by R2** for the schema and prompt: see [R2_DESIGN.md](R2_DESIGN.md) sections 6–7 (one streamed call, understanding + `next_goal` + `say` / `ask`). The timeout, breaker and re-verify rules below still apply.
+
 - **Structured output:** Gemini `response_schema` with temperature 0 and the thinking level from config.
 - **Timeout:** 2.5 s total, one retry only if ≥ 0.7 s remains.
 - **Breaker and re-verify:** the circuit breaker opens for 30 s after a 429/5xx. Startup verification is retried every 60 s while it's failing (fixes problem 19).
@@ -399,14 +419,14 @@ Anything mixed, long, or containing a question goes to Tier-1. Returning "don't 
 |---|---|
 | "sorry?", "come again", "repeat that", lone "what?" | Re-speak the last prompt (cached). No state change |
 | "hold on", "one second" | "Sure, take your time." Silence timers extend to 30 s |
-| wants a human / receptionist | First time: "I can help you with that. What's it about?" If they insist: confirm the callback number → `callback` task → close warmly (R7) |
+| wants a human / receptionist | First time: help first ("I can probably sort that out for you myself. What's it about?"). Only if they insist: confirm the callback number → `callback` task → tell them who will call, then carry on or close warmly (R7) |
 | sincerely asks "are you a real person / a bot?" | "Yeah, you caught me, I'm the clinic's virtual receptionist," then straight back to the task (R2). Never claims to be human, never raises it unprompted |
 | red-flag emergency | 108/ER advice, `red_flag` task, end call. Checked first, before anything else |
 | urgent dental emergency | Short path: name → phone → branch → earliest same-day slot (lead time 30 min) → recap → book + `emergency` task. No slot today → earliest tomorrow + task marked "no same-day slot" |
-| other language (explicit request, or 2 low-confidence turns in a row) | "I can only help in English right now. I'll ask our staff to call you back." → `language` task if a number can be captured |
+| other language (explicit request, or clearly non-English speech) | Gently English only, and offer a call back from the Kannada / Hindi-speaking team → `language` task only if they want it. Hinglish is out of scope and treated as English |
 | abuse | One calm warning, then polite close |
 | asks not to be recorded / kept | No audio is recorded (R3). Mark the call so its transcript is not kept, confirm, and continue |
-| FAQ | Verified fact text, then re-ask the pending question. Unknown or unverified → "I don't have that information; I can ask our staff to call you back" → `escalation` task |
+| Questions | Answered first, from the verified knowledge base, the DB catalog (branches, doctors, services, hours) or general non-clinical dental knowledge; the doctor only for genuinely clinical questions. The pending question comes back at most every other question turn, in new wording (R2_DESIGN 9). Unknown → an honest "I'm not sure about that one" + an offer; `escalation` / `callback` task only if they want it |
 | intent switch mid-flow ("actually I want to cancel") | Confirm the switch if booking data would be abandoned; caller name and phone carry over |
 | long monologue with no usable content | "To help quickly, could you tell me in a few words what you need?" |
 
@@ -581,7 +601,7 @@ Every stage ends with its exit tests green. Tests run after every step.
 - [ ] **4.2** Live call panel + takeover; appointments views + manual edits + CSV; tasks; calls + audio; audit; system page.
 - [ ] **4.3** `tools/setup_calendars.py` + `calendar_sync.py` worker; health checks for credentials and calendar access.
 - [ ] **4.4** `recording.py`: transcript retention, don't-keep requests, 30-day purge job (no audio, R3).
-- [ ] **4.5** Talk page: clear states for connecting, busy, connection lost (reconnect button) and mic blocked; anti-aliased resampling (AudioContext at 16 kHz where supported).
+- [x] **4.5** Talk page: clear states for connecting, busy, connection lost (reconnect button) and mic blocked; anti-aliased resampling (AudioContext at 16 kHz where supported).
 
 **Exit:**
 - A booking made with the network cut appears in SQLite and the dashboard immediately, and in Calendar exactly once after reconnecting.
@@ -642,11 +662,11 @@ Run `docs/DEMO_SCRIPT.md`. Backups: typed-input mode (`emma.say()`), the recorde
 | Intent | Book → cancel mid-call | Confirm switch, carry name/phone | 5.6 |
 | | Several requests in one call | "Anything else?" loop | 5.6 |
 | | Booking for a family member | Patient name/relation; age for pediatric | 5.3 |
-| | Question mid-flow | Fact ID answer + re-ask | 5.6 |
-| | Unverified/unknown fact | Escalation + real task | 5.6 |
+| | Question mid-flow | Answer first (knowledge base, DB, general dental knowledge); steer back occasionally, never the same wording | 0.4, R2_DESIGN 9 |
+| | Unverified/unknown fact | Honest "I'm not sure about that one" + offer; a real task only if they want a callback. Never the doctor deflection | 0.4, R2_DESIGN 11 |
 | | "Are you a robot?" | Honest answer | 5.6 |
-| | Wants a human | Callback task | 5.6 |
-| | Hindi/Kannada/other | English-only message + language task | 5.6 |
+| | Wants a human | Help first; callback task only if they insist | 5.6, R7 |
+| | Hindi/Kannada/other | Gently English only + offer a call back from the Kannada / Hindi-speaking team; `language` task only on yes. Hinglish out of scope | 5.6 |
 | | Abuse | Warning → close | 5.6 |
 | | Prompt injection in speech | Treated as data; nothing free-form spoken | 5.4 |
 | Emergency | Severe pain / swelling / bleeding / broken tooth | Same-day earliest + urgent task | 5.6 |
@@ -853,4 +873,4 @@ Backups: typed input, the recorded full run, reseed script.
 
 ## 15. Out of scope for v1
 
-PSTN calling, SMS/WhatsApp/email confirmations, OTP, payments, insurance answers, languages other than English, multiple concurrent calls, two-way calendar sync, Google Sheets, returning-caller personalisation before verification, medical advice of any kind.
+PSTN calling, SMS/WhatsApp/email confirmations, OTP, payments, insurance claims handling, languages other than English (including Hinglish, by the owner's decision on 1 Oct), multiple concurrent calls, two-way calendar sync, Google Sheets, returning-caller personalisation before verification, medical advice of any kind.

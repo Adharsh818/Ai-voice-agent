@@ -10,6 +10,11 @@ rather than guessed:
 - The browser reports when a turn's first sample actually starts playing.
 
 Every turn is appended to logs/turns.jsonl and kept in memory for /metrics.
+The summary splits the wait into its parts so a change can be measured before
+and after: end-of-turn detection (endpoint_ms, by detection event and by the
+turn detector's verdict), first audio sent, the deliberate typing pause
+(pause_ms), and whether the first sentence was streamed before the engine
+finished.
 """
 
 import bisect
@@ -58,6 +63,9 @@ class TurnTimer:
     tier: Optional[int] = None
     step_before: Optional[int] = None
     step_after: Optional[int] = None
+    goal_before: Optional[str] = None       # the redesigned engine's goals (step_* for the old one)
+    goal_after: Optional[str] = None
+    detect: Optional[str] = None            # turn detector verdict, e.g. "complete:yes_no"
     user_end: Optional[float] = None        # caller stopped speaking (wall clock)
     # How the end of the caller's turn was detected. endpoint_ms (user_end ->
     # committed) splits into stt_ms (user_end -> the STT's end-of-utterance
@@ -75,6 +83,7 @@ class TurnTimer:
     barge_in_ms: Optional[float] = None
     filler: bool = False
     pause_ms: Optional[float] = None        # deliberate pause (typing beat), part of perceived_ms
+    streamed: bool = False                  # first sentence spoken before the engine finished
     logged: bool = field(default=False, repr=False)
 
     def _ms(self, a, b):
@@ -88,8 +97,11 @@ class TurnTimer:
             "tier": self.tier,
             "step_before": self.step_before,
             "step_after": self.step_after,
+            "goal_before": self.goal_before,
+            "goal_after": self.goal_after,
             "endpoint_ms": self._ms(self.user_end, self.committed),
             "endpoint_source": self.endpoint_source,
+            "detect": self.detect,
             "stt_ms": self._ms(self.user_end, self.stt_event),
             "hold_ms": self._ms(self.stt_event, self.committed),
             "nlu_ms": None if self.nlu_ms is None else round(self.nlu_ms, 1),
@@ -99,6 +111,7 @@ class TurnTimer:
             "perceived_ms": self._ms(self.user_end, self.audible),
             "filler": self.filler,
             "pause_ms": self.pause_ms,
+            "streamed": self.streamed,
             "barge_in": self.barge_in,
             "barge_in_ms": None if self.barge_in_ms is None else round(self.barge_in_ms, 1),
         }
@@ -140,15 +153,33 @@ class LatencyLog:
         return record
 
     def summary(self) -> dict:
+        def values(rows, key):
+            return [r[key] for r in rows if r.get(key) is not None]
+
         def stats(rows):
-            perceived = [r["perceived_ms"] for r in rows if r["perceived_ms"] is not None]
-            barge = [r["barge_in_ms"] for r in rows if r["barge_in_ms"] is not None]
+            perceived = values(rows, "perceived_ms")
+            first_audio = values(rows, "first_audio_ms")
             return {
                 "turns": len(rows),
                 "perceived_p50_ms": _percentile(perceived, 50),
                 "perceived_p95_ms": _percentile(perceived, 95),
-                "barge_in_p50_ms": _percentile(barge, 50),
+                "first_audio_p50_ms": _percentile(first_audio, 50),
+                "first_audio_p95_ms": _percentile(first_audio, 95),
+                "pause_p50_ms": _percentile(values(rows, "pause_ms"), 50),
+                "paused_turns": sum(1 for r in rows if r.get("pause_ms")),
+                "streamed_turns": sum(1 for r in rows if r.get("streamed")),
+                "barge_in_p50_ms": _percentile(values(rows, "barge_in_ms"), 50),
             }
+
+        def detection(rows):
+            """End-of-turn wait by the turn detector's verdict (complete, unfinished, ...)."""
+            out = {}
+            kinds = sorted({(r.get("detect") or "").split(":")[0] for r in rows if r.get("detect")})
+            for kind in kinds:
+                subset = [r for r in rows if (r.get("detect") or "").split(":")[0] == kind]
+                out[kind] = {"turns": len(subset),
+                             "endpoint_p50_ms": _percentile(values(subset, "endpoint_ms"), 50)}
+            return out
 
         def endpointing(rows):
             """Where the wait for the end of the caller's speech goes, per detection event."""
@@ -168,4 +199,5 @@ class LatencyLog:
             "tier0": stats([r for r in rows if r["tier"] == 0]),
             "tier1": stats([r for r in rows if r["tier"] == 1]),
             "endpointing": endpointing(rows),
+            "detection": detection(rows),
         }

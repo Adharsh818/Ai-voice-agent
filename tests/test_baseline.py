@@ -11,6 +11,7 @@ import wave
 from datetime import date, datetime
 from unittest.mock import patch
 
+import ai_engine
 import backend_actions
 import clock
 import config
@@ -125,6 +126,24 @@ class LatencyDiagnosticsTests(unittest.TestCase):
         self.assertEqual(summary["utterance_end"]["stt_ms_p50_ms"], 1150.0)
         self.assertEqual(summary["speech_final"]["hold_ms_p50_ms"], 0.0)
 
+    def test_summary_shows_typing_pause_first_audio_streaming_and_detection(self):
+        # /metrics before vs after the walkie-talkie fixes: where the wait goes.
+        log = LatencyLog(None)
+        rows = [("complete:yes_no", 0.25, None, False), ("complete:full_number", 0.3, 180.0, False),
+                ("unfinished:trailing_and", 1.6, None, True), ("likely:sentence", 0.6, None, True)]
+        for i, (detect, committed, pause, streamed) in enumerate(rows):
+            log.add(TurnTimer(call_id="c", turn=i, tier=1, user_end=0.0, committed=committed,
+                              first_audio_sent=committed + 0.5, audible=committed + 0.6,
+                              detect=detect, pause_ms=pause, streamed=streamed))
+        summary = log.summary()
+        tier1 = summary["tier1"]
+        self.assertEqual((tier1["turns"], tier1["paused_turns"], tier1["streamed_turns"]), (4, 1, 2))
+        self.assertEqual(tier1["pause_p50_ms"], 180.0)
+        self.assertEqual(tier1["first_audio_p50_ms"], 950.0)          # from the end of the caller's words
+        detection = summary["detection"]
+        self.assertEqual(detection["complete"], {"turns": 2, "endpoint_p50_ms": 275.0})
+        self.assertEqual(detection["unfinished"]["endpoint_p50_ms"], 1600.0)
+
 
 class DeepgramEndpointSourceTests(unittest.TestCase):
     def test_utterances_report_which_event_ended_them(self):
@@ -140,12 +159,17 @@ class DeepgramEndpointSourceTests(unittest.TestCase):
             final = {"is_final": True, "speech_final": True, "channel": {"alternatives": [
                 {"transcript": "yes please", "words": [{"end": 1.4}]}]}}
             await stt._handle_result(final)
+            # The same audio finalised again, then the UtteranceEnd backstop: not a second turn.
             await stt._handle_result({**final, "speech_final": False})
+            await stt._handle_utterance_end()
+            later = {"is_final": True, "speech_final": False, "channel": {"alternatives": [
+                {"transcript": "on Monday", "words": [{"end": 3.2}]}]}}
+            await stt._handle_result(later)
             await stt._handle_utterance_end()
 
         asyncio.run(run())
         self.assertEqual(seen, [("yes please", 1.4, "speech_final"),
-                                ("yes please", 1.4, "utterance_end")])
+                                ("on Monday", 3.2, "utterance_end")])
 
 
 class CallSessionEndpointTests(unittest.TestCase):
@@ -165,7 +189,9 @@ class CallSessionEndpointTests(unittest.TestCase):
                 return None
 
             session._run_turn = no_turn
-            await session._on_utterance_end("I'd like a cleaning", None, "utterance_end")
+            session.s = ai_engine.SessionState()     # the 12-step machine, whichever engine is on
+            session.s.step = 9      # Emma asked "Shall I book it?": a plain yes commits at once
+            await session._on_utterance_end("Yes please.", None, "utterance_end")
             await asyncio.sleep(0)
             return session._timers[session.turn_id]
 

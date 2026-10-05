@@ -12,6 +12,7 @@ import logredact
 import phones
 import phrases
 import tier0
+from dialogue.context import CallContext
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ CLINIC_FACTS, ESCALATION_LINE = _load_clinic_facts()
 EMMA_NLU_SYSTEM_PROMPT = """You are the language-understanding layer for Emma, the receptionist at Pearl Dental Clinic in Bengaluru.
 Read the caller's latest words and output ONLY a JSON object, no markdown.
 
-Keys (use null when absent):
+Keys (leave a key out entirely when it has no value; never output nulls, it only slows the reply):
 - patient_name: the caller's name if they state it in THIS response.
 - phone_number: a 10-digit mobile number stated in THIS response, digits only (convert spoken words such as "double nine" to digits).
 - dental_service: the dental service they ask for.
@@ -238,6 +239,12 @@ _NON_NAME_WORDS = {
     "sorry", "what", "when", "where", "how", "help", "pain", "tooth", "teeth",
     "toothache", "hurts", "hurting",
 }
+
+
+_GREETING_ONLY_RE = re.compile(
+    r"^(hi|hello|hey|hii|hallo|hullo|good (morning|afternoon|evening)|namaste)"
+    r"( there| emma| ma'?am)?([ ,.!?]+(hi|hello|hey))*$"
+)
 
 
 def _looks_like_name(text, strict=False):
@@ -548,7 +555,11 @@ def expects_information(s, text: str) -> bool:
     time, a first description of what they need, or a correction at the recap.
     Not a bare yes/no, and not a question. The call session then plays a short
     burst of typing before Emma answers (docs/NORTH_STAR.md, decision R6).
+    An R2 CallContext is answered by dialogue.policy.expects_information.
     """
+    if isinstance(s, CallContext):
+        from dialogue import policy
+        return policy.expects_information(s, text)
     words = re.findall(r"[a-z0-9']+", (text or "").lower())
     if not words or tier0.looks_like_question(text):
         return False
@@ -682,6 +693,10 @@ def _handle_conversation_step(user_text, entities, s):
                 return f"Sure, I can help with that. {_name_prompt(s)}"
             return "Sure, I can help with that. May I have your full name, please?"
 
+        if _GREETING_ONLY_RE.match(user_lower.strip(" .!?,")):
+            # "Hi" / "Hello?" back to her greeting: greet them and ask again, as
+            # a receptionist would, instead of pushing a booking at a "hello".
+            return "Hi there! How can I help you today?"
         return "Sure. Would you like to book a visit?"
 
     # --- STEP 2: COLLECT NAME ---
@@ -1028,18 +1043,25 @@ CLOSED_REPLY = "Great, we'll see you then. Take care, bye!"
 @dataclass
 class TurnResult:
     text: str
-    tier: int                  # 0 = deterministic fast path, 1 = LLM NLU, -1 = no NLU (greeting/closed)
+    tier: int                  # 0 = deterministic fast path, 1 = LLM NLU, 2 = R2 no-model fallback,
+                               # -1 = no NLU (greeting/closed)
     entities: dict = field(default_factory=dict)
     nlu_ms: float = 0.0
-    step_before: int = 0
-    step_after: int = 0
+    step_before: int | str = 0     # R2: the goal values (same as goal_before / goal_after)
+    step_after: int | str = 0
+    # Shared facade contract (docs/R2_DESIGN.md, section 15). Defaults keep the
+    # 12-step engine and its tests unchanged.
+    action: str | None = None      # "booked" | "rescheduled" | "cancelled", only after Python committed it
+    goal_before: str | None = None
+    goal_after: str | None = None
+    spoken_count: int = 0          # leading sentences of text already delivered through on_sentence
 
 
 def _noop_progress(event, **data):
     return None
 
 
-async def async_process_turn(user_text, s, progress=None) -> TurnResult:
+async def async_process_turn(user_text, s, progress=None, **kwargs) -> TurnResult:
     """
     Process one caller turn and return Emma's reply with timing metadata.
 
@@ -1054,9 +1076,20 @@ async def async_process_turn(user_text, s, progress=None) -> TurnResult:
                       check and booking are about to run
       "commit"        the state machine is about to mutate `s`; from here the
                       turn can no longer be cancelled and restarted
+
+    With config.R2_ENGINE on, or when `s` is an R2 CallContext (from
+    new_session), the turn runs on dialogue.engine instead; an `on_sentence`
+    keyword then receives each validated reply sentence as soon as it is
+    final. The 12-step machine doesn't stream, so on_sentence is only in the
+    signature when R2 is the engine (call_session checks the signature).
     """
     if s is None:
         raise ValueError("async_process_turn requires a per-call SessionState")
+    if isinstance(s, CallContext):
+        # new_session() hands out a CallContext exactly when config.R2_ENGINE is
+        # on, so routing on the type follows the flag and keeps a SessionState
+        # made directly (the old tests) on the machine it was built for.
+        return await _r2_turn(user_text, s, progress, kwargs.get("on_sentence"))
     emit = progress or _noop_progress
     step_before = s.step
 
@@ -1106,14 +1139,73 @@ async def async_process_turn(user_text, s, progress=None) -> TurnResult:
     emit("commit")
     # Availability and calendar operations are synchronous today.  Keep them
     # off the event loop so one calendar request cannot stall every call.
+    booked_before = s.booking_confirmed
     directive = await asyncio.to_thread(_handle_conversation_step, user_text, entities, s)
+    action = "booked" if s.booking_confirmed and not booked_before else None
     reply = await generate_emma_response(
         directive, s, user_text=user_text,
         user_query=entities.get("user_query"), answer=entities.get("answer"),
     )
     logger.info("turn tier=%d step %d->%d nlu=%.0fms", tier, step_before, s.step, nlu_ms)
     return TurnResult(reply, tier=tier, entities=entities, nlu_ms=nlu_ms,
-                      step_before=step_before, step_after=s.step)
+                      step_before=step_before, step_after=s.step, action=action)
+
+
+# ==========================================
+# R2 FACADE (docs/R2_DESIGN.md, section 15)
+# ==========================================
+# The call session, the harness and the tools use only these, so the 12-step
+# machine above can be removed at integration without touching them.
+
+def new_session(call_id: str | None = None):
+    """A per-call state: an R2 CallContext when config.R2_ENGINE is on, else today's SessionState."""
+    if config.R2_ENGINE:
+        from dialogue.context import new_context
+        return new_context(call_id)
+    return SessionState()
+
+
+async def _r2_turn(user_text, s, progress, on_sentence) -> TurnResult:
+    from dialogue import engine
+    out = await engine.process_turn(s, user_text or "", progress=progress, on_sentence=on_sentence)
+    return TurnResult(out.text, tier=out.tier, entities=out.entities, nlu_ms=out.nlu_ms,
+                      step_before=out.goal_before or 0, step_after=out.goal_after or 0,
+                      action=out.action, goal_before=out.goal_before, goal_after=out.goal_after,
+                      spoken_count=out.spoken_count)
+
+
+def listening_hint(s):
+    """
+    What Emma is listening for: {"expect": "phone|name|yes_no|date|time|choice|open|spelling",
+    "digits_so_far": int}. A partial phone number gives expect="phone" with the
+    digits buffered so far, so the turn detector waits for the rest.
+
+    For today's SessionState it returns None: call_session then uses
+    turn_detector.hint_from_state and the harness its own reading of Emma's
+    line, exactly as before this function existed.
+    """
+    if isinstance(s, CallContext):
+        from dialogue import policy
+        return policy.listening_hint(s)
+    return None
+
+
+if config.R2_ENGINE:
+    _process_turn_12_step = async_process_turn
+
+    async def async_process_turn(user_text, s, progress=None, on_sentence=None) -> TurnResult:
+        """The R2 entry point: as above, with on_sentence in the signature so call_session streams."""
+        return await _process_turn_12_step(user_text, s, progress, on_sentence=on_sentence)
+
+
+def install_test_nlu(reader):
+    """
+    Tests and harness only: run the R2 model call on reader(text, expect) ->
+    reading dict instead of Gemini (nlu.ReaderBackend). Returns a context
+    manager; a reader returning None simulates the model being down.
+    """
+    import nlu
+    return nlu.use_backend(nlu.ReaderBackend(reader))
 
 
 async def async_get_ai_response(user_text, session_state):
