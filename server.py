@@ -190,6 +190,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Pearl Dental Clinic — Emma Voice Agent", lifespan=lifespan)
 app.state.gate = CallGate()
+# Live CallSessions by call id, for the dashboard's take over / hand back / end controls.
+app.state.sessions = {}
 STATIC_DIR = Path(__file__).parent / "static"
 
 # The dashboard shows patient data: no framing, no inline script, no caching of API answers.
@@ -337,6 +339,7 @@ async def voice_websocket(ws: WebSocket):
         # ?mode=listen records the STT test set: captions and capture, no replies.
         listen_only = ws.query_params.get("mode") == "listen" and config.DEV_CAPTURE_AUDIO
         session = CallSession(transport, _services(state), call_id=call_id, listen_only=listen_only)
+        state.sessions[call_id] = session
         if not listen_only:
             _start_recording(session, call_id)
         await session.start()
@@ -364,6 +367,7 @@ async def voice_websocket(ws: WebSocket):
         except Exception as exc:
             logger.error("[%s] error closing the call: %s", call_id, exc, exc_info=True)
         finally:
+            state.sessions.pop(call_id, None)
             gate.release(call_id)
             # Anything booked, moved or cancelled on the call reaches Calendar
             # now rather than at the worker's next poll.

@@ -1,0 +1,201 @@
+{
+  "about": "The 30 caller lines read aloud for the STT test set (docs/STT_TEST_SET.md). 'expect' holds the values the parsers must get from the reference text.",
+  "lines": [
+    {
+      "id": 1,
+      "say": "Hi, I'd like to book an appointment please.",
+      "expect": {}
+    },
+    {
+      "id": 2,
+      "say": "My name is Adharsh Kumar.",
+      "expect": {}
+    },
+    {
+      "id": 3,
+      "say": "It's nine eight seven six five, four three two one zero.",
+      "expect": {
+        "phone": "+919876543210"
+      }
+    },
+    {
+      "id": 4,
+      "say": "Double nine, eight seven six, five four three, two one.",
+      "expect": {
+        "phone": "+919987654321"
+      }
+    },
+    {
+      "id": 5,
+      "say": "Yes, that's correct.",
+      "expect": {}
+    },
+    {
+      "id": 6,
+      "say": "No, that's wrong.",
+      "expect": {}
+    },
+    {
+      "id": 7,
+      "say": "I need a root canal.",
+      "expect": {}
+    },
+    {
+      "id": 8,
+      "say": "Just a cleaning and check-up for my daughter.",
+      "expect": {}
+    },
+    {
+      "id": 9,
+      "say": "Can I get Invisalign at the Indiranagar branch?",
+      "expect": {}
+    },
+    {
+      "id": 10,
+      "say": "Whitefield is closer for me.",
+      "expect": {}
+    },
+    {
+      "id": 11,
+      "say": "Jayanagar, with a lady doctor if possible.",
+      "expect": {}
+    },
+    {
+      "id": 12,
+      "say": "Next Monday around five.",
+      "expect": {
+        "date_kind": "exact",
+        "time": "17:00"
+      }
+    },
+    {
+      "id": 13,
+      "say": "Tomorrow at ten thirty in the morning.",
+      "expect": {
+        "date_kind": "exact",
+        "time": "10:30"
+      }
+    },
+    {
+      "id": 14,
+      "say": "The twenty sixth, in the evening.",
+      "expect": {
+        "date_kind": "exact",
+        "time_window": [
+          "16:00",
+          "21:00"
+        ]
+      }
+    },
+    {
+      "id": 15,
+      "say": "Sometime next week, after five.",
+      "expect": {
+        "date_kind": "range",
+        "time_window": [
+          "17:00",
+          "21:00"
+        ]
+      }
+    },
+    {
+      "id": 16,
+      "say": "Half past four on Friday.",
+      "expect": {
+        "date_kind": "exact",
+        "time": "16:30"
+      }
+    },
+    {
+      "id": 17,
+      "say": "Whatever is earliest.",
+      "expect": {
+        "date_kind": "earliest"
+      }
+    },
+    {
+      "id": 18,
+      "say": "Seven.",
+      "expecting": "time",
+      "expect": {
+        "time_ambiguous": [
+          "07:00",
+          "19:00"
+        ]
+      }
+    },
+    {
+      "id": 19,
+      "say": "Seven in the evening.",
+      "expecting": "time",
+      "expect": {
+        "time": "19:00"
+      }
+    },
+    {
+      "id": 20,
+      "say": "Actually, make it Tuesday instead.",
+      "expect": {
+        "date_kind": "exact"
+      }
+    },
+    {
+      "id": 21,
+      "say": "The second one works.",
+      "expect": {}
+    },
+    {
+      "id": 22,
+      "say": "What time do you close on Saturdays?",
+      "expect": {}
+    },
+    {
+      "id": 23,
+      "say": "Where is your Jayanagar clinic?",
+      "expect": {}
+    },
+    {
+      "id": 24,
+      "say": "Sorry, can you repeat that?",
+      "expect": {}
+    },
+    {
+      "id": 25,
+      "say": "Hold on a second.",
+      "expect": {}
+    },
+    {
+      "id": 26,
+      "say": "I want to cancel my appointment on the fifth.",
+      "expect": {
+        "date_kind": "exact"
+      }
+    },
+    {
+      "id": 27,
+      "say": "Can I move my cleaning to Thursday afternoon?",
+      "expect": {
+        "date_kind": "exact",
+        "time_window": [
+          "12:00",
+          "16:00"
+        ]
+      }
+    },
+    {
+      "id": 28,
+      "say": "I have really bad swelling and pain since last night.",
+      "expect": {}
+    },
+    {
+      "id": 29,
+      "say": "Can I talk to a real person?",
+      "expect": {}
+    },
+    {
+      "id": 30,
+      "say": "No, that's all, thank you. Bye.",
+      "expect": {}
+    }
+  ]
+}

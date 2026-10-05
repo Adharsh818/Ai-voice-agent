@@ -21,7 +21,10 @@ deploy/secrets
 # Runtime state
 cache
 logs
-mock_db.json
+data
+captures
+harness_runs
+models
 *.log
 *.db
 *.docx
