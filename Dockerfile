@@ -9,15 +9,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     SERVER_PORT=8000 \
     EMMA_CACHE_DIR=/data/cache \
     EMMA_LOG_DIR=/data/logs \
-    EMMA_MOCK_DB_PATH=/data/mock_db.json
+    EMMA_DB_PATH=/data/emma.db
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY *.py clinic_facts.json ./
-COPY static ./static
+COPY . .
 
 RUN useradd --system --uid 10001 emma \
     && mkdir -p /data/cache /data/logs /secrets \

@@ -164,6 +164,21 @@ CANT_HEAR_CALLBACK_LINES = [
 CANT_HEAR_GOODBYE_LINES = [
     "Sorry, I'm having trouble hearing you on this line. Could you give us a call back in a minute? Bye for now.",
 ]
+# Staff take a call over from the dashboard (plan 5.10). Rare, so never pre-rendered.
+TAKEOVER_LINES = [
+    "One moment, a member of our team is taking over from here.",
+    "Just a moment, my colleague is going to take it from here.",
+]
+HAND_BACK_LINES = [
+    "Thanks for bearing with us. Is there anything else I can help you with?",
+    "Okay, thanks for holding. Anything else I can do for you?",
+]
+STAFF_END_LINES = [
+    "Thanks for calling Pearl Dental, we'll be in touch soon. Take care, bye!",
+]
+STAFF_LINES = TAKEOVER_LINES + HAND_BACK_LINES + STAFF_END_LINES
+# The longest line staff may type for Emma's voice to speak.
+MAX_OPERATOR_CHARS = 400
 # Worth pre-rendering with the other fixed prompts (phrases.all_phrases(extra=...)).
 CACHEABLE_LINES = (STILL_THERE_LINES + CANT_HEAR_LINES + SILENCE_GOODBYE_LINES + WRAP_UP_LINES
                    + LONG_CALL_GOODBYE_CALLBACK_LINES + LONG_CALL_GOODBYE_LINES
@@ -535,6 +550,12 @@ class CallSession:
         self._ending = False
         self._used_lines: set[str] = set()
         self._turn_extra: dict[int, dict] = {}       # per turn: the engine's entities and action (transcript)
+        self._turn_role: dict[int, str] = {}         # turns spoken for staff are "operator" in the transcript
+        # Staff took the call over from the dashboard: the engine and the silence
+        # ladder stand down, the caller is still transcribed, and staff lines are
+        # spoken one after another in Emma's voice.
+        self._staffed = False
+        self._staff_lock = asyncio.Lock()
         self.outcome: Optional[str] = None
         # Transcript recorder (recording.CallRecorder). The server attaches one
         # before start() and closes it after close(); without one, start() makes
@@ -830,6 +851,12 @@ class CallSession:
         if self._ending:
             logger.info("[%s] caller spoke while the call was ending: %s", self.call_id, _loggable(text))
             return
+        if self._staffed:
+            # Staff are answering: the caller is heard and captioned, Emma stays quiet.
+            self._ladder_reset(time.perf_counter())
+            self._record("caller", text, {"staffed": True, "endpoint_source": source})
+            logger.info("[%s] caller (staff on the call): %s", self.call_id, _loggable(text))
+            return
         if self._speaking_turn is not None:
             await self.interrupt("new utterance")
         self._deferred = None
@@ -1079,7 +1106,10 @@ class CallSession:
             self._last_spoken_turn = tid
             self._set_heard(False)
             await self._send({"type": "turn", "turn": tid, "phase": "start"})
-        await self._send({"type": "caption", "who": "emma", "text": self._reply_text[tid], "final": True})
+        caption = {"type": "caption", "who": "emma", "text": self._reply_text[tid], "final": True}
+        if tid in self._turn_role:
+            caption["by"] = self._turn_role[tid]      # the dashboard shows staff lines as Staff
+        await self._send(caption)
         if segments is not None:
             return await self.speaker.play(tid, segments, timer)
         return await self.speaker.speak(tid, text, timer)
@@ -1091,7 +1121,8 @@ class CallSession:
         spoken = self._reply_text.get(tid, "")
         if spoken:
             self._last_reply = spoken
-            self._record("emma", spoken, {**self._turn_meta(timer), **self._turn_extra.pop(tid, {})})
+            self._record(self._turn_role.pop(tid, "emma"), spoken,
+                         {**self._turn_meta(timer), **self._turn_extra.pop(tid, {})})
         await self._send({"type": "turn", "turn": tid, "phase": "audio_done"})
         sent_ms = self.speaker.sent_ms(tid)
         if sent_ms <= 0 and self._speaking_turn in (tid, None):
@@ -1306,6 +1337,9 @@ class CallSession:
                 if self._ending or self.closed:
                     continue
                 now = time.perf_counter()
+                if self._staffed:
+                    self._idle_since = now          # staff are handling the call
+                    continue
                 await self._check_call_length(now)
                 if self._ending:
                     continue
@@ -1376,14 +1410,16 @@ class CallSession:
         await self._say_line(self._pick(lines), then_close=True, outcome="stt_failure", final=True)
 
     async def _say_line(self, text: str, then_close: bool = False, outcome: Optional[str] = None,
-                        final: bool = False):
+                        final: bool = False, role: str = "emma"):
         """
         A line of Emma's own (silence ladder, call length, lost audio) as its own
         turn. A goodbye that the caller talks over does not end the call, unless
-        it is final (the call cannot continue).
+        it is final (the call cannot continue). role "operator": typed by staff.
         """
         self.turn_id += 1
         tid = self.turn_id
+        if role != "emma":
+            self._turn_role[tid] = role
         timer = self._timer(tid, "")
         timer.tier, timer.reply_ready = -1, time.perf_counter()
         if final:
@@ -1398,6 +1434,85 @@ class CallSession:
                 await self._finish_call(tid)
 
         self._start_turn_task(run())
+
+    # ------------------------------------------------------------------ staff takeover (plan 5.10)
+    @property
+    def staffed(self) -> bool:
+        return self._staffed
+
+    async def _settle_turn(self):
+        """Stop the turn in progress, except a commit, which may finish (it is never cut in half)."""
+        task = self._turn_task
+        if task is None or task.done() or task is asyncio.current_task():
+            return
+        if self._turn_phase == "commit":
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=8)
+            except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                pass
+        else:
+            task.cancel()
+
+    async def take_over(self) -> bool:
+        """Staff take the call: Emma says a colleague is taking over, then speaks only staff lines."""
+        if self.closed or self._ending or self.listen_only:
+            return False
+        if self._staffed:
+            return True
+        self._staffed = True
+        self._deferred = None
+        self.detector.cancel()
+        await self._settle_turn()
+        await self.interrupt("staff takeover")
+        logger.info("[%s] staff took the call over", self.call_id)
+        self._spawn(self._staff_line(self._pick(TAKEOVER_LINES)))
+        return True
+
+    async def say_for_staff(self, text: str) -> bool:
+        """A line typed by staff, spoken in Emma's voice after anything already queued."""
+        text = " ".join((text or "").split())[:MAX_OPERATOR_CHARS]
+        if not text or not self._staffed or self.closed or self._ending:
+            return False
+        self._spawn(self._staff_line(text, role="operator"))
+        return True
+
+    async def hand_back(self) -> bool:
+        """Emma takes the call back and asks what else she can do."""
+        if not self._staffed or self.closed or self._ending:
+            return False
+        self._staffed = False
+        self._ladder_reset(time.perf_counter())
+        logger.info("[%s] staff handed the call back to Emma", self.call_id)
+        self._spawn(self._staff_line(self._pick(HAND_BACK_LINES)))
+        return True
+
+    async def end_for_staff(self, note: str = "") -> bool:
+        """Staff end the call: a follow-up task for the team, a warm goodbye, then hang up."""
+        if self.closed or self._ending:
+            return False
+        note = " ".join((note or "").split())[:MAX_OPERATOR_CHARS]
+        await self._create_task("escalation", "high", self._caller_phone(),
+                                f"Call ended by staff from the dashboard. {note}".strip())
+        self._ending = True
+        self.detector.cancel()
+        await self._settle_turn()
+        await self.interrupt("ended by staff")
+        logger.info("[%s] staff ended the call", self.call_id)
+        await self._say_line(self._pick(STAFF_END_LINES), then_close=True, outcome="ended_by_staff", final=True)
+        return True
+
+    async def _staff_line(self, text: str, role: str = "emma"):
+        """Speak one takeover line in order: after the line before it has finished."""
+        async with self._staff_lock:
+            previous = self._turn_task
+            if previous is not None and not previous.done():
+                await asyncio.wait({previous}, timeout=30)
+            if self.closed or self._ending:
+                return
+            await self._say_line(text, role=role)
+            current = self._turn_task
+            if current is not None:
+                await asyncio.wait({current}, timeout=60)
 
     def _pick(self, lines: list[str]) -> str:
         fresh = [line for line in lines if line not in self._used_lines] or lines

@@ -231,21 +231,22 @@ document.querySelectorAll("[data-go]").forEach((chip) => chip.addEventListener("
 const live = {
   callId: null, started: null, ended: false, state: "idle", lines: [], interim: "",
   turns: new Map(), goal: null, tier: null, entities: {}, outcome: null, lastSeq: 0,
+  staffed: false, controllable: false,
 };
 
 function resetLive(callId = null) {
   Object.assign(live, {
     callId, started: callId ? new Date() : null, ended: false, state: callId ? "listening" : "idle", lines: [],
-    interim: "", turns: new Map(), goal: null, tier: null, entities: {}, outcome: null,
+    interim: "", turns: new Map(), goal: null, tier: null, entities: {}, outcome: null, staffed: false,
   });
 }
 
 function addCaption(who, text, final) {
   if (!text) return;
-  if (who === "emma") {
+  if (who === "emma" || who === "operator") {
     const last = live.lines[live.lines.length - 1];
     if (last) last.closed = true;
-    live.lines.push({ who: "emma", text, closed: true });
+    live.lines.push({ who, text, closed: true });
     return;
   }
   if (!final) {
@@ -268,7 +269,10 @@ function handleEvent(event) {
       break;
     case "caption":
       if (!live.callId) resetLive(event.call_id);
-      addCaption(event.who === "emma" ? "emma" : "caller", event.text, event.final);
+      addCaption(event.who === "emma" ? (event.by === "operator" ? "operator" : "emma") : "caller", event.text, event.final);
+      break;
+    case "staff":
+      if (event.call_id === live.callId) live.staffed = event.mode === "staff";
       break;
     case "state":
       if (!live.ended) live.state = event.state;
@@ -340,6 +344,7 @@ function renderLive() {
   $("live-tier").textContent = live.tier === null ? "–" : { 0: "0 · fast path", 1: "1 · language model", "-1": "no NLU" }[live.tier] ?? String(live.tier);
   $("live-outcome").textContent = live.outcome || (hasCall && !live.ended ? "in progress" : "–");
   renderDuration();
+  renderControls();
 
   const box = $("live-transcript");
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
@@ -372,8 +377,56 @@ function renderDuration() {
 }
 setInterval(() => { if (currentTab === "live" && live.callId && !live.ended) renderDuration(); }, 1000);
 
+// ------------------------------------------------------------------ live call controls
+function renderControls() {
+  const active = Boolean(live.callId) && !live.ended;
+  $("live-controls").hidden = !active;
+  if (!active) return;
+  const mode = $("live-mode");
+  mode.textContent = live.staffed ? "You have the call" : "Emma";
+  mode.className = `state-pill ${live.staffed ? "staff" : "listening"}`;
+  $("btn-takeover").hidden = live.staffed;
+  $("btn-handback").hidden = !live.staffed;
+  $("operator-form").hidden = !live.staffed;
+}
+
+async function liveControl(action, body) {
+  const box = $("live-control-error");
+  showError(box, "");
+  if (!live.callId) return false;
+  try {
+    const data = await api(`/dashboard/api/live/${encodeURIComponent(live.callId)}/${action}`, { method: "POST", body });
+    if (data && data.call) live.staffed = Boolean(data.call.staffed);
+    renderControls();
+    return true;
+  } catch (err) {
+    showError(box, err.message);
+    return false;
+  }
+}
+
+$("btn-takeover").addEventListener("click", async () => {
+  if (await liveControl("takeover", {})) $("operator-text").focus();
+});
+$("btn-handback").addEventListener("click", () => liveControl("handback", {}));
+$("btn-endcall").addEventListener("click", async () => {
+  const ok = await confirmAction("End this call?",
+    "Emma says a warm goodbye and hangs up, and a high-priority task is created so the team follows up.", "End call");
+  if (ok) await liveControl("end", { note: "" });
+});
+$("operator-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("operator-text");
+  const text = input.value.trim();
+  if (!text) return;
+  input.disabled = true;
+  if (await liveControl("say", { text })) input.value = "";
+  input.disabled = false;
+  input.focus();
+});
+
 const EVENT_TYPES = ["call_started", "caption", "state", "turn", "metrics", "call_turn", "call_ended", "task_created",
-  "task_updated", "appointment", "sync", "call_data_deleted", "bye", "error"];
+  "task_updated", "appointment", "sync", "call_data_deleted", "bye", "error", "staff"];
 
 function connectEvents() {
   const source = new EventSource("/dashboard/api/events");

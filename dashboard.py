@@ -166,7 +166,65 @@ def _overview(conn) -> dict:
 
 def _gate_status(request: Request) -> dict:
     gate = getattr(request.app.state, "gate", None)
-    return gate.status() if gate is not None else {"busy": False}
+    status = gate.status() if gate is not None else {"busy": False}
+    session = _live_session(request, status.get("call_id"))
+    status["staffed"] = bool(session is not None and session.staffed)
+    status["controllable"] = session is not None
+    return status
+
+
+# ---------------------------------------------------------------- live call controls (plan 5.10)
+
+def _live_session(request: Request, call_id: Optional[str]):
+    sessions = getattr(request.app.state, "sessions", None) or {}
+    return sessions.get(call_id) if call_id else None
+
+
+def _session_or_404(request: Request, call_id: str):
+    session = _live_session(request, call_id)
+    if session is None or session.closed:
+        raise HTTPException(status_code=404, detail="That call has ended.")
+    return session
+
+
+async def _control(request: Request, user: str, call_id: str, action: str, done: bool, mode: Optional[str] = None,
+                   detail: Optional[dict] = None):
+    if not done:
+        raise HTTPException(status_code=409, detail="That isn't possible on this call right now.")
+    await _run(_audit, user, action, "call", call_id, detail)
+    if mode:
+        events.publish({"type": "staff", "mode": mode, "call_id": call_id})
+    return {"ok": True, "call": _gate_status(request)}
+
+
+@router.post("/dashboard/api/live/{call_id}/takeover")
+async def live_takeover(call_id: str, request: Request, user: str = staff):
+    session = _session_or_404(request, call_id)
+    return await _control(request, user, call_id, "call_takeover", await session.take_over(), "staff")
+
+
+@router.post("/dashboard/api/live/{call_id}/say")
+async def live_say(call_id: str, request: Request, user: str = staff):
+    session = _session_or_404(request, call_id)
+    text = str((await _body(request)).get("text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Type what Emma should say.")
+    # The audit records that staff spoke, not the words (they are in the call transcript).
+    return await _control(request, user, call_id, "call_operator_line", await session.say_for_staff(text),
+                          detail={"chars": len(text)})
+
+
+@router.post("/dashboard/api/live/{call_id}/handback")
+async def live_hand_back(call_id: str, request: Request, user: str = staff):
+    session = _session_or_404(request, call_id)
+    return await _control(request, user, call_id, "call_hand_back", await session.hand_back(), "emma")
+
+
+@router.post("/dashboard/api/live/{call_id}/end")
+async def live_end(call_id: str, request: Request, user: str = staff):
+    session = _session_or_404(request, call_id)
+    note = str((await _body(request)).get("note") or "").strip()
+    return await _control(request, user, call_id, "call_end_by_staff", await session.end_for_staff(note), "ended")
 
 
 @router.get("/dashboard/api/overview")

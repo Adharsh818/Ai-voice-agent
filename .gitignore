@@ -39,7 +39,7 @@ Thumbs.db
 cache/
 logs/
 # Appointments database (SQLite + WAL files)
-data/
+/data/
 # Caller voices: dev captures and call recordings
 captures/
 recordings/

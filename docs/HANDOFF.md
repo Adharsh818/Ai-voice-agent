@@ -7,6 +7,19 @@ Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_
 
 ---
 
+## 0a. Cloud session (5 Oct, evening): Day 3 and Day 4 closed out
+
+Worked from branch `claude/dreamy-noether-5yy7zt` in a Claude Code cloud session, which holds `day2-r2-engine` merged in plus the work below. No API keys or recordings exist there, so the live items wait for you.
+
+- **Day 4.2 live call controls** (the last open Day 4 item). In the dashboard's Live call tab: **Take over**, a box to type lines Emma speaks in her voice, **Hand back to Emma** and **End call + task**. While staff have the call, the engine and the silence ladder stand down, and the caller is still captioned and transcribed. Staff lines appear as "Staff" on the dashboard and are stored with role `operator`, but the caller's page shows them as Emma. Every control is audited (the audit stores that staff spoke, never the words). Code: `call_session.py` (`take_over`, `say_for_staff`, `hand_back`, `end_for_staff`), `server.py` (`app.state.sessions`), `dashboard.py` (`/dashboard/api/live/{call_id}/...`), `static/dashboard/`. Tested in `tests/test_staff_takeover.py` and once in a real browser.
+- **R2.7 bake-off tooling:** `tools/model_bakeoff.py` (see the plan, R2.7). Harness runs now record the model name in `summary.json`. **To finish R2.7:** `python tools/model_bakeoff.py run --publish`, read the ratings sheet aloud, then `score` it.
+- **R3.6** was already built in R2, so its box is now ticked. **R3.1 and R3.4** still need the STT test-set recording and the Google/Sarvam keys (section 7).
+- **Fix:** `tests/data/stt_script.json` had never been committed: `.gitignore`'s `data/` rule also matched `tests/data/`. The rule is now `/data/`, and the fixture is rebuilt from `docs/STT_TEST_SET.md` (all 30 lines pass `test_stt_script`).
+- **Cloud deploy draft** (from "move to cloud"): `Dockerfile`, `deploy/` (Caddy HTTPS + login, GCP VM script) and `DEPLOY_CLOUD.md`. Written before this branch was merged in, so it predates SQLite, the dashboard login and the 127.0.0.1 bind. **Review it before using it** (plan Milestone E).
+- **Tests:** 850 pass with `R2_ENGINE` off and on (40 expected failures are the 12-step machine's known bugs).
+
+---
+
 ## 0. Sprint 1b integration (5 Oct): R2 works end to end, still off by default
 
 **How to switch.** The 12-step machine is still the engine the talk page uses. `R2_ENGINE=true` in `.env` (then restart the server) runs the R2 engine for every call: the talk page through `call_session`, the harness (`python -m harness run sim --engine r2`) and `python tools/converse.py new --r2`. Nothing has been committed; HEAD is still `e997b66`.

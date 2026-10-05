@@ -394,3 +394,10 @@ dialog::backdrop { background: rgba(10, 14, 20, 0.45); }
   .line { max-width: 100%; }
   .brand-sub { display: none; }
 }
+
+/* Live call controls: take over, staff lines, hand back, end */
+.control-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.control-row input { flex: 1 1 200px; min-width: 0; }
+.operator-form { display: grid; gap: 6px; margin-top: 12px; }
+#live-control-error { margin: 10px 0 0; }
+.state-pill.staff { background: var(--warn-soft); }

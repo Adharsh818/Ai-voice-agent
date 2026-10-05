@@ -50,6 +50,25 @@
           <div class="empty" id="live-empty">No call right now. Start one from the <a href="/" target="_blank" rel="noopener">talk page</a>.</div>
         </div>
         <div class="live-status">
+          <div class="card" id="live-controls" hidden>
+            <div class="card-head">
+              <h3>Take the call</h3>
+              <span class="state-pill" id="live-mode">Emma</span>
+            </div>
+            <div class="control-row">
+              <button class="btn" type="button" id="btn-takeover">Take over</button>
+              <button class="btn" type="button" id="btn-handback" hidden>Hand back to Emma</button>
+              <button class="btn danger" type="button" id="btn-endcall">End call + task</button>
+            </div>
+            <form class="operator-form" id="operator-form" hidden>
+              <label class="small muted" for="operator-text">Type a line; the caller hears it in Emma's voice.</label>
+              <div class="control-row">
+                <input id="operator-text" maxlength="400" autocomplete="off" placeholder="e.g. Let me check with the doctor and call you back">
+                <button class="btn primary" type="submit">Say</button>
+              </div>
+            </form>
+            <div class="error-box" id="live-control-error" hidden></div>
+          </div>
           <div class="card">
             <div class="card-head"><h3>Call</h3></div>
             <dl class="kv">

@@ -628,7 +628,8 @@ def run_suite(suite: str, *, mode: str = "offline", n: int = 20, seed: int = 1, 
             "intensity": intensity, "only": list(only) if only else None, "skipped": skipped,
             "started_at": datetime.now().isoformat(timespec="seconds"),
             "wall_s": round(time.perf_counter() - started, 1),
-            "engine": engine_adapter.EngineAdapter.features(), "engine_name": engine or "default"}
+            "engine": engine_adapter.EngineAdapter.features(), "engine_name": engine or "default",
+            "model": config.GEMINI_MODEL if mode == "live" else None}
     summary = report.write(run_dir, records, meta)
     if publish:
         target = os.path.join(config.BASE_DIR, "docs", "test-reports", f"{run_id}.md")

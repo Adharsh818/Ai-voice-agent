@@ -112,6 +112,7 @@ Full design, interfaces and traceability: [R2_DESIGN.md](R2_DESIGN.md). Scored a
     - Abuse; repeat / wait; fragments ("Sorry, go on", merged with the next turn); silence ladder; closing; don't-keep.
   - **Questions:** answered from the knowledge base, the DB or general non-clinical dental knowledge. Unknown → an honest "I'm not sure about that one" plus an offer (a callback task only if they want it). Never a reflexive "the doctor can go through that".
 - [ ] **R2.7** Model bake-off (R11) on the conversation harness: Flash-Lite vs Flash, scored on correct outcome, validator rejections, naturalness (read aloud, 1–5) and reply latency. Pick one and record the numbers.
+  - *5 Oct (cloud session):* tooling done, the run itself needs the Gemini key. `python tools/model_bakeoff.py run --publish` runs both models live on the same 20 seeded messy callers and writes the comparison plus a blind naturalness sheet to `docs/test-reports/`; `python tools/model_bakeoff.py score <sheet>` folds your 1–5 ratings back in.
 - [x] **R2.8** Integration (5 Oct), changed by the owner: the 12-step machine stays the default and R2 runs end to end behind `R2_ENGINE=true` (or an R2 `CallContext`), through `call_session`, the harness (`--engine r2`), `tools/converse.py --r2` and `tests/test_r2_booking_flow.py` (the old booking tests ported; the originals still test the 12-step machine). Every HANDOFF section 5 scenario passes as a plain test on R2 (`tests/test_conversations.py` `R2Scenarios`). Removing the 12-step machine and `backend_actions.py`'s helpers waits for the owner to switch.
 
 **Exit** (from [SUCCESS_CRITERIA.md](SUCCESS_CRITERIA.md), on at least 200 simulated calls per round):
@@ -139,7 +140,7 @@ Full design, interfaces and traceability: [R2_DESIGN.md](R2_DESIGN.md). Scored a
   - Switch if a candidate is clearly better on names and digits without adding more than 200 ms.
   - Check each provider's current streaming model names and languages during the test.
 - [x] **R3.5** Boost the clinic vocabulary: doctor names, branch names, services, Indian number words ("double", "triple").
-- [ ] **R3.6** Recover from mishearing like a person:
+- [x] **R3.6** Recover from mishearing like a person (checked 5 Oct: built in R2, `dialogue/apply.py` spell-back and `match.closest_name`, `route canal` alias; covered by `test_match`, `test_r2_apply`, `test_brief`):
   - The LLM uses context ("route canal" → root canal).
   - For names, "Sorry, could you spell that for me?" after one failed confirmation.
   - Fuzzy-match heard names against the names already in this call.
@@ -597,10 +598,10 @@ Every stage ends with its exit tests green. Tests run after every step.
 - A barged-in recap can't be confirmed.
 
 ### Day 4 — 4 Oct: dashboard, calendar, transcripts (Milestone B complete)
-- [ ] **4.1** `auth.py`, `events.py` (SSE), dashboard shell with htmx vendored.
-- [ ] **4.2** Live call panel + takeover; appointments views + manual edits + CSV; tasks; calls + audio; audit; system page.
-- [ ] **4.3** `tools/setup_calendars.py` + `calendar_sync.py` worker; health checks for credentials and calendar access.
-- [ ] **4.4** `recording.py`: transcript retention, don't-keep requests, 30-day purge job (no audio, R3).
+- [x] **4.1** `auth.py`, `events.py` (SSE), dashboard shell (vanilla JS instead of htmx: no build step, works offline).
+- [x] **4.2** Live call panel + takeover; appointments views + manual edits + CSV; tasks; calls (transcripts, no audio); audit; system page. Takeover finished 5 Oct: **Take over** (Emma says a colleague is taking over, then speaks only typed staff lines, recorded as `operator`), **Hand back to Emma**, **End call + task** (high-priority escalation task, warm goodbye). Every control is audited; `tests/test_staff_takeover.py`.
+- [x] **4.3** `tools/setup_calendars.py` + `calendar_sync.py` worker; health checks for credentials and calendar access.
+- [x] **4.4** `recording.py`: transcript retention, don't-keep requests, 30-day purge job (no audio, R3).
 - [x] **4.5** Talk page: clear states for connecting, busy, connection lost (reconnect button) and mic blocked; anti-aliased resampling (AudioContext at 16 kHz where supported).
 
 **Exit:**
