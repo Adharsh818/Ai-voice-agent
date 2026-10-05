@@ -1,35 +1,27 @@
-# Core server
+# Emma — Python 3.12 (see .python-version). Install into .venv:
+#   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# Web server, browser WebSocket, provider WebSockets
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 websockets>=12.0
+httpx>=0.25.0
 python-dotenv>=1.0.0
 
-# Speech-to-Text (Google Cloud)
-google-cloud-speech>=2.0.0,<3.0.0
-
-# Text-to-Speech (Google Cloud)
-google-cloud-texttospeech>=2.0.0
-httpx>=0.25.0
-
-# LLM — Gemini (google-genai, async streaming SDK)
+# LLM (Gemini, async)
 google-genai>=1.0.0
 
-
-
-# Google Calendar + Sheets APIs
+# Google Calendar (one-way mirror from Day 4, service-account auth; no browser OAuth)
 google-api-python-client>=2.100.0
-google-auth-httplib2>=0.1.0
-google-auth-oauthlib>=1.1.0
 
-# Date parsing
+# Dates and time zones (tzdata is required for IANA zones on Windows)
 python-dateutil>=2.8.0
-tzdata>=2024.1  # Required for IANA time zones on Windows
+tzdata>=2024.1
 
-# Audio processing (Asterisk AGI / WAV handling)
-numpy>=1.24.0
-scipy>=1.11.0
-
-# Telephony audio: µ-law <-> linear PCM for the Asterisk AudioSocket path.
-# Python 3.13 removed the stdlib `audioop` module. Recommended: run on Python
-# 3.12 (audioop is built in). On 3.13+, this backport restores it:
+# Telephony/fallback-TTS resampling uses the stdlib `audioop`, which Python
+# 3.13 removed. Python 3.12 is the supported version; this restores it on 3.13+.
 audioop-lts>=0.2.1; python_version >= "3.13"
+
+# Backup voice (plan 5.7): local Piper TTS when ElevenLabs fails or runs out.
+# Voices: python tools/fetch_piper_voice.py (models/ is git-ignored)
+piper-tts>=1.2

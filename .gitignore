@@ -5,7 +5,7 @@ credentials.json
 token.json
 *.pem
 *.key
-deploy/secrets/
+secrets/
 
 # --- Python ---
 __pycache__/
@@ -38,7 +38,19 @@ Thumbs.db
 # --- Emma runtime caches / logs / databases ---
 cache/
 logs/
+# Appointments database (SQLite + WAL files)
+data/
+# Caller voices: dev captures and call recordings
+captures/
+recordings/
+# Clinic sound recordings: fetched by tools/fetch_ambience.py (the manifest is tracked)
+static/ambience/*.mp3
 *.db
 *.db-wal
 *.db-shm
 .claude/settings.local.json
+# Conversation test harness output (python -m harness, tools/converse.py)
+harness_runs/
+
+# Piper voice models (downloaded, ~63 MB each)
+models/
