@@ -5,6 +5,7 @@ credentials.json
 token.json
 *.pem
 *.key
+deploy/secrets/
 
 # --- Python ---
 __pycache__/

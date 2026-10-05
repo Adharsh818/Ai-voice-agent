@@ -132,7 +132,9 @@ SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
 
 # Local Mock Database Path
-MOCK_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mock_db.json")
+MOCK_DB_PATH = os.getenv(
+    "EMMA_MOCK_DB_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "mock_db.json")
+)
 
 # Runtime directories (git-ignored)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

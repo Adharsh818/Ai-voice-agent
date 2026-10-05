@@ -1,0 +1,46 @@
+# Emma on a cloud VM: the voice server behind Caddy.
+#
+# Caddy gets a Let's Encrypt certificate automatically (browsers only allow
+# microphone access over HTTPS) and puts the whole site, including the
+# /ws/voice WebSocket, behind a username/password. The voice server itself is
+# never published on a public port.
+#
+#   cd deploy && docker compose up -d --build
+services:
+  emma:
+    build:
+      context: ..
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # In-container paths; keep these in sync with the volumes below.
+      GOOGLE_CREDENTIALS_FILE: /secrets/credentials.json
+      GOOGLE_TOKEN_FILE: /secrets/token.json
+    volumes:
+      - emma-data:/data
+      - ./secrets:/secrets
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - emma
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      EMMA_DOMAIN: ${EMMA_DOMAIN:?set EMMA_DOMAIN in deploy/.env}
+      EMMA_BASIC_AUTH_USER: ${EMMA_BASIC_AUTH_USER:?set EMMA_BASIC_AUTH_USER in deploy/.env}
+      EMMA_BASIC_AUTH_HASH: ${EMMA_BASIC_AUTH_HASH:?set EMMA_BASIC_AUTH_HASH in deploy/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  emma-data:
+  caddy-data:
+  caddy-config:

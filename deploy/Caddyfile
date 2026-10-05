@@ -1,0 +1,11 @@
+{$EMMA_DOMAIN} {
+	encode gzip
+
+	# Protects the talk page and the /ws/voice WebSocket (the browser reuses
+	# the credentials for the same-origin WebSocket upgrade).
+	basic_auth {
+		{$EMMA_BASIC_AUTH_USER} {$EMMA_BASIC_AUTH_HASH}
+	}
+
+	reverse_proxy emma:8000
+}
