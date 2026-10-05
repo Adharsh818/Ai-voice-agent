@@ -71,7 +71,9 @@ let busyMessage = null;    // the server refused the call
 let callSeq = 0;           // bumped on hang-up, so a call still starting up stops quietly
 
 function setState(next) {
+  const was = state;
   state = next;
+  if (was !== next) window.dispatchEvent(new CustomEvent('emma-call-state', { detail: { state: next, was } }));
   orb.dataset.state = next;
   const inCall = IN_CALL.includes(next);
   orb.setAttribute('aria-pressed', String(inCall));
@@ -141,7 +143,12 @@ async function openAudio(stream) {
   throw new Error('no audio context');
 }
 
-async function startCall() {
+/**
+ * Start a call. `path` is the call's WebSocket path: /ws/voice for the talk
+ * page (the default), /ws/outbound?job=... when the patient page answers
+ * Emma's recovery call.
+ */
+export async function startCall(path) {
   const call = ++callSeq;
   const cancelled = () => call !== callSeq;
   hideProblem();
@@ -202,7 +209,7 @@ async function startCall() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   // /?mode=listen (with DEV_CAPTURE_AUDIO=true): Emma only listens, for recording STT test audio.
   const mode = new URLSearchParams(location.search).get('mode') === 'listen' ? '?mode=listen' : '';
-  ws = new WebSocket(`${proto}://${location.host}/ws/voice${mode}`);
+  ws = new WebSocket(`${proto}://${location.host}${path || `/ws/voice${mode}`}`);
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => {
     opened = true;
@@ -229,7 +236,7 @@ function onSocketClosed() {
   }
 }
 
-function endCall() {
+export function endCall() {
   callSeq++;
   ending = true;
   send({ type: 'end' });
@@ -367,11 +374,16 @@ function frame() {
 }
 requestAnimationFrame(frame);
 
+// On the patient page (data-page="patient") calls only start from its Answer
+// button; the circle just hangs up.
+const PATIENT_PAGE = document.body.dataset.page === 'patient';
 orb.addEventListener('click', () => {
   if (IN_CALL.includes(state)) endCall();
-  else startCall();
+  else if (!PATIENT_PAGE) startCall();
 });
-action.addEventListener('click', () => startCall());
+action.addEventListener('click', () => {
+  if (PATIENT_PAGE) { hideProblem(); setState('idle'); setCaption(''); } else startCall();
+});
 
 // Typed input for testing without a microphone: emma.say("book an appointment")
 window.emma = { say: (text) => send({ type: 'text', text }) };

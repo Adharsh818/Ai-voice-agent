@@ -557,6 +557,8 @@ def expects_information(s, text: str) -> bool:
     burst of typing before Emma answers (docs/NORTH_STAR.md, decision R6).
     An R2 CallContext is answered by dialogue.policy.expects_information.
     """
+    if getattr(s, "is_recovery", False):
+        return False                      # Emma searches with "let me have a look" instead
     if isinstance(s, CallContext):
         from dialogue import policy
         return policy.expects_information(s, text)
@@ -1085,6 +1087,9 @@ async def async_process_turn(user_text, s, progress=None, **kwargs) -> TurnResul
     """
     if s is None:
         raise ValueError("async_process_turn requires a per-call SessionState")
+    if getattr(s, "is_recovery", False):
+        # An outbound recovery call (dialogue.recovery), whichever engine inbound calls use.
+        return await _recovery_turn(user_text, s, progress)
     if isinstance(s, CallContext):
         # new_session() hands out a CallContext exactly when config.R2_ENGINE is
         # on, so routing on the type follows the flag and keeps a SessionState
@@ -1174,6 +1179,24 @@ async def _r2_turn(user_text, s, progress, on_sentence) -> TurnResult:
                       spoken_count=out.spoken_count)
 
 
+async def _recovery_turn(user_text, s, progress) -> TurnResult:
+    """One turn of a recovery call. Its database work runs in a thread; progress events hop back to the loop."""
+    import db
+    from dialogue import recovery
+    loop = asyncio.get_running_loop()
+
+    def emit(event, **data):
+        if progress is not None:
+            loop.call_soon_threadsafe(lambda: progress(event, **data))
+
+    state_before = s.state
+    started = time.perf_counter()
+    reply = await asyncio.to_thread(recovery.process_turn, s, user_text or "", db.get_db().run_sync, emit)
+    return TurnResult(reply.text, tier=0 if user_text else -1, nlu_ms=(time.perf_counter() - started) * 1000,
+                      step_before=state_before, step_after=s.state, action=reply.action,
+                      goal_before=state_before, goal_after=s.state)
+
+
 def listening_hint(s):
     """
     What Emma is listening for: {"expect": "phone|name|yes_no|date|time|choice|open|spelling",
@@ -1184,6 +1207,9 @@ def listening_hint(s):
     turn_detector.hint_from_state and the harness its own reading of Emma's
     line, exactly as before this function existed.
     """
+    if getattr(s, "is_recovery", False):
+        from dialogue import recovery
+        return recovery.listening_hint(s)
     if isinstance(s, CallContext):
         from dialogue import policy
         return policy.listening_hint(s)

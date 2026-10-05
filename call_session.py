@@ -164,6 +164,18 @@ CANT_HEAR_CALLBACK_LINES = [
 CANT_HEAR_GOODBYE_LINES = [
     "Sorry, I'm having trouble hearing you on this line. Could you give us a call back in a minute? Bye for now.",
 ]
+# Staff takeover from the dashboard (plan 5.10).
+TAKEOVER_LINES = [
+    "One moment, a member of our team is taking over.",
+    "Just a moment, I'm passing you to a colleague here.",
+]
+HAND_BACK_LINES = [
+    "Thanks for waiting.",
+    "Sorry about that, I'm back with you.",
+]
+STAFF_GOODBYE_LINES = [
+    "I'm sorry, I need to end the call here. Someone from the team will call you back shortly. Bye for now.",
+]
 # Worth pre-rendering with the other fixed prompts (phrases.all_phrases(extra=...)).
 CACHEABLE_LINES = (STILL_THERE_LINES + CANT_HEAR_LINES + SILENCE_GOODBYE_LINES + WRAP_UP_LINES
                    + LONG_CALL_GOODBYE_CALLBACK_LINES + LONG_CALL_GOODBYE_LINES
@@ -474,14 +486,16 @@ class _ReplyVoice:
 
 class CallSession:
     def __init__(self, transport, services: Services, call_id: Optional[str] = None,
-                 listen_only: bool = False):
+                 listen_only: bool = False, state=None):
         self.t = transport
         # Listen-only (dev capture): transcribe and record what the caller says,
         # but never greet or reply. Used to record the STT comparison set.
         self.listen_only = listen_only
         self.sv = services
         self.call_id = call_id or uuid.uuid4().hex[:8]
-        self.s = self._new_session()
+        # `state`: an engine state made by the caller (an outbound recovery call's
+        # dialogue.recovery.RecoveryContext); otherwise a new inbound session.
+        self.s = state if state is not None else self._new_session()
         self._set_heard(True)
         self.clock = AudioClock(16000)
         self.speaker = Speaker(transport, services.cache, services.tts, services.fallback_tts,
@@ -536,6 +550,11 @@ class CallSession:
         self._used_lines: set[str] = set()
         self._turn_extra: dict[int, dict] = {}       # per turn: the engine's entities and action (transcript)
         self.outcome: Optional[str] = None
+        # Staff takeover from the dashboard (plan 5.10): while on, the caller's
+        # words are only captioned and recorded, and staff's typed lines are spoken.
+        self.operator = False
+        self._operator_turns: set[int] = set()
+        self._resume_question = ""
         # Transcript recorder (recording.CallRecorder). The server attaches one
         # before start() and closes it after close(); without one, start() makes
         # its own when the database is open, and close() ends that one.
@@ -830,6 +849,11 @@ class CallSession:
         if self._ending:
             logger.info("[%s] caller spoke while the call was ending: %s", self.call_id, _loggable(text))
             return
+        if self.operator:
+            # Staff have the call: the caller's words go to the transcript and the live panel only.
+            self._record("caller", text, {"operator": True})
+            self._ladder_reset(time.perf_counter())
+            return
         if self._speaking_turn is not None:
             await self.interrupt("new utterance")
         self._deferred = None
@@ -1091,7 +1115,8 @@ class CallSession:
         spoken = self._reply_text.get(tid, "")
         if spoken:
             self._last_reply = spoken
-            self._record("emma", spoken, {**self._turn_meta(timer), **self._turn_extra.pop(tid, {})})
+            role = "operator" if tid in self._operator_turns else "emma"
+            self._record(role, spoken, {**self._turn_meta(timer), **self._turn_extra.pop(tid, {})})
         await self._send({"type": "turn", "turn": tid, "phase": "audio_done"})
         sent_ms = self.speaker.sent_ms(tid)
         if sent_ms <= 0 and self._speaking_turn in (tid, None):
@@ -1309,8 +1334,8 @@ class CallSession:
                 await self._check_call_length(now)
                 if self._ending:
                     continue
-                if not self._idle(now):
-                    self._idle_since = now
+                if not self._idle(now) or self.operator:
+                    self._idle_since = now          # staff run their own pace while they have the call
                     continue
                 if self._owed and now - self._idle_since >= OWED_AFTER_S:
                     owed, self._owed = self._owed, None
@@ -1374,6 +1399,54 @@ class CallSession:
                 pass
         lines = CANT_HEAR_CALLBACK_LINES if phone else CANT_HEAR_GOODBYE_LINES
         await self._say_line(self._pick(lines), then_close=True, outcome="stt_failure", final=True)
+
+    # ------------------------------------------------------------------ staff takeover
+    async def take_over(self) -> bool:
+        """Staff take the call: Emma stops, says a colleague is taking over, and waits for typed lines."""
+        if self.closed or self._ending or self.operator:
+            return False
+        if self._speaking_turn is not None:
+            await self.interrupt("staff takeover")
+        task = self._turn_task
+        if task is not None and not task.done() and self._turn_phase == "nlu":
+            task.cancel()                       # nothing committed yet: staff answer instead
+        self.operator = True
+        self._resume_question = self._last_question()     # what Emma asks again when she gets the call back
+        await self._say_line(self._pick(TAKEOVER_LINES))
+        return True
+
+    async def operator_say(self, text: str) -> bool:
+        """A line typed by staff, spoken on the call (and recorded as staff's)."""
+        text = (text or "").strip()
+        if not self.operator or self.closed or self._ending or not text:
+            return False
+        if self._speaking_turn is not None:
+            await self.interrupt("staff line")
+        await self._say_line(text)
+        self._operator_turns.add(self.turn_id)
+        return True
+
+    async def hand_back(self) -> bool:
+        """Emma takes the call back and picks up where it was."""
+        if not self.operator or self.closed or self._ending:
+            return False
+        self.operator = False
+        question = getattr(self, "_resume_question", "")
+        line = self._pick(HAND_BACK_LINES)
+        await self._say_line(f"{line} {question}".strip() if question else f"{line} How can I help?")
+        return True
+
+    async def end_by_staff(self, note: str = "") -> bool:
+        """End the call politely and leave the front desk a callback task."""
+        if self.closed or self._ending:
+            return False
+        if self._speaking_turn is not None:
+            await self.interrupt("staff ended the call")
+        await self._create_task("callback", "high", self._caller_phone(),
+                                (note or "").strip() or "Staff ended the call from the dashboard; please call back.")
+        await self._say_line(self._pick(STAFF_GOODBYE_LINES), then_close=True, outcome="ended_by_staff",
+                             final=True)
+        return True
 
     async def _say_line(self, text: str, then_close: bool = False, outcome: Optional[str] = None,
                         final: bool = False):

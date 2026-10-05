@@ -6,7 +6,7 @@ Everything here needs the staff login (auth.py) except the login page itself,
 its auth status and the static code under /dashboard/static (no data there).
 Every page is labelled DEMO: the clinic data is fictitious (decision Q2).
 
-    /dashboard/                  the app (Live · Appointments · Tasks · Calls · System)
+    /dashboard/                  the app (Live · Appointments · Tasks · Calls · Recovery · System)
     /dashboard/login             the login page
     /dashboard/api/...           JSON; state-changing calls are POST from the same origin
     /dashboard/api/events        live events (SSE), see events.py
@@ -36,6 +36,7 @@ import clock
 import config
 import db
 import events
+import outbound
 import phones
 import recording
 import scheduling
@@ -422,6 +423,112 @@ async def slots(service_id: int, day: str, branch_id: Optional[int] = None, doct
     except ValueError:
         raise HTTPException(status_code=400, detail="day must be YYYY-MM-DD")
     return {"slots": await _run(_slots, service_id, parsed, branch_id, doctor_id, ignore_appointment)}
+
+
+# ---------------------------------------------------------------- live call takeover (plan 5.10)
+def _live_session(request: Request, call_id: str):
+    session = getattr(request.app.state, "sessions", {}).get(call_id)
+    if session is None or getattr(session, "closed", True):
+        raise HTTPException(status_code=409, detail="That call has ended.")
+    return session
+
+
+@router.post("/dashboard/api/live/{call_id}/takeover")
+async def live_takeover(call_id: str, request: Request, user: str = staff):
+    ok = await _live_session(request, call_id).take_over()
+    if ok:
+        await _run(_audit_live, user, "call_takeover", call_id)
+        events.publish({"type": "operator", "call_id": call_id, "active": True, "by": user})
+    return {"ok": ok}
+
+
+@router.post("/dashboard/api/live/{call_id}/say")
+async def live_say(call_id: str, request: Request, user: str = staff):
+    text = str((await _body(request)).get("text") or "").strip()[:400]
+    if not text:
+        raise HTTPException(status_code=400, detail="Type something to say.")
+    ok = await _live_session(request, call_id).operator_say(text)
+    if not ok:
+        raise HTTPException(status_code=409, detail="Take over the call first.")
+    return {"ok": True}
+
+
+@router.post("/dashboard/api/live/{call_id}/handback")
+async def live_hand_back(call_id: str, request: Request, user: str = staff):
+    ok = await _live_session(request, call_id).hand_back()
+    if ok:
+        await _run(_audit_live, user, "call_hand_back", call_id)
+        events.publish({"type": "operator", "call_id": call_id, "active": False, "by": user})
+    return {"ok": ok}
+
+
+@router.post("/dashboard/api/live/{call_id}/end")
+async def live_end(call_id: str, request: Request, user: str = staff):
+    note = str((await _body(request)).get("note") or "").strip()[:400]
+    ok = await _live_session(request, call_id).end_by_staff(note)
+    if ok:
+        await _run(_audit_live, user, "call_end_by_staff", call_id)
+    return {"ok": ok}
+
+
+def _audit_live(conn, actor: str, action: str, call_id: str):
+    _audit(conn, actor, action, "call", call_id)
+
+
+# ---------------------------------------------------------------- recovery (outbound.py, plan 5.11)
+async def _recovery(fn, *args, **kwargs):
+    try:
+        return await _run(fn, *args, **kwargs)
+    except outbound.RecoveryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+def _recovery_overview(conn) -> dict:
+    return {"blocks": outbound.list_blocks(conn), "campaigns": outbound.list_campaigns(conn),
+            "reasons": list(outbound.REASONS)}
+
+
+@router.get("/dashboard/api/recovery")
+async def recovery_overview(user: str = staff):
+    body = await _run(_recovery_overview)
+    runner = outbound.get_runner()
+    body["runner"] = runner.status() if runner is not None else None
+    return body
+
+
+@router.post("/dashboard/api/recovery/blocks")
+async def create_block(request: Request, user: str = staff):
+    data = await _body(request)
+    start, end = _local_start(data.get("start")), _local_start(data.get("end"))
+    block_id = await _recovery(outbound.create_block, doctor_id=_int(data, "doctor_id"), start=start, end=end,
+                               reason=str(data.get("reason") or "other"), note=data.get("note"), actor=user)
+    return {"ok": True, "block_id": block_id, "preview": await _recovery(outbound.preview, block_id)}
+
+
+@router.get("/dashboard/api/recovery/blocks/{block_id}/preview")
+async def block_preview(block_id: int, user: str = staff):
+    return await _recovery(outbound.preview, block_id)
+
+
+@router.post("/dashboard/api/recovery/blocks/{block_id}/lift")
+async def lift_block(block_id: int, user: str = staff):
+    return await _recovery(outbound.lift_block, block_id, actor=user)
+
+
+@router.post("/dashboard/api/recovery/campaigns")
+async def start_campaign(request: Request, user: str = staff):
+    data = await _body(request)
+    ids = data.get("appointment_ids") or []
+    if not isinstance(ids, list):
+        raise HTTPException(status_code=400, detail="appointment_ids must be a list")
+    campaign_id = await _recovery(outbound.start_campaign, block_id=_int(data, "block_id"),
+                                  appointment_ids=[str(i) for i in ids], actor=user)
+    return {"ok": True, "campaign_id": campaign_id}
+
+
+@router.post("/dashboard/api/recovery/campaigns/{campaign_id}/stop")
+async def stop_campaign(campaign_id: int, user: str = staff):
+    return await _recovery(outbound.stop_campaign, campaign_id, actor=user)
 
 
 # ---------------------------------------------------------------- tasks

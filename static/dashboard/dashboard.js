@@ -210,6 +210,7 @@ const loaders = {
   appointments: () => loadAppointments(),
   tasks: () => loadTasks(),
   calls: () => loadCalls(),
+  recovery: () => loadRecovery(),
   system: () => loadSystem(),
 };
 let currentTab = "live";
@@ -236,7 +237,7 @@ const live = {
 function resetLive(callId = null) {
   Object.assign(live, {
     callId, started: callId ? new Date() : null, ended: false, state: callId ? "listening" : "idle", lines: [],
-    interim: "", turns: new Map(), goal: null, tier: null, entities: {}, outcome: null,
+    interim: "", turns: new Map(), goal: null, tier: null, entities: {}, outcome: null, operator: false,
   });
 }
 
@@ -322,6 +323,15 @@ function handleEvent(event) {
     case "call_data_deleted":
       if (currentTab === "calls") loadCalls();
       break;
+    case "operator":
+      if (event.call_id === live.callId) live.operator = Boolean(event.active);
+      break;
+    case "recovery":
+    case "ring":
+    case "ring_ended":
+      if (currentTab === "recovery") reloadRecoverySoon();
+      if (event.type === "ring") toast(`Emma is calling ${event.to_name || "a patient"}…`);
+      break;
     default:
       return;
   }
@@ -340,6 +350,11 @@ function renderLive() {
   $("live-tier").textContent = live.tier === null ? "–" : { 0: "0 · fast path", 1: "1 · language model", "-1": "no NLU" }[live.tier] ?? String(live.tier);
   $("live-outcome").textContent = live.outcome || (hasCall && !live.ended ? "in progress" : "–");
   renderDuration();
+  const active = hasCall && !live.ended;
+  $("live-controls").hidden = !active;
+  $("op-takeover").hidden = live.operator;
+  $("op-handback").hidden = !live.operator;
+  $("op-form").hidden = !live.operator;
 
   const box = $("live-transcript");
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
@@ -367,13 +382,48 @@ function renderLive() {
   $("live-turns").replaceChildren(...(rows.length ? rows : [emptyRow(6, "No turns yet")]));
 }
 
+async function liveAction(action, body = {}) {
+  if (!live.callId) return null;
+  try {
+    return await api(`/dashboard/api/live/${encodeURIComponent(live.callId)}/${action}`, { method: "POST", body });
+  } catch (err) {
+    toast(err.message, "error");
+    return null;
+  }
+}
+
+$("op-takeover").addEventListener("click", async () => {
+  const res = await liveAction("takeover");
+  if (res && res.ok) {
+    live.operator = true;
+    renderLive();
+    $("op-text").focus();
+  }
+});
+$("op-handback").addEventListener("click", async () => {
+  const res = await liveAction("handback");
+  if (res && res.ok) { live.operator = false; renderLive(); }
+});
+$("op-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const text = $("op-text").value.trim();
+  if (!text) return;
+  const res = await liveAction("say", { text });
+  if (res && res.ok) $("op-text").value = "";
+});
+$("op-end").addEventListener("click", async () => {
+  if (!await confirmAction("End this call?", "Emma says goodbye and promises a call back; a callback task is created.", "End call")) return;
+  await liveAction("end", {});
+});
+
 function renderDuration() {
   $("live-duration").textContent = live.started ? (live.ended ? "ended" : length(live.started.toISOString())) : "–";
 }
 setInterval(() => { if (currentTab === "live" && live.callId && !live.ended) renderDuration(); }, 1000);
 
 const EVENT_TYPES = ["call_started", "caption", "state", "turn", "metrics", "call_turn", "call_ended", "task_created",
-  "task_updated", "appointment", "sync", "call_data_deleted", "bye", "error"];
+  "task_updated", "appointment", "sync", "call_data_deleted", "bye", "error", "recovery", "ring", "ring_ended",
+  "operator"];
 
 function connectEvents() {
   const source = new EventSource("/dashboard/api/events");
@@ -913,6 +963,233 @@ $("dnc-form").addEventListener("submit", async (event) => {
     loadSystem();
   } catch (err) { toast(err.message, "error"); }
 });
+
+// ------------------------------------------------------------------ recovery calls
+const recovery = { blockId: null, preview: null, filled: false };
+const JOB_LABEL = {
+  queued: "Waiting", ringing: "Ringing", in_call: "On the call", done: "Done", failed: "Needs staff", skipped: "Skipped",
+};
+const OUTCOME_LABEL = {
+  rescheduled: "Moved", cancelled: "Cancelled", pending: "On hold for front desk", staff: "Wants a call from staff",
+  busy: "Busy, call back", do_not_call: "Asked not to be called", wrong_person: "Wrong person answered",
+  suspicious: "Unsure it was genuine", declined: "Declined the call", no_answer: "No answer", stale: "Already changed",
+  stopped: "Stopped", block_lifted: "Block lifted", abandoned: "Hung up", hung_up: "Hung up",
+  not_connected: "Didn't connect", interrupted: "Interrupted by a restart", gone: "Gone",
+};
+
+function localInput(date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (type) => parts.find((p) => p.type === type).value;
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+
+function fillRecoveryForm(reasons) {
+  if (recovery.filled || !catalog.doctors.length) return;
+  recovery.filled = true;
+  const doctors = $("block-doctor");
+  for (const d of catalog.doctors) doctors.append(el("option", { value: d.id, text: `${d.name} (${d.branch})` }));
+  const reasonSelect = $("block-reason");
+  for (const r of reasons) reasonSelect.append(el("option", { value: r, text: r[0].toUpperCase() + r.slice(1) }));
+  const day = localInput(new Date(Date.now() + 24 * 3600 * 1000)).slice(0, 10);
+  $("block-start").value = `${day}T09:00`;
+  $("block-end").value = `${day}T21:00`;
+}
+
+async function loadRecovery() {
+  let data;
+  try {
+    data = await api("/dashboard/api/recovery");
+  } catch (err) {
+    toast(err.message, "error");
+    return;
+  }
+  fillRecoveryForm(data.reasons || []);
+  renderBlocks(data.blocks || []);
+  renderRunner(data.runner);
+  renderCampaigns(data.campaigns || []);
+  if (recovery.blockId && !(data.blocks || []).some((b) => b.id === recovery.blockId)) {
+    recovery.blockId = null;
+    renderPreview(null);
+  } else if (recovery.blockId) {
+    showPreview(recovery.blockId, true);
+  }
+}
+const reloadRecoverySoon = debounce(loadRecovery, 400);
+
+function renderBlocks(blocks) {
+  const tbody = $("block-rows");
+  if (!blocks.length) {
+    tbody.replaceChildren(emptyRow(5, "No doctor is blocked."));
+    return;
+  }
+  tbody.replaceChildren(...blocks.map((b) => el("tr", { class: b.id === recovery.blockId ? "selected" : "" },
+    el("td", { text: `${b.doctor} (${b.branch})` }),
+    el("td", { class: "nowrap", text: fmtDateTime(b.start) }),
+    el("td", { class: "nowrap", text: fmtDateTime(b.end) }),
+    el("td", { text: b.reason_category }),
+    el("td", { class: "nowrap" },
+      el("button", { class: "btn small", type: "button", text: "Preview", onclick: () => showPreview(b.id) }),
+      " ",
+      el("button", {
+        class: "btn small danger", type: "button", text: "Lift",
+        onclick: async () => {
+          const text = `${b.doctor} becomes bookable again. Calls still waiting for this block stop; appointments already moved stay moved.`;
+          if (!await confirmAction("Lift this block?", text, "Lift block")) return;
+          try {
+            await api(`/dashboard/api/recovery/blocks/${b.id}/lift`, { method: "POST", body: {} });
+            loadRecovery();
+          } catch (err) { toast(err.message, "error"); }
+        },
+      })))));
+}
+
+async function showPreview(blockId, keepTicks = false) {
+  recovery.blockId = blockId;
+  try {
+    renderPreview(await api(`/dashboard/api/recovery/blocks/${blockId}/preview`), keepTicks);
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
+
+function renderPreview(preview, keepTicks = false) {
+  const before = new Set([...document.querySelectorAll("#preview-rows input:checked")].map((b) => b.value));
+  recovery.preview = preview;
+  const tbody = $("preview-rows");
+  if (!preview) {
+    $("preview-summary").textContent = "Block a doctor or pick a block to see who is affected.";
+    tbody.replaceChildren();
+    updateCampaignButton();
+    return;
+  }
+  const b = preview.block;
+  const span = `${b.doctor}, ${fmtDateTime(b.start)} to ${fmtDateTime(b.end)}`;
+  $("preview-summary").textContent = preview.count
+    ? `${span}: ${preview.count} booked appointment(s) on ${preview.groups.length} phone number(s). No calls have been made yet.`
+    : `${span}: no booked appointments are affected.`;
+  const rows = [];
+  for (const g of preview.groups) {
+    g.appointments.forEach((a, i) => {
+      const box = el("input", { type: "checkbox", value: a.id, "aria-label": `Call about ${a.patient_name}'s appointment` });
+      box.checked = keepTicks ? before.has(a.id) : !g.do_not_call;
+      box.addEventListener("change", updateCampaignButton);
+      rows.push(el("tr", {},
+        el("td", {}, box),
+        el("td", {}, a.patient_name, g.do_not_call && i === 0 ? el("span", { class: "badge bad", text: "do not call" }) : null),
+        el("td", { class: "num nowrap", text: i === 0 ? g.phone_masked : "" }),
+        el("td", { class: "nowrap", text: fmtDateTime(a.start) }),
+        el("td", { text: a.service })));
+    });
+  }
+  tbody.replaceChildren(...(rows.length ? rows : [emptyRow(5, "Nobody to call.")]));
+  updateCampaignButton();
+}
+
+function updateCampaignButton() {
+  const ticked = document.querySelectorAll("#preview-rows input:checked").length;
+  const button = $("campaign-start");
+  button.disabled = !ticked;
+  button.textContent = ticked ? `Start recovery calls (${ticked})` : "Start recovery calls";
+}
+
+$("campaign-start").addEventListener("click", async () => {
+  const ids = [...document.querySelectorAll("#preview-rows input:checked")].map((b) => b.value);
+  if (!ids.length || !recovery.blockId) return;
+  const text = `Emma will call about ${ids.length} appointment(s), one patient at a time, and offer only valid new times.`;
+  if (!await confirmAction("Start recovery calls?", text, "Start calls")) return;
+  try {
+    await api("/dashboard/api/recovery/campaigns", { method: "POST", body: { block_id: recovery.blockId, appointment_ids: ids } });
+    toast("Recovery calls started.");
+    loadRecovery();
+  } catch (err) { toast(err.message, "error"); }
+});
+
+$("block-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  showError($("block-error"), "");
+  try {
+    const res = await api("/dashboard/api/recovery/blocks", {
+      method: "POST",
+      body: {
+        doctor_id: $("block-doctor").value, start: $("block-start").value, end: $("block-end").value,
+        reason: $("block-reason").value, note: $("block-note").value,
+      },
+    });
+    recovery.blockId = res.block_id;
+    $("block-note").value = "";
+    renderPreview(res.preview);
+    loadRecovery();
+  } catch (err) { showError($("block-error"), err.message); }
+});
+
+function renderRunner(runner) {
+  const badge = $("runner-state");
+  const detail = $("runner-detail");
+  if (!runner) {
+    badge.textContent = "Off";
+    badge.className = "badge";
+    detail.textContent = "";
+  } else if (runner.ringing) {
+    badge.textContent = "Ringing";
+    badge.className = "badge warn";
+    detail.textContent = `Calling ${runner.ringing.to_name || "the patient"} (${runner.ringing.to_masked}). Answer on the patient page.`;
+  } else if (runner.paused) {
+    badge.textContent = "Paused";
+    badge.className = "badge warn";
+    detail.textContent = `Waiting: ${runner.paused}.`;
+  } else {
+    badge.textContent = "Ready";
+    badge.className = "badge ok";
+    detail.textContent = `Calls are made one at a time, ${runner.window} clinic time, never while another call is on.`;
+  }
+}
+
+function jobBadge(status) {
+  if (status === "done") return "ok";
+  if (status === "failed") return "bad";
+  return status === "skipped" ? "" : "warn";
+}
+
+function renderCampaigns(campaigns) {
+  const box = $("campaign-list");
+  if (!campaigns.length) {
+    box.replaceChildren(el("div", { class: "empty", text: "No recovery calls yet." }));
+    return;
+  }
+  box.replaceChildren(...campaigns.map((c) => {
+    const stop = c.status === "running" ? el("button", {
+      class: "btn small danger", type: "button", text: "Stop",
+      onclick: async () => {
+        if (!await confirmAction("Stop these calls?", "Calls still waiting won't be made. A call in progress finishes.", "Stop calls")) return;
+        try {
+          await api(`/dashboard/api/recovery/campaigns/${c.id}/stop`, { method: "POST", body: {} });
+          loadRecovery();
+        } catch (err) { toast(err.message, "error"); }
+      },
+    }) : null;
+    const head = el("div", { class: "card-head" },
+      el("h4", { text: `${c.doctor} · started ${fmtDateTime(c.created_at)}` }),
+      el("span", { class: `badge ${c.status === "running" ? "warn" : c.status === "completed" ? "ok" : ""}`, text: c.status }),
+      stop);
+    const rows = c.jobs.map((j) => el("tr", {},
+      el("td", { text: j.name || "–" }),
+      el("td", { class: "num nowrap", text: j.phone_masked }),
+      el("td", {}, ...j.appointments.map((a) => el("div", { class: "nowrap" },
+        `${fmtDateTime(a.start)} · ${a.service} · ${a.doctor} `,
+        el("span", { class: `badge ${a.status}`, text: STATUS_LABEL[a.status] || a.status })))),
+      el("td", {}, el("span", { class: `badge ${jobBadge(j.status)}`, text: JOB_LABEL[j.status] || j.status })),
+      el("td", { text: j.outcome ? (OUTCOME_LABEL[j.outcome] || j.outcome) : "–" }),
+      el("td", {}, j.call_id && ["done", "failed"].includes(j.status) ? el("button", {
+        class: "btn small ghost mono", type: "button", text: j.call_id,
+        onclick: () => { showTab("calls"); openCall(j.call_id); },
+      }) : "–")));
+    const header = ["Patient", "Phone", "Appointments", "Call", "Result", "Transcript"].map((h) => el("th", { text: h }));
+    return el("div", { class: "campaign" }, head, el("div", { class: "table-wrap" }, el("table", {},
+      el("thead", {}, el("tr", {}, ...header)), el("tbody", {}, ...rows))));
+  }));
+}
 
 // ------------------------------------------------------------------ start
 const refreshSoon = debounce(refreshOverview, 500);

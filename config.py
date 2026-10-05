@@ -151,6 +151,10 @@ BOOKING_LEAD_MIN = int(os.getenv("BOOKING_LEAD_MIN", "120"))      # earliest sta
 EMERGENCY_LEAD_MIN = int(os.getenv("EMERGENCY_LEAD_MIN", "30"))   # urgent same-day slots
 HOLD_TTL_S = int(os.getenv("HOLD_TTL_S", "300"))                  # offered slots are held 5 min
 MAX_FUTURE_APPOINTMENTS_PER_PHONE = int(os.getenv("MAX_FUTURE_APPOINTMENTS_PER_PHONE", "3"))
+# Doctor-unavailability recovery calls (outbound.py, plan 5.11): clinic-local
+# hours Emma may call patients, and how long the patient's phone rings.
+RECOVERY_CALL_WINDOW = os.getenv("RECOVERY_CALL_WINDOW", "09:00-20:00")
+RECOVERY_RING_TIMEOUT_S = float(os.getenv("RECOVERY_RING_TIMEOUT_S", "30"))
 # Branch used by the current single-branch dialogue until the Day 2 workflows land.
 DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "Nagarbhavi")
 CACHE_DIR = os.getenv("EMMA_CACHE_DIR", os.path.join(BASE_DIR, "cache"))

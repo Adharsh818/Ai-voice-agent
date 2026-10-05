@@ -1,9 +1,31 @@
 # Project memory and next steps
 
-**Last updated:** 5 Oct 2026 (Sprint 1b integration; sections 1-7 are from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
+**Last updated:** 6 Oct 2026, early morning (Day 4 finished, Day 5 built; section 0 is from 5 Oct, sections 1-7 from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
 
 Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
 
+
+---
+
+## 00. 6 Oct (night of 5-6 Oct): Day 4 finished, Day 5 recovery calls built
+
+**Owner setup done on 5 Oct:** dashboard password set, `SERVER_HOST=127.0.0.1`, Google Calendar connected (4 branch calendars, all 46 appointments synced; the owner confirmed a booking appears once and a cancellation disappears), ElevenLabs has 8,000+ characters. `.env` has `R2_ENGINE=true`, `NLU_HEAD_DEADLINE_S=2.2`, `GEMINI_TIMEOUT=4`.
+
+**Owner's next steps (morning of 6 Oct):** the voice test calls and the 30-line recordings ([STT_TEST_SET.md](STT_TEST_SET.md)), then a recovery-call rehearsal (below).
+
+**Day 5, doctor-unavailability recovery (plan 5.11), demo grade:**
+- `outbound.py`: blocks (effective at once), preview grouped by phone, campaigns with a version snapshot per job, stop, lift, and the `Runner` (one job at a time; waits for the call gate, so an inbound call pauses it; calling window `RECOVERY_CALL_WINDOW`, default 09:00-20:00 clinic time; do-not-call; stale check). No answer within `RECOVERY_RING_TIMEOUT_S` (30 s) or Decline: one attempt only, the appointments go to NEEDS RESCHEDULE (Calendar shows the prefix) and staff get a `recovery_failed` task.
+- `dialogue/recovery.py`: Emma's side of the call, Tier-0 only (no model wait). Identity before any detail; wrong person or "is this a scam?" ends politely with nothing shared; what changed (never the block's reason); preference first (same doctor another day / another doctor same branch / another branch / earliest); the nearest valid slot, then two alternatives; a named day or time is searched; recap with the heard rule; atomic idempotent reschedule; several appointments one by one; cancel, on hold, staff, busy, do-not-call and the honesty line at any point. When the preference has no slot (only Dr Rao does cleanings at Nagarbhavi) she offers the nearest thing that exists.
+- Dashboard **Recovery** tab: block a doctor, preview with ticks, Start recovery calls (confirm), live job status, Stop, Lift. **`/patient`** (staff login) is the demo patient phone: it rings with Answer / Decline and runs the call over `/ws/outbound`, with the same voice and listening as inbound calls.
+- **To rehearse:** log in to the dashboard, open http://localhost:8000/patient in a second tab and click anywhere on it once (browsers only allow the ringtone after a click), then in Recovery block Dr Rao for a day that has bookings, tick, Start. Outside 09:00-20:00 the runner waits ("Paused: outside the calling window"); for a late-night test set `RECOVERY_CALL_WINDOW=00:00-23:59` in `.env` and restart.
+
+**Day 4 finished:** live-call takeover on the dashboard's Live panel (Take over: Emma says a colleague is taking over and stops answering; typed lines are spoken and recorded as staff; Hand back: Emma re-asks her last question; End call + task).
+
+**Also:** R2.7 bake-off done, **Flash-Lite stays** (Flash was slower and hit the free quota). Time to the model's first streamed chunk is about 1.4 s warm (2.2 s cold) and the head takes 0.1-0.2 s more, so Day 6's latency work is the request size (about 4.5k tokens, mostly the 14k-character system brief) or caching. The two `tests/test_nlu.py` tests that read `.env` deadlines now pin the config instead.
+
+**Tests:** 865 pass (40 expected failures, the 12-step machine's known bugs). New: `tests/test_recovery.py` (30), `tests/test_takeover.py` (2).
+
+**Still open before the demo:** R3.1/R3.4 (need the recordings), Day 6 latency pass and fault drills, Day 7 docs and rehearsal, T5 (10 turns vs 9, owner's call on skipping the exact-slot offer). Committed on `day2-r2-engine` (PR #5).
 
 ---
 

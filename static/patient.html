@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Patient phone</title>
+  <meta name="description" content="DEMO: the patient's phone for Emma's recovery calls.">
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/patient.css">
+</head>
+<body data-page="patient">
+  <p class="phone-label">Patient phone · DEMO</p>
+  <section id="incoming" hidden aria-live="assertive">
+    <p class="incoming-title">Incoming call</p>
+    <p class="incoming-from" id="incoming-from">Pearl Dental</p>
+    <p class="incoming-to" id="incoming-to"></p>
+    <div class="incoming-actions">
+      <button type="button" class="call-btn decline" id="decline">Decline</button>
+      <button type="button" class="call-btn answer" id="answer">Answer</button>
+    </div>
+  </section>
+  <main id="call-ui">
+    <button id="orb" data-state="idle" aria-label="End call" aria-pressed="false">
+      <span class="halo" aria-hidden="true"></span>
+      <span class="ring" aria-hidden="true"></span>
+      <span class="core" aria-hidden="true"></span>
+    </button>
+    <p id="caption" aria-live="polite"></p>
+    <button id="action" type="button" hidden>OK</button>
+  </main>
+  <p class="waiting" id="waiting">Waiting for a call from the clinic…</p>
+  <script type="module" src="/static/patient.js"></script>
+</body>
+</html>
