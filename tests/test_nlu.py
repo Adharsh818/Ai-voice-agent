@@ -13,6 +13,7 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
+import config
 import llm
 import nlu
 from dialogue.context import Emergency, Goal, Intent
@@ -228,7 +229,11 @@ class NLUStreamTests(unittest.TestCase):
         return head
 
     def test_default_head_deadline_is_the_design_budget(self):
-        self.assertEqual(nlu.HEAD_DEADLINE_S, 1.6)
+        # The head deadline comes from config (NLU_HEAD_DEADLINE_S in .env may
+        # raise it for live testing); without an override it is the design's 1.6 s.
+        self.assertEqual(nlu.HEAD_DEADLINE_S, config.NLU_HEAD_DEADLINE_S)
+        with mock.patch.object(config, "NLU_HEAD_DEADLINE_S", 1.6):
+            self.assertEqual(nlu._head_deadline_default(), 1.6)
 
     def test_stalled_reply_falls_back_at_the_total_deadline(self):
         class Stall:
@@ -269,7 +274,7 @@ class NLUStreamTests(unittest.TestCase):
             await stream.aclose()
             return head
 
-        with nlu.use_backend(Slow()):
+        with nlu.use_backend(Slow()), mock.patch("config.GEMINI_TIMEOUT", 2.5):
             started = time.monotonic()
             head = run(go())
         self.assertIsNotNone(head)

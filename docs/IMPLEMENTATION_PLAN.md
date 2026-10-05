@@ -111,7 +111,7 @@ Full design, interfaces and traceability: [R2_DESIGN.md](R2_DESIGN.md). Scored a
     - English only, gently (Hinglish out of scope).
     - Abuse; repeat / wait; fragments ("Sorry, go on", merged with the next turn); silence ladder; closing; don't-keep.
   - **Questions:** answered from the knowledge base, the DB or general non-clinical dental knowledge. Unknown → an honest "I'm not sure about that one" plus an offer (a callback task only if they want it). Never a reflexive "the doctor can go through that".
-- [ ] **R2.7** Model bake-off (R11) on the conversation harness: Flash-Lite vs Flash, scored on correct outcome, validator rejections, naturalness (read aloud, 1–5) and reply latency. Pick one and record the numbers.
+- [x] **R2.7** Model bake-off (R11) on the conversation harness: Flash-Lite vs Flash, scored on correct outcome, validator rejections, naturalness (read aloud, 1–5) and reply latency. Pick one and record the numbers. **Done 6 Oct (live R2 sim, 4 calls each, seed 7):** Flash-Lite heads 1.7-3.4 s (median about 2.0 s), 1 of 17 requests failed (quota); Flash heads about 3.3 s on the 3 that arrived, 12 of 16 failed (8 too slow for a 4 s head, 4 quota). **Flash-Lite stays.** Direct timing: almost all of the delay is time to the first streamed chunk (about 1.4 s warm, 2.2 s cold; the head then takes 0.1-0.2 s more), so the latency work is the request size (about 4.5k tokens, mostly the 14k-character system brief) or caching, not the output.
 - [x] **R2.8** Integration (5 Oct), changed by the owner: the 12-step machine stays the default and R2 runs end to end behind `R2_ENGINE=true` (or an R2 `CallContext`), through `call_session`, the harness (`--engine r2`), `tools/converse.py --r2` and `tests/test_r2_booking_flow.py` (the old booking tests ported; the originals still test the 12-step machine). Every HANDOFF section 5 scenario passes as a plain test on R2 (`tests/test_conversations.py` `R2Scenarios`). Removing the 12-step machine and `backend_actions.py`'s helpers waits for the owner to switch.
 
 **Exit** (from [SUCCESS_CRITERIA.md](SUCCESS_CRITERIA.md), on at least 200 simulated calls per round):
@@ -139,11 +139,11 @@ Full design, interfaces and traceability: [R2_DESIGN.md](R2_DESIGN.md). Scored a
   - Switch if a candidate is clearly better on names and digits without adding more than 200 ms.
   - Check each provider's current streaming model names and languages during the test.
 - [x] **R3.5** Boost the clinic vocabulary: doctor names, branch names, services, Indian number words ("double", "triple").
-- [ ] **R3.6** Recover from mishearing like a person:
+- [x] **R3.6** Recover from mishearing like a person: (Built into R2: the model reads context, `ask.name.spell` after a failed name confirmation, fuzzy match against names heard this call. Not yet measured on recordings.)
   - The LLM uses context ("route canal" → root canal).
   - For names, "Sorry, could you spell that for me?" after one failed confirmation.
   - Fuzzy-match heard names against the names already in this call.
-- [x] **R3.7** Real-time robustness moved from Day 3: `playout.py`, recap-heard rule, backchannel filter, silence ladder, maximum call length, call gate, Deepgram reconnect, Piper fallback. (Realtime parts done in Sprint 1a/1b; Piper fallback still open.)
+- [x] **R3.7** Real-time robustness moved from Day 3: `playout.py`, recap-heard rule, backchannel filter, silence ladder, maximum call length, call gate, Deepgram reconnect, Piper fallback. (Done, Piper fallback included: `tts_piper.py`, `tests/test_piper_fallback.py`.)
 
 **Exit:**
 - An STT choice recorded with numbers.
@@ -543,22 +543,22 @@ Checks before search:
 Every stage ends with its exit tests green. Tests run after every step.
 
 ### Day 0 — today, 30 Sep: baseline and hygiene
-- [ ] **0.1** Delete legacy files; clean `requirements.txt` (remove Google STT/TTS, numpy, scipy; add jinja2, itsdangerous, piper-tts); pin Python 3.12.
-- [ ] **0.2** Rewrite `.env.example` (Deepgram, ElevenLabs, single Gemini key, dashboard password, service-account path, retention, calling window) and write the README quickstart. Replace `PRODUCTION_CALL_PATH.md` with `docs/TELEPHONY.md` (AudioSocket).
-- [ ] **0.3** Bind to 127.0.0.1 by default; WebSocket Origin check.
-- [ ] **0.4** Single Gemini key; periodic re-verification; remove `GEMINI_API_KEYS`.
-- [ ] **0.5** `clock.py`; replace every `date.today()` / `datetime.now()`.
-- [ ] **0.6** Remove caller text from `turns.jsonl`; mask phones in logs.
-- [ ] **0.7** Dev capture of caller PCM (`DEV_CAPTURE_AUDIO=true`) for the spike and replay.
-- [ ] **0.8** Latency diagnostics: `endpoint_source` (speech_final / UtteranceEnd / hold), `hold_ms`, Deepgram lag.
+- [x] **0.1** Delete legacy files; clean `requirements.txt` (remove Google STT/TTS, numpy, scipy; add jinja2, itsdangerous, piper-tts); pin Python 3.12.
+- [x] **0.2** Rewrite `.env.example` (Deepgram, ElevenLabs, single Gemini key, dashboard password, service-account path, retention, calling window) and write the README quickstart. Replace `PRODUCTION_CALL_PATH.md` with `docs/TELEPHONY.md` (AudioSocket).
+- [x] **0.3** Bind to 127.0.0.1 by default; WebSocket Origin check.
+- [x] **0.4** Single Gemini key; periodic re-verification; remove `GEMINI_API_KEYS`.
+- [x] **0.5** `clock.py`; replace every `date.today()` / `datetime.now()`.
+- [x] **0.6** Remove caller text from `turns.jsonl`; mask phones in logs.
+- [x] **0.7** Dev capture of caller PCM (`DEV_CAPTURE_AUDIO=true`) for the spike and replay.
+- [x] **0.8** Latency diagnostics: `endpoint_source` (speech_final / UtteranceEnd / hold), `hold_ms`, Deepgram lag.
 
 **Exit:** the 28 existing tests pass; a clean clone starts with only `.env.example` filled.
 
 ### Day 1 — 1 Oct: foundations (Milestone B core)
-- [ ] **1.1** `dateparse.py` + the 120-case table.
-- [ ] **1.2** `db.py`, migration runner, `001_init.sql`, single writer thread, WAL.
-- [ ] **1.3** `seed_demo.py`: 4 branches, 8 fictional DEMO doctors (general, endodontist, orthodontist, pedodontist, mixed genders, varied hours within 07–21), services + durations, one DEMO closure after the demo date, ~40 future DEMO appointments with fictitious numbers.
-- [ ] **1.4** `scheduling.py`: rules 5.1, search, holds, book/reschedule/cancel, idempotency, audit + outbox rows.
+- [x] **1.1** `dateparse.py` + the 120-case table.
+- [x] **1.2** `db.py`, migration runner, `001_init.sql`, single writer thread, WAL.
+- [x] **1.3** `seed_demo.py`: 4 branches, 8 fictional DEMO doctors (general, endodontist, orthodontist, pedodontist, mixed genders, varied hours within 07–21), services + durations, one DEMO closure after the demo date, ~40 future DEMO appointments with fictitious numbers.
+- [x] **1.4** `scheduling.py`: rules 5.1, search, holds, book/reschedule/cancel, idempotency, audit + outbox rows.
 - [ ] **1.5** Flux spike prep: record the 30-utterance test set (user, ~10 min, script in section 12).
 
 **Exit:**
@@ -597,10 +597,10 @@ Every stage ends with its exit tests green. Tests run after every step.
 - A barged-in recap can't be confirmed.
 
 ### Day 4 — 4 Oct: dashboard, calendar, transcripts (Milestone B complete)
-- [ ] **4.1** `auth.py`, `events.py` (SSE), dashboard shell with htmx vendored.
-- [ ] **4.2** Live call panel + takeover; appointments views + manual edits + CSV; tasks; calls + audio; audit; system page.
-- [ ] **4.3** `tools/setup_calendars.py` + `calendar_sync.py` worker; health checks for credentials and calendar access.
-- [ ] **4.4** `recording.py`: transcript retention, don't-keep requests, 30-day purge job (no audio, R3).
+- [x] **4.1** `auth.py`, `events.py` (SSE), dashboard shell (vanilla JS instead of htmx).
+- [x] **4.2** Live call panel + takeover (Take over, typed lines, Hand back, End call + task; 6 Oct); appointments views + manual edits + CSV; tasks; calls (transcripts, no audio per R3); audit; system page.
+- [x] **4.3** `tools/setup_calendars.py` + `calendar_sync.py` worker; health checks for credentials and calendar access.
+- [x] **4.4** `recording.py`: transcript retention, don't-keep requests, 30-day purge job (no audio, R3).
 - [x] **4.5** Talk page: clear states for connecting, busy, connection lost (reconnect button) and mic blocked; anti-aliased resampling (AudioContext at 16 kHz where supported).
 
 **Exit:**
@@ -609,9 +609,9 @@ Every stage ends with its exit tests green. Tests run after every step.
 - The dashboard is unreachable without login.
 
 ### Day 5 — 5 Oct: recovery, demo grade (Milestone C)
-- [ ] **5.1** Blocks + preview + campaign start/stop + runner (gate, window, do-not-call, stale check).
-- [ ] **5.2** `/patient` ring page; outbound transport over the existing WebSocket.
-- [ ] **5.3** Recovery workflow (5.11), incl. identity check, preference-first offers, multi-appointment and all exits.
+- [x] **5.1** Blocks + preview + campaign start/stop + runner (gate, window, do-not-call, stale check).
+- [x] **5.2** `/patient` ring page; outbound transport over the existing WebSocket.
+- [x] **5.3** Recovery workflow (5.11), incl. identity check, preference-first offers, multi-appointment and all exits.
 
 **Exit:**
 - A block produces an accurate preview.

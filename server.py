@@ -49,8 +49,8 @@ from typing import Optional
 from urllib.parse import urlsplit
 
 import httpx
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import auth
@@ -62,6 +62,7 @@ import db
 import events
 import llm
 import logredact
+import outbound
 import phrases
 import recording
 import tts_piper
@@ -175,11 +176,17 @@ async def lifespan(app: FastAPI):
     calendar_task = calendar_sync.start_worker()
     if calendar_task is not None:
         background.append(calendar_task)
+    # Doctor-unavailability recovery calls (outbound.py): one job at a time, through the call gate.
+    app.state.runner = outbound.Runner(app.state.db, app.state.gate)
+    outbound.set_runner(app.state.runner)
+    background.append(asyncio.create_task(app.state.runner.run()))
     logger.info("Emma is listening on http://%s:%d", config.SERVER_HOST, config.SERVER_PORT)
     if config.SERVER_HOST not in ("127.0.0.1", "localhost", "::1"):
         logger.warning("SERVER_HOST=%s exposes Emma to the network; keep it on 127.0.0.1 "
                        "unless it is behind TLS and a login.", config.SERVER_HOST)
     yield
+    app.state.runner.stop()
+    outbound.set_runner(None)
     for task in background:
         task.cancel()
     await asyncio.gather(*background, return_exceptions=True)
@@ -190,6 +197,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Pearl Dental Clinic — Emma Voice Agent", lifespan=lifespan)
 app.state.gate = CallGate()
+app.state.sessions = {}          # call_id -> CallSession, for the dashboard's takeover controls
 STATIC_DIR = Path(__file__).parent / "static"
 
 # The dashboard shows patient data: no framing, no inline script, no caching of API answers.
@@ -209,9 +217,9 @@ async def revalidate_page_assets(request, call_next):
     path = request.url.path
     if path == "/" or path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-cache"
-    elif path.startswith("/dashboard"):
+    elif path.startswith("/dashboard") or path.startswith("/patient"):
         response.headers.update(DASHBOARD_HEADERS)
-        response.headers.setdefault("Cache-Control", "no-store" if path.startswith("/dashboard/api/") else "no-cache")
+        response.headers.setdefault("Cache-Control", "no-store" if "/api/" in path else "no-cache")
     return response
 
 
@@ -337,6 +345,7 @@ async def voice_websocket(ws: WebSocket):
         # ?mode=listen records the STT test set: captions and capture, no replies.
         listen_only = ws.query_params.get("mode") == "listen" and config.DEV_CAPTURE_AUDIO
         session = CallSession(transport, _services(state), call_id=call_id, listen_only=listen_only)
+        state.sessions[call_id] = session
         if not listen_only:
             _start_recording(session, call_id)
         await session.start()
@@ -364,20 +373,119 @@ async def voice_websocket(ws: WebSocket):
         except Exception as exc:
             logger.error("[%s] error closing the call: %s", call_id, exc, exc_info=True)
         finally:
+            state.sessions.pop(call_id, None)
             gate.release(call_id)
             # Anything booked, moved or cancelled on the call reaches Calendar
             # now rather than at the worker's next poll.
             calendar_sync.notify()
 
 
-def _start_recording(session, call_id: str):
+# ---------------------------------------------------------------- recovery calls (outbound.py)
+# The demo's "patient phone" is a logged-in browser tab at /patient: it rings
+# when the runner starts a job, and Answer opens /ws/outbound for the call.
+
+
+@app.get("/patient", include_in_schema=False)
+async def patient_page(request: Request):
+    if not auth.configured() or auth.current_user(request) is None:
+        return RedirectResponse("/dashboard/login", status_code=303)
+    return FileResponse(STATIC_DIR / "patient.html")
+
+
+@app.get("/patient/api/ring")
+async def patient_ring(request: Request):
+    auth.require_staff(request)
+    runner = outbound.get_runner()
+    ring = runner.ringing if runner is not None else None
+    if ring is None or ring.answered.is_set():
+        return {"ringing": None}
+    return {"ringing": ring.public()}
+
+
+@app.post("/patient/api/decline")
+async def patient_decline(request: Request):
+    auth.require_staff(request)
+    data = await request.json()
+    runner = outbound.get_runner()
+    ok = runner is not None and runner.decline(int(data.get("job_id") or 0), str(data.get("token") or ""))
+    if not ok:
+        raise HTTPException(status_code=409, detail="That call isn't ringing any more.")
+    return {"ok": True}
+
+
+@app.websocket("/ws/outbound")
+async def outbound_websocket(ws: WebSocket):
+    """The answered recovery call: same protocol as /ws/voice, Emma speaks first."""
+    if not origin_allowed(ws.headers) or auth.read_session(ws.cookies.get(auth.COOKIE_NAME)) is None:
+        await ws.close(code=1008)
+        return
+    runner = outbound.get_runner()
+    try:
+        job_id = int(ws.query_params.get("job") or 0)
+    except ValueError:
+        job_id = 0
+    ring = runner.answer(job_id, ws.query_params.get("token") or "") if runner is not None else None
+    if ring is None:
+        await ws.close(code=1008)
+        return
+    await ws.accept()
+    ring.connected.set()
+    from dialogue import recovery
+
+    state = ws.app.state
+    call_id = ring.call_id
+    claimed = ring.claimed
+    session = None
+    ctx = None
+    transport = BrowserTransport(ws, call_id)
+    try:
+        block = await state.db.run(outbound.campaign_block, claimed.campaign_id)
+        ctx = recovery.new_context(call_id=call_id, job_id=claimed.job_id, phone_e164=claimed.phone_e164,
+                                   appointments=claimed.appointments, block=block)
+        session = CallSession(transport, _services(state), call_id=call_id, state=ctx)
+        state.sessions[call_id] = session
+        _start_recording(session, call_id, direction="outbound")
+        await session.start()
+        while not session.closed:
+            message = await ws.receive()
+            if message["type"] == "websocket.disconnect":
+                break
+            if message.get("bytes"):
+                await session.on_audio(message["bytes"])
+            elif message.get("text"):
+                try:
+                    await session.on_control(json.loads(message["text"]))
+                except json.JSONDecodeError:
+                    pass
+    except (WebSocketDisconnect, RuntimeError):
+        pass
+    except Exception as exc:
+        logger.error("[%s] recovery call error: %s", call_id, exc, exc_info=True)
+    finally:
+        transport.open = False
+        try:
+            if session is not None:
+                await session.close()
+                session.outcome = f"recovery_{ctx.outcome or 'abandoned'}" if ctx is not None else session.outcome
+                _finish_recording(session)
+        except Exception as exc:
+            logger.error("[%s] error closing the recovery call: %s", call_id, exc, exc_info=True)
+        finally:
+            state.sessions.pop(call_id, None)
+            if ctx is not None:
+                ring.result = recovery.call_result(ctx)
+            ring.call_done.set()
+            calendar_sync.notify()
+
+
+def _start_recording(session, call_id: str, direction: str = "inbound"):
     """
     Give the call its transcript recorder. CallSession records the turns
     (session.recorder.turn(...)); if it made its own recorder, that one is used.
     """
     recorder = getattr(session, "recorder", None)
     if recorder is None:
-        recorder = recording.CallRecorder(call_id, direction="inbound")
+        recorder = recording.CallRecorder(call_id, direction=direction)
         session.recorder = recorder
     recorder.start()
 
@@ -447,6 +555,7 @@ async def health():
         "calendar": {**calendar_sync.status(), **await app.state.db.run(_calendar_summary)},
         "dashboard": _dashboard_summary(),
         "retention": recording.status(),
+        "recovery": app.state.runner.status() if getattr(app.state, "runner", None) else None,
     }
 
 

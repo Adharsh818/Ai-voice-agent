@@ -325,6 +325,12 @@ td.actions .btn + .btn { margin-left: 6px; }
 
 .empty { padding: 28px 12px; text-align: center; color: var(--muted); }
 .error-box { padding: 10px 12px; border-radius: 8px; background: var(--danger-soft); color: var(--danger); }
+.operator { margin-top: 12px; display: grid; gap: 8px; }
+.operator[hidden], .operator [hidden] { display: none; }
+#op-text { flex: 1; min-width: 0; }
+.campaign + .campaign { margin-top: 18px; }
+#view-recovery .campaign h4 { margin: 0 auto 0 0; }
+#view-recovery h4 { margin: 16px 0 8px; }
 .note-box { padding: 10px 12px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); }
 
 /* ------------------------------------------------------------ live call */

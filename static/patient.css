@@ -1,0 +1,70 @@
+/* The demo patient phone (/patient): the talk page's circle, plus a ringing screen. */
+
+.phone-label {
+  position: fixed;
+  top: 16px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  color: var(--idle);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+
+.waiting {
+  position: fixed;
+  bottom: 24px;
+  left: 16px;
+  right: 16px;
+  margin: 0;
+  text-align: center;
+  color: var(--idle);
+  font-size: 0.95rem;
+}
+.waiting[hidden] { display: none; }
+
+#incoming {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: var(--bg);
+  color: var(--caption);
+  text-align: center;
+}
+#incoming[hidden] { display: none; }
+
+.incoming-title { margin: 0; color: var(--idle); font-size: 0.95rem; }
+.incoming-from { margin: 0; font-size: clamp(1.8rem, 7vw, 2.6rem); font-weight: 600; animation: ring-pulse 1.2s ease-in-out infinite; }
+.incoming-to { margin: 0 0 40px; color: var(--idle); }
+
+.incoming-actions { display: flex; gap: 48px; }
+
+.call-btn {
+  width: 76px;
+  height: 76px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.call-btn.answer { background: #16a34a; }
+.call-btn.decline { background: #dc2626; }
+.call-btn:focus-visible { outline: 2px solid var(--caption); outline-offset: 4px; }
+.call-btn:disabled { opacity: 0.5; cursor: default; }
+
+@keyframes ring-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .incoming-from { animation: none; }
+}

@@ -29,6 +29,7 @@
       <button class="tab" role="tab" data-tab="appointments" aria-selected="false">Appointments</button>
       <button class="tab" role="tab" data-tab="tasks" aria-selected="false">Tasks <span class="count" id="tab-task-count" hidden></span></button>
       <button class="tab" role="tab" data-tab="calls" aria-selected="false">Calls</button>
+      <button class="tab" role="tab" data-tab="recovery" aria-selected="false">Recovery</button>
       <button class="tab" role="tab" data-tab="system" aria-selected="false">System</button>
     </nav>
   </header>
@@ -48,6 +49,18 @@
           </div>
           <div class="transcript" id="live-transcript" aria-live="polite"></div>
           <div class="empty" id="live-empty">No call right now. Start one from the <a href="/" target="_blank" rel="noopener">talk page</a>.</div>
+          <div class="operator" id="live-controls" hidden>
+            <div class="toolbar">
+              <button class="btn" type="button" id="op-takeover">Take over</button>
+              <button class="btn" type="button" id="op-handback" hidden>Hand back to Emma</button>
+              <span class="spacer"></span>
+              <button class="btn danger" type="button" id="op-end">End call + task</button>
+            </div>
+            <form class="toolbar" id="op-form" hidden>
+              <input id="op-text" maxlength="400" placeholder="Type what to say to the caller" aria-label="Line to say" autocomplete="off">
+              <button class="btn primary" type="submit">Say</button>
+            </form>
+          </div>
         </div>
         <div class="live-status">
           <div class="card">
@@ -160,6 +173,67 @@
         <div class="card" id="call-detail">
           <div class="empty">Pick a call to read its transcript.</div>
         </div>
+      </div>
+    </section>
+
+    <!-- Recovery (doctor unavailable) ------------------------------------>
+    <section class="view" id="view-recovery" role="tabpanel" hidden>
+      <div class="view-head">
+        <h2>Doctor unavailable</h2>
+        <p class="muted small">Block a doctor, check who is affected, then let Emma call them to find a new time.
+          The demo "phone" is the <a href="/patient" target="_blank" rel="noopener">patient page</a>.</p>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>1. Block a doctor</h3></div>
+          <form id="block-form" class="form-grid">
+            <label class="field">Doctor
+              <select id="block-doctor" required></select>
+            </label>
+            <label class="field">From
+              <input type="datetime-local" id="block-start" required step="1800">
+            </label>
+            <label class="field">To
+              <input type="datetime-local" id="block-end" required step="1800">
+            </label>
+            <label class="field">Reason (never told to patients)
+              <select id="block-reason"></select>
+            </label>
+            <label class="field">Note (optional)
+              <input id="block-note" maxlength="200" placeholder="e.g. called in sick">
+            </label>
+            <div class="toolbar"><button class="btn primary" type="submit">Block and preview</button></div>
+          </form>
+          <div class="error-box" id="block-error" hidden></div>
+          <h4>Active blocks</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Doctor</th><th>From</th><th>To</th><th>Reason</th><th></th></tr></thead>
+              <tbody id="block-rows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card" id="preview-card">
+          <div class="card-head">
+            <h3>2. Affected appointments</h3>
+            <button class="btn primary" type="button" id="campaign-start" disabled>Start recovery calls</button>
+          </div>
+          <p class="muted small" id="preview-summary">Block a doctor or pick a block to see who is affected.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Call</th><th>Patient</th><th>Phone</th><th>Appointment</th><th>Service</th></tr></thead>
+              <tbody id="preview-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3>3. Recovery calls</h3>
+          <span class="badge" id="runner-state">–</span>
+        </div>
+        <p class="muted small" id="runner-detail"></p>
+        <div id="campaign-list"></div>
       </div>
     </section>
 
