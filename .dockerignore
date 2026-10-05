@@ -1,0 +1,28 @@
+.git
+.claude
+.venv
+venv
+env
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+
+# Secrets never go into the image; they are mounted at runtime.
+.env
+.env.*
+credentials.json
+token.json
+*.pem
+*.key
+deploy/.env
+deploy/secrets
+
+# Runtime state
+cache
+logs
+mock_db.json
+*.log
+*.db
+*.docx
+audio.wav
