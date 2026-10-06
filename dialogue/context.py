@@ -460,6 +460,7 @@ class CallContext:
     call_id: Optional[str] = None
     turn: int = 0
     greeted: bool = False
+    greeting_offer: Optional[str] = None         # the greeting asked "book an appointment?" / "know about the clinic?"
     closed_conversation: bool = False
     outcome: Optional[str] = None                      # booked | rescheduled | cancelled | checked | callback | red_flag | ...
     history: list = field(default_factory=list)        # [{"role": "user"|"assistant", "content": str}], last 20

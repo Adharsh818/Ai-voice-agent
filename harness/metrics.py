@@ -397,7 +397,7 @@ def _m4(record, tx: _Transcript) -> list[dict]:
 
 def _m9(record, tx: _Transcript) -> list[dict]:
     out = []
-    greetings = [lines.similarity_key(g) for g in config.GREETINGS]
+    greetings = [lines.similarity_key(g) for g in [*config.GREETINGS, *config.TIME_GREETINGS.values()]]
     first = lines.similarity_key(tx.emma(0)) if tx.turns else ""
     for i in range(1, len(tx.turns)):
         key = lines.similarity_key(tx.emma(i))

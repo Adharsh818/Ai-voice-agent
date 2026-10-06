@@ -13,12 +13,21 @@ CLINIC_TIMEZONE = os.getenv("CLINIC_TIMEZONE", "Asia/Kolkata")
 # A short natural greeting, rotated; no disclaimers. Emma never volunteers that
 # she is automated, and never claims to be human: if a caller sincerely asks,
 # she says HONEST_LINE and carries straight on helping.
+# Every greeting names Emma and the clinic and asks one question (owner, 6 Oct:
+# "it should always mention its name Emma"); at most 12 words (R1). A yes to the
+# appointment or clinic question is understood as that request (dialogue/engine.py).
 GREETINGS = [
-    "Hi, this is Emma at Pearl Dental, how can I help?",
-    "Hello, Pearl Dental. How can I help you?",
-    "Pearl Dental, Emma here. Go ahead.",
-    "Hi, I'm Emma from Pearl Dental. How can I help you?",
+    "Hi, this is Emma at Pearl Dental. How can I help?",
+    "Hello, Emma at Pearl Dental. What can I do for you?",
+    "Hi, Emma at Pearl Dental. Would you like to book an appointment?",
+    "Hi, Emma at Pearl Dental. Any questions about the clinic?",
 ]
+# Said instead when it suits the clinic clock (before 12, before 4, after 4).
+TIME_GREETINGS = {
+    "morning": "Good morning, this is Emma at Pearl Dental. How can I help?",
+    "afternoon": "Good afternoon, Emma at Pearl Dental here. How can I help?",
+    "evening": "Good evening, this is Emma at Pearl Dental. How can I help?",
+}
 HONEST_LINE = "Yeah, you caught me, I'm the clinic's virtual receptionist."
 
 # Browser demo realism (R1, R5, R6). No background bed: only an occasional door,
@@ -31,7 +40,7 @@ TYPING_SFX = os.getenv("TYPING_SFX", "true").lower() == "true"
 # types for a moment before answering, as a receptionist would. Min/max ms.
 # The beat overlaps the engine's work: the reply waits max(engine time, beat),
 # so an LLM turn that already took longer gets no extra pause (walkie-talkie fix).
-TYPING_BEAT_MS = (int(os.getenv("TYPING_BEAT_MIN_MS", "300")), int(os.getenv("TYPING_BEAT_MAX_MS", "500")))
+TYPING_BEAT_MS = (int(os.getenv("TYPING_BEAT_MIN_MS", "150")), int(os.getenv("TYPING_BEAT_MAX_MS", "300")))
 # A soft breath before sentences at least this long (words); 0 turns it off.
 BREATH_BEFORE_WORDS = int(os.getenv("BREATH_BEFORE_WORDS", "20"))
 
@@ -213,6 +222,9 @@ NLU_HEAD_DEADLINE_S = float(os.getenv("NLU_HEAD_DEADLINE_S", "1.6"))
 # another this often while no call is on (0 = off). A cold first request took
 # about 2.2 s and missed the head deadline; a warm one about 1.3 s.
 NLU_KEEP_WARM_S = float(os.getenv("NLU_KEEP_WARM_S", "240"))
+# The model's head start when the no-model reading already understands the turn
+# clearly (a name, a number, a yes, a plain request); NLU_HEAD_DEADLINE_S is for the rest.
+NLU_FAST_DEADLINE_S = float(os.getenv("NLU_FAST_DEADLINE_S", "0.8"))
 # Caller words in the console log ("caller: ...", listen-only "heard ..."). On for
 # development; set LOG_CALLER_TEXT=false before real patient calls (plan 5.8:
 # transcripts never go to log files; they live in the database for 30 days).

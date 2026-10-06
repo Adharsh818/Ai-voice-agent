@@ -307,7 +307,7 @@ class CacheTests(unittest.TestCase):
 def _old_phrases():
     """What all_phrases() held before the R2 lines were added."""
     import config
-    return [*config.GREETINGS, config.HONEST_LINE, *phrases.FIXED_SENTENCES, *phrases.FILLERS,
+    return [*phrases.all_greetings(), config.HONEST_LINE, *phrases.FIXED_SENTENCES, *phrases.FILLERS,
             *phrases.OPENERS, phrases.CHECKING, phrases.ERROR_REPLY]
 
 

@@ -69,12 +69,34 @@ FIXED_SENTENCES = [
 _last_greeting = None
 
 
+def all_greetings() -> list:
+    """Every greeting Emma may open with (all pre-rendered)."""
+    return [*config.GREETINGS, *config.TIME_GREETINGS.values()]
+
+
 def next_greeting() -> str:
-    """A greeting from config.GREETINGS, never the same one twice in a row (R1)."""
+    """
+    A greeting from config.GREETINGS or the one for this part of the day,
+    never the same one twice in a row (R1).
+    """
     global _last_greeting
-    choices = [g for g in config.GREETINGS if g != _last_greeting] or config.GREETINGS
+    import clock                       # local: keep this module light to import
+    hour = clock.now().hour
+    part = "morning" if hour < 12 else "afternoon" if hour < 16 else "evening"
+    pool = [*config.GREETINGS, config.TIME_GREETINGS[part]]
+    choices = [g for g in pool if g != _last_greeting] or pool
     _last_greeting = random.choice(choices)
     return _last_greeting
+
+
+def greeting_offer(greeting: str) -> str | None:
+    """What a greeting's question offered: "book", "info" or None (an open "how can I help?")."""
+    g = (greeting or "").lower()
+    if "book an appointment?" in g:
+        return "book"
+    if "about the clinic?" in g:
+        return "info"
+    return None
 
 
 def all_phrases(extra=()):
@@ -89,7 +111,7 @@ def all_phrases(extra=()):
     import prompts                     # local: prompts imports phones/clock, keep this module light to import
 
     seen, out = set(), []
-    for text in [*config.GREETINGS, config.HONEST_LINE, *FIXED_SENTENCES, *FILLERS, *OPENERS,
+    for text in [*all_greetings(), config.HONEST_LINE, *FIXED_SENTENCES, *FILLERS, *OPENERS,
                  CHECKING, ERROR_REPLY, *extra]:
         if text and text not in seen:
             seen.add(text)

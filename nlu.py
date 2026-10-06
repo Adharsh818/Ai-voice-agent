@@ -714,7 +714,7 @@ def _backend_usable(backend) -> bool:
         return False
 
 
-async def understand_stream(brief) -> NLUStream:
+async def understand_stream(brief, head_deadline_s: Optional[float] = None) -> NLUStream:
     """
     Start the model call for this turn's brief (dialogue.brief.Brief) on the
     current backend. Returns immediately; the request runs in the background.
@@ -726,7 +726,7 @@ async def understand_stream(brief) -> NLUStream:
         stream = NLUStream(None, brief)
         stream.error = "unusable"
         return stream
-    return NLUStream(backend, brief)
+    return NLUStream(backend, brief, head_deadline_s=head_deadline_s)
 
 
 # ---------------------------------------------------------------- backends
