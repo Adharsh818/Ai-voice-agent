@@ -52,7 +52,11 @@ def check_server():
         return None
     report("OK", "server", f"http://localhost:{config.SERVER_PORT}")
     llm = health.get("llm") or {}
-    report("OK" if llm.get("verified") else "FAIL", "Gemini", f"{llm.get('model')} verified={llm.get('verified')}")
+    verified = llm.get("verified")
+    report("OK" if verified else "WARN" if verified is None else "FAIL", "Gemini",
+           f"{llm.get('model')}: " + ("verified" if verified else
+                                     "check still running or was slow; in use, run preflight again in a minute"
+                                     if verified is None else "failed its check (see Emma's log)"))
     report("OK" if health.get("deepgram") else "FAIL", "Deepgram key")
     report("OK" if health.get("elevenlabs") else "FAIL", "ElevenLabs key")
     report("OK" if health.get("prompt_cache_ready") else "WARN", "pre-rendered prompts",

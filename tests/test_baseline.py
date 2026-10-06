@@ -245,6 +245,39 @@ class GeminiReverifyTests(unittest.TestCase):
             self.assertEqual(calls, [True, True])  # stops checking once available
             self.assertTrue(nlu.available)
 
+    def test_a_slow_check_keeps_the_model_in_use(self):
+        # 6 Oct: a startup check that timed out put every call on the fallback for a minute.
+        if not llm.GENAI_AVAILABLE:
+            return
+
+        class Slow:
+            class aio:
+                class models:
+                    @staticmethod
+                    async def generate_content(**_):
+                        await asyncio.sleep(1)
+
+        class Missing:
+            class aio:
+                class models:
+                    @staticmethod
+                    async def generate_content(**_):
+                        raise RuntimeError("404 NOT_FOUND: models/m is not found")
+
+                    @staticmethod
+                    async def list():
+                        raise RuntimeError("no list")
+
+        nlu = llm.GeminiNLU(keys=["k"], model="m")
+        nlu._client = lambda key: Slow
+        self.assertFalse(asyncio.run(nlu.verify_model(timeout=0.05)))
+        self.assertIsNone(nlu.available)
+        self.assertTrue(nlu.usable)                          # still used for calls
+        nlu._client = lambda key: Missing
+        self.assertFalse(asyncio.run(nlu.verify_model(timeout=0.5)))
+        self.assertIs(nlu.available, False)                  # a wrong model name does switch it off
+        self.assertFalse(nlu.usable)
+
     def test_unconfigured_gemini_does_not_loop(self):
         nlu = llm.GeminiNLU(keys=[], model="m")
         asyncio.run(asyncio.wait_for(nlu.keep_verified(interval=0.01), timeout=1))

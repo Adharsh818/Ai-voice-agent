@@ -284,6 +284,15 @@ class GeminiNLU:
             logger.info("Gemini model %s: %s", "recovered" if was_down else "verified", self.model)
             return True
         except Exception as exc:
+            if not _definitive(exc):
+                # Slow or busy (a timeout, 429, 5xx): the model is probably fine. Keep
+                # using it and check again soon, rather than putting every call on
+                # the fallback until the next re-check (6 Oct: a slow startup check
+                # switched Gemini off for a minute).
+                self.available = None
+                logger.warning("Gemini model %r check was slow or busy (%s); still using it, checking again",
+                               self.model, _short(exc))
+                return False
             self.available = False
             if quiet:
                 logger.warning("Gemini model %r still failing its check: %s", self.model, _short(exc))
@@ -306,8 +315,8 @@ class GeminiNLU:
         if not GENAI_AVAILABLE or not self.keys or not self.model:
             return
         while True:
-            await asyncio.sleep(interval)
-            if self.available is False:
+            await asyncio.sleep(interval if self.available is False else min(interval, 15))
+            if self.available is not True:
                 await self.verify_model(quiet=True)
 
     async def _flash_lite_models(self, key) -> str:
@@ -359,6 +368,18 @@ def _is_key_problem(exc: Exception) -> bool:
     except (TypeError, ValueError):
         return False
     return code in (401, 403, 429)
+
+
+def _definitive(exc: Exception) -> bool:
+    """A failure that retrying won't fix soon: unknown model, bad or unauthorised key."""
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+        return False
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    if code in (400, 401, 403, 404):
+        return True
+    text = str(exc).lower()
+    return any(w in text for w in ("not found", "permission", "api key", "api_key", "unauthenticated",
+                                   "invalid argument"))
 
 
 def _short(exc: Exception) -> str:
