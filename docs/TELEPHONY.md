@@ -73,6 +73,23 @@ Emma always sends `0x10` (8 kHz), which every AudioSocket build accepts.
 6. **Restart Emma.** The log shows `AudioSocket listening on 127.0.0.1:9092`.
 7. **Call:** from 1001 dial **100**.
 
+## A softphone on your mobile (free; the final demo's real call)
+
+Free and with no phone number: a SIP app on your phone calls Emma over the same Wi-Fi as the PC. Nothing is billed (Asterisk, WSL and the apps are free); only Emma's usual Deepgram, ElevenLabs and Gemini use counts, as on the talk page.
+
+1. Steps 1-2 of *Setup* above (WSL2 + Ubuntu, mirrored networking).
+2. **Bind SIP to the Wi-Fi** (Windows, in the repo): `.\.venv\Scripts\python.exe tools\telephony_setup.py --lan`. It finds the PC's Wi-Fi address, binds SIP to it, admits only that subnet (`acl.conf`; everything else is refused before a password is checked) and prints the softphone server address and passwords. AudioSocket, the manager port and Emma's HTTP stay on loopback. On another Wi-Fi network, run it again; `--local` goes back to loopback only.
+3. **Install the configs** (Ubuntu): `sudo bash /mnt/a/Voice-Agent/telephony/install_asterisk.sh`.
+4. **Firewall** (admin PowerShell, your Wi-Fi subnet in place of 192.168.1.0/24): allow SIP and media from the Wi-Fi only, in Windows' firewall and in the Hyper-V firewall that WSL's mirrored mode uses:
+   ```powershell
+   New-NetFirewallRule -DisplayName "Emma SIP (Wi-Fi only)" -Direction Inbound -Protocol UDP -LocalPort 5060,10000-10200 -RemoteAddress 192.168.1.0/24 -Action Allow
+   New-NetFirewallHyperVRule -Name EmmaSIP -DisplayName "Emma SIP (Wi-Fi only)" -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol UDP -LocalPorts 5060,10000-10200 -RemoteAddresses 192.168.1.0/24 -Action Allow
+   ```
+5. **On the phone**: Linphone (free, open source) or Zoiper. Account: username `1001`, password from step 2, domain/server = the PC's Wi-Fi address, transport UDP. On the PC, MicroSIP as `1002` (the front desk, for transfers).
+6. **Call**: dial `100` on the phone. Emma answers; extension 1001 shows the demo caller ID (98450 22222), so she offers "Is the number you're calling from the best one to reach you on?".
+
+If the phone can't register: check both are on the same Wi-Fi (not a guest network that isolates devices), that the address printed in step 2 is the PC's current one, and `asterisk -rx "pjsip show contacts"` in Ubuntu.
+
 ## Checks
 
 - `tests/test_telephony.py` (no Asterisk needed): framing, registry, resampling, line sounds, playout and playback reports, flush, keypad, a whole call over TCP against a simulated Asterisk, the dialplan endpoints (loopback, secret, busy), AMI Originate against a simulated manager (answered / declined / rang out / bad login), the recovery dialer, caller ID and transfer in the engine.

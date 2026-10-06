@@ -1,0 +1,17 @@
+# One database backup (tools/backup.py); run daily by emma-backup.timer.
+
+[Unit]
+Description=Back up Emma's database
+
+[Service]
+Type=oneshot
+User=emma
+Group=emma
+WorkingDirectory=/opt/emma
+EnvironmentFile=/opt/emma/.env
+ExecStart=/opt/emma/.venv/bin/python tools/backup.py
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/emma/backups
+ReadOnlyPaths=/opt/emma/data

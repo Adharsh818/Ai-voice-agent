@@ -852,10 +852,13 @@ Backups: typed input, the recorded full run, reseed script.
 - [ ] Verify on the real Asterisk: keypad frames through AudioSocket, 16 kHz AudioSocket audio, the Reject reason code (TELEPHONY.md, last section).
 - Tests: `tests/test_telephony.py` (25) with a simulated Asterisk and manager; live smoke test on the real server (greeting 0.07 s after connect, 49.9 frames/s, clean hang-up).
 
-**E — evaluation hardening (≈3 days):**
-- p50/p95 latency, task success, STT word error on the recorded set, fallback and interruption rates.
-- Booking-integrity report from failure drills.
-- Linux VM with TLS reverse proxy, daily SQLite backup (`.backup`), log rotation, threat model document, viva notes.
+**E — evaluation hardening: built 6 Oct** (plan: [FINAL_PHASES_PLAN.md](FINAL_PHASES_PLAN.md)).
+- [x] p50/p95 latency, task success, fallback and interruption rates: `tools/evaluate.py` → [EVALUATION.md](EVALUATION.md), regenerated from the data.
+- [ ] STT word error on the recorded set: `tools/evaluate.py --stt` (Deepgram, ~2 min of audio; waiting for the owner's OK).
+- [x] Booking-integrity report from failure drills (EVALUATION.md section 4).
+- [x] Daily SQLite backup (`tools/backup.py`: online backup, verified, keep 14, restore, consistency check), log rotation (`turns.jsonl` by size, optional daily `LOG_FILE`).
+- [x] Linux deployment kit (`deploy/`: systemd unit, Caddy HTTPS, backup timer, install script; [DEPLOY.md](DEPLOY.md)). [ ] Verify it in WSL Ubuntu.
+- [x] [THREAT_MODEL.md](THREAT_MODEL.md), [VIVA_NOTES.md](VIVA_NOTES.md).
 
 ---
 

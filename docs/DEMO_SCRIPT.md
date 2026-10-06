@@ -94,6 +94,23 @@ Show: Recovery tab results (Moved / Declined the call), the new **Recovery call 
 
 Say what the drills proved rather than breaking things live: with Gemini off, 200 simulated calls still completed 97% of bookings with zero safety failures; killing the server mid-booking leaves nothing half-written; if ElevenLabs fails, a local voice takes over. If you want one live moment: turn Wi-Fi off for 20 seconds after a booking, show the System tab's Calendar outbox retrying, turn it back on.
 
+## 7b. A real phone call (2 min, the finale)
+
+Needs the softphone set up ([TELEPHONY.md](TELEPHONY.md), "A softphone on your mobile"): Asterisk running in Ubuntu, `TELEPHONY_ENABLED=true`, the phone and the PC on the same Wi-Fi, Linphone registered as 1001, MicroSIP on the PC as 1002 (front desk).
+
+| You, on your mobile | What to point out |
+|---|---|
+| Dial **100**. | A real SIP call through Asterisk, not the browser; the dashboard's Live tab shows it like any call |
+| "Hi, I'd like a cleaning tomorrow morning." Your name. | The request said back; the clinic sounds come through the phone line |
+| (Emma: "Is the number you're calling from the best one to reach you on?") "Yes." | Caller ID instead of reading out digits |
+| Pick a time, "Yes, book it." | Same booking rules; Calendar updates |
+| Optional: talk over her once; key a number on the keypad and press **#** | Barge-in works on the phone; keypad entry |
+| Optional: "Can I talk to a person?" ... "No, I want a person." | She offers to help first, writes the callback task, then puts you through: MicroSIP (1002) rings on the PC |
+
+Then the outbound version: in Recovery, block a doctor for a day with one of your bookings; **your mobile rings** (Pearl Dental). Answer and move the appointment, or Reject it to show the task.
+
+If the phone can't register or the call drops: carry on with the talk page (scenes 1-6 are the same Emma).
+
 ## 8. Wrap-up (1 min)
 
 Live tab turn timings, then System: the audit log (every staff action and export), then Appointments → **Export CSV**.
