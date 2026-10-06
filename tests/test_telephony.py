@@ -456,6 +456,32 @@ class DialerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(audiosocket.registry.take(key).kind, "outbound")
 
 
+class AsteriskConfigTests(unittest.TestCase):
+    """tools/telephony_setup.py: loopback by default; --lan admits only the Wi-Fi subnet."""
+
+    def render(self, **extra):
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
+        import telephony_setup
+        base = {**telephony_setup.DEFAULTS, "TELEPHONY_SECRET": "k", "AMI_SECRET": "a",
+                "TELEPHONY_SIP_PASSWORD_1001": "p1", "TELEPHONY_SIP_PASSWORD_1002": "p2", **extra}
+        return telephony_setup.render(base)
+
+    def test_loopback_by_default(self):
+        conf = self.render()
+        self.assertIn("bind=127.0.0.1:5060", conf["pjsip.conf"])
+        self.assertNotIn("192.168", conf["acl.conf"])
+        self.assertIn("deny = 0.0.0.0/0.0.0.0", conf["acl.conf"])
+        self.assertIn("acl=emma_phones", conf["pjsip.conf"])
+        self.assertIn("bindaddr = 127.0.0.1", conf["manager.conf"])          # AMI never leaves loopback
+
+    def test_lan_admits_only_the_wifi_subnet(self):
+        conf = self.render(TELEPHONY_SIP_BIND="192.168.1.23", TELEPHONY_SIP_SUBNET="192.168.1.0/24")
+        self.assertIn("bind=192.168.1.23:5060", conf["pjsip.conf"])
+        self.assertIn("permit = 192.168.1.0/255.255.255.0", conf["acl.conf"])
+        self.assertIn("127.0.0.1:", conf["extensions.conf"])                 # AudioSocket stays on loopback
+        self.assertFalse(any("{{" in text for text in conf.values()))
+
+
 class CallerIdAndTransferTests(unittest.TestCase):
     """The engine side: caller ID instead of a read-back, and a live transfer instead of a callback promise."""
 

@@ -258,3 +258,11 @@ AMI_SECRET = os.getenv("AMI_SECRET", "").strip()
 TELEPHONY_PATIENT_PHONE = os.getenv("TELEPHONY_PATIENT_PHONE", "PJSIP/1001").strip()
 # The number recovery calls show as their caller ID.
 TELEPHONY_CLINIC_CID = os.getenv("TELEPHONY_CLINIC_CID", '"Pearl Dental" <08041234567>').strip()
+
+# Log rotation (plan section 13, phase E). logs/turns.jsonl (per-turn timings)
+# rolls over at LOG_ROTATE_MB, keeping LOG_KEEP old files. LOG_FILE (empty: off)
+# adds a daily app log, phone numbers masked (logredact), kept LOG_KEEP days;
+# on Linux under systemd the console log already goes to the journal.
+LOG_ROTATE_MB = float(os.getenv("LOG_ROTATE_MB", "5"))
+LOG_KEEP = int(os.getenv("LOG_KEEP", "14"))
+LOG_FILE = os.getenv("LOG_FILE", "").strip()

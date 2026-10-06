@@ -57,3 +57,6 @@ models/
 
 # --- Rendered Asterisk configs (secrets; tools/telephony_setup.py) ---
 telephony/build/
+
+# --- Database backups (patient data; tools/backup.py) ---
+backups/

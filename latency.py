@@ -132,11 +132,32 @@ def _percentile(values, p):
 
 
 class LatencyLog:
-    def __init__(self, directory: Optional[str], keep: int = 1000):
+    def __init__(self, directory: Optional[str], keep: int = 1000, max_bytes: Optional[int] = None,
+                 backups: Optional[int] = None):
         self.path = os.path.join(directory, "turns.jsonl") if directory else None
         self.records: deque = deque(maxlen=keep)
+        # Rotation (phase E): turns.jsonl -> turns.jsonl.1 ... .N once it passes max_bytes.
+        import config
+        self.max_bytes = int(config.LOG_ROTATE_MB * 1024 * 1024) if max_bytes is None else max_bytes
+        self.backups = config.LOG_KEEP if backups is None else backups
         if directory:
             os.makedirs(directory, exist_ok=True)
+
+    def _rotate(self):
+        """Roll turns.jsonl over when it has grown past max_bytes (newest backup is .1)."""
+        try:
+            if self.max_bytes <= 0 or os.path.getsize(self.path) < self.max_bytes:
+                return
+        except OSError:
+            return
+        for i in range(self.backups - 1, 0, -1):
+            older = f"{self.path}.{i}"
+            if os.path.exists(older):
+                os.replace(older, f"{self.path}.{i + 1}")
+        os.replace(self.path, f"{self.path}.1")
+        stale = f"{self.path}.{self.backups + 1}"
+        if os.path.exists(stale):
+            os.remove(stale)
 
     def add(self, timer: TurnTimer) -> Optional[dict]:
         if timer.logged:
@@ -146,6 +167,7 @@ class LatencyLog:
         self.records.append(record)
         if self.path:
             try:
+                self._rotate()
                 with open(self.path, "a", encoding="utf-8") as fh:
                     fh.write(json.dumps(record) + "\n")
             except OSError as exc:

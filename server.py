@@ -42,6 +42,7 @@ import asyncio
 import hmac
 import json
 import logging
+import os
 import struct
 import time
 import uuid
@@ -78,6 +79,14 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+if config.LOG_FILE:
+    # A daily app log for machines without a journal; added before logredact so it's masked too.
+    from logging.handlers import TimedRotatingFileHandler
+    os.makedirs(os.path.dirname(os.path.abspath(config.LOG_FILE)), exist_ok=True)
+    _file_log = TimedRotatingFileHandler(config.LOG_FILE, when="midnight", backupCount=config.LOG_KEEP,
+                                         encoding="utf-8")
+    _file_log.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+    logging.getLogger().addHandler(_file_log)
 logredact.install()  # mask phone numbers in every log line
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("google_genai").setLevel(logging.WARNING)
