@@ -279,6 +279,10 @@ def apply_correction(ctx: CallContext, field_name: str, value, rt: Runtime, *, c
     Dependent details are re-checked (a new service re-validates the branch;
     a new date drops the offers).
     """
+    if field_name == "date":
+        # Said back in Emma's words ("around 6"), never the caller's raw phrase
+        # ("Around 6 in the evening, please"; model-down drill, 6 Oct).
+        spoken = _spoken_value(field_name, value) if value and (value[0] or value[1]) else spoken
     spoken = spoken or _spoken_value(field_name, value)
     if not (cued or ctx.pending in SUMMARY_GOALS):
         ctx.change_proposal = {"field": field_name, "value": value, "spoken": spoken}
@@ -620,7 +624,9 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
     notices += _set_field(ctx, "date", value, rt)
     b.when_phrase = phrase
     if changing:
-        notices.append(Notice("correction.ack", {"value": _strip_cue(phrase)}, covered_by=_cover_words(_strip_cue(phrase))))
+        said = safe_call(prompts.speak_when, date_c if new_date else None, time_c if new_time else None,
+                         default="") or _strip_cue(phrase)
+        notices.append(Notice("correction.ack", {"value": said}, covered_by=_cover_words(said)))
     elif new_date:
         spoken = safe_call(prompts.speak_when, date_c, time_c, default=phrase) or phrase
         notices.append(Notice("ack.when", {"when": spoken}, covered_by=_cover_words(phrase)))

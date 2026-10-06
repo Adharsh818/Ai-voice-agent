@@ -1217,7 +1217,11 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
             filled_expected = True
 
     # Dates and times.
-    moved = _MOVE_TO.match(raw) if pending in (Goal.ASK_APPT_DATE, Goal.VERIFY_FAILED) else None
+    # After "Sorry, go on?" the question that was open is still the appointment
+    # date when the caller is moving one (drill, 6 Oct: "It's on October 13th,
+    # and" ... "I'd like to move it to the 20th" verified against the 20th).
+    resumed = pending == Goal.GO_ON and view.intent == Intent.RESCHEDULE
+    moved = _MOVE_TO.match(raw) if pending in (Goal.ASK_APPT_DATE, Goal.VERIFY_FAILED) or resumed else None
     if moved and not (u.date_phrase or u.time_phrase):
         # "It's on Monday, and I'd like to move it to Friday": the first date is
         # the appointment's (verification), the second the new one.

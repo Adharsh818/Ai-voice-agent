@@ -622,15 +622,15 @@ Every stage ends with its exit tests green. Tests run after every step.
 - An inbound call during a campaign pauses the runner.
 
 ### Day 6 — 6 Oct: latency, fault drills, regression
-- [ ] **6.1** Latency pass with data: Tier-0 coverage, filler policy, first sentence cached, endpointing settings from the spike. Speculative NLU on stable interim text **only if** the gate isn't met.
-- [ ] **6.2** Fault drills:
+- [x] **6.1** Latency pass with data: Tier-0 coverage, filler policy, first sentence cached, endpointing settings from the spike. Speculative NLU on stable interim text **only if** the gate isn't met. **Done 6 Oct (measured shortfall documented):** on the 5 Oct R2 voice calls end of speech was the largest cost (p50 1.6 s; Deepgram sent speech_final on only about a third of turns, so most ended on the 1 s STT watchdog). The watchdog now waits by what was heard (complete answer 0.35 s, likely 0.6 s, default 0.8 s, unfinished 1 s): replayed on those calls, end of speech p50 1.6 -> 1.3 s and perceived p50 2.1 -> 1.8 s. Gemini's time to first chunk has a floor of about 1.05 s whatever the request size (current 1.3 s; no schema or an 80% shorter brief each save about 0.2 s; implicit caching reports no cached tokens), so the brief was left as is. Filler policy (450 ms, at most every third turn) unchanged. Gate not met: Tier-0 p50 about 1.6 s vs 0.9 s; the rest is why speech_final rarely fires, to diagnose on the R3 recordings.
+- [x] **6.2** Fault drills: Automated 6 Oct (`tests/test_fault_drills.py` + existing suites): killed inside a booking -> nothing written, the retry books once; killed after the commit -> the retry is replayed; restart during a recovery call -> job closed with a task; hang-up -> held slots freed at once (they used to stay held for 5 min) and a booking being written finishes as `booked_hangup`; Gemini off: 200 sim calls, Z1-Z7 0, M7 97%, M10 2.0% (after fixing a date misread after "go on?"). Live drills (ElevenLabs quota, Deepgram drop, closing the tab) are for the rehearsal.
   - Gemini off (Tier-0 + templates).
   - ElevenLabs off / quota exhausted (Piper).
   - Deepgram drop.
   - Calendar off.
   - Kill the server mid-booking (restart → no lost or duplicate appointment).
   - Close the tab at every state.
-- [ ] **6.3** Full test suite + the manual checklist in section 10; fix list.
+- [ ] **6.3** Full test suite + the manual checklist in section 10; fix list. Suite (872) and the 53 scripted scenarios pass on R2 (6 Oct); the manual pass through section 10 is the owner's rehearsal.
 
 **Exit:** latency gate met or measured shortfall documented; all drills pass.
 
