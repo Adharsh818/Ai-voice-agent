@@ -235,19 +235,30 @@ class RunnerTests(unittest.TestCase):
     def _runner(self, c, gate=None, timeout=0.05):
         return outbound.Runner(AsyncDB(c), gate or FakeGate(), ring_timeout_s=timeout, window_check=lambda: True)
 
-    def test_no_answer_is_one_attempt_then_a_task_and_needs_reschedule(self):
+    def test_no_answer_is_retried_then_a_task_and_needs_reschedule(self):
+        # C-full (6 Oct): an unanswered call is tried again RECOVERY_RETRY_GAP_MIN later, up to
+        # RECOVERY_MAX_ATTEMPTS in all; only then NEEDS RESCHEDULE and a staff task.
         with RecoveryClinic() as c:
             a1 = c.book("Dr Rao", _day(7, 11), "Priya Sharma", PRIYA)
             block_id = c.block("Dr Rao", _day(7, 9), _day(7, 17))
             _, jobs = _campaign(c, block_id, [a1])
             runner = self._runner(c)
-            self.assertEqual(asyncio.run(runner.step()), "no_answer")
+            self.assertEqual(asyncio.run(runner.step()), "retry")
             job = c.run(outbound.get_job, jobs[0])
-            self.assertEqual((job["status"], job["outcome"], job["attempts"]), ("failed", "no_answer", 1))
+            self.assertEqual((job["status"], job["outcome"], job["attempts"]), ("queued", "no_answer", 1))
+            self.assertEqual(c.appt(a1)["status"], "booked")             # nothing flagged yet
+            self.assertIsNone(asyncio.run(runner.step()))                 # not before the retry time
+            self.assertEqual(runner.waiting["queued"], 1)
+            for hour in (12, 14):                                         # 2 h later, then 2 h after that
+                with clock.frozen(datetime(2026, 10, 6, hour, 1)):
+                    result = asyncio.run(runner.step())
+            self.assertEqual(result, "no_answer")
+            job = c.run(outbound.get_job, jobs[0])
+            self.assertEqual((job["status"], job["attempts"]), ("failed", 3))
             self.assertEqual(c.appt(a1)["status"], "needs_reschedule")
             tasks = c.run(lambda conn: [dict(r) for r in conn.execute("SELECT * FROM tasks")])
             self.assertEqual([t["kind"] for t in tasks], ["recovery_failed"])
-            self.assertIsNone(asyncio.run(runner.step()))                # nothing left: no second attempt
+            self.assertIn("3 attempts", tasks[0]["note"])
             outbox = c.run(lambda conn: conn.execute("SELECT COUNT(*) FROM sync_outbox WHERE appointment_id = ?",
                                                      (a1,)).fetchone()[0])
             self.assertEqual(outbox, 1)                                   # Calendar shows NEEDS RESCHEDULE
@@ -613,6 +624,31 @@ class RecoveryApiTests(unittest.TestCase):
         with self.assertRaises(WebSocketDisconnect):
             with self.client.websocket_connect("/ws/outbound?job=1&token=x") as ws:
                 ws.receive_text()
+
+    def test_pause_resume_report_and_calling_hours_over_http(self):
+        c = self.clinic
+        a1 = c.book("Dr Rao", _day(7, 11), "Priya Sharma", PRIYA)
+        self.login()
+        block_id = self.client.post("/dashboard/api/recovery/blocks", json={
+            "doctor_id": c.doctor("Dr Rao"), "start": "2026-10-07T09:00", "end": "2026-10-07T17:00",
+            "reason": "personal"}).json()["block_id"]
+        campaign_id = self.client.post("/dashboard/api/recovery/campaigns",
+                                       json={"block_id": block_id, "appointment_ids": [a1]}).json()["campaign_id"]
+        self.assertTrue(self.client.post(f"/dashboard/api/recovery/campaigns/{campaign_id}/pause", json={}).json()["ok"])
+        overview = self.client.get("/dashboard/api/recovery").json()
+        self.assertTrue(overview["campaigns"][0]["paused_at"])
+        self.assertIn("summary", overview["campaigns"][0])
+        self.assertTrue(self.client.post(f"/dashboard/api/recovery/campaigns/{campaign_id}/resume", json={}).json()["ok"])
+        self.assertIsNone(self.client.get("/dashboard/api/recovery").json()["campaigns"][0]["paused_at"])
+        report = self.client.get(f"/dashboard/api/recovery/campaigns/{campaign_id}.csv")
+        self.assertEqual(report.status_code, 200)
+        self.assertIn("Priya Sharma", report.text)
+        self.assertNotIn("9876543210", report.text)
+        ok = self.client.post("/dashboard/api/recovery/windows", json={"phone": "98765 43210", "after": "18:00"})
+        self.assertEqual(ok.status_code, 200)
+        bad = self.client.post("/dashboard/api/recovery/windows", json={"phone": "98765 43210", "after": "late"})
+        self.assertEqual(bad.status_code, 400)
+        self.assertEqual(self.client.get("/dashboard/api/recovery").json()["windows"][0]["call_after"], "18:00")
 
     def test_stop_and_lift_over_http(self):
         c = self.clinic

@@ -830,11 +830,12 @@ Backups: typed input, the recorded full run, reseed script.
 
 ## 13. After the demo
 
-**C-full (≈2 days):**
-- Retry policy (e.g. 3 attempts, 2 h apart, within the window).
-- Pause/resume.
-- Per-patient calling windows.
-- Campaign reporting.
+**C-full (≈2 days): done 6 Oct, before the demo by the owner's choice.**
+- [x] Retry policy: an unanswered call is tried again `RECOVERY_RETRY_GAP_MIN` (120) later, up to `RECOVERY_MAX_ATTEMPTS` (3), inside the calling window and the patient's hours; only then NEEDS RESCHEDULE + task. A declined call is not retried (the demo's "Rahul declines → task" is unchanged). A patient's "call me after 6" / "in an hour" / "tomorrow morning" is booked as the next try (even past the attempt limit) and Emma says when.
+- [x] Pause/resume (campaign `paused_at`; a call in progress finishes).
+- [x] Per-patient calling windows (`contact_prefs.call_after/call_before`, set on the Recovery tab; Sundays skipped).
+- [x] Campaign reporting: a results line per campaign (moved, cancelled, need a new time, retrying, waiting) and a CSV export (masked phones, audited).
+- Schema: `migrations/002_recovery_full.sql` adds columns only, so existing databases upgrade in place. Tests: `tests/test_recovery_full.py` and additions to `tests/test_recovery.py`.
 
 **D — Asterisk (≈4 days):**
 - WSL2 + Ubuntu (reboot, with your permission), Asterisk 22 LTS, MicroSIP/Zoiper extension.

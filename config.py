@@ -155,6 +155,11 @@ MAX_FUTURE_APPOINTMENTS_PER_PHONE = int(os.getenv("MAX_FUTURE_APPOINTMENTS_PER_P
 # hours Emma may call patients, and how long the patient's phone rings.
 RECOVERY_CALL_WINDOW = os.getenv("RECOVERY_CALL_WINDOW", "09:00-20:00")
 RECOVERY_RING_TIMEOUT_S = float(os.getenv("RECOVERY_RING_TIMEOUT_S", "30"))
+# Unanswered recovery calls are tried again this many times in all, this far apart
+# (inside the calling window and the patient's own hours). A declined call isn't
+# retried: the front desk follows it up.
+RECOVERY_MAX_ATTEMPTS = max(1, int(os.getenv("RECOVERY_MAX_ATTEMPTS", "3")))
+RECOVERY_RETRY_GAP_MIN = max(5, int(os.getenv("RECOVERY_RETRY_GAP_MIN", "120")))
 # Branch used by the current single-branch dialogue until the Day 2 workflows land.
 DEFAULT_BRANCH = os.getenv("DEFAULT_BRANCH", "Nagarbhavi")
 CACHE_DIR = os.getenv("EMMA_CACHE_DIR", os.path.join(BASE_DIR, "cache"))

@@ -7,6 +7,16 @@ Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_
 
 ---
 
+## 6 Oct, C-full recovery calls (owner chose: now, on the demo branch)
+
+- **Retries:** unanswered → tried again 2 h later, up to 3 tries, inside calling hours; then NEEDS RESCHEDULE + task. **Declined → task at once** (the demo scene is unchanged).
+- **"Call me after 6":** Emma says "No problem at all, we'll call you back after 6" and the runner books that time as the next try. "In an hour", "in 20 minutes", "tomorrow morning" work too; "call me later" uses the 2 h gap. (Found and fixed by its test: this path would have crashed the call.)
+- **Pause / Resume / Stop** per campaign; **per-patient calling hours** (Recovery tab, bottom card); **results line + Export CSV** per campaign; the runner badge shows "Waiting" with the next retry time.
+- `migrations/002_recovery_full.sql` (columns only) upgraded the live demo database in place: fixtures intact, preflight READY, demo scenes still complete. 900 tests pass.
+- Settings: `RECOVERY_MAX_ATTEMPTS=3`, `RECOVERY_RETRY_GAP_MIN=120` (in `.env.example`).
+
+---
+
 ## 6 Oct, R3.4: Sarvam tested, Nova-3 stays
 
 Sarvam saaras:v4 (`stt_sarvam.py`; `python tools/replay.py --provider sarvam <wav>`; `SARVAM_API_KEY` in `.env`) on the owner's two recordings: it heard "Adarsh Kumar" (Deepgram: "Adesh" or dropped), numbers and branches right, word errors ~19-20% (Deepgram 17%), but turns end much later (p50 0.81 s headset / 2.25 s laptop, p90 2.3 s; Deepgram ~0.8-0.9 / ~1.0 s) and finals sometimes arrive seconds late in bursts. **Deepgram Nova-3 stays.** Google Chirp wasn't tested: billing in India needs a ₹500+ prepayment, and the owner chose Sarvam only.

@@ -973,7 +973,7 @@ const OUTCOME_LABEL = {
   rescheduled: "Moved", cancelled: "Cancelled", pending: "On hold for front desk", staff: "Wants a call from staff",
   busy: "Busy, call back", do_not_call: "Asked not to be called", wrong_person: "Wrong person answered",
   suspicious: "Unsure it was genuine", declined: "Declined the call", no_answer: "No answer", stale: "Already changed",
-  stopped: "Stopped", block_lifted: "Block lifted", abandoned: "Hung up", hung_up: "Hung up",
+  stopped: "Stopped", block_lifted: "Block lifted", abandoned: "Hung up", hung_up: "Hung up", retry: "Retrying",
   not_connected: "Didn't connect", interrupted: "Interrupted by a restart", gone: "Gone",
 };
 
@@ -1009,6 +1009,7 @@ async function loadRecovery() {
   renderBlocks(data.blocks || []);
   renderRunner(data.runner);
   renderCampaigns(data.campaigns || []);
+  renderWindows(data.windows || []);
   if (recovery.blockId && !(data.blocks || []).some((b) => b.id === recovery.blockId)) {
     recovery.blockId = null;
     renderPreview(null);
@@ -1139,10 +1140,17 @@ function renderRunner(runner) {
     badge.textContent = "Paused";
     badge.className = "badge warn";
     detail.textContent = `Waiting: ${runner.paused}.`;
+  } else if (runner.waiting && runner.waiting.queued) {
+    const w = runner.waiting;
+    badge.textContent = "Waiting";
+    badge.className = "badge info";
+    detail.textContent = `${w.queued} call(s) queued` + (w.next_retry ? `; next try ${fmtDateTime(w.next_retry)}` : "")
+      + (w.paused_campaigns ? `; ${w.paused_campaigns} campaign(s) paused` : "")
+      + `. Calls ring only ${runner.window} clinic time and inside each patient's own hours.`;
   } else {
     badge.textContent = "Ready";
     badge.className = "badge ok";
-    detail.textContent = `Calls are made one at a time, ${runner.window} clinic time, never while another call is on.`;
+    detail.textContent = `Calls are made one at a time, ${runner.window} clinic time, never while another call is on. Unanswered calls are tried again later.`;
   }
 }
 
@@ -1152,6 +1160,39 @@ function jobBadge(status) {
   return status === "skipped" ? "" : "warn";
 }
 
+function campaignButton(c, action, label, cls, confirmText) {
+  return el("button", {
+    class: `btn small ${cls}`, type: "button", text: label,
+    onclick: async () => {
+      if (confirmText && !await confirmAction(`${label} these calls?`, confirmText, `${label} calls`)) return;
+      try {
+        await api(`/dashboard/api/recovery/campaigns/${c.id}/${action}`, { method: "POST", body: {} });
+        loadRecovery();
+      } catch (err) { toast(err.message, "error"); }
+    },
+  });
+}
+
+function summaryText(c) {
+  const a = (c.summary || {}).appointments || {};
+  const k = (c.summary || {}).calls || {};
+  const parts = [];
+  if (a.moved) parts.push(`${a.moved} moved`);
+  if (a.cancelled) parts.push(`${a.cancelled} cancelled`);
+  if (a.needs_reschedule) parts.push(`${a.needs_reschedule} need a new time`);
+  if (k.retrying) parts.push(`${k.retrying} call${k.retrying === 1 ? "" : "s"} to retry`);
+  if (k.waiting) parts.push(`${k.waiting} waiting`);
+  if (k.skipped) parts.push(`${k.skipped} skipped`);
+  return parts.length ? parts.join(" · ") : "No results yet.";
+}
+
+function jobCallLabel(j) {
+  if (j.status === "queued" && j.next_attempt_at) {
+    return `Retry ${fmtDateTime(j.next_attempt_at)} (try ${j.attempts + 1} of ${Math.max(j.max_attempts, j.attempts + 1)})`;
+  }
+  return JOB_LABEL[j.status] || j.status;
+}
+
 function renderCampaigns(campaigns) {
   const box = $("campaign-list");
   if (!campaigns.length) {
@@ -1159,37 +1200,63 @@ function renderCampaigns(campaigns) {
     return;
   }
   box.replaceChildren(...campaigns.map((c) => {
-    const stop = c.status === "running" ? el("button", {
-      class: "btn small danger", type: "button", text: "Stop",
-      onclick: async () => {
-        if (!await confirmAction("Stop these calls?", "Calls still waiting won't be made. A call in progress finishes.", "Stop calls")) return;
-        try {
-          await api(`/dashboard/api/recovery/campaigns/${c.id}/stop`, { method: "POST", body: {} });
-          loadRecovery();
-        } catch (err) { toast(err.message, "error"); }
-      },
-    }) : null;
+    const running = c.status === "running";
+    const paused = running && Boolean(c.paused_at);
+    const controls = running ? [
+      paused ? campaignButton(c, "resume", "Resume", "primary") : campaignButton(c, "pause", "Pause", ""),
+      campaignButton(c, "stop", "Stop", "danger", "Calls still waiting won't be made. A call in progress finishes."),
+    ] : [];
     const head = el("div", { class: "card-head" },
       el("h4", { text: `${c.doctor} · started ${fmtDateTime(c.created_at)}` }),
-      el("span", { class: `badge ${c.status === "running" ? "warn" : c.status === "completed" ? "ok" : ""}`, text: c.status }),
-      stop);
+      el("span", {
+        class: `badge ${paused ? "warn" : running ? "warn" : c.status === "completed" ? "ok" : ""}`,
+        text: paused ? "paused" : c.status,
+      }),
+      ...controls,
+      el("a", { class: "btn small ghost", href: `/dashboard/api/recovery/campaigns/${c.id}.csv`, text: "Export CSV" }));
     const rows = c.jobs.map((j) => el("tr", {},
       el("td", { text: j.name || "–" }),
       el("td", { class: "num nowrap", text: j.phone_masked }),
       el("td", {}, ...j.appointments.map((a) => el("div", { class: "nowrap" },
         `${fmtDateTime(a.start)} · ${a.service} · ${a.doctor} `,
         el("span", { class: `badge ${a.status}`, text: STATUS_LABEL[a.status] || a.status })))),
-      el("td", {}, el("span", { class: `badge ${jobBadge(j.status)}`, text: JOB_LABEL[j.status] || j.status })),
+      el("td", {}, el("span", { class: `badge ${jobBadge(j.status)}`, text: jobCallLabel(j) })),
       el("td", { text: j.outcome ? (OUTCOME_LABEL[j.outcome] || j.outcome) : "–" }),
       el("td", {}, j.call_id && ["done", "failed"].includes(j.status) ? el("button", {
         class: "btn small ghost mono", type: "button", text: j.call_id,
         onclick: () => { showTab("calls"); openCall(j.call_id); },
       }) : "–")));
     const header = ["Patient", "Phone", "Appointments", "Call", "Result", "Transcript"].map((h) => el("th", { text: h }));
-    return el("div", { class: "campaign" }, head, el("div", { class: "table-wrap" }, el("table", {},
-      el("thead", {}, el("tr", {}, ...header)), el("tbody", {}, ...rows))));
+    return el("div", { class: "campaign" }, head, el("p", { class: "muted small", text: summaryText(c) }),
+      el("div", { class: "table-wrap" }, el("table", {},
+        el("thead", {}, el("tr", {}, ...header)), el("tbody", {}, ...rows))));
   }));
 }
+
+function renderWindows(windows) {
+  const tbody = $("window-rows");
+  if (!windows.length) {
+    tbody.replaceChildren(emptyRow(3, "No patient has their own calling hours."));
+    return;
+  }
+  tbody.replaceChildren(...windows.map((w) => el("tr", {},
+    el("td", { class: "num nowrap", text: w.phone_masked }),
+    el("td", { text: w.call_after || "–" }),
+    el("td", { text: w.call_before || "–" }))));
+}
+
+$("window-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await api("/dashboard/api/recovery/windows", {
+      method: "POST",
+      body: { phone: $("window-phone").value, after: $("window-after").value, before: $("window-before").value },
+    });
+    $("window-phone").value = $("window-after").value = $("window-before").value = "";
+    toast("Calling hours saved.");
+    loadRecovery();
+  } catch (err) { toast(err.message, "error"); }
+});
 
 // ------------------------------------------------------------------ start
 const refreshSoon = debounce(refreshOverview, 500);

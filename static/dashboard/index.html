@@ -235,6 +235,20 @@
         <p class="muted small" id="runner-detail"></p>
         <div id="campaign-list"></div>
       </div>
+      <div class="card">
+        <div class="card-head"><h3>Patients' calling hours</h3>
+          <span class="muted small">Recovery calls to this number only ring inside these hours (and the clinic's).</span></div>
+        <form class="toolbar" id="window-form">
+          <input type="tel" id="window-phone" placeholder="Phone number" aria-label="Phone number" required>
+          <label class="small">After <input type="time" id="window-after" aria-label="Call after"></label>
+          <label class="small">Before <input type="time" id="window-before" aria-label="Call before"></label>
+          <button class="btn" type="submit">Save</button>
+        </form>
+        <div class="table-wrap">
+          <table><thead><tr><th>Phone</th><th>Call after</th><th>Call before</th></tr></thead>
+            <tbody id="window-rows"></tbody></table>
+        </div>
+      </div>
     </section>
 
     <!-- System ------------------------------------------------------------>
