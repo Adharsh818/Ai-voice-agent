@@ -65,7 +65,7 @@ The same session also finishes **Phase E (evaluation hardening)** from plan sect
   - nothing is half-written after a crash;
   - held slots are freed at hang-up;
   - zero double bookings and zero actions without a heard yes.
-- Add a small drill tool to kill the server during a booking, then check the database with `PRAGMA integrity_check` and the slot claims, since that part is manual today.
+- Add a small drill tool to kill the server during a booking, then check the database with `PRAGMA integrity_check` and the slot claims, since that part is manual today. **Done:** `tools/crash_drill.py` (`evaluate.py --crash` puts its result in EVALUATION.md section 4).
 
 ### E3: Operations
 - **Daily SQLite backup** (`tools/backup.py`): uses SQLite's online `.backup` API (safe while Emma runs). It writes `backups/emma-YYYYMMDD.db`, keeps 14, and verifies each copy with `integrity_check`. There's also `--restore <file>`, which requires Emma to be stopped.

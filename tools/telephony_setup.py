@@ -89,9 +89,15 @@ def render(values: dict) -> dict:
         "SIP_1001_PASSWORD": values["TELEPHONY_SIP_PASSWORD_1001"],
         "SIP_1002_PASSWORD": values["TELEPHONY_SIP_PASSWORD_1002"],
         "CALLER_NUMBER": values["TELEPHONY_CALLER_NUMBER"],
-        "SIP_BIND": values.get("TELEPHONY_SIP_BIND") or "127.0.0.1",
         "LAN_PERMIT": "",
+        "LAN_TRANSPORT": "",
+        "PHONE_TRANSPORT": "transport-local",
     }
+    bind = values.get("TELEPHONY_SIP_BIND") or "127.0.0.1"
+    if bind != "127.0.0.1":
+        mapping["LAN_TRANSPORT"] = ("\n; The mobile's softphone, on the Wi-Fi\n[transport-lan]\ntype=transport\n"
+                                    f"protocol=udp\nbind={bind}:5060\n")
+        mapping["PHONE_TRANSPORT"] = "transport-lan"
     if values.get("TELEPHONY_SIP_SUBNET"):
         net = ipaddress.ip_network(values["TELEPHONY_SIP_SUBNET"], strict=False)
         mapping["LAN_PERMIT"] = f"permit = {net.network_address}/{net.netmask}"
@@ -154,9 +160,10 @@ def main(argv=None) -> int:
             fh.write(text)
     print(f"Rendered {', '.join(configs)} into {BUILD.relative_to(ROOT)}/")
     server = values.get("TELEPHONY_SIP_BIND") or "127.0.0.1"
-    print(f"\nSoftphone accounts (server {server}, port 5060, UDP):")
-    print(f"  1001 (caller / patient)  password {values['TELEPHONY_SIP_PASSWORD_1001']}")
-    print(f"  1002 (front desk)        password {values['TELEPHONY_SIP_PASSWORD_1002']}")
+    print("\nSoftphone accounts (port 5060, UDP):")
+    print(f"  1001 (caller / patient)  server {server:<15}  password {values['TELEPHONY_SIP_PASSWORD_1001']}")
+    print(f"  1002 (front desk)        server 127.0.0.1        password {values['TELEPHONY_SIP_PASSWORD_1002']}")
+    print("  MicroSIP on this PC: set Settings > Source Port to 5070 (Asterisk owns 5060).")
     print("\nNext, in Ubuntu (WSL2):  sudo bash /mnt/a/Voice-Agent/telephony/install_asterisk.sh")
     print("Then restart Emma, and dial 100 from 1001.")
     return 0

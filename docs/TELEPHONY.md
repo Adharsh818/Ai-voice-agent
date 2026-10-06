@@ -60,7 +60,7 @@ Emma always sends `0x10` (8 kHz), which every AudioSocket build accepts.
 
 ## Setup (once)
 
-1. **WSL2 + Ubuntu** (admin PowerShell, then reboot): `wsl --install -d Ubuntu-24.04`. Open Ubuntu once and create the Linux user.
+1. **WSL2 + Ubuntu** (admin PowerShell, then reboot): `wsl --install -d Ubuntu-24.04`. Open Ubuntu once and create the Linux user. If it stops with "Not enough memory resources are available", close large apps and use `wsl --install --web-download -d Ubuntu-24.04` (that worked on 6 Oct). It takes about 3 GB of disk; Ubuntu with Asterisk uses about 0.3-0.5 GB of memory while running.
 2. **Mirrored networking**, so Asterisk in WSL and Emma on Windows reach each other on `127.0.0.1`: create `%UserProfile%\.wslconfig` containing
    ```ini
    [wsl2]
@@ -69,7 +69,7 @@ Emma always sends `0x10` (8 kHz), which every AudioSocket build accepts.
    then run `wsl --shutdown` (WSL restarts on next use).
 3. **Settings and configs** (Windows, in the repo): `.\.venv\Scripts\python.exe tools\telephony_setup.py`. It adds the telephony settings to `.env` (only missing ones, with generated secrets), renders `telephony/build/`, and prints the two softphone passwords.
 4. **Asterisk** (Ubuntu): `sudo bash /mnt/a/Voice-Agent/telephony/install_asterisk.sh`. It installs Asterisk 20 LTS from Ubuntu, checks for AudioSocket, CURL and PJSIP, and installs the configs (keeping the originals).
-5. **Softphones**: MicroSIP (or Zoiper) on Windows. Account 1001, domain/server `127.0.0.1`, password from step 3, UDP. A second account or app for 1002 (front desk) is only needed to answer transfers.
+5. **Softphones**: MicroSIP (or Zoiper) on Windows. Account 1001, domain/server `127.0.0.1`, password from step 3, UDP. A second account or app for 1002 (front desk) is only needed to answer transfers. **In MicroSIP set Settings > Source Port to 5070**: by default it takes UDP 5060 itself, and with mirrored networking Windows and Ubuntu share ports, so Asterisk's transport fails with "Address already in use".
 6. **Restart Emma.** The log shows `AudioSocket listening on 127.0.0.1:9092`.
 7. **Call:** from 1001 dial **100**.
 
@@ -85,10 +85,16 @@ Free and with no phone number: a SIP app on your phone calls Emma over the same 
    New-NetFirewallRule -DisplayName "Emma SIP (Wi-Fi only)" -Direction Inbound -Protocol UDP -LocalPort 5060,10000-10200 -RemoteAddress 192.168.1.0/24 -Action Allow
    New-NetFirewallHyperVRule -Name EmmaSIP -DisplayName "Emma SIP (Wi-Fi only)" -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol UDP -LocalPorts 5060,10000-10200 -RemoteAddresses 192.168.1.0/24 -Action Allow
    ```
-5. **On the phone**: Linphone (free, open source) or Zoiper. Account: username `1001`, password from step 2, domain/server = the PC's Wi-Fi address, transport UDP. On the PC, MicroSIP as `1002` (the front desk, for transfers).
+5. **On the phone**: Linphone (free, open source) or Zoiper; choose "third-party SIP account", not a Linphone account. Account: username `1001`, password from step 2, domain/server = the PC's Wi-Fi address, transport **UDP** (Linphone defaults to TLS). On the PC, MicroSIP as `1002` (the front desk, for transfers) at **`127.0.0.1`**, source port 5070: in mirrored mode Windows can't reach Ubuntu through the PC's own Wi-Fi address, so `pjsip.conf` keeps a loopback line for the PC (`transport-local`) beside the Wi-Fi line (`transport-lan`), and pins 1001 and 1002 to them.
 6. **Call**: dial `100` on the phone. Emma answers; extension 1001 shows the demo caller ID (98450 22222), so she offers "Is the number you're calling from the best one to reach you on?".
 
-If the phone can't register: check both are on the same Wi-Fi (not a guest network that isolates devices), that the address printed in step 2 is the PC's current one, and `asterisk -rx "pjsip show contacts"` in Ubuntu.
+If the phone can't register: check both are on the same Wi-Fi (not a guest network that isolates devices), that the address printed in step 2 is the PC's current one, and `asterisk -rx "pjsip show contacts"` in Ubuntu. `asterisk -rx "pjsip set logger on"` shows every SIP message (a `401` then `200 OK` to a REGISTER is a good login). A phone's own hotspot works too: the PC joins it, and the phone reaches the PC on the hotspot network (keep mobile data on; it is the PC's internet).
+
+### First real call, 6 Oct 2026
+
+On a OnePlus phone's hotspot (PC 10.49.155.171, phone 10.49.155.12), Linphone as 1001 and MicroSIP as 1002 both registered; dialling 100 reached Emma with the caller ID, and she took the call through the name and the caller-ID question. The owner: "it is working pretty well"; Emma cut them off once (to look at). Two fixes it needed, both now in the repo:
+- `modules.conf` loaded everything the Ubuntu package ships (357 modules). Voicemail over IMAP, LDAP and database drivers waited on servers that don't exist, so Asterisk never reported ready and systemd timed out. It now loads only the ~60 modules Emma uses (`autoload = no`) and starts in about a second.
+- MicroSIP held port 5060, and Windows couldn't reach Asterisk through the Wi-Fi address: see steps 5 above.
 
 ## Checks
 

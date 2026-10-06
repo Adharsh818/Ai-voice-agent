@@ -23,7 +23,7 @@ caller audio ─> Deepgram Nova-3 (en-IN) ─> voice-activity + turn detector �
 
 1. **Python decides, the model only talks.** The LLM never books, cancels or states a fact on its own: it proposes wording; Python checks every slot, name, price and doctor against the database before anything is said. *Why:* LLMs hallucinate and can be talked into things; a clinic can't have either. Result: zero safety failures over 800 simulated calls.
 2. **One clear yes to a heard summary.** Nothing is committed without a yes to a summary that played to the end (the "recap-heard rule"; interrupted summaries don't count).
-3. **The database prevents double booking, not the code.** One row per doctor per 15-minute cell under a primary key, holds with expiry, idempotency keys for retries. Races can't produce two bookings.
+3. **The database prevents double booking, not the code.** One row per doctor per 30-minute cell under a primary key, holds with expiry, idempotency keys for retries. Races can't produce two bookings.
 4. **Works without the model.** Tier-0 rules handle names, numbers, yes/no, dates and plain requests; if Gemini is slow or down, Emma carries on with her own rules and lines (100% bookings completed with the model off).
 5. **Sounds like a person.** Short varied lines, implicit confirmations ("Neha Kapoor, got it."), the number read back in groups, typing sounds when she writes something down, no background bed, barge-in that stops her instantly.
 6. **Listening tuned on real recordings.** End of turn is decided from the caller's voice level and the words (not the recogniser's timing alone), measured on the owner's recordings: cut-off lines fell from 5 to 1 (headset) and 11 to 2 (laptop).

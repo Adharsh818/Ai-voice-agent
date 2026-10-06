@@ -1,5 +1,7 @@
 """Phase E operations: database backups (tools/backup.py) and log rotation (latency.LatencyLog)."""
 
+import contextlib
+import io
 import json
 import os
 import sqlite3
@@ -12,7 +14,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
 import backup  # noqa: E402
+import clock  # noqa: E402
 import config  # noqa: E402
+import crash_drill  # noqa: E402
+import db  # noqa: E402
+import scheduling  # noqa: E402
 from dialogue.testing import DemoClinic  # noqa: E402
 from latency import LatencyLog, TurnTimer  # noqa: E402
 
@@ -66,6 +72,55 @@ class BackupTests(unittest.TestCase):
         conn.commit()
         conn.close()
         self.assertTrue(any("slot claims" in p for p in backup.check(str(copy))))
+
+
+class CrashDrillTests(unittest.TestCase):
+    """tools/crash_drill.py: the writer is killed for real; the checks must also catch a broken database."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.path = crash_drill.prepare(Path(self.tmp.name), None)
+        self.conn = db.connect(self.path)
+
+    def tearDown(self):
+        self.conn.close()
+        self.tmp.cleanup()
+
+    def op(self, call_id="drill-t-1"):
+        slot = scheduling.find_slots(self.conn, service="Consultation",
+                                     dates=[clock.now().date() + timedelta(days=3)], limit=1)[0]
+        return {"kind": "book", "idem": f"{call_id}:x", "call_id": call_id, "service": slot.service,
+                "doctor_id": slot.doctor_id, "start": slot.start.isoformat(), "name": "Drill Patient",
+                "phone": "+919812345678"}
+
+    def test_killed_writers_leave_a_consistent_database(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = crash_drill.main(["--rounds", "3", "--seed", "5"])
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertIn("RESULT: PASS", out.getvalue())
+
+    def test_a_request_committed_before_the_kill_is_replayed_on_retry(self):
+        op = self.op()
+        self.assertTrue(crash_drill._apply(self.conn, op).ok)        # committed, never reported
+        problems, outcome = crash_drill.check_round(self.conn, [], op)
+        self.assertEqual(problems, [])
+        self.assertIn("committed before the kill", outcome)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM appointments WHERE created_by_call_id = ?",
+                                           (op["call_id"],)).fetchone()[0], 1)
+
+    def test_a_half_written_request_is_reported(self):
+        op = self.op()
+        self.conn.execute("INSERT INTO actions VALUES (?, 'book', ?, '2026-10-06T00:00:00Z')",
+                          (op["idem"], json.dumps({"ok": True, "code": "OK"})))
+        problems, _ = crash_drill.check_round(self.conn, [], op)
+        self.assertTrue(any("half written" in p for p in problems), problems)
+
+    def test_a_lost_cancellation_is_reported(self):
+        appt = self.conn.execute("SELECT id FROM appointments WHERE status = 'booked' LIMIT 1").fetchone()[0]
+        done = [{"kind": "cancel", "ok": True, "idem": "drill-t-2:x", "appointment_id": appt}]
+        problems, _ = crash_drill.check_round(self.conn, done, None)
+        self.assertTrue(any("missing" in p for p in problems) and any("lost" in p for p in problems), problems)
 
 
 class RotationTests(unittest.TestCase):
