@@ -602,6 +602,15 @@ async def _advance_reschedule(ctx, u, confirmation, rt, result, heard) -> Action
     if search:
         m.chosen = None
         await _search(ctx, rt, result)
+        first = m.offered[0] if m.offered else None
+        dc, tc = m.new_date_c, m.new_time_c
+        if first is not None and dc is not None and dc.exact and tc is not None and tc.kind == "exact" \
+                and first.start.date() == dc.start and first.start.time() == tc.start:
+            # The exact new time asked for is free: straight to the move's
+            # read-back, one yes instead of two (owner's decision, 7 Oct).
+            m.chosen, m.offered = first, []
+            await _release(rt, keep=(first.hold_id,) if first.hold_id else ())
+            result.notices.append(Notice("exact.free", covered_by=("free",)))
     return result
 
 

@@ -587,7 +587,7 @@ Every stage ends with its exit tests green. Tests run after every step.
 - [x] **3.2** Emergency (urgent + red flag), human/callback, language, abuse, bot question, don't-keep request. **Superseded, done in** R2.6 (`dialogue/handlers.py`).
 - [x] **3.3** No-dead-end fuzz test across all states. **Superseded, done in** the harness: M3/M10 on 200-call sims per seed, with and without the model (`python -m harness run sim`).
 - [x] **3.4** `playout.py`; recap-heard rule; backchannel filter; silence ladder; max length; call gate; hang-up handling. **Superseded, done in** R3.7; the playout is `speech.Speaker` (turn-tagged audio, flush on barge-in) rather than a separate `playout.py`.
-- [x] **3.5** Deepgram reconnect; TTS chain with Piper (voice chosen by user) and a Piper prompt cache. **Superseded, done in** R3.7 (Deepgram reconnect, `tts_piper.py` + its prompt cache). Piper voice: `en_GB-cori-medium` by default; **owner to confirm** from the samples in `captures/piper_samples/`.
+- [x] **3.5** Deepgram reconnect; TTS chain with Piper (voice chosen by user) and a Piper prompt cache. **Superseded, done in** R3.7 (Deepgram reconnect, `tts_piper.py` + its prompt cache). Piper voice: `en_GB-cori-medium`, confirmed by the owner on 7 Oct.
 - [x] **3.6** Flux spike, **time-boxed to 4 h**: `stt_flux.py` adapter behind the same callbacks, then replay the test set through both. **Switch only if** end-of-turn p50 improves ≥ 300 ms with no more than 1 extra misrecognised slot value on the set. Otherwise tune Nova-3 (endpointing / UtteranceEnd / holds) using the Day 0 diagnostics. **Superseded, done in** R3.4 (Flux replaced by the STT bake-off on the owner's recordings).
 
 **Exit:**

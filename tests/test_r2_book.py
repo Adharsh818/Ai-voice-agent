@@ -245,8 +245,9 @@ class BranchTests(BookTestCase):
     def test_branch_any_searches_every_branch_that_offers_it(self):
         call = self.call().given()
         call.turn(U(service="Braces", branch_any=True, date_phrase="Monday", time_phrase="4 pm"))
-        self.assertEqual(call.goal, Goal.OFFER_SLOTS)
-        self.assertTrue({s.branch for s in call.ctx.book.offered} <= {"Indiranagar", "Whitefield"})
+        # Monday at 4 is free somewhere: straight to the summary (owner, 7 Oct).
+        self.assertEqual(call.goal, Goal.SUMMARY)
+        self.assertIn(call.ctx.book.chosen.branch, {"Indiranagar", "Whitefield"})
 
 
 # ---------------------------------------------------------------- doctors (criterion 5)
@@ -267,9 +268,9 @@ class DoctorTests(BookTestCase):
         self.assertIn("Dr Shetty", said)
         self.assertIsNone(b.doctor_id)
         self.assertIsNone(b.unknown_doctor)                   # said once, then cleared
-        self.assertEqual(call.goal, Goal.OFFER_SLOTS)         # searched without a doctor filter
-        self.assertEqual(b.offered[0].start.time(), time(18, 0))
-        call.turn(U(choice_index=1))
+        self.assertEqual(call.goal, Goal.SUMMARY)             # searched without a doctor filter; 6 is free
+        self.assertEqual(b.chosen.start.time(), time(18, 0))
+        call.turn(confirmation="yes")
         self.assertNotIn("doctor.unknown", call.notice_ids())
 
     def test_an_unknown_doctor_before_the_service_is_said_once_the_service_is_known(self):
@@ -352,7 +353,7 @@ class DetailTests(BookTestCase):
         self.assertEqual(call.goal, Goal.ASK_BRANCH)
         call.turn(U(branch="Whitefield"))
         call.turn(U(date_phrase="Monday", time_phrase="10 am"))
-        call.turn(U(choice_index=1))
+        self.assertEqual(call.goal, Goal.SUMMARY)                   # 10 is free: straight to the summary
         self.assertIn("Aarav", call.text)
         call.turn(confirmation="yes")
         self.assertEqual(call.result.action, "booked")
@@ -366,8 +367,8 @@ class DetailTests(BookTestCase):
         self.assertIsNone(call.ctx.book.date_c)
         self.assertEqual(call.goal, Goal.ASK_WHEN)
         call.turn(U(date_phrase="November 23"))
-        self.assertEqual(call.goal, Goal.OFFER_SLOTS)
-        self.assertEqual(call.ctx.book.offered[0].start.time(), time(17, 0))
+        self.assertEqual(call.goal, Goal.SUMMARY)
+        self.assertEqual(call.ctx.book.chosen.start.time(), time(17, 0))
 
     def test_seven_is_resolved_before_searching(self):
         call = self.call().given()
@@ -376,7 +377,7 @@ class DetailTests(BookTestCase):
         self.assertEqual(call.holds(), [])
         call.turn(U(time_phrase="in the evening"))
         self.assertEqual(call.ctx.book.time_c.start, time(19, 0))
-        self.assertEqual(call.goal, Goal.OFFER_SLOTS)
+        self.assertEqual(call.goal, Goal.SUMMARY)                  # 7 pm is free: no separate offer
 
     def test_a_day_without_a_time_asks_the_time_of_day(self):
         call = self.call().given()
@@ -423,12 +424,16 @@ class OfferTests(BookTestCase):
         self.assertEqual([h["id"] for h in call.holds()], [second.hold_id])
         self.assertEqual(call.goal, Goal.SUMMARY)
 
-    def test_yes_to_a_single_exact_offer_takes_it(self):
+    def test_a_free_exact_time_goes_straight_to_the_summary(self):
+        # Owner's decision, 7 Oct (T5): no "Monday at 11 is free, shall I take that?" before the summary.
         call = self.call().given()
         call.turn(U(service="General Check-up", branch="Nagarbhavi", date_phrase="Monday", time_phrase="at 11"))
-        self.assertEqual(call.plan.line, "offer.exact")
+        self.assertEqual(call.plan.line, "summary")
+        self.assertIn("exact.free", call.notice_ids())
+        self.assertEqual(call.ctx.book.chosen.start.time(), time(11, 0))
+        self.assertEqual(len(call.holds()), 1)                      # only the chosen slot stays held
         call.turn(confirmation="yes")
-        self.assertEqual(call.goal, Goal.SUMMARY)
+        self.assertEqual(call.result.action, "booked")
 
     def test_a_new_day_while_slots_are_on_offer_searches_again(self):
         call = self.call().given()
@@ -547,7 +552,8 @@ class CommitTests(BookTestCase):
         self.to_summary(call)
         call.turn(U(date_phrase="Tuesday", time_phrase="5 pm"), confirmation="yes")
         self.assertIsNone(call.result.action)
-        self.assertEqual(call.goal, Goal.OFFER_SLOTS)
+        self.assertEqual(call.goal, Goal.SUMMARY)                   # a new summary for Tuesday at 5
+        self.assertEqual(call.ctx.book.chosen.start.time(), time(17, 0))
 
     def test_yes_only_counts_as_the_answer_to_the_summary(self):
         call = self.call().given()
@@ -563,7 +569,7 @@ class CommitTests(BookTestCase):
         call.turn(confirmation="no")
         self.assertEqual(call.goal, Goal.WHAT_TO_CHANGE)
         call.turn(U(date_phrase="Tuesday", time_phrase="5 pm"))
-        self.assertEqual(call.goal, Goal.OFFER_SLOTS)
+        self.assertEqual(call.goal, Goal.SUMMARY)
 
     def test_the_same_version_committed_twice_makes_one_appointment(self):
         call = self.call().given()
