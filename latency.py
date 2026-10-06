@@ -43,6 +43,11 @@ class AudioClock:
         self._secs.append(self._bytes / self.bytes_per_second)
         self._walls.append(time.perf_counter() if wall is None else wall)
 
+    @property
+    def seconds(self) -> float:
+        """How much caller audio has arrived so far."""
+        return self._bytes / self.bytes_per_second
+
     def wall_at(self, audio_sec: Optional[float]) -> Optional[float]:
         """Wall time at which audio position `audio_sec` had arrived, or None."""
         if audio_sec is None or not self._secs:

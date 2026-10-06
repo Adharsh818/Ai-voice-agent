@@ -63,10 +63,26 @@ WATCHDOG_S = 1.0
 # heard so far deserve (watchdog_for(text) -> seconds): a complete answer to
 # Emma's question ends sooner; anything unfinished keeps the full wait.
 WATCHDOG_MIN_S = 0.3
+# With a voice detector (quiet_for), the watchdog ends a turn only once the
+# caller has actually been quiet for the estimate above and the words have
+# stopped changing for a moment; noise that never lets the line go quiet ends
+# it after WATCHDOG_MAX_S of unchanged words. The 6 Oct replay of the owner's
+# test lines: words-only timing cut 5-10 of 30 lines in half.
+WATCHDOG_STABLE_S = 0.25
+WATCHDOG_MAX_S = 2.0
+# Deepgram's words trail the audio: the line can go quiet before the last word
+# has been recognised ("I need a root" ... "canal"). With voice_until (the audio
+# position where the caller last made a sound) the watchdog also waits until
+# the words reach that point, give or take this much.
+WORDS_COVER_MARGIN_S = 0.3
 
 
 def _term_key(term: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", (term or "").lower())
+
+
+def _term_key_words(text: str) -> list:
+    return [w for w in (_term_key(t) for t in (text or "").split()) if w]
 
 
 def _accepts_start(callback) -> bool:
@@ -102,6 +118,8 @@ class DeepgramSTT:
         watchdog_s: float = WATCHDOG_S,
         keyterms: Optional[list] = None,
         watchdog_for: Optional[Callable[[str], float]] = None,
+        quiet_for: Optional[Callable[[], float]] = None,
+        voice_until: Optional[Callable[[], Optional[float]]] = None,
     ):
         self.api_key = api_key
         self.on_transcript = on_transcript
@@ -114,6 +132,8 @@ class DeepgramSTT:
         self.utterance_end_ms = utterance_end_ms
         self.watchdog_s = watchdog_s
         self.watchdog_for = watchdog_for
+        self.quiet_for = quiet_for
+        self.voice_until = voice_until
         self.keyterms = list(keyterms or [])
         self._pass_start = bool(on_utterance_end) and _accepts_start(on_utterance_end)
 
@@ -328,6 +348,24 @@ class DeepgramSTT:
                 if not self._closing:
                     self._schedule_reconnect("socket closed")
 
+    def _drop_reported_words(self, words: list, transcript: str) -> tuple:
+        """
+        A result that starts with words already handed over (the watchdog sent
+        "I need a root" from the interim; the final is "I need a root canal.")
+        keeps only the new words, so the caller's sentence isn't heard twice.
+        """
+        if not words or self._last_emitted_end is None:
+            return words, transcript
+        # A word is new if it starts after what was handed over ended. Deepgram's
+        # final timings differ from the interim's by tens of ms, so comparing ends
+        # let "that?" through twice ("Sorry. Can you repeat that?" | "that?").
+        cut = self._last_emitted_end - 0.1
+        keep = [w for w in words if w.get("start") is None or w["start"] + self._offset_sec > cut]
+        if len(keep) == len(words):
+            return words, transcript
+        text = " ".join((w.get("punctuated_word") or w.get("word") or "") for w in keep).strip()
+        return keep, text
+
     def _already_reported(self, words: list) -> bool:
         """True when these words end no later than the last utterance already reported."""
         if not words or self._last_emitted_end is None:
@@ -346,6 +384,9 @@ class DeepgramSTT:
         words = alternatives[0].get("words") or []
         if self._already_reported(words):
             logger.debug("Deepgram re-sent audio already reported: %r", transcript)
+            return
+        words, transcript = self._drop_reported_words(words, transcript)
+        if not transcript:
             return
 
         is_final = data.get("is_final", False)
@@ -391,10 +432,38 @@ class DeepgramSTT:
             while not self._closing:
                 await asyncio.sleep(0.1)
                 pending = self._current_utterance or self._interim_tail
-                if pending and time.monotonic() - self._last_change >= self._watchdog_limit():
+                if pending and self._watchdog_due(time.monotonic() - self._last_change):
                     await self._emit_utterance("watchdog")
         except asyncio.CancelledError:
             pass
+
+    def _watchdog_due(self, stable_s: float) -> bool:
+        """Words unchanged for `stable_s`: is the caller done?"""
+        if self.quiet_for is None:
+            return stable_s >= self._watchdog_limit()
+        if stable_s >= WATCHDOG_MAX_S:
+            return True
+        try:
+            quiet = float(self.quiet_for())
+        except Exception as exc:             # a broken detector falls back to words only
+            logger.debug("quiet_for failed: %s", exc)
+            return stable_s >= self._watchdog_limit()
+        if not (stable_s >= WATCHDOG_STABLE_S and quiet >= self._watchdog_limit()):
+            return False
+        return self._words_cover_voice()
+
+    def _words_cover_voice(self) -> bool:
+        """The recognised words reach the point where the caller's voice stopped."""
+        if self.voice_until is None:
+            return True
+        try:
+            voice_end = self.voice_until()
+        except Exception:
+            return True
+        words_end = max((x for x in (self._last_word_end, self._interim_end) if x is not None), default=None)
+        if voice_end is None or words_end is None:
+            return True
+        return words_end >= voice_end - WORDS_COVER_MARGIN_S
 
     def _watchdog_limit(self) -> float:
         """Seconds of unchanged words that end the turn: the session's estimate for these words, if any."""
@@ -422,13 +491,25 @@ class DeepgramSTT:
         self._utterance_start = None
         if not text:
             return
+        if self._repeats_last(text):
+            logger.debug("Deepgram repeated the end of the last utterance: %r", text)
+            return
         if end_sec is not None:
             self._last_emitted_end = end_sec
+        self._last_emitted = (_term_key_words(text), time.monotonic())
         if self.on_utterance_end:
             if self._pass_start:
                 await self.on_utterance_end(text, end_sec, source, start_sec=start_sec)
             else:
                 await self.on_utterance_end(text, end_sec, source)
+
+    def _repeats_last(self, text: str) -> bool:
+        """One or two words that only repeat the end of what was just handed over ("that?")."""
+        last = getattr(self, "_last_emitted", None)
+        words = _term_key_words(text)
+        if not last or not words or len(words) > 2 or time.monotonic() - last[1] > 1.5:
+            return False
+        return last[0][-len(words):] == words
 
     def reset_utterance(self):
         """Reset the current utterance buffer."""

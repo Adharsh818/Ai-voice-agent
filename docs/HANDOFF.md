@@ -7,9 +7,21 @@ Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_
 
 ---
 
+## 0000. 6 Oct morning: the owner's recordings, and listening fixed
+
+The owner recorded the 30 test lines twice (headset; laptop speakers), in `captures/` (git-ignored). `tools/replay.py` streams a recording through the live listening pipeline in real time and counts lines cut in half and the wait after the last word.
+
+- **Finding:** cut-offs came from ending turns on Deepgram's transcript timing (words arrive late and in bursts). Day 6's quicker watchdog made it worse (10 of 30 lines cut on the headset): replaced.
+- **Fix:** `vad.py` measures the caller's microphone level. A turn ends only once the line is really quiet and the recognised words reach the point where the voice stopped; a held turn stays open while the caller is audible; words Deepgram sends twice are dropped.
+- **Result (cut lines, wait after last word p50/p90):** headset 5 -> 1, 1.30/1.80 s -> 0.92/1.01 s; laptop speakers 11 -> 2, 0.87/1.88 s -> 0.80/0.91 s.
+- **Recogniser:** Nova-3 stays (Nova-2 en-IN mangles branch names). Both mishear "Adharsh"; ordinals like "the twenty sixth" and "seven in the evening" were misheard once each, so Emma's read-backs matter.
+- `DEV_CAPTURE_AUDIO` is back to false. 880 tests pass.
+
+---
+
 ## 000. 6 Oct, Day 6: latency pass and fault drills
 
-- **Latency (6.1).** The 5 Oct R2 voice calls show end-of-speech detection, not the model, as the biggest wait: p50 1.6 s, because Deepgram sent `speech_final` on only about a third of turns and the rest waited for the 1 s STT watchdog. The watchdog now asks the turn detector how complete the words are (complete answer 0.35 s, likely 0.6 s, default 0.8 s, unfinished 1 s). Replayed on those calls: end of speech p50 1.6 -> 1.3 s, perceived p50 2.1 -> 1.8 s. Gemini's first chunk has a floor of about 1.05 s however small the request (now about 1.3 s), so the brief stays as it is. **Check in the morning's voice test**: replies to "yes", numbers and dates should feel quicker; tell me if Emma now cuts you off.
+- **Latency (6.1).** The 5 Oct R2 voice calls show end-of-speech detection, not the model, as the biggest wait: p50 1.6 s, because Deepgram sent `speech_final` on only about a third of turns and the rest waited for the 1 s STT watchdog. The watchdog now asks the turn detector how complete the words are (complete answer 0.35 s, likely 0.6 s, default 0.8 s, unfinished 1 s). (Superseded the same morning: on real recordings this cut more lines; see section 0000.) Gemini's first chunk has a floor of about 1.05 s however small the request (now about 1.3 s), so the brief stays as it is. **Check in the morning's voice test**: replies to "yes", numbers and dates should feel quicker; tell me if Emma now cuts you off.
 - **Fault drills (6.2), automated** in `tests/test_fault_drills.py`. Two real fixes: a hang-up now frees the offered slots at once (they stayed held for 5 minutes), and a booking being written when the caller hangs up finishes and is recorded as `booked_hangup`. Gemini-off drill (200 calls): safety checks all 0, bookings 97%, dead ends 2.0% after fixing "It's on the 13th, and..." / "...move it to the 20th" being checked against the 20th. Correction acknowledgements now use Emma's words ("Okay, around 6 instead") and no longer say "Sure, 6:30 it is" before offering another time.
 - **Regression (6.3).** 872 tests, 53/53 scripted scenarios, and 200 fake-model calls all pass on R2 (Z1-Z7 0, M7 100%, M10 0%); T5 is still 10 vs 9 (owner's call).
 - **Fix list for the rehearsal:** live drills (ElevenLabs quota, a Deepgram drop, closing the tab mid-call), the latency gate (Tier-0 p50 about 1.6 s vs 0.9 s; needs the recordings to see why `speech_final` rarely fires), T5.

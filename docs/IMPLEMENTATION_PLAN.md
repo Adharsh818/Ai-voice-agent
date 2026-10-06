@@ -124,7 +124,7 @@ Full design, interfaces and traceability: [R2_DESIGN.md](R2_DESIGN.md). Scored a
 - **Degradation:** with Gemini off, every scenario still reaches an outcome on Tier-0 and pre-written lines.
 
 ### 0.5 R3: Listen like a local (3 Oct; replaces Flux spike 3.6; needs your recordings and accounts)
-- [ ] **R3.1** Diagnose each reported symptom (R9) from the Day 0 endpoint diagnostics and your captures:
+- [x] **R3.1** Diagnose each reported symptom (R9) from the Day 0 endpoint diagnostics and your captures: **Done 6 Oct on the owner's two takes (headset, laptop speakers), with `tools/replay.py`:** the cut-offs came from ending turns on transcript timing. Deepgram's words arrive 0.5-1 s late and in bursts, so "the words stopped changing" fired mid-sentence (5 of 30 lines cut on the headset, 11 on laptop speakers with the old 1 s watchdog; 10 on the headset with the 6 Oct per-words watchdog, since reverted). Fix: `vad.py` (microphone level) ends a turn only on real quiet, once the words reach where the voice stopped, and keeps a held turn open while the caller is still audible; repeated words are dropped. Result: 1 and 2 lines cut, last word -> turn p50 0.92 s / 0.80 s, p90 1.0 s / 0.9 s (was p90 1.8-1.9 s).
   - **Cut-offs:** `speech_final` firing on natural mid-sentence pauses.
   - **Long waits:** the `utterance_end` fallback plus holds.
   - **Not heard:** the echo filter dropping real answers that repeat Emma's words, browser noise suppression, or the 2 s pre-connect buffer.
@@ -134,7 +134,7 @@ Full design, interfaces and traceability: [R2_DESIGN.md](R2_DESIGN.md). Scored a
   - Wait up to 2 s when it's clearly unfinished (trailing "and", "so", "my number is", partial digits).
   - Tune on your recordings; measure the cut-off rate and end-of-turn p50 before and after.
 - [x] **R3.3** Echo filter only while Emma's audio is actually audible, with stricter overlap, so a caller repeating her words ("yes, Monday at 5") is never dropped. Review the browser `noiseSuppression` / `autoGainControl` settings. Fix the microphone resampler (moved up from Day 4.5).
-- [ ] **R3.4** STT bake-off (R10) with adapters behind the same callbacks: Nova-3 (baseline), Nova-2 Indian English, Google Chirp en-IN streaming, Sarvam streaming.
+- [ ] **R3.4** STT bake-off (R10) with adapters behind the same callbacks: Nova-3 (baseline), Nova-2 Indian English, Google Chirp en-IN streaming, Sarvam streaming. **Partly done 6 Oct:** Nova-3 vs Nova-2 en-IN on the owner's takes with the clinic keyterms: Nova-2 is about 0.1 s quicker but gets branch names wrong ("Jana girl", "Jain Agar") and can't use keyterms; **Nova-3 stays.** Both miss "Adharsh" (heard as "Adesh" or dropped; Emma's spell-back handles it). Chirp and Sarvam not tried (no accounts). Watch-outs: "the twenty sixth" heard as "the twentieth, sixth" or "twenty eighth", and "seven in the evening" once as "morning": Emma's read-back is the safeguard.
   - Score word errors, names, phone digits, dates/times, end-of-turn latency and dropped utterances on your recordings.
   - Switch if a candidate is clearly better on names and digits without adding more than 200 ms.
   - Check each provider's current streaming model names and languages during the test.

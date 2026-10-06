@@ -75,6 +75,7 @@ import config
 import phones
 import phrases
 import turn_detector
+import vad
 from capture import CallCapture
 from latency import AudioClock, LatencyLog, TurnTimer
 from speech import Speaker, PromptCache, drop_repeats, split_sentences, strip_opener
@@ -500,6 +501,10 @@ class CallSession:
         self.s = state if state is not None else self._new_session()
         self._set_heard(True)
         self.clock = AudioClock(16000)
+        # Is the caller making sound right now (vad.py): ends turns on real
+        # silence and keeps a held turn open while they are still talking.
+        self.vad = vad.VoiceActivity()
+        self._voice_audio_end: Optional[float] = None   # audio position (s) of the caller's last sound
         self.speaker = Speaker(transport, services.cache, services.tts, services.fallback_tts,
                                services.backup_tts)
         self.stt = None
@@ -626,6 +631,8 @@ class CallSession:
             on_speech_started=self._on_speech_started,
             on_connection_lost=self._on_stt_lost,
             watchdog_for=self._watchdog_for,
+            quiet_for=self.vad.quiet_for,
+            voice_until=lambda: self._voice_audio_end,
         )
         # The greeting plays from the prompt cache while both sockets open.
         if not self.listen_only:
@@ -664,7 +671,7 @@ class CallSession:
     # How long the recogniser's watchdog waits on unchanged words, by what they
     # are (turn_detector verdicts): a complete answer to Emma's question needs
     # little more silence; unfinished speech keeps the full second.
-    WATCHDOG_BY_VERDICT = {"complete": 0.35, "likely": 0.6, "default": 0.8}
+    WATCHDOG_BY_VERDICT = {"complete": 0.35, "likely": 0.6, "default": 0.8}   # seconds of quiet on the line
 
     def _watchdog_for(self, text: str) -> float:
         hint = self._listening_hint()
@@ -697,6 +704,10 @@ class CallSession:
         if self.closed or not pcm:
             return
         self.clock.add(len(pcm))
+        if self.vad.feed(pcm):
+            self._voice_audio_end = self.clock.seconds
+            if self.detector.holding:
+                self.detector.activity()         # still talking: don't end the held turn yet
         if self.capture is not None:
             self.capture.audio(pcm)
         if self.stt is not None:
