@@ -167,6 +167,8 @@ LINES: dict[str, LineSpec] = {
     "ask.when.choices": _l("'No worries, we'll find something. Are you thinking this week or next?'", cache=True),
     "ask.when.after_reject": _l("After offers were turned down. 'No problem. What would work better?'"),
     "ack.when": _l("Notice: 'Sure, {when}.'", "when", critical=True),
+    "ack.request": _l("Notice: the opening request said back. 'Sure, a check-up for your daughter at "
+                      "Jayanagar.'", "request", critical=True),
     "ask.time": _l("A day is known. 'Morning or evening?' / 'Any particular time for {day}?'", "day"),
     "ask.time.choices": _l("'Would morning, afternoon or evening be easier?'", cache=True),
     "resolve.ampm": _l("'{hour} in the morning or the evening?'", "hour", critical=True),
@@ -409,6 +411,7 @@ VARIANTS: dict[str, tuple] = {
     "ask.when.after_reject": ("No problem. What would work better?",
                               "Okay, no worries. What day or time would suit you better?"),
     "ack.when": ("Sure, {when}.", "Okay, {when}.", "{when}, got it."),
+    "ack.request": ("Sure, {request}.", "Of course, {request}.", "Okay, {request}."),
     "ask.time": ("Morning or evening?", "Any particular time for {day}?", "What time would suit you for {day}?",
                  "Would morning or evening suit you better?"),
     "ask.time.choices": ("Would morning, afternoon or evening be easier?",

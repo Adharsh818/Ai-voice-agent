@@ -142,6 +142,19 @@ def apply(ctx: CallContext, u: Understanding, rt: Runtime) -> list:
     return notices
 
 
+def request_notice(b: BookingDraft) -> Notice:
+    """
+    The opening request said back the way a receptionist would ("Sure, a
+    check-up for your daughter at Jayanagar."), so the caller knows it was
+    heard before Emma asks for anything. engine.compose() folds in the day
+    ("ack.when") and drops it when another notice already corrects the request.
+    """
+    service = _spoken_service(b.service)
+    who = f"your {b.relation}" if b.relation else (b.patient_name if b.for_someone_else else "")
+    return Notice("ack.request", {"service": service, "who": who, "branch": b.branch or ""},
+                  covered_by=(service.split(" ", 1)[-1].lower(),))    # "check-up", not "check"
+
+
 # Words that actually ask for another workflow. Once a workflow is under way,
 # a reading's intent alone doesn't move the call: "It's tomorrow" while a
 # cancellation is being verified must never turn it into a booking (Z5).

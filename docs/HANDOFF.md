@@ -1,6 +1,6 @@
 # Project memory and next steps
 
-**Last updated:** 6 Oct 2026, end of session (see START HERE; Day 7 docs and demo tools; Day 6 latency and drills, Day 4 finished, Day 5 built; section 0 is from 5 Oct, sections 1-7 from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
+**Last updated:** 6 Oct 2026, afternoon (text rehearsal, then see START HERE; Day 7 docs and demo tools; Day 6 latency and drills, Day 4 finished, Day 5 built; section 0 is from 5 Oct, sections 1-7 from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
 
 Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
 
@@ -15,6 +15,12 @@ Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_
 **Last change, committed at the end of the session, not yet heard by the owner on a call** (owner's request: "it should always mention its name Emma"; "its latency is too high"):
 - Every greeting names Emma and asks one question (`config.GREETINGS`, `config.TIME_GREETINGS` for morning/afternoon/evening, at most 12 words). A bare "yes" to "Would you like to book an appointment?" starts a booking; to "Any questions about the clinic?" Emma says "Sure, what would you like to know?" (`dialogue/engine.py` `_answer_to_greeting`).
 - Faster replies: when Emma's own rules clearly understood the turn (a name, number, yes, plain request), Gemini gets only `NLU_FAST_DEADLINE_S` = 0.8 s instead of 2.2 s (`dialogue/engine.py` `_clear_enough`); the typing beat is 150-300 ms (was 300-500). Reason: on 6 Oct Gemini took 1.8-6 s to start answering; no Flash-Lite version is faster (3.5-flash-lite ≈ flash-lite-latest ≈ 1.8 s median; 3.1 slower; 2.5 retired).
+
+**6 Oct afternoon, a text rehearsal (no voice, no Calendar, no ElevenLabs credit used):** scenes 1, 2 and 5 of DEMO_SCRIPT.md played through `tools/converse.py --live` at demo time (Thu 8 Oct 10:00) all complete as written. Two fixes from it (`tests/test_rehearsal_fixes.py`, `OpeningRequestTests`):
+- When the model is slow or down on the opening line, Emma now says the request back before her first question: "Okay, a check-up for your daughter at Jayanagar. Can I get your name first?" (was "Alright, can I get your name first?"); the day is folded in ("Sure, a cleaning for Monday the 12th, in the afternoon."). New notice `ack.request` (`engine._fold_request`); it stays quiet when another line already speaks to the request (a branch that doesn't do the service, the emergency line, a fact answer).
+- "Can I book a cleaning around 6?" is no longer treated as a clinic question ("I'm not sure about that, sorry" first): `match.looks_like_question` ignores the booking request itself; a question beside it still counts.
+- 906 tests, 53/53 scenarios; sims unchanged (offline seed 7: all pass but T5 10; model-down seed 11: M7 97%, M3 1.0%, M10 2.0%, identical before the change).
+- Seen, not fixed: model-down, "Can I get a check-up on Saturday, and where is your Jayanagar branch?" answers with the branch list instead of the address (the demo's address question on its own is fine).
 
 **Next steps, in order:**
 1. **Owner voice test** (Chrome, http://localhost:8000): check the new greetings and that replies feel quicker; watch for cut-offs or worse understanding (the fast path uses Emma's written lines more often). If needed: `NLU_FAST_DEADLINE_S` up, or the typing beat back.
