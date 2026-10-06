@@ -6,6 +6,7 @@ from datetime import datetime
 
 import clock
 import dateparse
+import facts
 import tier0
 from dialogue import context, engine
 from dialogue.context import Expect, Goal, Intent, Tier0View
@@ -126,6 +127,29 @@ class OpeningRequestTests(EngineCase):
         self.assertTrue(looks_like_question("Can you tell me your timings?"))
         reply = self.first_reply("Hi, can I book a cleaning around 6 in the evening?")
         self.assertNotRegex(reply.lower(), r"not sure|don't know")
+
+    def test_where_a_named_branch_is_gets_its_address(self):
+        kb, catalog = facts.get_knowledge(), self.clinic_catalog()
+        for said in ("Can I get a check-up on Saturday, and where is your Jayanagar branch?",
+                     "Sorry, where is your Jayanagar branch?", "What's the address of the Jayanagar branch?"):
+            self.assertTrue(facts.lookup(said, kb, catalog).startswith("Our Jayanagar branch is at 4th Block"), said)
+        self.assertIn("Indiranagar and Whitefield", facts.lookup("Where can I get braces?", kb, catalog))
+        self.assertTrue(facts.lookup("Do you do braces at Whitefield?", kb, catalog).startswith("Yes, we do braces"))
+
+    def test_the_day_asked_for_before_a_place_question_is_kept(self):
+        call = Call()
+        reply = call.say("Can I get a check-up on Saturday, and where is your Jayanagar branch?").text
+        self.assertTrue(reply.startswith("Our Jayanagar branch is at"), reply)
+        self.assertIn("Saturday the 3rd", reply)
+        self.assertIsNotNone(call.s.book.date_c)
+        hours = Call()
+        hours.say("What are your timings on Saturday?")
+        self.assertIsNone(hours.s.book.date_c)
+
+    def clinic_catalog(self):
+        async def go():
+            return (await engine.build_runtime(context.new_context("x"))).catalog
+        return asyncio.run(go())
 
 
 if __name__ == "__main__":

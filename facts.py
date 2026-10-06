@@ -364,6 +364,8 @@ _SERVICES_CUE = re.compile(r"\b(what|which)\s+(services|treatments)\b|\bwhat (al
 _DO_YOU_DO = re.compile(r"\b(do you|can you|you guys|is there)\s+(do|offer|provide|have|treat)\b|\bdo you do\b")
 _BRANCHES_CUE = re.compile(r"\b(where are you|where is the clinic|your (branches|locations)|how many branches|"
                            r"which areas|branches do you have|located)\b")
+_BRANCH_WHERE = re.compile(r"\b(where'?s|where (is|are)|address|located|directions|landmark|"
+                           r"how (do|can) i (get|reach))\b")
 _FEMALE = re.compile(r"\b(lady|female|woman|women)\b")
 _MALE = re.compile(r"\b(male|gents?|man|gentleman)\b")
 _STOP = frozenset("a an the is are do does you your i me my we our to of for in on at and or it this that what "
@@ -419,6 +421,13 @@ def _catalog_answer(t: str, catalog: Catalog, kb: Knowledge) -> Optional[str]:
         if _HOURS_CUE.search(t) or re.search(r"\b(when|which days?|days)\b", t):
             return f"{doctor.spoken} works {doctor.hours}, at our {doctor.branch} branch."
         return f"{doctor.spoken} is at our {doctor.branch} branch, for {prompts.speak_list([prompts.service_plural(s) for s in doctor.services], 'and')}."
+
+    # "Can I get a check-up, and where is your Jayanagar branch?" asks for the
+    # branch's address, not which branches do check-ups.
+    if branches and _BRANCH_WHERE.search(t) and not _DO_YOU_DO.search(t):
+        fact = kb.get(f"branch.{branches[0].name}.address")
+        if fact is not None:
+            return fact.text
 
     if services and (_WHERE_CUE.search(t) or _DO_YOU_DO.search(t) or _BRANCHES_CUE.search(t)) \
             and not _DOCTOR_CUE.search(t):
