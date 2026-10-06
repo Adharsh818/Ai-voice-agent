@@ -1,9 +1,20 @@
 # Project memory and next steps
 
-**Last updated:** 6 Oct 2026, early morning (Day 6 latency and drills, Day 4 finished, Day 5 built; section 0 is from 5 Oct, sections 1-7 from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
+**Last updated:** 7 Oct 2026 (Day 7 docs and demo tools; Day 6 latency and drills, Day 4 finished, Day 5 built; section 0 is from 5 Oct, sections 1-7 from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
 
 Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
 
+
+---
+
+## 00000. 7 Oct, Day 7: demo docs, reset and preflight
+
+- **Docs:** [ARCHITECTURE.md](ARCHITECTURE.md) (pipeline, who decides what, invariants with their tests, data, Calendar, recovery, security, failure behaviour, tools) and [DEMO_SCRIPT.md](DEMO_SCRIPT.md) (setup, eight scenes with exact lines, fixtures, recovery steps, what to do if something goes wrong).
+- **Demo data:** `tools/demo_reset.py` (Emma stopped) removes the Calendar events Emma created, rebuilds `data/emma.db`, books the fixtures the script uses (Priya and Rahul with Dr Rao on the day after the demo for recovery; Anita to move; Kiran to cancel) plus ~40 random DEMO bookings, and reconnects the calendars without new sharing emails. `--dry-run` reports only.
+- **Readiness:** `tools/preflight.py` (Emma running) checks the server, Gemini, keys, prompts, Calendar, dashboard login, settings, recovery window and fixtures. The ElevenLabs and Deepgram keys can't read balances (fine for calls): check credit on their websites.
+- **Bugs found by running the script through the engine, all fixed and tested (`tests/test_rehearsal_fixes.py`):** a question about a branch chose that branch; "Her name is Diya" wasn't taken as the patient's name; "pain since last night" made an emergency search the evening; a reason given with a cancel request was dropped (model-down path).
+- **Checks:** 887 tests, 53/53 scenarios, 200 fake-model calls (Z1-Z7 0, M7 100%, M10 0%).
+- **Owner, before the demo:** three rehearsals with the headset following DEMO_SCRIPT.md (run `demo_reset.py` before each), screen-record one full run as the backup, check ElevenLabs credit on the website. Code freeze after the rehearsal fixes.
 
 ---
 

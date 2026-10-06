@@ -331,7 +331,10 @@ NON_NAME_WORDS = {
 _NAME_LEADS = re.compile(
     r"^(?:(?:yes|yeah|yep|okay|ok|sure|hi|hello|so|um+|uh+|well|right|oh|ah|of course)[ ,]+)*"
     r"(?:(?:my name is|my name's|the name is|name is|it'?s|it is|this is|i am|i'm|"
-    r"call me|you can call me|myself|put it under|under)[ ,]+)?"
+    r"call me|you can call me|myself|put it under|under|"
+    # The patient's name when booking for someone else ("Her name is Diya", demo rehearsal 7 Oct).
+    r"(?:his|her|their)(?: name is| name's)|(?:she|he)(?:'s| is) called|"
+    r"(?:my )?(?:daughter|son|child|kid|wife|husband|mother|mom|mum|father|dad|brother|sister)'?s name(?: is|'s))[ ,]+)?"
 )
 _NAME_TAILS = re.compile(r"(?:[ ,]+(?:here|speaking|please|thanks|thank you|only))+$")
 
