@@ -304,6 +304,17 @@ def _picked_already(ctx: CallContext, u: Understanding) -> bool:
     return when.time is not None and when.time.kind == "exact" and when.time.start == b.chosen.start.time()
 
 
+def _exact_free(b) -> bool:
+    """The first slot found is exactly the day and time the caller asked for, at their branch."""
+    if not b.offered or b.date_c is None or not b.date_c.exact or b.time_c is None or b.time_c.kind != "exact":
+        return False
+    notes = _notes(b)
+    first = b.offered[0]
+    if notes.get("other_branch") and first.branch != notes["other_branch"]:
+        return False
+    return first.start.date() == b.date_c.start and first.start.time() == b.time_c.start
+
+
 def _choose(ctx: CallContext, slot: OfferedSlot):
     b = ctx.book
     b.chosen = slot
@@ -886,6 +897,12 @@ async def advance(ctx: CallContext, u: Understanding, confirmation: Optional[str
     if result.action is None and b.chosen is None and not b.offered and _search_ready(ctx) \
             and _checks_clear(ctx) and (notes.get("no_slots") or {}).get("key") != _search_key(b):
         await _search(ctx, rt, result.notices)
+        if b.chosen is None and _exact_free(b):
+            # The exact time asked for is free: take it and go straight to the
+            # summary, one yes instead of two (owner's decision, 7 Oct; T5).
+            _choose(ctx, b.offered[0])
+            await _sync_holds(ctx, rt)
+            result.notices.append(Notice("exact.free", covered_by=("free",)))
     elif result.action is None and _insists_on_full_day(ctx, u):
         await _search_same_day_elsewhere(ctx, rt)
 

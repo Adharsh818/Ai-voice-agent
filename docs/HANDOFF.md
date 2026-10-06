@@ -7,6 +7,13 @@ Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_
 
 ---
 
+## Owner decisions, 7 Oct
+
+- **Backup voice:** Piper `en_GB-cori-medium` (the default) stays.
+- **One yes, not two (T5):** when the exact day and time the caller asked for is free, Emma says so and goes straight to the summary ("Good news, that time's free. That's a cleaning with Dr Rao… Shall I book it?"); the same for a reschedule. Changes R2_DESIGN 10.1's `offer.exact`. Simple-booking median: seed 11 now 9 (target met), seed 7 still 10 (those callers give the day and time in separate turns). 887 tests, 53/53 scenarios, sims clean.
+
+---
+
 ## 00000. 7 Oct, Day 7: demo docs, reset and preflight
 
 - **Docs:** [ARCHITECTURE.md](ARCHITECTURE.md) (pipeline, who decides what, invariants with their tests, data, Calendar, recovery, security, failure behaviour, tools) and [DEMO_SCRIPT.md](DEMO_SCRIPT.md) (setup, eight scenes with exact lines, fixtures, recovery steps, what to do if something goes wrong).

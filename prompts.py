@@ -178,6 +178,8 @@ LINES: dict[str, LineSpec] = {
     "time.lunch": _l("Notice: 'We break for lunch from 2 to 2:30.'", critical=True),
     "time.taken": _l("Notice: the exact time the caller asked for again isn't free. '4:30 isn't free, I'm afraid.'",
                      "time", critical=True),
+    "exact.free": _l("Notice: the exact time asked for is free, so the summary follows at once (owner, 7 Oct). "
+                     "'Good news, that time's free.'", critical=True),
     "offer.exact": _l("'{slot} is free, with {doctor}. Shall I take that?'", "slot", "doctor", critical=True),
     # Rung 2-3 of the offer ladder (the caller answered something else): the same
     # slots, said shorter and differently, never the offer word for word again.
@@ -420,6 +422,7 @@ VARIANTS: dict[str, tuple] = {
                            "Our timings are 7 in the morning to 9 at night."),
     "time.lunch": ("We break for lunch from 2 to 2:30.", "We're closed for lunch between 2 and 2:30."),
     "time.taken": ("{time} isn't free, I'm afraid.", "Sorry, {time}'s already taken."),
+    "exact.free": ("Good news, that time's free.", "Yes, that one's free.", "Lovely, that's free."),
     "offer.exact.rephrase": ("So {slot} with {doctor}, shall I take it?",
                              "Just to check, would {slot} with {doctor} suit you?"),
     "offer.two.rephrase": ("So it's {a} or {b} with {doctor}. Which would you like?",

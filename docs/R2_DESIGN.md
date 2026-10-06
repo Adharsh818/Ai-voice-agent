@@ -261,7 +261,7 @@ Checklist over `BookingDraft` (section 4), filled in any order. Actions happen o
 - **Search:**
   - When service, branch and when are settled and nothing valid is on offer: `scheduling.suggest(... branch_ids=[branch], doctor_id, gender, emergency, call_id)`.
   - The top two are held with `scheduling.hold` and older holds released.
-  - Exact → `offer.exact`; alternatives → `offer.two` / `offer.one` / `offer.later_days`; none → NO_SLOTS.
+  - Exact → `offer.exact`; alternatives → `offer.two` / `offer.one` / `offer.later_days`; none → NO_SLOTS. *(Owner, 7 Oct: when the exact time asked for is free, Emma now skips this offer and goes straight to the summary, with an `exact.free` notice; the same for a reschedule.)*
   - The first search of a draft emits `before_action` with a varied checking phrase.
 - **Pick:** by `choice_index` or a time that matches an offered slot exactly; the other holds are released. A rejection → `ask.when.after_reject`, round + 1.
 - **Summary:**
