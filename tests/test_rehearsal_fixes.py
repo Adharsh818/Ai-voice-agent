@@ -77,5 +77,56 @@ class RehearsalFixTests(unittest.TestCase):
             self.assertIsNotNone(dateparse.parse_when("last night it started, can I come Monday evening?").date)
 
 
+from test_r2_engine import Call, EngineCase  # noqa: E402  (tests/ is on sys.path under discover)
+
+
+class OpeningRequestTests(EngineCase):
+    """6 Oct converse rehearsal: with the model slow or down, the opening request is said back."""
+
+    def first_reply(self, text):
+        return Call().say(text).text
+
+    def test_the_request_is_said_back_with_its_details(self):
+        reply = self.first_reply("Hi, I'd like to book a check-up for my daughter, she's seven. "
+                                 "A lady doctor if possible, at Jayanagar.")
+        self.assertRegex(reply, r"^(Sure|Of course|Okay), a check-up for your daughter at Jayanagar\. ")
+
+    def test_the_day_is_folded_into_the_same_sentence(self):
+        reply = self.first_reply("Hi, I'd like to get my teeth cleaned on Monday afternoon.")
+        self.assertRegex(reply, r"^(Sure|Of course|Okay), a cleaning for Monday the 5th, in the afternoon\. ")
+        self.assertEqual(reply.lower().count("monday"), 1, reply)
+
+    def test_earliest_is_one_acknowledgement(self):
+        reply = self.first_reply("Can I book a cleaning for the earliest you have?")
+        self.assertRegex(reply, r"^(Sure|Of course|Okay), a cleaning as soon as we can\. ")
+        self.assertNotIn("not sure", reply.lower())
+
+    def test_not_said_when_another_line_already_answers_the_request(self):
+        braces = self.first_reply("Hi, I need braces at Nagarbhavi.")
+        self.assertTrue(braces.startswith("We don't do braces at Nagarbhavi"), braces)
+        self.assertNotIn("braces at Nagarbhavi.", braces.split(". ", 1)[1])
+        price = self.first_reply("Can I get the price for a cleaning?")
+        self.assertEqual(price.lower().count("a cleaning"), 1, price)
+        urgent = self.first_reply("Hi, I have really bad swelling and pain since last night.")
+        self.assertTrue(urgent.startswith("Oh"), urgent)
+        self.assertNotIn("consultation", urgent.lower())
+
+    def test_only_on_the_opening_request(self):
+        call = Call()
+        call.say("Hi, I'd like to book an appointment.")
+        reply = call.say("Neha Kapoor.").text
+        self.assertNotRegex(reply, r"(Sure|Of course|Okay), a ")
+
+    def test_asking_to_book_is_not_a_question_for_the_fact_lookup(self):
+        from dialogue.match import looks_like_question
+        self.assertFalse(looks_like_question("Hi, can I book a cleaning around 6 in the evening?"))
+        self.assertFalse(looks_like_question("Could you book me in for a check-up?"))
+        self.assertTrue(looks_like_question("Can I get a check-up, and where is your Jayanagar branch?"))
+        self.assertTrue(looks_like_question("Can I get the price for a cleaning?"))
+        self.assertTrue(looks_like_question("Can you tell me your timings?"))
+        reply = self.first_reply("Hi, can I book a cleaning around 6 in the evening?")
+        self.assertNotRegex(reply.lower(), r"not sure|don't know")
+
+
 if __name__ == "__main__":
     unittest.main()

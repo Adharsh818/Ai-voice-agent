@@ -808,7 +808,15 @@ _QUESTION_RE = re.compile(
 )
 
 
+# "Can I book a cleaning around 6?" asks for a booking, not a fact.
+_REQUEST_ASK_RE = re.compile(r"\b(can|could|may) (i|you|we)( please)? (book|get|have|make|schedule|fix|come in)\b")
+
+
 def looks_like_question(text: str) -> bool:
     """Cheap question detector (question words, "?", price / hours / address words)."""
     lower = _norm(text)
+    if _REQUEST_ASK_RE.search(lower):
+        # The request itself isn't a question; one asked beside it still is
+        # ("Can I book a check-up, and where is your Jayanagar branch?").
+        lower = _REQUEST_ASK_RE.sub(" ", lower).replace("?", " ")
     return "?" in lower or bool(_QUESTION_RE.search(lower))

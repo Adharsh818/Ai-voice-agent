@@ -185,6 +185,7 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
     if mark is not None:
         u.__dict__["_progress_mark"] = mark      # what the context held before this turn (policy._is_miss)
 
+    opening = ctx.intent != Intent.BOOK and not ctx.book.service
     outcome = await _handle(ctx, u, conf, rt)
     notices: list = list(outcome.notices) if outcome is not None else []
     result = ActionResult()
@@ -196,6 +197,8 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         await _release_if_requested(ctx, rt)
         result = await _advance(ctx, u, conf, rt)
         notices += list(result.notices or ())
+        if opening and ctx.intent == Intent.BOOK and ctx.book.service and ctx.emergency == Emergency.NONE:
+            notices.append(applier.request_notice(ctx.book))
 
     if outcome is not None and outcome.plan is not None:
         plan = outcome.plan
@@ -288,6 +291,7 @@ def compose(ctx: CallContext, plan, notices: list, say: list, ask: Optional[str]
     # catalog, so the last copy's params win, said where the first one was.
     latest = {n.line: n for n in notices if isinstance(n, Notice)}
     notices = [latest[n.line] if isinstance(n, Notice) else n for n in notices]
+    notices = _fold_request(notices, latest, plan)
     for notice in notices:
         if not isinstance(notice, Notice):
             continue
@@ -615,6 +619,44 @@ def _mark_question(u: Understanding, text: str) -> None:
         u.question = u.question or text
         if u.name and not re.search(r"\b(my name|this is|i am|i'm)\b", text, re.I):
             u.name = None
+
+
+# Notices that already say something about the request itself ("Our Nagarbhavi
+# branch doesn't do braces"): saying it back first would contradict them.
+_REQUEST_CONFLICTS = {"service.unknown", "branch.no_service", "branch.only", "doctor.unknown",
+                      "doctor.other_branch", "doctor.gender_none", "correction.ack", "confirm_change",
+                      "urgent.ack", "answer.fact", "unknown", "clinical"}
+
+
+def _fold_request(notices: list, latest: dict, plan) -> list:
+    """
+    "ack.request" and "ack.when" become one sentence ("Sure, a cleaning for
+    Monday the 12th, in the afternoon."); the request is dropped, and the day
+    said on its own, when another notice already speaks to the request.
+    """
+    request = latest.get("ack.request")
+    if request is None:
+        return notices
+    if _REQUEST_CONFLICTS & set(latest):
+        return [n for n in notices if not (isinstance(n, Notice) and n.line == "ack.request")]
+    p = request.params
+    text = p.get("service", "")
+    if p.get("who"):
+        text += f" for {p['who']}"
+    if p.get("branch"):
+        text += f" at {p['branch']}"
+    when_notice = latest.get("ack.when")
+    when = (when_notice.params.get("when") or "") if when_notice else ""
+    folds = bool(when) and plan.goal not in (Goal.OFFER_SLOTS, Goal.OFFER_NEW_SLOTS)
+    if folds and when.startswith("the earliest"):
+        text += " as soon as we can"
+    elif folds:
+        joiner = " " if re.match(r"(in the|between|around|this|tonight)\b", when) else \
+            ", " if p.get("who") or p.get("branch") else " for "
+        text += joiner + when
+    folded = Notice("ack.request", {"request": text}, covered_by=request.covered_by)
+    return [folded if isinstance(n, Notice) and n.line == "ack.request" else n
+            for n in notices if not (folds and isinstance(n, Notice) and n.line == "ack.when")]
 
 
 def _render(ctx: CallContext, line: str, params: Optional[dict] = None) -> str:
