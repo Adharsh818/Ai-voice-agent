@@ -854,7 +854,7 @@ Backups: typed input, the recorded full run, reseed script.
 
 **E — evaluation hardening: built 6 Oct** (plan: [FINAL_PHASES_PLAN.md](FINAL_PHASES_PLAN.md)).
 - [x] p50/p95 latency, task success, fallback and interruption rates: `tools/evaluate.py` → [EVALUATION.md](EVALUATION.md), regenerated from the data.
-- [ ] STT word error on the recorded set: `tools/evaluate.py --stt` (Deepgram, ~2 min of audio; waiting for the owner's OK).
+- [x] STT word error on the recorded set: `tools/evaluate.py --stt` (6 Oct: 17% / 18%, 1-2 lines cut of 30, ~0.9 s after the last word).
 - [x] Booking-integrity report from failure drills (EVALUATION.md section 4).
 - [x] Daily SQLite backup (`tools/backup.py`: online backup, verified, keep 14, restore, consistency check), log rotation (`turns.jsonl` by size, optional daily `LOG_FILE`).
 - [x] Linux deployment kit (`deploy/`: systemd unit, Caddy HTTPS, backup timer, install script; [DEPLOY.md](DEPLOY.md)). [ ] Verify it in WSL Ubuntu.
