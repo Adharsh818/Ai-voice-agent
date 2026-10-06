@@ -72,12 +72,18 @@ def _clinic_terms() -> list:
     return db.get_db().run_sync(clinic_keyterms)
 
 
-async def replay(path: str, flat_watchdog: float = None, model: str = None, language: str = None) -> dict:
+async def replay(path: str, flat_watchdog: float = None, model: str = None, language: str = None,
+                 provider: str = "deepgram") -> dict:
     with wave.open(path) as w:
         assert w.getframerate() == 16000 and w.getnchannels() == 1 and w.getsampwidth() == 2, "16 kHz mono PCM16 only"
         pcm = w.readframes(w.getnframes())
 
     def stt_factory(**callbacks):
+        if provider == "sarvam":
+            import stt_sarvam
+            return stt_sarvam.SarvamSTT(api_key=os.getenv("SARVAM_API_KEY", ""), model=model or "saaras:v4",
+                                        language=language or "en-IN", keyterms=config.DEEPGRAM_KEYTERMS,
+                                        **callbacks)
         if flat_watchdog is not None:
             callbacks.pop("watchdog_for", None)
             callbacks.pop("quiet_for", None)
@@ -160,19 +166,24 @@ def main():
     parser.add_argument("--flat-watchdog", type=float, default=None,
                         help="use a fixed STT watchdog (seconds) instead of the per-words estimate")
     parser.add_argument("--show", action="store_true", help="print every turn")
-    parser.add_argument("--model", help="Deepgram model (default DEEPGRAM_MODEL), e.g. nova-2")
+    parser.add_argument("--provider", choices=("deepgram", "sarvam"), default="deepgram",
+                        help="speech recogniser to replay through (sarvam needs SARVAM_API_KEY)")
+    parser.add_argument("--model", help="model (Deepgram: default DEEPGRAM_MODEL, e.g. nova-2; Sarvam: saaras:v4)")
     parser.add_argument("--language", help="Deepgram language (default DEEPGRAM_LANGUAGE), e.g. en-IN")
     args = parser.parse_args()
-    if not config.DEEPGRAM_API_KEY:
+    if args.provider == "deepgram" and not config.DEEPGRAM_API_KEY:
         sys.exit("DEEPGRAM_API_KEY is not set")
+    if args.provider == "sarvam" and not os.getenv("SARVAM_API_KEY"):
+        sys.exit("SARVAM_API_KEY is not set in .env")
     lines = _script()
     for path in args.wav:
-        out = asyncio.run(replay(path, args.flat_watchdog, args.model, args.language))
+        out = asyncio.run(replay(path, args.flat_watchdog, args.model, args.language, args.provider))
         s = score(out["turns"], lines)
         lags = s["lags"]
         p = lambda q: f"{lags[int(q * (len(lags) - 1))]:.0f}" if lags else "-"
         mode = f"flat watchdog {args.flat_watchdog:.2f}s" if args.flat_watchdog else "voice-gated end of turn"
-        print(f"\n{os.path.basename(path)}  ({args.model or config.DEEPGRAM_MODEL}, {mode})")
+        name = args.model or ("saaras:v4" if args.provider == "sarvam" else config.DEEPGRAM_MODEL)
+        print(f"\n{os.path.basename(path)}  ({args.provider} {name}, {mode})")
         print(f"  turns {len(out['turns'])} for {len(lines)} lines; cut lines {len(s['cut'])}; merged turns {len(s['merged'])}; "
               f"word errors ~{100 * s['errors'] / s['ref_words']:.0f}%")
         print(f"  last word -> turn committed: p50 {p(.5)} ms, p90 {p(.9)} ms")

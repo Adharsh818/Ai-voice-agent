@@ -7,6 +7,12 @@ Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_
 
 ---
 
+## 6 Oct, R3.4: Sarvam tested, Nova-3 stays
+
+Sarvam saaras:v4 (`stt_sarvam.py`; `python tools/replay.py --provider sarvam <wav>`; `SARVAM_API_KEY` in `.env`) on the owner's two recordings: it heard "Adarsh Kumar" (Deepgram: "Adesh" or dropped), numbers and branches right, word errors ~19-20% (Deepgram 17%), but turns end much later (p50 0.81 s headset / 2.25 s laptop, p90 2.3 s; Deepgram ~0.8-0.9 / ~1.0 s) and finals sometimes arrive seconds late in bursts. **Deepgram Nova-3 stays.** Google Chirp wasn't tested: billing in India needs a ₹500+ prepayment, and the owner chose Sarvam only.
+
+---
+
 ## 000000. 6 Oct (Day 8 prep; the demo is Thursday 8 Oct)
 
 - **Typed backup that works without a microphone:** the talk page offers **Type instead** when the mic is blocked or missing, and http://localhost:8000/?typed=1 starts a typed call directly. Emma still speaks; the silence ladder is off for typed calls. Same on the patient page (Answer, then Type instead). Tested in the app's browser pane, which has no microphone.
