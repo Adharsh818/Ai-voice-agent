@@ -559,7 +559,7 @@ Every stage ends with its exit tests green. Tests run after every step.
 - [x] **1.2** `db.py`, migration runner, `001_init.sql`, single writer thread, WAL.
 - [x] **1.3** `seed_demo.py`: 4 branches, 8 fictional DEMO doctors (general, endodontist, orthodontist, pedodontist, mixed genders, varied hours within 07–21), services + durations, one DEMO closure after the demo date, ~40 future DEMO appointments with fictitious numbers.
 - [x] **1.4** `scheduling.py`: rules 5.1, search, holds, book/reschedule/cancel, idempotency, audit + outbox rows.
-- [ ] **1.5** Flux spike prep: record the 30-utterance test set (user, ~10 min, script in section 12).
+- [x] **1.5** Flux spike prep: record the 30-utterance test set (user, ~10 min, script in section 12). **Done 6 Oct:** the owner recorded the 30 lines twice (headset, laptop speakers); used for R3.1 and R3.4.
 
 **Exit:**
 - Every rule has a unit test.
@@ -570,12 +570,12 @@ Every stage ends with its exit tests green. Tests run after every step.
 > **Days 2 and 3 are replaced by section 0 (R1–R3).** They're kept below for reference: R2 covers 2.1–2.6 and 3.1–3.3 on the natural engine, and R3 covers 3.4–3.6.
 
 ### Day 2 — 2 Oct: dialogue engine and BOOK (Milestone A core), superseded by R2
-- [ ] **2.1** `dialogue/context.py` (serialisable call context), `router.py`, `globals.py`.
-- [ ] **2.2** `nlu.py` structured schema + prompt; `facts.py` with fact IDs; unknown → escalation task.
-- [ ] **2.3** Tier-0 v2 (5.5): phone accumulator, name spelling, service ambiguity.
-- [ ] **2.4** `prompts.py` with template IDs, 2–3 variants for frequent prompts, no repeats within a call; speakable rewriting of dates, times and grouped digits.
-- [ ] **2.5** BOOK workflow on the scheduling engine, incl. corrections, family booking, duplicate and max-3 checks.
-- [ ] **2.6** Port the 28 tests. Tests whose behaviour changes on purpose (location step, separate date/time confirmations) are rewritten against the new flow and listed in the commit.
+- [x] **2.1** `dialogue/context.py` (serialisable call context), `router.py`, `globals.py`. **Superseded, done in** R2.0/R2.1 (`dialogue/context.py`, `policy.py`, `handlers.py`).
+- [x] **2.2** `nlu.py` structured schema + prompt; `facts.py` with fact IDs; unknown → escalation task. **Superseded, done in** R2.2-R2.4 (`nlu.py`, `facts.py`; unknown questions get an honest answer and a callback offer).
+- [x] **2.3** Tier-0 v2 (5.5): phone accumulator, name spelling, service ambiguity. **Superseded, done in** R2.5 (`tier0.understand`, `dialogue/match.py`).
+- [x] **2.4** `prompts.py` with template IDs, 2–3 variants for frequent prompts, no repeats within a call; speakable rewriting of dates, times and grouped digits. **Superseded, done in** R2.4 (`prompts.py`).
+- [x] **2.5** BOOK workflow on the scheduling engine, incl. corrections, family booking, duplicate and max-3 checks. **Superseded, done in** R2.6 (`dialogue/book.py`).
+- [x] **2.6** Port the 28 tests. Tests whose behaviour changes on purpose (location step, separate date/time confirmations) are rewritten against the new flow and listed in the commit. **Superseded, done in** R2.8 (`tests/test_r2_booking_flow.py`; the originals still test the 12-step machine).
 
 **Exit:**
 - Scripted text conversations book correctly with the fake NLU.
@@ -583,12 +583,12 @@ Every stage ends with its exit tests green. Tests run after every step.
 - Clean confirmations use no LLM.
 
 ### Day 3 — 3 Oct: manage, safety flows, real-time robustness, superseded by R2 and R3
-- [ ] **3.1** MANAGE workflows: verify, check, cancel, reschedule.
-- [ ] **3.2** Emergency (urgent + red flag), human/callback, language, abuse, bot question, don't-keep request.
-- [ ] **3.3** No-dead-end fuzz test across all states.
-- [ ] **3.4** `playout.py`; recap-heard rule; backchannel filter; silence ladder; max length; call gate; hang-up handling.
-- [ ] **3.5** Deepgram reconnect; TTS chain with Piper (voice chosen by user) and a Piper prompt cache.
-- [ ] **3.6** Flux spike, **time-boxed to 4 h**: `stt_flux.py` adapter behind the same callbacks, then replay the test set through both. **Switch only if** end-of-turn p50 improves ≥ 300 ms with no more than 1 extra misrecognised slot value on the set. Otherwise tune Nova-3 (endpointing / UtteranceEnd / holds) using the Day 0 diagnostics.
+- [x] **3.1** MANAGE workflows: verify, check, cancel, reschedule. **Superseded, done in** R2.6 (`dialogue/manage.py`).
+- [x] **3.2** Emergency (urgent + red flag), human/callback, language, abuse, bot question, don't-keep request. **Superseded, done in** R2.6 (`dialogue/handlers.py`).
+- [x] **3.3** No-dead-end fuzz test across all states. **Superseded, done in** the harness: M3/M10 on 200-call sims per seed, with and without the model (`python -m harness run sim`).
+- [x] **3.4** `playout.py`; recap-heard rule; backchannel filter; silence ladder; max length; call gate; hang-up handling. **Superseded, done in** R3.7; the playout is `speech.Speaker` (turn-tagged audio, flush on barge-in) rather than a separate `playout.py`.
+- [x] **3.5** Deepgram reconnect; TTS chain with Piper (voice chosen by user) and a Piper prompt cache. **Superseded, done in** R3.7 (Deepgram reconnect, `tts_piper.py` + its prompt cache). Piper voice: `en_GB-cori-medium` by default; **owner to confirm** from the samples in `captures/piper_samples/`.
+- [x] **3.6** Flux spike, **time-boxed to 4 h**: `stt_flux.py` adapter behind the same callbacks, then replay the test set through both. **Switch only if** end-of-turn p50 improves ≥ 300 ms with no more than 1 extra misrecognised slot value on the set. Otherwise tune Nova-3 (endpointing / UtteranceEnd / holds) using the Day 0 diagnostics. **Superseded, done in** R3.4 (Flux replaced by the STT bake-off on the owner's recordings).
 
 **Exit:**
 - A wrong customer can't read, move or cancel an appointment, and learns nothing.
@@ -638,7 +638,7 @@ Every stage ends with its exit tests green. Tests run after every step.
 - [ ] **7.1** Code freeze at noon; only demo-blocking fixes after.
 - [x] **7.2** `docs/ARCHITECTURE.md` (pipeline, invariants, data model, sync, threat model summary) and `docs/DEMO_SCRIPT.md`. **Done 7 Oct:** [ARCHITECTURE.md](ARCHITECTURE.md) and [DEMO_SCRIPT.md](DEMO_SCRIPT.md). Scenes 1-5 were run through the engine on the demo data (model off); that found and fixed four bugs: a question about a branch chose it, "Her name is Diya" wasn't read as the patient's name, "pain since last night" was searched as an evening slot, and a reason given with a cancel request was dropped.
 - [ ] **7.3** Three full rehearsals with a headset; screen-record one complete run as backup.
-- [ ] **7.4** Reset and reseed the demo DB; warm prompt caches; check provider balances. **Tooling done 7 Oct:** `tools/demo_reset.py` (clears Emma's Calendar events, rebuilds the DEMO clinic, books the script's fixtures) and `tools/preflight.py` (one-screen readiness check). Run both on the demo morning.
+- [x] **7.4** Reset and reseed the demo DB; warm prompt caches; check provider balances. **Tooling done 7 Oct:** `tools/demo_reset.py` (clears Emma's Calendar events, rebuilds the DEMO clinic, books the script's fixtures) and `tools/preflight.py` (one-screen readiness check). Run both on the demo morning. **Done 7 Oct** (reset, fixtures, calendars synced, prompts warm, preflight READY). Repeat `tools/demo_reset.py` + `tools/preflight.py` before each rehearsal and on the demo morning; credit is checked on the providers' websites (the keys can't read balances).
 
 ### Day 8 — 8 Oct: demo
 Run `docs/DEMO_SCRIPT.md`. Backups: typed-input mode (`emma.say()`), the recorded run.
