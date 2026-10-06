@@ -42,6 +42,9 @@ import { Ambience, phoneLine } from './ambience.js';
 const orb = document.getElementById('orb');
 const caption = document.getElementById('caption');
 const action = document.getElementById('action');
+const typeInstead = document.getElementById('type-instead');
+const typedForm = document.getElementById('typed');
+const typedText = document.getElementById('typed-text');
 
 const VAD_RMS = 0.02;          // local "caller is talking" energy threshold
 const VAD_FRAMES = 2;          // consecutive 20 ms frames above it
@@ -69,6 +72,7 @@ let opened = false;        // the socket opened (a later close is a dropped line
 let ending = false;        // we hung up, or Emma said goodbye
 let busyMessage = null;    // the server refused the call
 let callSeq = 0;           // bumped on hang-up, so a call still starting up stops quietly
+let typed = false;         // this call has no microphone: the caller types (the demo's backup)
 
 function setState(next) {
   const was = state;
@@ -95,6 +99,7 @@ function showProblem(kind, message, button) {
 
 function hideProblem() {
   action.hidden = true;
+  typeInstead.hidden = true;
 }
 
 function send(obj) {
@@ -148,8 +153,9 @@ async function openAudio(stream) {
  * page (the default), /ws/outbound?job=... when the patient page answers
  * Emma's recovery call.
  */
-export async function startCall(path) {
+export async function startCall(path, options = {}) {
   const call = ++callSeq;
+  typed = Boolean(options.typed) || new URLSearchParams(location.search).get('typed') === '1';
   const cancelled = () => call !== callSeq;
   hideProblem();
   setState('connecting');
@@ -160,7 +166,20 @@ export async function startCall(path) {
   busyMessage = null;
 
   let source;
-  try {
+  if (typed) {
+    // No microphone: Emma's side only. A click started this, so audio may play.
+    try {
+      ctx = new AudioContext({ latencyHint: 'interactive' });
+      await ctx.audioWorklet.addModule('/static/playback-worklet.js');
+    } catch (err) {
+      if (cancelled()) return;
+      console.error(err);
+      teardown();
+      showProblem('lost', MESSAGES.audio, 'Try again');
+      return;
+    }
+    if (cancelled()) { ctx.close(); return; }
+  } else try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints() });
     if (cancelled()) { stream.getTracks().forEach((t) => t.stop()); return; }
     micStream = stream;
@@ -170,18 +189,21 @@ export async function startCall(path) {
     teardown();
     const nomic = err.name === 'NotFoundError' || err.name === 'OverconstrainedError';
     showProblem('blocked', nomic ? MESSAGES.nomic : MESSAGES.blocked, 'Try again');
+    typeInstead.hidden = false;
     return;
   }
-  try {
-    const audio = await openAudio(micStream);
-    if (cancelled()) { audio.context.close(); return; }
-    ({ context: ctx, source } = audio);
-  } catch (err) {
-    if (cancelled()) return;
-    console.error(err);
-    teardown();
-    showProblem('lost', MESSAGES.audio, 'Try again');
-    return;
+  if (!typed) {
+    try {
+      const audio = await openAudio(micStream);
+      if (cancelled()) { audio.context.close(); return; }
+      ({ context: ctx, source } = audio);
+    } catch (err) {
+      if (cancelled()) return;
+      console.error(err);
+      teardown();
+      showProblem('lost', MESSAGES.audio, 'Try again');
+      return;
+    }
   }
 
   let cfg = {};
@@ -198,13 +220,15 @@ export async function startCall(path) {
     ? new Ambience(ctx, out, { eventDb: cfg.ambience.event_db })
     : null;
 
-  capture = new AudioWorkletNode(ctx, 'pcm-capture-processor');
-  // Keep the capture node pulled by the graph without making it audible.
-  sink = ctx.createGain();
-  sink.gain.value = 0;
-  source.connect(capture);
-  capture.connect(sink).connect(ctx.destination);
-  capture.port.onmessage = (e) => onMicFrame(e.data);
+  if (!typed) {
+    capture = new AudioWorkletNode(ctx, 'pcm-capture-processor');
+    // Keep the capture node pulled by the graph without making it audible.
+    sink = ctx.createGain();
+    sink.gain.value = 0;
+    source.connect(capture);
+    capture.connect(sink).connect(ctx.destination);
+    capture.port.onmessage = (e) => onMicFrame(e.data);
+  }
 
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   // /?mode=listen (with DEV_CAPTURE_AUDIO=true): Emma only listens, for recording STT test audio.
@@ -213,9 +237,13 @@ export async function startCall(path) {
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => {
     opened = true;
-    send({ type: 'hello', v: 2 });
+    send({ type: 'hello', v: 2, typed });
     setState('listening');
     setCaption('');
+    if (typed) {
+      typedForm.hidden = false;
+      typedText.focus();
+    }
     if (ambience) ambience.start().catch((err) => console.warn('ambience', err));
   };
   ws.onmessage = (e) => (typeof e.data === 'string' ? onEvent(JSON.parse(e.data)) : onAudio(e.data));
@@ -246,6 +274,7 @@ export function endCall() {
 }
 
 function teardown() {
+  typedForm.hidden = true;
   try { ambience && ambience.stop(); } catch (_) {}
   ambience = null;
   if (ws) {
@@ -380,6 +409,17 @@ const PATIENT_PAGE = document.body.dataset.page === 'patient';
 orb.addEventListener('click', () => {
   if (IN_CALL.includes(state)) endCall();
   else if (!PATIENT_PAGE) startCall();
+});
+typeInstead.addEventListener('click', () => {
+  if (PATIENT_PAGE) window.dispatchEvent(new CustomEvent('emma-type-instead'));
+  else startCall(undefined, { typed: true });
+});
+typedForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = typedText.value.trim();
+  if (!text) return;
+  send({ type: 'text', text });
+  typedText.value = '';
 });
 action.addEventListener('click', () => {
   if (PATIENT_PAGE) { hideProblem(); setState('idle'); setCaption(''); } else startCall();

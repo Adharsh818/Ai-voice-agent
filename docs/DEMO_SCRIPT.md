@@ -16,7 +16,7 @@ If you rehearse on another day, run `tools/demo_reset.py --demo-date <that day>`
 ## 0. Thirty minutes before
 
 1. Stop Emma if she's running. Run `.\.venv\Scripts\python.exe tools\demo_reset.py`, then start Emma (`.\.venv\Scripts\python.exe server.py`).
-2. Run `.\.venv\Scripts\python.exe tools\preflight.py`. It should say **READY**. Two WARN lines about credit are normal (the keys can't read balances): check ElevenLabs (over 3,000 characters) on the website.
+2. Run `.\.venv\Scripts\python.exe tools\preflight.py`. It should say **READY**. Two WARN lines about credit are normal (the keys can't read balances): check ElevenLabs (over 3,000 characters) on the website. It also times Gemini: if it says "slow today", put the `NLU_HEAD_DEADLINE_S` value it suggests in `.env` and restart Emma (she waits a little longer for the model instead of using her written lines; a short "Okay," covers the pause).
 3. Open, in **Chrome**, in this order (one window, tabs left to right):
    1. http://localhost:8000 (talk page)
    2. http://localhost:8000/dashboard (log in; Live call tab)
@@ -105,11 +105,12 @@ Live tab turn timings, then System: the audit log (every staff action and export
 | Problem | Do this |
 |---|---|
 | Emma doesn't hear you | Check the headset is the Chrome mic (address bar icon); reload the talk page and call again |
+| The microphone won't work at all | Click **Type instead** under the error (or open http://localhost:8000/?typed=1): type the caller's lines and press Enter; Emma still answers out loud. On the patient page, Answer then **Type instead** |
 | She misheard a detail | Correct her the way you would a person ("No, Monday"). That's part of the demo |
 | Calls fail to start ("busy") | A previous call is still open: close the other tab, wait 5 seconds |
 | The voice changes to a different one | ElevenLabs failed; Piper took over. Carry on |
 | Recovery doesn't ring | Recovery tab: "Paused: outside the calling window" means after 20:00; the patient tab must be open and logged in |
-| Anything else | Typed backup: open the browser console on the talk page during a call and type `emma.say("I'd like to book a cleaning")` |
+| Anything else | Typed backup as above; in a normal call the browser console also takes `emma.say("I'd like to book a cleaning")` |
 | Total failure | Play the screen recording of a full rehearsal (make one on 7 Oct) |
 
 After every rehearsal: run `tools/demo_reset.py` again (Emma stopped) so the fixtures are fresh.

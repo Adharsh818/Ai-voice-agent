@@ -55,13 +55,24 @@ async function poll() {
   setTimeout(poll, POLL_MS);
 }
 
+let lastAnswered = null;    // the ring being answered, for "Type instead" if the microphone fails
+
 answerBtn.addEventListener('click', () => {
   if (!ring) return;
   const r = ring;
+  lastAnswered = r;
   answerBtn.disabled = declineBtn.disabled = true;
   inCall = true;
   hide();
   startCall(`/ws/outbound?job=${encodeURIComponent(r.job_id)}&token=${encodeURIComponent(r.token)}`);
+});
+
+// The microphone failed after Answer: carry on typing (the call is still waiting to connect).
+window.addEventListener('emma-type-instead', () => {
+  if (!lastAnswered) return;
+  const r = lastAnswered;
+  inCall = true;
+  startCall(`/ws/outbound?job=${encodeURIComponent(r.job_id)}&token=${encodeURIComponent(r.token)}`, { typed: true });
 });
 
 declineBtn.addEventListener('click', async () => {
@@ -80,7 +91,8 @@ declineBtn.addEventListener('click', async () => {
 });
 
 window.addEventListener('emma-call-state', (e) => {
-  if (['idle', 'lost', 'error', 'busy', 'blocked'].includes(e.detail.state) && inCall) {
+  // 'blocked' (no microphone) keeps the ringing screen away, so "Type instead" stays usable.
+  if (['idle', 'lost', 'error', 'busy'].includes(e.detail.state) && inCall) {
     inCall = false;
     waiting.hidden = !incoming.hidden;
   }

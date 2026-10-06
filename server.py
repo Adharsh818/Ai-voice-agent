@@ -42,6 +42,7 @@ import asyncio
 import json
 import logging
 import struct
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -160,12 +161,20 @@ async def lifespan(app: FastAPI):
     # in the background; the server accepts calls immediately either way.
     async def warm():
         await llm.get_nlu().verify_model()
+        await warm_nlu()
         if config.ELEVENLABS_API_KEY:
             await app.state.cache.warm(phrases.all_phrases(), app.state.http_tts)
         app.state.cache_ready = True
 
+    async def keep_nlu_warm():
+        while config.NLU_KEEP_WARM_S > 0:
+            await asyncio.sleep(config.NLU_KEEP_WARM_S)
+            if not app.state.gate.busy:
+                await warm_nlu()
+
     background = [
         asyncio.create_task(warm()),
+        asyncio.create_task(keep_nlu_warm()),
         asyncio.create_task(llm.get_nlu().keep_verified()),
         # Blank transcripts past the retention period now and every few hours.
         asyncio.create_task(recording.purge_loop()),
@@ -193,6 +202,30 @@ async def lifespan(app: FastAPI):
     calendar_sync.stop_worker()
     await app.state.http.aclose()
     await asyncio.to_thread(db.reset)
+
+
+async def warm_nlu():
+    """
+    One realistic streamed model request (the R2 brief for a typical opening
+    line), read to the end and thrown away, so a caller's first turn finds the
+    connection and the model warm. Never raises.
+    """
+    if not (config.R2_ENGINE and config.GEMINI_API_KEY):
+        return
+    try:
+        from dialogue import brief as brief_mod, context as context_mod, engine as engine_mod
+        ctx = context_mod.new_context("warmup")
+        rt = await engine_mod.build_runtime(ctx)
+        b = brief_mod.build(ctx, "Hi, I'd like to book a cleaning next week.", rt.catalog, rt.kb)
+        started = asyncio.get_running_loop().time()
+        # Its own long allowance: a cold first request has taken over 4 s, and
+        # stopping it early would leave the model as cold as before.
+        deadline = time.monotonic() + 15
+        async for _ in llm.get_nlu().generate_json_stream(b.contents, b.system, schema=b.schema, deadline=deadline):
+            pass
+        logger.info("Gemini warm (%.0f ms)", (asyncio.get_running_loop().time() - started) * 1000)
+    except Exception as exc:
+        logger.debug("Gemini warm-up skipped: %s", exc)
 
 
 app = FastAPI(title="Pearl Dental Clinic — Emma Voice Agent", lifespan=lifespan)

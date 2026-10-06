@@ -204,6 +204,10 @@ R2_ENGINE = os.getenv("R2_ENGINE", "false").lower() == "true"
 # R2: how long the streamed model reply may take to deliver its understanding
 # (the "head") before the turn falls back to Tier-0 lenient (nlu.HEAD_DEADLINE_S).
 NLU_HEAD_DEADLINE_S = float(os.getenv("NLU_HEAD_DEADLINE_S", "1.6"))
+# Keep Gemini's streaming connection warm: one realistic request at startup and
+# another this often while no call is on (0 = off). A cold first request took
+# about 2.2 s and missed the head deadline; a warm one about 1.3 s.
+NLU_KEEP_WARM_S = float(os.getenv("NLU_KEEP_WARM_S", "240"))
 # Caller words in the console log ("caller: ...", listen-only "heard ..."). On for
 # development; set LOG_CALLER_TEXT=false before real patient calls (plan 5.8:
 # transcripts never go to log files; they live in the database for 30 days).

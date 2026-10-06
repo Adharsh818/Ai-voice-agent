@@ -16,6 +16,11 @@
     </button>
     <p id="caption" aria-live="polite"></p>
     <button id="action" type="button" hidden>Try again</button>
+    <button id="type-instead" type="button" hidden>Type instead</button>
+    <form id="typed" hidden autocomplete="off">
+      <input id="typed-text" type="text" placeholder="Type what the caller says, then Enter" aria-label="What the caller says">
+      <button type="submit">Send</button>
+    </form>
   </main>
   <script type="module" src="/static/app.js"></script>
 </body>
