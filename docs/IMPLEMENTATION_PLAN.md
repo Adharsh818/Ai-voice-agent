@@ -636,9 +636,9 @@ Every stage ends with its exit tests green. Tests run after every step.
 
 ### Day 7 — 7 Oct: freeze and rehearse
 - [ ] **7.1** Code freeze at noon; only demo-blocking fixes after.
-- [ ] **7.2** `docs/ARCHITECTURE.md` (pipeline, invariants, data model, sync, threat model summary) and `docs/DEMO_SCRIPT.md`.
+- [x] **7.2** `docs/ARCHITECTURE.md` (pipeline, invariants, data model, sync, threat model summary) and `docs/DEMO_SCRIPT.md`. **Done 7 Oct:** [ARCHITECTURE.md](ARCHITECTURE.md) and [DEMO_SCRIPT.md](DEMO_SCRIPT.md). Scenes 1-5 were run through the engine on the demo data (model off); that found and fixed four bugs: a question about a branch chose it, "Her name is Diya" wasn't read as the patient's name, "pain since last night" was searched as an evening slot, and a reason given with a cancel request was dropped.
 - [ ] **7.3** Three full rehearsals with a headset; screen-record one complete run as backup.
-- [ ] **7.4** Reset and reseed the demo DB; warm prompt caches; check provider balances.
+- [ ] **7.4** Reset and reseed the demo DB; warm prompt caches; check provider balances. **Tooling done 7 Oct:** `tools/demo_reset.py` (clears Emma's Calendar events, rebuilds the DEMO clinic, books the script's fixtures) and `tools/preflight.py` (one-screen readiness check). Run both on the demo morning.
 
 ### Day 8 — 8 Oct: demo
 Run `docs/DEMO_SCRIPT.md`. Backups: typed-input mode (`emma.say()`), the recorded run.

@@ -7,7 +7,7 @@ Emma answers calls for a four-branch dental clinic in Bengaluru. She talks in re
 - **Text-to-speech:** ElevenLabs Flash v2.5 (streaming PCM), with pre-rendered prompts
 - **Server:** FastAPI + WebSocket
 
-The build plan, decisions and edge cases are in [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). The phone path is described in [docs/TELEPHONY.md](docs/TELEPHONY.md).
+The build plan, decisions and edge cases are in [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). How it fits together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Running the demo: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) (`tools/demo_reset.py` with Emma stopped, then `tools/preflight.py` with her running). The phone path is described in [docs/TELEPHONY.md](docs/TELEPHONY.md).
 
 ## Quick start (Windows, Python 3.12)
 

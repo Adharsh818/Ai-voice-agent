@@ -1087,6 +1087,21 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
     return None
 
 
+# A reason given with the cancel request ("..., I'm travelling that week",
+# "...because something came up"); the reason is optional and never asked twice.
+_CANCEL_WHY_RE = re.compile(
+    r"\b(?:appointment|booking)\b[ ,.;-]*(?:because|as|since)?\s*"
+    r"((?:i'?m|i am|i have|i've|i'll|i will|i won't|i can't|i cannot|we're|we are|my|there's|something)\b.+)$",
+    re.I)
+
+
+# A question about a branch (where it is, how to get there, its hours or
+# parking) names it without choosing it for the booking.
+_ABOUT_A_PLACE = re.compile(
+    r"\b(where|address|located|location|directions?|how (?:do|can|would) i (?:get|reach|find)|far|near|"
+    r"landmark|parking|park|timings?|hours|open|close|closing|opening)\b")
+
+
 def _lenient(raw: str, view: Tier0View) -> Understanding:
     """
     The no-model fallback: everything findable, catalog matches anywhere,
@@ -1117,6 +1132,9 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         u.intent, u.service, u.service_phrase = opener
     elif re.search(r"\b(cancel|call off)\b", t) and (_APPT_NOUN_RE.search(t) or pending in _BARE_CANCEL_GOALS):
         u.intent = Intent.CANCEL
+        why = _CANCEL_WHY_RE.search(raw)
+        if why:                      # "I want to cancel my appointment, I'm travelling that week."
+            u.cancel_reason = why.group(1).strip(" ,.!")
     elif re.search(r"\b(reschedule|postpone|prepone)\b", t) or \
             re.search(r"\b(change|move|shift)\s+(?:my|the)\s+(appointment|booking)\b", t) or \
             (_APPT_NOUN_RE.search(t) and re.search(r"\b(change|move|shift)\s+(?:the|it to another)\s+(day|date|time)\b", t)):
@@ -1189,7 +1207,9 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
     if asked and (u.service or u.service_phrase):
         filled_expected = True
     br = match.match_branch(raw, _catalog_part(view, "branches"))
-    if br.value:
+    if br.value and question and _ABOUT_A_PLACE.search(t):
+        pass             # "Where is your Jayanagar branch?" asks about it; it doesn't choose it (7 Oct rehearsal)
+    elif br.value:
         u.branch = br.value
         filled_expected = filled_expected or pending == Goal.ASK_BRANCH
     elif pending == Goal.ASK_BRANCH and _any_branch(t, view):

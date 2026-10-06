@@ -127,6 +127,13 @@ _IDIOMS = [
     (r"\b(?:first|second|third|last)\s+(?:one|option|slot|choice)\b", " "),
     (r"\b(?:one|a|just\s+a)\s+(?:second|sec|minute|moment)\b", " "),
     (r"\bfirst\s+thing(?:\s+in\s+the\s+morning)?\b", " early morning "),
+    # When a symptom started is not when to come ("pain since last night" was
+    # searched as an evening slot in the 7 Oct demo rehearsal).
+    (r"\b(?:ever\s+)?since\s+(?:last\s+\w+|yesterday(?:\s+(?:morning|afternoon|evening|night))?|"
+     r"(?:this|the)\s+(?:morning|afternoon|evening)|morning|afternoon|evening|night|"
+     r"[a-z0-9]+\s+(?:days?|weeks?))\b", " "),
+    (r"\b(?:last|yesterday)\s+(?:night|evening)\b", " "),
+    (r"\b[a-z0-9]+\s+(?:days?|weeks?|hours?)\s+ago\b", " "),
 ]
 
 _MONTH_WORDS = "|".join(sorted(MONTHS, key=len, reverse=True))
