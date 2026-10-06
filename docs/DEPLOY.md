@@ -34,6 +34,7 @@ Then:
 | Update | `git pull && sudo bash deploy/install.sh <domain>` |
 | Backups | `ls /opt/emma/backups` · run one now: `sudo systemctl start emma-backup` |
 | Health of the database | `sudo -u emma /opt/emma/.venv/bin/python /opt/emma/tools/backup.py --check` |
+| Crash drill on a copy of the live database (never writes the live file) | `sudo -u emma /opt/emma/.venv/bin/python /opt/emma/tools/crash_drill.py --from /opt/emma/data/emma.db` |
 | Restore | `sudo systemctl stop emma && sudo -u emma /opt/emma/.venv/bin/python /opt/emma/tools/backup.py --restore /opt/emma/backups/emma-YYYYMMDD-HHMM.db && sudo systemctl start emma` |
 
 ## Backups and logs

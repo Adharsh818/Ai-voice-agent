@@ -481,6 +481,28 @@ class AsteriskConfigTests(unittest.TestCase):
         self.assertIn("127.0.0.1:", conf["extensions.conf"])                 # AudioSocket stays on loopback
         self.assertFalse(any("{{" in text for text in conf.values()))
 
+    def test_lan_keeps_loopback_for_the_pc_and_pins_each_phone(self):
+        # WSL's mirrored networking: Windows can't reach Ubuntu via its own Wi-Fi address,
+        # so MicroSIP (1002) stays on loopback while the mobile (1001) uses the Wi-Fi line.
+        conf = self.render(TELEPHONY_SIP_BIND="192.168.1.23", TELEPHONY_SIP_SUBNET="192.168.1.0/24")
+        pjsip = conf["pjsip.conf"]
+        self.assertIn("[transport-local]", pjsip)
+        self.assertIn("bind=127.0.0.1:5060", pjsip)
+        self.assertIn("[transport-lan]", pjsip)
+        self.assertIn("[1001](phone)\ntransport=transport-lan", pjsip)
+        self.assertIn("[1002](phone)\ntransport=transport-local", pjsip)
+        local = self.render()["pjsip.conf"]
+        self.assertNotIn("transport-lan", local)
+        self.assertIn("[1001](phone)\ntransport=transport-local", local)
+
+    def test_only_the_modules_emma_uses_are_loaded(self):
+        modules = self.render()["modules.conf"]
+        self.assertIn("autoload = no", modules)                             # loading everything hung in WSL
+        for needed in ("pbx_config.so", "chan_pjsip.so", "res_pjsip_acl.so", "app_audiosocket.so",
+                       "func_curl.so", "app_dial.so", "res_timing_timerfd.so"):
+            self.assertIn(f"load => {needed}", modules)
+        self.assertNotIn("load => app_voicemail", modules)
+
 
 class CallerIdAndTransferTests(unittest.TestCase):
     """The engine side: caller ID instead of a read-back, and a live transfer instead of a callback promise."""

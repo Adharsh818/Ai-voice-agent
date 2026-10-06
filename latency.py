@@ -131,6 +131,18 @@ def _percentile(values, p):
     return round(values[lo] + (values[hi] - values[lo]) * (k - lo), 1)
 
 
+def _replace(src: str, dst: str, tries: int = 5):
+    """os.replace, retried briefly: on Windows a virus scanner or the indexer can hold a just-renamed file."""
+    for attempt in range(tries):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if attempt == tries - 1:
+                raise
+            time.sleep(0.02 * (attempt + 1))
+
+
 class LatencyLog:
     def __init__(self, directory: Optional[str], keep: int = 1000, max_bytes: Optional[int] = None,
                  backups: Optional[int] = None):
@@ -150,14 +162,17 @@ class LatencyLog:
                 return
         except OSError:
             return
-        for i in range(self.backups - 1, 0, -1):
-            older = f"{self.path}.{i}"
-            if os.path.exists(older):
-                os.replace(older, f"{self.path}.{i + 1}")
-        os.replace(self.path, f"{self.path}.1")
-        stale = f"{self.path}.{self.backups + 1}"
-        if os.path.exists(stale):
-            os.remove(stale)
+        try:
+            for i in range(self.backups - 1, 0, -1):
+                older = f"{self.path}.{i}"
+                if os.path.exists(older):
+                    _replace(older, f"{self.path}.{i + 1}")
+            _replace(self.path, f"{self.path}.1")
+            stale = f"{self.path}.{self.backups + 1}"
+            if os.path.exists(stale):
+                os.remove(stale)
+        except OSError as exc:              # try again on the next turn; never lose this turn's record
+            logger.warning("Could not rotate latency log: %s", exc)
 
     def add(self, timer: TurnTimer) -> Optional[dict]:
         if timer.logged:

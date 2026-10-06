@@ -52,4 +52,5 @@ sleep 3
 asterisk -rx "module show like audiosocket"
 asterisk -rx "pjsip show endpoints" | grep -E "Endpoint:|^ *1001|^ *1002" || true
 asterisk -rx "manager show settings" | grep -E "Manager \(AMI\)|Port|Bind" || true
-echo "Asterisk is ready. Register softphones 1001 and 1002 at 127.0.0.1:5060, then dial 100."
+echo "Asterisk is ready. Register 1002 (MicroSIP, source port 5070) at 127.0.0.1:5060 and 1001 at the"
+echo "address tools/telephony_setup.py printed (127.0.0.1, or the Wi-Fi address with --lan), then dial 100."
