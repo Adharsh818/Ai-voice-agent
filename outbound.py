@@ -99,6 +99,78 @@ def set_do_not_call(conn, phone_e164: str, actor: str = "emma"):
         _audit(conn, actor, "do_not_call_add", "contact", phones.masked(phone_e164))
 
 
+def _hm(value) -> Optional[time]:
+    if value in (None, ""):
+        return None
+    try:
+        return time.fromisoformat(str(value).strip())
+    except ValueError:
+        return None
+
+
+def patient_window(conn, phone_e164: str) -> tuple:
+    """(call_after, call_before) for this number (times or None): its own calling hours, if staff set any."""
+    row = conn.execute("SELECT call_after, call_before FROM contact_prefs WHERE phone_e164 = ?",
+                       (phone_e164,)).fetchone()
+    return (_hm(row["call_after"]), _hm(row["call_before"])) if row else (None, None)
+
+
+def set_call_window(conn, phone_e164: str, after: Optional[str], before: Optional[str], actor: str = "staff"):
+    """Staff set (or clear, with None) when this number may be called. Raises RecoveryError on bad times."""
+    a, b = _hm(after), _hm(before)
+    if (after and a is None) or (before and b is None):
+        raise RecoveryError("Times must look like 18:00.")
+    if a and b and a >= b:
+        raise RecoveryError("'Call after' must be earlier than 'call before'.")
+    with db.transaction(conn):
+        conn.execute("INSERT INTO contact_prefs (phone_e164, do_not_call, updated_at, call_after, call_before) "
+                     "VALUES (?, 0, ?, ?, ?) ON CONFLICT (phone_e164) DO UPDATE SET call_after = excluded.call_after, "
+                     "call_before = excluded.call_before, updated_at = excluded.updated_at",
+                     (phone_e164, db.now_str(), a.strftime("%H:%M") if a else None,
+                      b.strftime("%H:%M") if b else None))
+        _audit(conn, actor, "call_window_set", "contact", phones.masked(phone_e164),
+               {"after": after or None, "before": before or None})
+
+
+def list_call_windows(conn) -> list:
+    rows = conn.execute("SELECT phone_e164, call_after, call_before FROM contact_prefs "
+                        "WHERE call_after IS NOT NULL OR call_before IS NOT NULL ORDER BY updated_at DESC").fetchall()
+    return [{"phone_masked": phones.masked(r["phone_e164"]), "call_after": r["call_after"],
+             "call_before": r["call_before"]} for r in rows]
+
+
+def _hours_for(conn, phone_e164: Optional[str]) -> tuple:
+    """Today's callable hours for this number: the clinic window narrowed by the patient's own."""
+    start, end = _window()
+    if phone_e164:
+        after, before = patient_window(conn, phone_e164)
+        narrowed = (max(start, after) if after else start, min(end, before) if before else end)
+        if narrowed[0] < narrowed[1]:
+            start, end = narrowed
+    return start, end
+
+
+def callable_now(conn, phone_e164: Optional[str], now: Optional[datetime] = None) -> bool:
+    now = clock.localize(now) if now is not None else clock.now()
+    start, end = _hours_for(conn, phone_e164)
+    return start <= now.time() < end
+
+
+def next_callable(conn, phone_e164: Optional[str], earliest: datetime) -> datetime:
+    """The first moment at or after `earliest` inside the clinic's and the patient's calling hours."""
+    earliest = clock.localize(earliest)
+    start, end = _hours_for(conn, phone_e164)
+    day = earliest.date()
+    for _ in range(8):
+        opens = clock.localize(datetime.combine(day, start))
+        closes = clock.localize(datetime.combine(day, end))
+        if earliest < closes and day.weekday() != 6:          # the clinic is closed on Sundays
+            return max(earliest, opens)
+        day += timedelta(days=1)
+        earliest = clock.localize(datetime.combine(day, start))
+    return earliest
+
+
 _APPT_SQL = (
     "SELECT a.id, a.version, a.status, a.start_utc, a.end_utc, a.caller_name, a.caller_phone_e164, "
     "a.doctor_id, a.branch_id, a.service_id, p.name AS patient_name, s.name AS service, s.duration_min, "
@@ -242,9 +314,11 @@ def start_campaign(conn, *, block_id: int, appointment_ids: list, actor: str = "
         for phone, ids in by_phone.items():
             snapshot = {a: affected[a]["version"] for a in ids}
             conn.execute("INSERT INTO outbound_jobs (campaign_id, phone_e164, appointment_ids_json, snapshot_json, "
-                         "status, attempts, idempotency_key, updated_at) VALUES (?, ?, ?, ?, 'queued', 0, ?, ?)",
+                         "status, attempts, idempotency_key, updated_at, max_attempts) "
+                         "VALUES (?, ?, ?, ?, 'queued', 0, ?, ?, ?)",
                          (campaign_id, phone, json.dumps(ids), json.dumps(snapshot),
-                          f"recovery-{campaign_id}-{uuid.uuid4().hex[:8]}", db.now_str()))
+                          f"recovery-{campaign_id}-{uuid.uuid4().hex[:8]}", db.now_str(),
+                          config.RECOVERY_MAX_ATTEMPTS))
         _audit(conn, actor, "campaign_start", "campaign", campaign_id,
                {"block_id": block_id, "appointments": sorted(wanted), "jobs": len(by_phone)})
     events.publish({"type": "recovery", "call_id": None, "what": "campaign_started", "campaign_id": campaign_id})
@@ -288,8 +362,48 @@ def list_campaigns(conn, limit: int = 20) -> list:
         item = dict(c)
         item["jobs"] = [job_view(conn, j["id"]) for j in conn.execute(
             "SELECT id FROM outbound_jobs WHERE campaign_id = ? ORDER BY id", (c["id"],)).fetchall()]
+        item["summary"] = campaign_summary(item["jobs"])
         out.append(item)
     return out
+
+
+def campaign_summary(jobs: list) -> dict:
+    """What a campaign achieved: appointments by result, and calls by state."""
+    appts = {"moved": 0, "cancelled": 0, "needs_reschedule": 0, "unchanged": 0}
+    calls = {"waiting": 0, "retrying": 0, "done": 0, "needs_staff": 0, "skipped": 0}
+    for j in jobs:
+        if j["status"] == "queued":
+            calls["retrying" if j.get("next_attempt_at") else "waiting"] += 1
+        elif j["status"] in ("ringing", "in_call"):
+            calls["waiting"] += 1
+        elif j["status"] == "failed":
+            calls["needs_staff"] += 1
+        else:
+            calls["done" if j["status"] == "done" else "skipped"] += 1
+        for a in j["appointments"]:
+            if a["status"] == "cancelled":
+                appts["cancelled"] += 1
+            elif a["status"] == "needs_reschedule":
+                appts["needs_reschedule"] += 1
+            elif a["status"] == "booked" and j["status"] in ("done", "failed") and                     a["version"] > (j.get("snapshot") or {}).get(a["id"], a["version"]):
+                appts["moved"] += 1                    # changed since the campaign started: moved on the call
+            else:
+                appts["unchanged"] += 1
+    return {"appointments": appts, "calls": calls}
+
+
+def campaign_rows(conn, campaign_id: int) -> list:
+    """One row per appointment called about, for the campaign's CSV report."""
+    rows = []
+    for j in conn.execute("SELECT id FROM outbound_jobs WHERE campaign_id = ? ORDER BY id", (campaign_id,)).fetchall():
+        job = job_view(conn, j["id"])
+        for a in job["appointments"]:
+            rows.append({"job": job["id"], "patient": a["patient_name"], "phone": job["phone_masked"],
+                         "call": job["status"], "result": job["outcome"] or "", "attempts": job["attempts"],
+                         "next_attempt": job["next_attempt_at"] or "", "appointment_now": a["start"],
+                         "doctor": a["doctor"], "branch": a["branch"], "service": a["service"],
+                         "status": a["status"]})
+    return rows
 
 
 def get_job(conn, job_id: int) -> Optional[dict]:
@@ -313,7 +427,9 @@ def job_view(conn, job_id: int) -> Optional[dict]:
         if row is not None:
             appts.append(_appt_view(row))
     return {"id": job["id"], "campaign_id": job["campaign_id"], "status": job["status"], "outcome": job["outcome"],
-            "attempts": job["attempts"], "call_id": job["call_id"], "updated_at": job["updated_at"],
+            "attempts": job["attempts"], "max_attempts": job.get("max_attempts") or 1,
+            "next_attempt_at": db.local(job["next_attempt_at"]).isoformat() if job.get("next_attempt_at") else None,
+            "call_id": job["call_id"], "updated_at": job["updated_at"], "snapshot": job["snapshot"],
             "phone_masked": phones.masked(job["phone_e164"]),
             "name": (appts[0]["caller_name"] or appts[0]["patient_name"]) if appts else None,
             "appointments": appts}
@@ -332,14 +448,76 @@ class Claimed:
     snapshot: dict = field(default_factory=dict)
 
 
-def next_job(conn) -> Optional[dict]:
-    row = conn.execute("SELECT j.id FROM outbound_jobs j JOIN outbound_campaigns c ON c.id = j.campaign_id "
-                       "WHERE c.status = 'running' AND j.status = 'queued' ORDER BY j.id LIMIT 1").fetchone()
-    return get_job(conn, row["id"]) if row else None
+def next_job(conn, now: Optional[datetime] = None) -> Optional[dict]:
+    """
+    The next job to ring now: a queued job of a running, unpaused campaign,
+    whose retry time (if any) has come and whose number may be called now.
+    """
+    now = clock.localize(now) if now is not None else clock.now()
+    rows = conn.execute("SELECT j.id, j.phone_e164 FROM outbound_jobs j JOIN outbound_campaigns c "
+                        "ON c.id = j.campaign_id WHERE c.status = 'running' AND c.paused_at IS NULL "
+                        "AND j.status = 'queued' AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= ?) "
+                        "ORDER BY j.next_attempt_at IS NOT NULL, j.next_attempt_at, j.id",
+                        (db.utc_str(now),)).fetchall()
+    for r in rows:
+        if callable_now(conn, r["phone_e164"], now):
+            return get_job(conn, r["id"])
+    return None
 
 
 def has_queued(conn) -> bool:
     return next_job(conn) is not None
+
+
+def waiting_summary(conn) -> dict:
+    """Queued jobs that can't ring yet: how many, and when the next one may."""
+    row = conn.execute("SELECT COUNT(*) AS n, MIN(j.next_attempt_at) AS next_at FROM outbound_jobs j "
+                       "JOIN outbound_campaigns c ON c.id = j.campaign_id WHERE c.status = 'running' "
+                       "AND j.status = 'queued'").fetchone()
+    paused = conn.execute("SELECT COUNT(*) FROM outbound_campaigns WHERE status = 'running' "
+                          "AND paused_at IS NOT NULL").fetchone()[0]
+    return {"queued": row["n"], "next_retry": db.local(row["next_at"]).isoformat() if row["next_at"] else None,
+            "paused_campaigns": paused}
+
+
+def requeue_job(conn, job_id: int, *, outcome: str, retry_at: datetime, call_id: Optional[str] = None,
+                extra_attempt: bool = False):
+    """Try this job again at `retry_at` (an unanswered call, or a patient who asked to be called back)."""
+    with db.transaction(conn):
+        conn.execute("UPDATE outbound_jobs SET status = 'queued', outcome = ?, next_attempt_at = ?, "
+                     "max_attempts = CASE WHEN ? THEN MAX(max_attempts, attempts + 1) ELSE max_attempts END, "
+                     "updated_at = ? WHERE id = ?",
+                     (outcome, db.utc_str(retry_at), 1 if extra_attempt else 0, db.now_str(), job_id))
+    events.publish({"type": "recovery", "call_id": call_id, "what": "job_retry", "job_id": job_id,
+                    "retry_at": retry_at.isoformat(), "outcome": outcome})
+
+
+def pause_campaign(conn, campaign_id: int, actor: str = "staff") -> dict:
+    """Hold the queued jobs (a call in progress finishes); resume_campaign carries on where it was."""
+    with db.transaction(conn):
+        row = conn.execute("SELECT status, paused_at FROM outbound_campaigns WHERE id = ?", (campaign_id,)).fetchone()
+        if row is None:
+            raise RecoveryError("Unknown campaign.")
+        if row["status"] != "running":
+            raise RecoveryError("Only a running campaign can be paused.")
+        if not row["paused_at"]:
+            conn.execute("UPDATE outbound_campaigns SET paused_at = ? WHERE id = ?", (db.now_str(), campaign_id))
+            _audit(conn, actor, "campaign_pause", "campaign", campaign_id)
+    events.publish({"type": "recovery", "call_id": None, "what": "campaign_paused", "campaign_id": campaign_id})
+    return {"ok": True}
+
+
+def resume_campaign(conn, campaign_id: int, actor: str = "staff") -> dict:
+    with db.transaction(conn):
+        row = conn.execute("SELECT status, paused_at FROM outbound_campaigns WHERE id = ?", (campaign_id,)).fetchone()
+        if row is None:
+            raise RecoveryError("Unknown campaign.")
+        if row["paused_at"]:
+            conn.execute("UPDATE outbound_campaigns SET paused_at = NULL WHERE id = ?", (campaign_id,))
+            _audit(conn, actor, "campaign_resume", "campaign", campaign_id)
+    events.publish({"type": "recovery", "call_id": None, "what": "campaign_resumed", "campaign_id": campaign_id})
+    wake()
+    return {"ok": True}
 
 
 def claim_job(conn, job_id: int, call_id: str) -> tuple:
@@ -520,11 +698,12 @@ class Runner:
         self.window_check = window_check or in_calling_window
         self.ringing: Optional[Ringing] = None
         self.paused_reason: Optional[str] = None
+        self.waiting: Optional[dict] = None
         self._stopped = False
 
     def status(self) -> dict:
         return {"ringing": self.ringing.public() if self.ringing else None, "paused": self.paused_reason,
-                "window": calling_window_text()}
+                "window": calling_window_text(), "waiting": getattr(self, "waiting", None)}
 
     def stop(self):
         self._stopped = True
@@ -560,7 +739,10 @@ class Runner:
         job = await self.db.run(next_job)
         if job is None:
             self._pause(None)
+            # Jobs may still be waiting: for a retry time, the calling hours or a paused campaign.
+            self.waiting = await self.db.run(waiting_summary)
             return None
+        self.waiting = None
         if self.gate.busy:
             self._pause("another call is in progress")
             return "paused"
@@ -593,9 +775,13 @@ class Runner:
         if ring.declined or not ring.answered.is_set():
             outcome = "declined" if ring.declined else "no_answer"
             events.publish({"type": "ring_ended", "call_id": call_id, "job_id": claimed.job_id, "outcome": outcome})
+            if outcome == "no_answer" and await self._retry(claimed, call_id, "no_answer"):
+                return "retry"
+            job = await self.db.run(get_job, claimed.job_id)
+            tries = f"{job['attempts']} attempt{'s' if job and job['attempts'] != 1 else ''}" if job else "one attempt"
             await self.db.run(finish_job, claimed.job_id, status="failed", outcome=outcome, unresolved=unresolved,
                               call_id=call_id,
-                              note=f"Recovery call {'declined' if ring.declined else 'not answered'} (one attempt). "
+                              note=f"Recovery call {'declined' if ring.declined else 'not answered'} ({tries}). "
                                    f"{len(unresolved)} appointment(s) need a new time.")
             return outcome
         events.publish({"type": "ring_ended", "call_id": call_id, "job_id": claimed.job_id, "outcome": "answered"})
@@ -609,12 +795,39 @@ class Runner:
             ring.call_done.set()
         await ring.call_done.wait()
         result = ring.result or {"outcome": "abandoned", "unresolved": unresolved}
+        if result.get("unresolved") and result.get("outcome") in ("busy", "not_connected"):
+            # "I'm driving, call me after 6": the patient asked for a call back, so it's
+            # booked even past the usual attempts; an unconnected call is just retried.
+            asked = result.get("outcome") == "busy"
+            when = None
+            if result.get("retry_at"):
+                try:
+                    when = clock.localize(datetime.fromisoformat(result["retry_at"]))
+                except (TypeError, ValueError):
+                    when = None
+            if await self._retry(claimed, call_id, result["outcome"], at=when, extra_attempt=asked):
+                return "retry"
         failed = bool(result.get("unresolved")) and result.get("outcome") not in ("pending", "staff", "do_not_call",
                                                                                  "busy")
         await self.db.run(finish_job, claimed.job_id, status="failed" if failed else "done",
                           outcome=result.get("outcome") or "completed", unresolved=result.get("unresolved") or [],
                           call_id=call_id, note=result.get("note"))
         return result.get("outcome") or "completed"
+
+    async def _retry(self, claimed: Claimed, call_id: str, outcome: str, at: Optional[datetime] = None,
+                     extra_attempt: bool = False) -> bool:
+        """Queue another attempt if one is left (or the patient asked for it); False when it's the last."""
+        job = await self.db.run(get_job, claimed.job_id)
+        if job is None:
+            return False
+        if not extra_attempt and job["attempts"] >= job.get("max_attempts", 1):
+            return False
+        earliest = at or clock.now() + timedelta(minutes=config.RECOVERY_RETRY_GAP_MIN)
+        retry_at = await self.db.run(next_callable, claimed.phone_e164, earliest)
+        await self.db.run(requeue_job, claimed.job_id, outcome=outcome, retry_at=retry_at, call_id=call_id,
+                          extra_attempt=extra_attempt)
+        logger.info("recovery job %s: %s, trying again at %s", claimed.job_id, outcome, retry_at.strftime("%a %H:%M"))
+        return True
 
     # ------------------------------------------------ the /patient page's side
     def answer(self, job_id: int, token: str) -> Optional[Ringing]:

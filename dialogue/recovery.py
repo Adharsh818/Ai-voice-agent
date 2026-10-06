@@ -34,7 +34,7 @@ import logging
 import random
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as time_of_day, timedelta
 from types import SimpleNamespace
 from typing import Callable, Optional
 
@@ -98,6 +98,7 @@ class RecoveryContext:
     results: dict = field(default_factory=dict)   # appointment id -> rescheduled | cancelled | pending
     outcome: Optional[str] = None                 # the job's outcome once the call ends
     note: Optional[str] = None
+    retry_at: Optional[datetime] = None           # "call me after 6": when the patient asked to be called back
     last_line: str = ""
     used: set = field(default_factory=set)
     branches: Optional[list] = None               # SimpleNamespace(id, name, area), loaded on first use
@@ -171,7 +172,8 @@ _STAFF = (r"\b(talk|speak) (to|with) (a |an |the |some ?one|somebody|someone|per
           r"front desk|manager|doctor|real)", r"\breal person\b", r"\b(the )?front desk\b(?! will)",
           r"\breception(ist)?\b", r"\bhuman\b", r"\bsomeone from (the )?(clinic|front desk|reception)\b")
 _BUSY = (r"\b(i'm|i am|im) (busy|driving|in a meeting|at work|outside)\b", r"\bcall (me )?(back )?later\b",
-         r"\bcan('t| not)? talk (right )?now\b", r"\bnot a good time\b", r"\bcall back\b")
+         r"\bcan('t| not)? talk (right )?now\b", r"\bnot a good time\b", r"\bcall back\b",
+         r"\b(call|ring) (me )?(back )?(after|in|at|tomorrow|tonight|this evening|this afternoon)\b")
 _WHO = (r"\bwho('s| is) (this|calling|speaking|it)\b", r"\bwho are you\b", r"\bsorry,? who\b", r"^who\b",
         r"\bwhere (are you )?calling from\b", r"\bwhich (clinic|company|hospital)\b")
 _REPEAT = (r"^(sorry|pardon|what|huh|come again)\??$", r"\b(say|repeat) (that|it) again\b", r"\bcome again\b",
@@ -538,8 +540,12 @@ def _side_exits(ctx: RecoveryContext, t: str, run) -> Optional[Reply]:
             "Of course. I'll ask the front desk to give you a call today to sort it out. Thanks, bye.",
             "Sure, I'll have someone from the front desk call you back today. Take care, bye."]))
     if _has(t, *_BUSY):
-        ctx.note = "Busy when called; asked for a call back."
-        return _close(ctx, "busy", "No problem at all. I'll have the front desk call you back later. Bye for now.")
+        ctx.retry_at, when = _callback_time(t)
+        ctx.note = "Busy when called; asked for a call back" + (f" {when}." if when else ".")
+        if when:
+            return _close(ctx, "busy", _pick(ctx, [f"No problem at all, we'll call you back {when}. Bye for now.",
+                                                   f"Sure, we'll give you a ring {when}. Take care."]))
+        return _close(ctx, "busy", "No problem at all. We'll call you back a bit later. Bye for now.")
     if _has(t, *_BYE) and len(t.split()) <= 4:
         ctx.note = "Ended the call before a new time was agreed."
         return _close(ctx, "pending", "Okay, I'll ask the front desk to call you about a new time. Bye.")
@@ -946,6 +952,52 @@ def listening_hint(ctx: RecoveryContext) -> dict:
     return {"expect": _expect(ctx), "digits_so_far": 0}
 
 
+_IN_RE = re.compile(r"\bin (?:an? |one )?(half an? hour|hour|(?:\d+|ten|fifteen|twenty|thirty|forty five) "
+                    r"(?:minutes?|mins?|hours?))\b")
+_NUMBER_WORDS = {"ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30, "forty five": 45}
+
+
+def _callback_time(text: str) -> tuple:
+    """
+    "call me after 6" -> (today 18:00, "after 6"); "in an hour" -> (now + 1 h, "in about an hour");
+    "tomorrow morning" -> (tomorrow 09:00, "tomorrow morning"). (None, "") when no time was given.
+    The runner keeps the time inside the calling hours.
+    """
+    t = _norm(text)
+    now = clock.now()
+    m = _IN_RE.search(t)
+    if m:
+        what = m.group(1)
+        if what.startswith("half"):
+            minutes = 30
+        elif what == "hour":
+            minutes = 60
+        else:
+            amount, unit = what.rsplit(" ", 1)
+            n = int(amount) if amount.isdigit() else _NUMBER_WORDS.get(amount, 0)
+            minutes = n * 60 if unit.startswith("hour") else n
+        if minutes:
+            if minutes == 60:
+                spoken = "in about an hour"
+            elif minutes < 60:
+                spoken = f"in about {minutes} minutes"
+            else:
+                spoken = f"in about {minutes // 60} hours"
+            return now + timedelta(minutes=minutes), spoken
+    w = _when(text)
+    if w is None:
+        return None, ""
+    day = next(iter(w.date.dates())) if w.date is not None else now.date()
+    hour = w.time.start if w.time is not None and w.time.start is not None else time_of_day(9)
+    at = clock.localize(datetime.combine(day, hour))
+    if at <= now:
+        return None, ""
+    if w.date is None and w.time is not None and w.time.kind == "exact":
+        lead = "after" if re.search(r"\bafter\b", t) else "at"
+        return at, f"{lead} {prompts.speak_time(w.time.start)}"
+    return at, prompts.speak_when(w.date, w.time) or ""
+
+
 def call_result(ctx: RecoveryContext) -> dict:
     """What the runner records for the job when the call ends (hang-up at any point included)."""
     unresolved = ctx.unresolved()
@@ -957,4 +1009,4 @@ def call_result(ctx: RecoveryContext) -> dict:
     if not ctx.greeted or ctx.state == "identity" and ctx.outcome is None:
         note = "Hung up before identity was confirmed; nothing was shared."
     return {"outcome": outcome, "unresolved": unresolved, "note": note,
-            "results": dict(ctx.results)}
+            "results": dict(ctx.results), "retry_at": ctx.retry_at.isoformat() if ctx.retry_at else None}

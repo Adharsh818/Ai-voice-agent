@@ -485,7 +485,7 @@ async def _recovery(fn, *args, **kwargs):
 
 def _recovery_overview(conn) -> dict:
     return {"blocks": outbound.list_blocks(conn), "campaigns": outbound.list_campaigns(conn),
-            "reasons": list(outbound.REASONS)}
+            "reasons": list(outbound.REASONS), "windows": outbound.list_call_windows(conn)}
 
 
 @router.get("/dashboard/api/recovery")
@@ -529,6 +529,54 @@ async def start_campaign(request: Request, user: str = staff):
 @router.post("/dashboard/api/recovery/campaigns/{campaign_id}/stop")
 async def stop_campaign(campaign_id: int, user: str = staff):
     return await _recovery(outbound.stop_campaign, campaign_id, actor=user)
+
+
+@router.post("/dashboard/api/recovery/campaigns/{campaign_id}/pause")
+async def pause_campaign(campaign_id: int, user: str = staff):
+    return await _recovery(outbound.pause_campaign, campaign_id, actor=user)
+
+
+@router.post("/dashboard/api/recovery/campaigns/{campaign_id}/resume")
+async def resume_campaign(campaign_id: int, user: str = staff):
+    return await _recovery(outbound.resume_campaign, campaign_id, actor=user)
+
+
+_REPORT_COLUMNS = ("job", "patient", "phone", "call", "result", "attempts", "next_attempt", "appointment_now",
+                   "doctor", "branch", "service", "status")
+
+
+def _campaign_csv(conn, campaign_id: int, actor: str) -> str:
+    rows = outbound.campaign_rows(conn, campaign_id)
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(_REPORT_COLUMNS)
+    for r in rows:
+        writer.writerow([_csv_cell(r[c]) for c in _REPORT_COLUMNS])
+    _audit(conn, actor, "campaign_export", "campaign", str(campaign_id), {"rows": len(rows)})
+    return out.getvalue()
+
+
+@router.get("/dashboard/api/recovery/campaigns/{campaign_id}.csv")
+async def campaign_csv(campaign_id: int, user: str = staff):
+    body = await _run(_campaign_csv, campaign_id, user)
+    return Response(body, media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="recovery-calls-{campaign_id}.csv"'})
+
+
+@router.get("/dashboard/api/recovery/windows")
+async def call_windows(user: str = staff):
+    return {"windows": await _run(outbound.list_call_windows)}
+
+
+@router.post("/dashboard/api/recovery/windows")
+async def set_call_window(request: Request, user: str = staff):
+    data = await _body(request)
+    phone = phones.to_e164(str(data.get("phone") or ""))
+    if phone is None:
+        raise HTTPException(status_code=400, detail="That isn't a valid Indian phone number.")
+    await _recovery(outbound.set_call_window, phone, data.get("after") or None, data.get("before") or None,
+                    actor=user)
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------- tasks
