@@ -57,6 +57,12 @@ MAX_KEYTERMS = 50                        # well inside Deepgram's keyterm limit
 # When the caller's words have stopped changing for this long, end the turn
 # ourselves with what was heard.
 WATCHDOG_S = 1.0
+# 1-5 Oct voice tests: Deepgram sent speech_final on only about a third of
+# turns, so most ended on this watchdog, 1.4-2.4 s after the caller's last
+# word even for a plain "yes". The call session can say how long the words
+# heard so far deserve (watchdog_for(text) -> seconds): a complete answer to
+# Emma's question ends sooner; anything unfinished keeps the full wait.
+WATCHDOG_MIN_S = 0.3
 
 
 def _term_key(term: str) -> str:
@@ -95,6 +101,7 @@ class DeepgramSTT:
         utterance_end_ms: int = 1000,
         watchdog_s: float = WATCHDOG_S,
         keyterms: Optional[list] = None,
+        watchdog_for: Optional[Callable[[str], float]] = None,
     ):
         self.api_key = api_key
         self.on_transcript = on_transcript
@@ -106,6 +113,7 @@ class DeepgramSTT:
         self.endpointing_ms = endpointing_ms
         self.utterance_end_ms = utterance_end_ms
         self.watchdog_s = watchdog_s
+        self.watchdog_for = watchdog_for
         self.keyterms = list(keyterms or [])
         self._pass_start = bool(on_utterance_end) and _accepts_start(on_utterance_end)
 
@@ -383,10 +391,22 @@ class DeepgramSTT:
             while not self._closing:
                 await asyncio.sleep(0.1)
                 pending = self._current_utterance or self._interim_tail
-                if pending and time.monotonic() - self._last_change >= self.watchdog_s:
+                if pending and time.monotonic() - self._last_change >= self._watchdog_limit():
                     await self._emit_utterance("watchdog")
         except asyncio.CancelledError:
             pass
+
+    def _watchdog_limit(self) -> float:
+        """Seconds of unchanged words that end the turn: the session's estimate for these words, if any."""
+        if self.watchdog_for is None:
+            return self.watchdog_s
+        text = f"{self._current_utterance} {self._interim_tail}".strip()
+        try:
+            limit = float(self.watchdog_for(text))
+        except Exception as exc:              # a bad estimate must never stall the turn
+            logger.debug("watchdog_for failed: %s", exc)
+            return self.watchdog_s
+        return min(self.watchdog_s, max(WATCHDOG_MIN_S, limit))
 
     async def _emit_utterance(self, source: str):
         if source == "watchdog" and self._interim_tail:

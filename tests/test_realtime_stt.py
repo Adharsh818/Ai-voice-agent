@@ -7,6 +7,7 @@ across streams, and clinic keyterms without spelling variants.
 
 import asyncio
 import json
+import time
 import unittest
 from urllib.parse import parse_qs, urlsplit
 
@@ -253,6 +254,45 @@ class WatchdogTests(unittest.TestCase):
     def test_speech_final_still_ends_the_turn_first(self):
         heard = self.run_call([final("yes please", 0.1, 0.5)])
         self.assertEqual(heard, [("yes please", "speech_final")])
+
+    def test_a_complete_answer_ends_sooner_than_an_unfinished_one(self):
+        # 6 Oct latency pass: the session says how long these words deserve.
+        def timed(text, watchdog_for):
+            ended = {}
+
+            async def on_end(t, end_sec, source, start_sec=None):
+                ended["at"] = time.monotonic()
+
+            async def run():
+                dialer = Dialer()
+                with patched(stt_deepgram.websockets, connect=dialer):
+                    stt = DeepgramSTT(api_key="k", on_utterance_end=on_end, watchdog_s=1.0,
+                                      watchdog_for=watchdog_for)
+                    await stt.connect()
+                    start = time.monotonic()
+                    dialer.sockets[0].push(final(text, 0.1, 0.5, speech_final=False))
+                    await settle(1.4)
+                    await stt.close()
+                    return ended["at"] - start
+
+            return asyncio.run(run())
+
+        quick = timed("yes", lambda t: 0.35)
+        slow = timed("my number is", lambda t: 5.0)          # capped at watchdog_s
+        broken = timed("yes", lambda t: 1 / 0)                # a failing estimate keeps the default
+        self.assertLess(quick, 0.6)
+        self.assertGreaterEqual(slow, 0.95)
+        self.assertGreaterEqual(broken, 0.95)
+
+    def test_the_session_estimate_follows_the_turn_detector(self):
+        from test_realtime_support import make_session
+        s, _ = make_session()
+        s._listening_hint = lambda: {"expect": "yes_no"}
+        self.assertEqual(s._watchdog_for("yes"), 0.35)
+        self.assertEqual(s._watchdog_for("and"), 1.0)
+        s._listening_hint = lambda: {"expect": "phone", "digits_so_far": 0}
+        self.assertEqual(s._watchdog_for("nine eight four five"), 1.0)          # half a number
+        self.assertEqual(s._watchdog_for("98450 12345"), 0.35)                  # all ten digits
 
 
 class GreetingEchoTests(unittest.TestCase):

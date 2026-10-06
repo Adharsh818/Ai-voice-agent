@@ -337,7 +337,8 @@ VARIANTS: dict[str, tuple] = {
     "honesty": (config.HONEST_LINE,),
     "confirm_change": ("Did you want to change the {field} to {value}?",
                        "Should I change the {field} to {value}?"),
-    "correction.ack": ("Okay, {value} instead.", "Got it, {value} then.", "Sure, {value} it is."),
+    # Not "Sure, {value} it is.": the time asked for may not be free, and the offer follows.
+    "correction.ack": ("Okay, {value} instead.", "Got it, {value} then.", "Okay, let me look at {value}."),
     # identity
     "ask.name": ("Can I get your name?", "May I know your name, please?", "Can I get your name first?",
                  "And your name, please?"),

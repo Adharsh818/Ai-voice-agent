@@ -1,9 +1,18 @@
 # Project memory and next steps
 
-**Last updated:** 6 Oct 2026, early morning (Day 4 finished, Day 5 built; section 0 is from 5 Oct, sections 1-7 from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
+**Last updated:** 6 Oct 2026, early morning (Day 6 latency and drills, Day 4 finished, Day 5 built; section 0 is from 5 Oct, sections 1-7 from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
 
 Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
 
+
+---
+
+## 000. 6 Oct, Day 6: latency pass and fault drills
+
+- **Latency (6.1).** The 5 Oct R2 voice calls show end-of-speech detection, not the model, as the biggest wait: p50 1.6 s, because Deepgram sent `speech_final` on only about a third of turns and the rest waited for the 1 s STT watchdog. The watchdog now asks the turn detector how complete the words are (complete answer 0.35 s, likely 0.6 s, default 0.8 s, unfinished 1 s). Replayed on those calls: end of speech p50 1.6 -> 1.3 s, perceived p50 2.1 -> 1.8 s. Gemini's first chunk has a floor of about 1.05 s however small the request (now about 1.3 s), so the brief stays as it is. **Check in the morning's voice test**: replies to "yes", numbers and dates should feel quicker; tell me if Emma now cuts you off.
+- **Fault drills (6.2), automated** in `tests/test_fault_drills.py`. Two real fixes: a hang-up now frees the offered slots at once (they stayed held for 5 minutes), and a booking being written when the caller hangs up finishes and is recorded as `booked_hangup`. Gemini-off drill (200 calls): safety checks all 0, bookings 97%, dead ends 2.0% after fixing "It's on the 13th, and..." / "...move it to the 20th" being checked against the 20th. Correction acknowledgements now use Emma's words ("Okay, around 6 instead") and no longer say "Sure, 6:30 it is" before offering another time.
+- **Regression (6.3).** 872 tests, 53/53 scripted scenarios, and 200 fake-model calls all pass on R2 (Z1-Z7 0, M7 100%, M10 0%); T5 is still 10 vs 9 (owner's call).
+- **Fix list for the rehearsal:** live drills (ElevenLabs quota, a Deepgram drop, closing the tab mid-call), the latency gate (Tier-0 p50 about 1.6 s vs 0.9 s; needs the recordings to see why `speech_final` rarely fires), T5.
 
 ---
 

@@ -82,6 +82,8 @@ from speech import Speaker, PromptCache, drop_repeats, split_sentences, strip_op
 logger = logging.getLogger("call")
 
 FINAL_PLAYBACK_TIMEOUT_S = 20
+# A hang-up during a booking, move or cancellation waits this long for it to finish.
+COMMIT_ON_HANGUP_S = 5.0
 # Pause after "Let me just check that for you." while typing plays (ms).
 CHECK_PAUSE_MS = (900, 1600)
 # Longest note-taking typing burst; it stops as soon as Emma starts speaking.
@@ -623,6 +625,7 @@ class CallSession:
             on_utterance_end=self._on_utterance_end,
             on_speech_started=self._on_speech_started,
             on_connection_lost=self._on_stt_lost,
+            watchdog_for=self._watchdog_for,
         )
         # The greeting plays from the prompt cache while both sockets open.
         if not self.listen_only:
@@ -657,6 +660,22 @@ class CallSession:
             return
         self.stt.add_keyterms(terms)
         turn_detector.add_vocabulary(terms)
+
+    # How long the recogniser's watchdog waits on unchanged words, by what they
+    # are (turn_detector verdicts): a complete answer to Emma's question needs
+    # little more silence; unfinished speech keeps the full second.
+    WATCHDOG_BY_VERDICT = {"complete": 0.35, "likely": 0.6, "default": 0.8}
+
+    def _watchdog_for(self, text: str) -> float:
+        hint = self._listening_hint()
+        key = (text, repr(sorted(hint.items())) if isinstance(hint, dict) else "")
+        cached = getattr(self, "_watchdog_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        verdict = turn_detector.classify(text, hint)
+        limit = self.WATCHDOG_BY_VERDICT.get(verdict.kind, 1.0)
+        self._watchdog_cache = (key, limit)
+        return limit
 
     def _start_turn_task(self, coro):
         self._turn_task = self._spawn(coro)
@@ -1581,11 +1600,32 @@ class CallSession:
         except Exception as exc:
             logger.debug("[%s] send failed: %s", self.call_id, exc)
 
+    async def _release_holds(self):
+        """Slots offered on this call are free again at once, not when their hold expires (plan 5.7)."""
+        try:
+            import db
+            import scheduling
+            database = getattr(db, "_db", None)     # never open a database from a call: use the server's
+            if database is not None:
+                freed = await asyncio.wait_for(database.run(scheduling.release_holds, self.call_id), timeout=2)
+                if freed:
+                    logger.info("[%s] released %d held slot(s) at hang-up", self.call_id, freed)
+        except Exception as exc:
+            logger.debug("[%s] hold release failed: %s", self.call_id, exc)
+
     async def close(self):
         if self.closed:
             return
         self.closed = True
         current = asyncio.current_task()
+        # A hang-up while a booking, move or cancellation is being written lets
+        # it finish (it is atomic either way) so the call records what happened.
+        committing = (self._turn_task is not None and not self._turn_task.done()
+                      and self._turn_task is not current and self._turn_phase == "commit")
+        if committing:
+            deadline = time.perf_counter() + COMMIT_ON_HANGUP_S
+            while self._turn_phase == "commit" and not self._turn_task.done() and time.perf_counter() < deadline:
+                await asyncio.sleep(0.05)
         for task in list(self._tasks):
             if task is not current:
                 task.cancel()
@@ -1593,8 +1633,11 @@ class CallSession:
         self.speaker.cancel()
         if self.capture is not None:
             self.capture.close()
+        if self.outcome in ("booked", "rescheduled", "cancelled") and committing:
+            self.outcome = f"{self.outcome}_hangup"          # done, but the caller never heard it
         if self.outcome is None:
             self.outcome = "completed" if self._ended_by_emma() else self._abandoned()
+        await self._release_holds()
         if self.recorder is not None and self._own_recorder:
             try:
                 await _maybe_await(self.recorder.end(self.outcome, keep_transcript=self.keep_transcript,
