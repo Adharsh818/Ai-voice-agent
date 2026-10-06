@@ -935,7 +935,7 @@ async function loadHealth(system) {
     add("Understanding", yes(health.gemini, "Gemini ready", "Unavailable"));
     add("Prompt cache", yes(health.prompt_cache_ready, "Warm", "Warming up"));
     if (health.database) {
-      add("Clinic data", `${health.database.branches} branches, ${health.database.doctors} doctors, ${health.database.upcoming_appointments} upcoming${health.database.demo_data ? " (DEMO)" : ""}`);
+      add("Clinic data", `${health.database.branches} branches, ${health.database.doctors} doctors, ${health.database.upcoming_appointments} upcoming`);
     }
   }
   const retention = system.retention;

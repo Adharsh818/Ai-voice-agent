@@ -405,8 +405,10 @@ def _apply_phone(ctx: CallContext, u: Understanding, conf: Optional[str], cued: 
                 ctx.change_proposal = {"field": "phone", "value": e164,
                                        "spoken": safe_call(prompts.speak_phone, e164, default=e164)}
                 return
-        if c.phone_state == FieldState.PENDING and ctx.pending == Goal.CONFIRM_PHONE and e164 != c.phone_e164:
+        if c.phone_state == FieldState.PENDING and ctx.pending == Goal.CONFIRM_PHONE and e164 != c.phone_e164 \
+                and c.phone_source != "caller_id":
             c.phone_misses += 1                         # "937, not 837": the read-back was wrong
+        c.phone_source = None                           # a number they said, read back in groups
         c.phone_e164 = e164
         c.phone_state = FieldState.PENDING              # read back in groups, explicit yes required
         return
@@ -414,7 +416,10 @@ def _apply_phone(ctx: CallContext, u: Understanding, conf: Optional[str], cued: 
         if conf == "yes":
             c.phone_state = FieldState.CONFIRMED
         elif conf == "no":
-            c.phone_misses += 1
+            if c.phone_source == "caller_id":
+                c.phone_source = "declined"             # another number, not a misheard one
+            else:
+                c.phone_misses += 1
             c.phone_e164 = None
             c.phone_state = FieldState.EMPTY
             c.phone_buffer = ""

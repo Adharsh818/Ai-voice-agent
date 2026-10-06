@@ -531,6 +531,12 @@ def _answer(ctx: CallContext, u: Understanding, confirmation: Optional[str]) -> 
     elif pending == Goal.OFFER_SLOTS and b.offered and b.chosen is None and u.choice_index is None:
         if confirmation == "yes" and len(b.offered) == 1:
             _choose(ctx, b.offered[0])
+        elif _restates_time_at_offer(b, u):
+            # "No, 5 in the evening" after hearing 4 was the nearest: look at 5
+            # on the following days too, instead of saying 4 again (sim 6 Oct).
+            notices.append(Notice("time.taken", {"time": speak_hour(b.time_c.start)}))
+            notes["same_time_later"] = _search_key(b)
+            _changed(ctx, search=True)
         elif confirmation == "no" and not (u.date_phrase or u.time_phrase or u.branch or u.doctor):
             _reject_offers(ctx)
     elif pending in (Goal.SUMMARY, Goal.SUMMARY_AGAIN, Goal.WHAT_TO_CHANGE) and _restates_request(b, u):
@@ -540,6 +546,7 @@ def _answer(ctx: CallContext, u: Understanding, confirmation: Optional[str]) -> 
         # as a turned-down offer, so the offer ladder still ends on a callback.
         if _restates_request(b, u) == "time":
             notices.append(Notice("time.taken", {"time": speak_hour(b.time_c.start)}))
+            notes["same_time_later"] = _search_key(b)
         b.offer_rounds += 1
         _changed(ctx, search=True)
         if b.offer_rounds >= MAX_OFFER_ROUNDS:
@@ -568,6 +575,17 @@ def _answer(ctx: CallContext, u: Understanding, confirmation: Optional[str]) -> 
 
 
 # ---------------------------------------------------------------- keeping the draft valid
+
+
+def _restates_time_at_offer(b, u: Understanding) -> bool:
+    """The caller says again the exact time they asked for, and none of the offered slots is at it."""
+    asked = b.time_c.start if b.time_c is not None and b.time_c.kind == "exact" else None
+    if asked is None or not u.time_phrase or any(s.start.time() == asked for s in b.offered):
+        return False
+    when = dateparse.parse_when(" ".join(p for p in (u.date_phrase, u.time_phrase) if p), expecting="time")
+    if when.date is not None and b.date_c is not None and when.date != b.date_c:
+        return False                                  # a new day: an ordinary change, not a repeat
+    return when.time is not None and when.time.kind == "exact" and when.time.start == asked
 
 
 def _restates_request(b, u: Understanding) -> Optional[str]:
@@ -784,19 +802,55 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
     return _plan(Goal.SUMMARY, "summary", **params)
 
 
+def _search_patient(ctx: CallContext) -> Optional[tuple]:
+    """(phone, name) whose own appointments a search must avoid, once both are known (sim 6 Oct clash loop)."""
+    c = ctx.caller
+    name = _patient_name(ctx)
+    if c.phone_state != FieldState.CONFIRMED or not c.phone_e164 or not name:
+        return None
+    return c.phone_e164, scheduling.norm_name(name)
+
+
+def _in_clock_order(slots: list) -> list:
+    """Two times on one day are said in clock order ("5 or 5:30", never "5:30 or 5"); "the first one" follows."""
+    if len(slots) > 1 and len({s.start.date() for s in slots}) == 1:
+        return sorted(slots, key=lambda s: s.start)
+    return slots
+
+
+def _offer_key(b) -> tuple:
+    return tuple(s.start.isoformat() + s.branch for s in b.offered)
+
+
+def _two_spoken(first, second) -> tuple:
+    """(a, b) for saying two offered slots: the second without its day when it's the same day."""
+    b_spoken = second.spoken if second.start.date() != first.start.date() \
+        else speak_slot(second.start, with_day=False)
+    return first.spoken, b_spoken
+
+
 def _offer_plan(b) -> GoalPlan:
     slots = b.offered
     first = slots[0]
+    elsewhere = _notes(b).get("same_time_branch")
+    if elsewhere and elsewhere[1] == _offer_key(b):
+        return _plan(Goal.OFFER_SLOTS, "offer.same_time_elsewhere", branch=elsewhere[0], other=first.branch,
+                     time=speak_hour(first.start.time()), doctor=first.doctor)
+    if len(slots) > 1 and _notes(b).get("which") == _offer_key(b):
+        # "Yes" to two times: ask which, the way a receptionist would.
+        a, b_spoken = _two_spoken(first, slots[1])
+        return _plan(Goal.OFFER_SLOTS, "offer.which", a=a, b=b_spoken)
     requested = None
     if b.date_c is not None and b.date_c.exact and b.time_c is not None and b.time_c.kind == "exact":
         requested = datetime.combine(b.date_c.start, b.time_c.start, tzinfo=first.start.tzinfo)
     notes = _notes(b)
     if notes.get("other_branch") and first.branch != notes["other_branch"]:
         times = speak_slot(first.start, with_day=False)
+        line = "offer.other_branch"
         if len(slots) > 1 and slots[1].branch == first.branch:
             times = prompts.speak_list([times, speak_slot(slots[1].start, with_day=False)], "or")
-        return _plan(Goal.OFFER_SLOTS, "offer.other_branch", branch=notes["other_branch"], other=first.branch,
-                     times=times)
+            line = "offer.other_branch.two"          # two times: "which would you like?", never "shall I take it?"
+        return _plan(Goal.OFFER_SLOTS, line, branch=notes["other_branch"], other=first.branch, times=times)
     if requested is not None and first.start == requested:
         return _plan(Goal.OFFER_SLOTS, "offer.exact", slot=first.spoken, doctor=first.doctor)
     if len(slots) == 1:
@@ -810,8 +864,7 @@ def _offer_plan(b) -> GoalPlan:
     if b.date_c is not None and b.date_c.exact and not any(s.start.date() in wanted for s in slots):
         return _plan(Goal.OFFER_SLOTS, "offer.later_days", day=prompts.speak_day(b.date_c.start),
                      a=first.spoken, b=second.spoken)
-    b_spoken = second.spoken if second.start.date() != first.start.date() \
-        else speak_slot(second.start, with_day=False)
+    _, b_spoken = _two_spoken(first, second)
     doctor = first.doctor if first.doctor == second.doctor \
         else f"{first.doctor} for the first and {second.doctor} for the second"
     return _plan(Goal.OFFER_SLOTS, "offer.two", a=first.spoken, b=b_spoken, doctor=doctor)
@@ -886,6 +939,7 @@ async def advance(ctx: CallContext, u: Understanding, confirmation: Optional[str
         u = Understanding()
     result.notices += take(ctx, u, rt)
     result.notices += _answer(ctx, u, confirmation)
+    _yes_to_two(ctx, u, confirmation)
     result.notices += _validate(ctx, catalog)
     notes["branch_options"] = offering_branches(ctx, catalog)
 
@@ -912,6 +966,24 @@ async def advance(ctx: CallContext, u: Understanding, confirmation: Optional[str
     if plan is not None and plan.goal == Goal.CALLBACK_OFFER and not ctx.callback_reason:
         ctx.callback_reason = f"Couldn't find a time that suits for {b.service or 'an appointment'}"
     return result
+
+
+def _yes_to_two(ctx: CallContext, u: Understanding, confirmation: Optional[str]) -> None:
+    """
+    A plain "yes" to two offered times picks neither: Emma asks which
+    ("Sure, which one: 12 or 12:30?"). A second plain yes takes the first;
+    the summary that follows still names it, so the caller can change it.
+    """
+    b = ctx.book
+    if ctx.pending != Goal.OFFER_SLOTS or confirmation != "yes" or b.chosen is not None or len(b.offered) < 2 \
+            or u.choice_index is not None or u.time_phrase or u.date_phrase:
+        return
+    notes = _notes(b)
+    if notes.get("which") == _offer_key(b):
+        notes.pop("which", None)
+        _choose(ctx, b.offered[0])
+    else:
+        notes["which"] = _offer_key(b)
 
 
 def _checks_clear(ctx: CallContext) -> bool:
@@ -1072,7 +1144,8 @@ async def _search(ctx: CallContext, rt: Runtime, notices: list):
         await rt.run(scheduling.release_holds, rt.call_id)
         found = await rt.run(scheduling.suggest, service=b.service, date_c=b.date_c, time_c=time_c,
                              branch_ids=branch_ids, doctor_id=b.doctor_id, gender=b.doctor_gender,
-                             emergency=b.emergency, call_id=rt.call_id)
+                             emergency=b.emergency, call_id=rt.call_id, patient=_search_patient(ctx),
+                             same_time_later=notes.get("same_time_later") == _search_key(b))
         held = []
         for slot in found.slots[:HOLD_TOP]:
             hold_id = await rt.run(scheduling.hold, slot, rt.call_id, emergency=b.emergency)
@@ -1087,7 +1160,12 @@ async def _search(ctx: CallContext, rt: Runtime, notices: list):
             if reason in REASON_LINES:
                 notices.append(Notice(REASON_LINES[reason]))
                 break
-    b.offered = held
+    b.offered = held = _in_clock_order(held)
+    if notes.get("same_time_later") == _search_key(b) and time_c is not None and time_c.kind == "exact" \
+            and not any(s.start.time() == time_c.start for s in held):
+        # Not at their branch on the following days either: that time at another branch that day.
+        await _search_same_time_elsewhere(ctx, rt)
+        held = b.offered
     if held and time_c is not None and time_c.kind == "window" \
             and not any(time_c.start <= s.start.time() < time_c.end for s in held):
         # "Tomorrow evening" with the evening full: say so before offering other times.
@@ -1138,7 +1216,7 @@ async def _search_same_day_elsewhere(ctx: CallContext, rt: Runtime):
     try:
         found = await rt.run(scheduling.suggest, service=b.service, date_c=b.date_c, time_c=time_c,
                              branch_ids=branch_ids, doctor_id=None, gender=b.doctor_gender,
-                             emergency=b.emergency, call_id=rt.call_id, later_days=1)
+                             emergency=b.emergency, call_id=rt.call_id, patient=_search_patient(ctx), later_days=1)
         same_day = [s for s in found.slots if s.start.date() == b.date_c.start]
         # One branch only, so "that works" has one meaning and the line names every slot it offers.
         same_day = [s for s in same_day if same_day and s.branch == same_day[0].branch][:HOLD_TOP]
@@ -1156,8 +1234,37 @@ async def _search_same_day_elsewhere(ctx: CallContext, rt: Runtime):
         return
     if held:
         notes["other_branch"] = b.branch
-        b.offered = held
+        b.offered = _in_clock_order(held)
         notes["offer"] = {"key": _search_key(b), "round": b.offer_rounds}
+
+
+async def _search_same_time_elsewhere(ctx: CallContext, rt: Runtime):
+    """
+    The caller keeps asking for one time their branch doesn't have, that day
+    or the next ones: offer exactly that time at another branch that does the
+    service ("Nagarbhavi has nothing at 5, but Indiranagar has 5 with Dr Menon").
+    """
+    b = ctx.book
+    others = [n for n in offering_branches(ctx, rt.catalog) if n != b.branch] if b.branch else []
+    branch_ids = [rt.catalog.branch(n).id for n in others if rt.catalog.branch(n) is not None]
+    if not branch_ids or b.doctor_id is not None or b.date_c is None or not b.date_c.exact:
+        return
+    try:
+        found = await rt.run(scheduling.suggest, service=b.service, date_c=b.date_c, time_c=b.time_c,
+                             branch_ids=branch_ids, doctor_id=None, gender=b.doctor_gender,
+                             emergency=b.emergency, call_id=rt.call_id, patient=_search_patient(ctx), limit=1)
+        if found.kind != "exact" or not found.slots:
+            return
+        slot = found.slots[0]
+        hold_id = await rt.run(scheduling.hold, slot, rt.call_id, emergency=b.emergency)
+    except Exception:
+        logger.exception("same-time search at other branches failed for call %s", rt.call_id)
+        return
+    if hold_id:
+        await rt.run(scheduling.release_holds, rt.call_id, [hold_id])
+        b.offered = [OfferedSlot(slot.doctor_id, slot.doctor, slot.branch_id, slot.branch, slot.service_id,
+                                 slot.service, slot.start, slot.end, hold_id, speak_slot(slot.start))]
+        _notes(b)["same_time_branch"] = (b.branch, _offer_key(b))
 
 
 async def release(ctx: CallContext, rt: Runtime) -> None:

@@ -1170,6 +1170,26 @@ def new_session(call_id: str | None = None):
     return SessionState()
 
 
+def phone_line(s, caller_id: str | None = None, can_transfer: bool = False) -> bool:
+    """
+    A call that came in over the phone (audiosocket.py). A caller ID that is a
+    real phone number stands in for asking: Emma confirms it with "Is the
+    number you're calling from the best one to reach you on?" instead of
+    asking for digits. can_transfer lets a callback become a live transfer to
+    the front desk. Returns whether the caller ID was taken; the 12-step
+    machine (no CallContext) ignores all of it.
+    """
+    if not isinstance(s, CallContext):
+        return False
+    from dialogue.context import FieldState
+    s.can_transfer = bool(can_transfer)
+    e164 = phones.to_e164(caller_id) if caller_id else None
+    if not e164 or s.caller.phone_state != FieldState.EMPTY:
+        return False
+    s.caller.phone_e164, s.caller.phone_state, s.caller.phone_source = e164, FieldState.PENDING, "caller_id"
+    return True
+
+
 async def _r2_turn(user_text, s, progress, on_sentence) -> TurnResult:
     from dialogue import engine
     out = await engine.process_turn(s, user_text or "", progress=progress, on_sentence=on_sentence)

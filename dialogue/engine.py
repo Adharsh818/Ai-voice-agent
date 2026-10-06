@@ -217,6 +217,7 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
                 plan = policy.next_goal(ctx, None, catalog=rt.catalog)
             else:
                 plan = exit_plan
+    _caller_id_line(ctx, plan)
 
     allowed = _allowed(brief, ctx, result.action, u)
     say, dropped, streamed = [], [], []
@@ -228,8 +229,9 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         answer = _fallback_answer(u, rt)
         # "Is 1 pm not possible at all?" is answered by the offer that follows;
         # an honest "not sure" in front of it would contradict it.
-        asks_about_booking = bool(u.date_phrase or u.time_phrase) and plan.goal in (
+        asks_about_booking = bool(u.date_phrase or u.time_phrase) and (plan.goal in (
             Goal.OFFER_SLOTS, Goal.OFFER_NEW_SLOTS, Goal.SUMMARY, Goal.CONFIRM_RESCHEDULE, Goal.NO_SLOTS)
+            or ctx.intent in (Intent.BOOK, Intent.RESCHEDULE))
         if not (answer.line == "unknown" and asks_about_booking):
             notices.insert(0, answer)
 
@@ -619,6 +621,22 @@ def _mark_question(u: Understanding, text: str) -> None:
         u.question = u.question or text
         if u.name and not re.search(r"\b(my name|this is|i am|i'm)\b", text, re.I):
             u.name = None
+
+
+def _caller_id_line(ctx: CallContext, plan) -> None:
+    """
+    Phone calls with a caller ID: the number's read-back becomes "Is the number
+    you're calling from the best one to reach you on?", and after a no, Emma
+    asks for the other number rather than apologising for a wrong read-back.
+    """
+    c = ctx.caller
+    if plan.goal == Goal.CONFIRM_PHONE and c.phone_source == "caller_id":
+        manage = ctx.intent in MANAGE_INTENTS and not ctx.manage.verified
+        plan.line = "confirm.phone.caller_id.manage" if manage else "confirm.phone.caller_id"
+        plan.params = {}
+        plan.critical = True
+    elif plan.goal == Goal.ASK_PHONE and c.phone_source == "declined" and ctx.pending == Goal.CONFIRM_PHONE:
+        plan.line, plan.params, plan.critical = "ask.phone.not_caller_id", {}, True
 
 
 # Notices that already say something about the request itself ("Our Nagarbhavi

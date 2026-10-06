@@ -1,14 +1,15 @@
 """
-Create the four DEMO branch calendars and share them read-only (plan 5.9).
+Create the four branch calendars and share them read-only (plan 5.9).
 
     .\\.venv\\Scripts\\python.exe tools\\setup_calendars.py --share-with demo.pearl@gmail.com
 
 For each active branch this makes sure a calendar called
-"Pearl Dental — <branch> (DEMO)" exists, owned by the service account in
+"Pearl Dental — <branch>" exists, owned by the service account in
 secrets/google-service-account.json, shares it as **reader** with the given
 Gmail (default: CALENDAR_SHARE_WITH in .env), and stores its id in
 branches.calendar_id. Safe to run again: an existing calendar (by stored id,
-or by name) is reused and an existing share is left alone.
+or by name) is reused and an existing share is left alone; a calendar still
+carrying its old name ("... (DEMO)", until 6 Oct) is renamed.
 
 Then it queues every current and future appointment for the sync worker, so
 the calendars fill in as soon as the server runs. --no-resync skips that.
@@ -27,8 +28,7 @@ import calendar_sync  # noqa: E402
 import config  # noqa: E402
 import db  # noqa: E402
 
-DESCRIPTION = ("DEMO data. Appointments mirrored one way from the Pearl Dental dashboard; "
-               "change them there, not here.")
+DESCRIPTION = calendar_sync.CALENDAR_DESCRIPTION
 
 
 def setup(conn, client, share_with: str = "", dry_run: bool = False) -> list[dict]:
@@ -38,15 +38,22 @@ def setup(conn, client, share_with: str = "", dry_run: bool = False) -> list[dic
     branches = conn.execute("SELECT id, name, calendar_id FROM branches WHERE active = 1 ORDER BY id").fetchall()
     for branch in branches:
         summary = calendar_sync.CALENDAR_NAME.format(branch=branch["name"])
-        item = {"branch": branch["name"], "calendar_id": None, "created": False, "shared": False}
+        item = {"branch": branch["name"], "calendar_id": None, "created": False, "shared": False,
+                "renamed": False}
         calendar_id = branch["calendar_id"] if branch["calendar_id"] and client.calendar_exists(
-            branch["calendar_id"]) else client.find_calendar(summary)
+            branch["calendar_id"]) else (client.find_calendar(summary) or client.find_calendar(
+                calendar_sync.LEGACY_CALENDAR_NAME.format(branch=branch["name"])))
         if calendar_id is None:
             if dry_run:
                 report.append(dict(item, calendar_id="(would create)"))
                 continue
             calendar_id = client.create_calendar(summary, DESCRIPTION, config.CLINIC_TIMEZONE)
             item["created"] = True
+        elif client.calendar_info(calendar_id) != {"summary": summary, "description": DESCRIPTION}:
+            # An older name or description (until 6 Oct: "... (DEMO)"): bring it up to date.
+            if not dry_run:
+                client.rename_calendar(calendar_id, summary, DESCRIPTION)
+            item["renamed"] = True
         item["calendar_id"] = calendar_id
         if calendar_id != branch["calendar_id"] and not dry_run:
             with db.transaction(conn):
@@ -78,7 +85,8 @@ def main() -> int:
     try:
         report = database.run_sync(setup, client, args.share_with, args.dry_run)
         for item in report:
-            flags = ", ".join(f for f, on in (("created", item["created"]), ("shared", item["shared"])) if on)
+            flags = ", ".join(f for f, on in (("created", item["created"]), ("renamed", item.get("renamed")),
+                                                 ("shared", item["shared"])) if on)
             print(f"{item['branch']:<12} {item['calendar_id']}" + (f"  ({flags})" if flags else ""))
         if not args.dry_run and not args.no_resync:
             queued = database.run_sync(calendar_sync.enqueue_all)

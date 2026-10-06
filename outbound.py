@@ -768,10 +768,15 @@ class Runner:
         events.publish({"type": "ring", "call_id": call_id, **ring.public()})
         logger.info("recovery job %s ringing (%s)", claimed.job_id, phones.masked(claimed.phone_e164))
         unresolved = [a["id"] for a in claimed.appointments]
+        # A SIP phone rings too when Asterisk is set up (server._ring_phone): it
+        # answers or declines through answer() / decline(), as the page does.
+        dialing = asyncio.create_task(_dialer(ring, self)) if _dialer is not None else None
         try:
             await asyncio.wait_for(ring.answered.wait(), self.ring_timeout_s)
         except asyncio.TimeoutError:
             pass
+        if dialing is not None and not ring.answered.is_set():
+            dialing.cancel()
         if ring.declined or not ring.answered.is_set():
             outcome = "declined" if ring.declined else "no_answer"
             events.publish({"type": "ring_ended", "call_id": call_id, "job_id": claimed.job_id, "outcome": outcome})
@@ -847,6 +852,13 @@ class Runner:
 
 
 _runner: Optional[Runner] = None
+# async (ring, runner) -> None: rings a phone for a recovery call (server sets it when Asterisk is configured).
+_dialer: Optional[Callable] = None
+
+
+def set_dialer(dialer: Optional[Callable]):
+    global _dialer
+    _dialer = dialer
 
 
 def set_runner(runner: Optional[Runner]):

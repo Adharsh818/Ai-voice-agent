@@ -100,6 +100,12 @@ def _brief_examples() -> list:
     return [m.group(2) for m in re.finditer(r'"(say|ask)":\s*"((?:[^"\\]|\\.)*)"', text) if m.group(2)]
 
 
+# The "transfer" line (phone calls only: said after the caller insisted on a
+# person twice and the callback task exists; pre-written, never the model's
+# words) is the one place Emma may say she is putting someone through.
+_TRANSFER_WORDS = {r"\btransfer", r"put you through", r"transfer you", r"connect you"}
+
+
 class R2WordingTests(unittest.TestCase):
     def check(self, text: str, where: str, patterns=R2_BANNED):
         for pattern in patterns:
@@ -109,6 +115,8 @@ class R2WordingTests(unittest.TestCase):
         for line_id, text in _r2_lines():
             if line_id == "clinical":                     # the one line allowed to mention the doctor's visit
                 self.check(text, line_id, [p for p in R2_BANNED if "visit" not in p])
+            elif line_id == "transfer":                   # the one line allowed to put a caller through
+                self.check(text, line_id, [p for p in R2_BANNED if p not in _TRANSFER_WORDS])
             else:
                 self.check(text, line_id)
 
@@ -122,6 +130,8 @@ class R2WordingTests(unittest.TestCase):
             self.skipTest(f"dialogue.validate not importable: {exc}")
         for line_id, text in _r2_lines():
             patterns = list(validate.BOT_WORDS) + list(validate.HANDOFF_WORDS) + list(validate.MEDICAL)
+            if line_id == "transfer":
+                patterns = [p for p in patterns if p not in _TRANSFER_WORDS]
             if line_id != "clinical":
                 patterns += list(validate.DEFLECTION)
             self.check(text, line_id, patterns)

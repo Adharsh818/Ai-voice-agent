@@ -234,3 +234,27 @@ LOG_CALLER_TEXT = os.getenv("LOG_CALLER_TEXT", "true").lower() == "true"
 # takes over when ElevenLabs fails or returns no audio (its quota ran out on
 # 1 Oct and live sentences went silent). Empty turns the backup off.
 PIPER_VOICE = os.getenv("PIPER_VOICE", "en_GB-cori-medium").strip()
+
+# Phone calls through Asterisk (docs/TELEPHONY.md, plan section 13, phase D).
+# Off by default: the browser talk page needs none of it. Asterisk (WSL2 Ubuntu)
+# runs AudioSocket() to AUDIOSOCKET_HOST:AUDIOSOCKET_PORT, which stays on loopback.
+TELEPHONY_ENABLED = os.getenv("TELEPHONY_ENABLED", "false").lower() == "true"
+AUDIOSOCKET_HOST = os.getenv("AUDIOSOCKET_HOST", "127.0.0.1")
+AUDIOSOCKET_PORT = int(os.getenv("AUDIOSOCKET_PORT", "9092"))
+# Shared with the Asterisk dialplan (/telephony/register and /telephony/next); empty refuses them.
+TELEPHONY_SECRET = os.getenv("TELEPHONY_SECRET", "").strip()
+# The dialplan puts a caller through to this when Emma promises a transfer; empty
+# keeps "the clinic will call you back" (the line Emma says depends on it).
+TELEPHONY_FRONT_DESK = os.getenv("TELEPHONY_FRONT_DESK", "PJSIP/1002").strip()
+# Keypad digits are sent as one caller turn after "#" or this much quiet.
+DTMF_TIMEOUT_S = float(os.getenv("DTMF_TIMEOUT_S", "3"))
+# Recovery calls ring a SIP phone through the Asterisk Manager Interface
+# (Originate) as well as the /patient page; empty AMI_USER keeps them browser-only.
+AMI_HOST = os.getenv("AMI_HOST", "127.0.0.1")
+AMI_PORT = int(os.getenv("AMI_PORT", "5038"))
+AMI_USER = os.getenv("AMI_USER", "").strip()
+AMI_SECRET = os.getenv("AMI_SECRET", "").strip()
+# The demo patient's phone (a softphone extension) that recovery calls ring.
+TELEPHONY_PATIENT_PHONE = os.getenv("TELEPHONY_PATIENT_PHONE", "PJSIP/1001").strip()
+# The number recovery calls show as their caller ID.
+TELEPHONY_CLINIC_CID = os.getenv("TELEPHONY_CLINIC_CID", '"Pearl Dental" <08041234567>').strip()

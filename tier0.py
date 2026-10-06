@@ -1058,7 +1058,7 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
             return _u(raw, "tier0", [Act.INFO], emergency=Emergency.URGENT)
         return None
 
-    opener = _opener(t, view, strict=True)
+    opener = None if _MOVE_APPT_RE.search(t) else _opener(t, view, strict=True)
     if opener:
         intent, service, phrase = opener
         act = Act.ANSWER if view.pending in _INTENT_GOALS else Act.INFO
@@ -1100,6 +1100,17 @@ _CANCEL_WHY_RE = re.compile(
 _ABOUT_A_PLACE = re.compile(
     r"\b(where|address|located|location|directions?|how (?:do|can|would) i (?:get|reach|find)|far|near|"
     r"landmark|parking|park|timings?|hours|open|close|closing|opening)\b")
+_SUGGEST_RE = re.compile(r"\b(what do you suggest|what would you suggest|you suggest|you tell me|"
+                         r"whatever (?:you have|is free|is available|suits you)|anything is fine|"
+                         r"what(?:'s| is) (?:free|available)|i don'?t know)\b")
+_MOVE_APPT_RE = re.compile(
+    r"\b(change|move|shift)\s+(?:my|the|our|her|his)\s+(?:(?:existing|current|old|booked|upcoming|next|dental|"
+    r"cleaning|check-?up)\s+)*(appointment|booking)\b")
+# Pleasantries that mention a day without asking for it.
+_SMALL_TALK_RE = re.compile(
+    r"\b(hope you'?re|hope you are|you must be|how are you|how'?s your|how is your|have a (good|nice|great)|"
+    r"nice weather|lovely weather|hot|rainy|busy) [^.?!]{0,25}\b(today|tonight|this morning|this evening)\b|"
+    r"\b(today|this morning)\b [^.?!]{0,15}\b(so busy|very busy|busy day|hot|rainy)\b")
 # A booking asked for before that question ("Can I get a check-up on Saturday, and where...").
 _ASKS_TO_BOOK = re.compile(r"\b(book|appointment|come in|(can|could|may) (i|we) (get|have|come)|"
                            r"i'?d like|i want|i need)\b")
@@ -1130,7 +1141,9 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
     u = _u(raw, src, [], emergency=emergency)
     filled_expected = False
 
-    opener = _opener(t, view, strict=False)
+    # "move my existing appointment" is a reschedule even though it says "appointment" (sim 6 Oct).
+    moving = bool(_MOVE_APPT_RE.search(t))
+    opener = None if moving else _opener(t, view, strict=False)
     if opener:
         u.intent, u.service, u.service_phrase = opener
     elif re.search(r"\b(cancel|call off)\b", t) and (_APPT_NOUN_RE.search(t) or pending in _BARE_CANCEL_GOALS):
@@ -1138,8 +1151,7 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         why = _CANCEL_WHY_RE.search(raw)
         if why:                      # "I want to cancel my appointment, I'm travelling that week."
             u.cancel_reason = why.group(1).strip(" ,.!")
-    elif re.search(r"\b(reschedule|postpone|prepone)\b", t) or \
-            re.search(r"\b(change|move|shift)\s+(?:my|the)\s+(appointment|booking)\b", t) or \
+    elif re.search(r"\b(reschedule|postpone|prepone)\b", t) or moving or \
             (_APPT_NOUN_RE.search(t) and re.search(r"\b(change|move|shift)\s+(?:the|it to another)\s+(day|date|time)\b", t)):
         u.intent = Intent.RESCHEDULE         # "I have an appointment but I need to change the day"
     elif re.search(r"\b(when is|what time is|check|confirm)\s+(?:my|the)\s+(appointment|booking)\b", t):
@@ -1257,12 +1269,14 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
     # "What are your timings on Saturday?" asks about the clinic; Saturday isn't
     # a booking day (6 Oct typed-backup test, model cold: "Okay, Saturday the 10th").
     hours_question = bool(question) and bool(_ABOUT_A_PLACE.search(t)) and exp not in ("date", "time")
+    # "Hope you're not too busy today": small talk, not a day to book (sim 6 Oct: "Okay, today instead").
+    hours_question = hours_question or (bool(_SMALL_TALK_RE.search(t)) and exp not in ("date", "time"))
     when_text = raw
     if hours_question:
         # "Can I get a check-up on Saturday, and where is your Jayanagar branch?":
         # the day belongs to the request said before the question.
         place = _ABOUT_A_PLACE.search(t)
-        if _ASKS_TO_BOOK.search(t[:place.start()]):
+        if place is not None and _ASKS_TO_BOOK.search(t[:place.start()]):
             when_text, hours_question = t[:place.start()], False
     if not (u.date_phrase or u.time_phrase or u.appt_date_phrase) and not (exp == "phone" and u.phone_digits) \
             and not hours_question:
@@ -1274,6 +1288,10 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
             else:
                 u.date_phrase, u.time_phrase = date_phrase, time_phrase
             filled_expected = filled_expected or exp in ("date", "time")
+        elif exp == "date" and pending != Goal.ASK_APPT_DATE and _SUGGEST_RE.search(t):
+            # "I don't know, what do you suggest?" to "When would suit you?": the earliest times.
+            u.date_phrase = "earliest"
+            filled_expected = True
 
     if pending == Goal.ASK_AGE:
         age = _age(t)

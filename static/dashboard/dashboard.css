@@ -17,8 +17,6 @@
   --ok-soft: #dcf7e6;
   --info: #3b5bdb;
   --info-soft: #e3e9fd;
-  --demo: #6d3fc0;
-  --demo-soft: #efe6fc;
   --emma: #e8f4f2;
   --caller: #eef1f6;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
@@ -45,8 +43,6 @@
     --ok-soft: #10301d;
     --info: #93a8ff;
     --info-soft: #1d2647;
-    --demo: #c4a5ff;
-    --demo-soft: #2b2145;
     --emma: #13302c;
     --caller: #1f2530;
     --shadow: none;
@@ -72,8 +68,6 @@
   --ok-soft: #10301d;
   --info: #93a8ff;
   --info-soft: #1d2647;
-  --demo: #c4a5ff;
-  --demo-soft: #2b2145;
   --emma: #13302c;
   --caller: #1f2530;
   --shadow: none;
@@ -131,17 +125,6 @@ h3 { font-size: 1rem; }
 }
 .brand-name { font-weight: 650; }
 .brand-sub { color: var(--muted); font-size: 0.85rem; }
-
-.demo-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--demo-soft);
-  color: var(--demo);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .chip {
