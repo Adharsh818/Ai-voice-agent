@@ -282,6 +282,14 @@ async def _callback_commit(ctx: CallContext, rt: Runtime, out: GlobalOutcome) ->
         # same slots again. The draft stays, so "actually, let's book it" resumes.
         ctx.intent = Intent.NONE
     phone = prompts.speak_phone(ctx.caller.phone_e164)
+    if ctx.can_transfer:
+        # On the phone the front desk can take the call now; the task stays,
+        # so if nobody picks up the promise to call back still holds.
+        ctx.transfer_requested = True
+        ctx.outcome = "transferred"
+        if ctx.caller.phone_source == "caller_id":
+            phone = "this number"
+        return _stop(out, plan(Goal.TRANSFER, "transfer", {"phone": phone}, use_model_say=False))
     return _stop(out, plan(Goal.CALLBACK_DONE, "callback.done", {"phone": phone}))
 
 
@@ -312,6 +320,11 @@ async def _collect_number(ctx: CallContext, u: Understanding, rt: Runtime, out: 
 async def _callback_accepted(ctx: CallContext, u: Understanding, rt: Runtime, note: str,
                              out: GlobalOutcome) -> GlobalOutcome:
     ctx.callback_reason = ACCEPTED + note
+    c = ctx.caller
+    if ctx.can_transfer and c.phone_source == "caller_id" and c.phone_e164:
+        # Being put through: the number they're calling from is the one to call
+        # back if nobody picks up; no need to ask about it first.
+        c.phone_state = FieldState.CONFIRMED
     if ctx.caller.phone_state == FieldState.CONFIRMED and ctx.caller.phone_e164:
         return await _callback_commit(ctx, rt, out)
     if u.phone_digits:

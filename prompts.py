@@ -98,6 +98,8 @@ LINES: dict[str, LineSpec] = {
                          "Would that help?'"),
     "callback.done": _l("Task created. 'Done, someone from the clinic will call you back on {phone}.'",
                         "phone", critical=True),
+    "transfer": _l("Phone calls: task created, then put through. 'Sure, I'm putting you through to the front "
+                   "desk now. If they can't pick up, they'll call you back on {phone}.'", "phone", critical=True),
     "callback.already": _l("A callback is already arranged on this call. 'The team will call you back to sort "
                            "out a time that works.'", critical=True),
     "english_only": _l("Gently English only. 'Sorry, I can only help in English on this line. Our clinic team "
@@ -115,6 +117,12 @@ LINES: dict[str, LineSpec] = {
                          "{value}?'", "field", "value", critical=True),
     "correction.ack": _l("Notice: 'Okay, {value} instead.'", "value", critical=True),
     # identity
+    "confirm.phone.caller_id": _l("Phone calls: the caller ID stands in for the read-back. 'Is the number "
+                                  "you're calling from the best one to reach you on?'", critical=True),
+    "confirm.phone.caller_id.manage": _l("'Is the appointment under the number you're calling from?'",
+                                         critical=True),
+    "ask.phone.not_caller_id": _l("They said no to the caller ID. 'No problem. What's the best number to "
+                                  "reach you on?'", critical=True),
     "ask.name": _l("'Can I get your name?' / 'Sure, the 2nd. Can I get your name first?' (ack via notice)",
                    cache=True),
     "ask.name.rephrase": _l("'Sorry, what name should I put it under?'", cache=True),
@@ -202,6 +210,18 @@ LINES: dict[str, LineSpec] = {
                       "'Tomorrow evening is all booked, I'm afraid.'", "when", critical=True),
     "offer.later_days": _l("'{day} is full, but I have {a} or {b}. Would either work?'", "day", "a", "b",
                            critical=True),
+    "offer.other_branch.two": _l("As offer.other_branch, with two times. 'Nagarbhavi's full that day, but "
+                                 "Indiranagar has 12 or 12:30. Which would you like?'", "branch", "other", "times",
+                                 critical=True),
+    "offer.other_branch.two.rephrase": _l("'{other} has {times}, or I can look at another day at {branch}. "
+                                          "What would you prefer?'", "other", "times", "branch",
+                                          critical=True),
+    "offer.same_time_elsewhere": _l("The caller keeps asking for a time their branch doesn't have; another "
+                                    "branch has exactly it that day. 'Nagarbhavi has nothing at 5, but "
+                                    "Indiranagar does, with Dr Menon. Would that work?'", "branch", "other", "time",
+                                    "doctor", critical=True),
+    "offer.which": _l("A plain yes to two offered times: ask which. 'Sure, which one: {a} or {b}?'", "a", "b",
+                      critical=True),
     "offer.other_branch": _l("The day the caller insists on is full at their branch, another branch has it. "
                              "'Nagarbhavi's full on the 15th, but Indiranagar has 1:30. Would that work?'",
                              "branch", "other", "times", critical=True),
@@ -319,6 +339,16 @@ VARIANTS: dict[str, tuple] = {
                    "Let me see if I can help first. What's it regarding?"),
     "callback.offer": ("I can have someone from the team call you about it. Would that help?",
                        "If you like, I'll ask the team to give you a call about it. Shall I?"),
+    "transfer": ("Sure, I'm putting you through to the front desk now. If they can't pick up, "
+                 "they'll call you back on {phone}.",
+                 "Of course, let me put you through to the front desk. If nobody picks up, "
+                 "they'll call you back on {phone}."),
+    "confirm.phone.caller_id": ("Is the number you're calling from the best one to reach you on?",
+                                "Shall I use the number you're calling from?"),
+    "confirm.phone.caller_id.manage": ("Is the appointment under the number you're calling from?",
+                                       "Is it booked under this number you're calling from?"),
+    "ask.phone.not_caller_id": ("No problem. What's the best number to reach you on?",
+                                "Sure. Which number should I use?"),
     "callback.done": ("Done, someone from the clinic will call you back on {phone}.",
                       "Okay, I've asked the team to call you back on {phone}."),
     "callback.already": ("The team will call you back to sort out a time that works for you.",
@@ -342,7 +372,8 @@ VARIANTS: dict[str, tuple] = {
     "confirm_change": ("Did you want to change the {field} to {value}?",
                        "Should I change the {field} to {value}?"),
     # Not "Sure, {value} it is.": the time asked for may not be free, and the offer follows.
-    "correction.ack": ("Okay, {value} instead.", "Got it, {value} then.", "Okay, let me look at {value}."),
+    # Not "let me look at {value}": the value is often "at 5" ("let me look at at 5").
+    "correction.ack": ("Okay, {value} instead.", "Got it, {value} then.", "Sure, {value}. Let me look."),
     # identity
     "ask.name": ("Can I get your name?", "May I know your name, please?", "Can I get your name first?",
                  "And your name, please?"),
@@ -443,12 +474,26 @@ VARIANTS: dict[str, tuple] = {
                     "{slot} with {doctor} is available. Would that work?"),
     "offer.two": ("I can do {a} or {b}, with {doctor}. Which suits you?",
                   "I have {a} or {b} with {doctor}. Which would you prefer?",
-                  "{doctor} has {a} or {b}. Which one works?"),
+                  # {doctor} may be "Dr Reddy for the first and Dr Ali for the second": keep it last.
+                  "{a} or {b} are free, with {doctor}. Which one works?"),
     "offer.one": ("The closest I have is {a}, with {doctor}. Would that work?",
                   "The nearest I can do is {a} with {doctor}. Is that okay?"),
     "window.full": ("{when} is all booked, I'm afraid.", "Nothing's free {when}, sorry."),
     "offer.later_days": ("{day} is full, but I have {a} or {b}. Would either work?",
                          "{day}'s fully booked, sorry. I can do {a} or {b}. Would either suit you?"),
+    "offer.other_branch.two": ("{branch} is full that day, but {other} has {times}. Which would you like?",
+                               "There's nothing left at {branch} that day, but {other} has {times}. "
+                               "Which one suits you?"),
+    # The second try gives a way out, not the same question again (sim 6 Oct: "which one suits you?" x3).
+    "offer.other_branch.two.rephrase": ("{other} has {times}, or I can look at another day at {branch}. "
+                                        "What would you prefer?",
+                                        "I could do {times} at {other}, or find you another day at {branch}. "
+                                        "Which is better?"),
+    "offer.which": ("Sure, which one: {a} or {b}?", "Lovely. {a} or {b}?"),
+    "offer.same_time_elsewhere": ("{branch} has nothing at {time}, but {other} does, with {doctor}. "
+                                  "Would that work?",
+                                  "We can't do {time} at {branch}, but {other} has {time} with {doctor}. "
+                                  "Shall I take that?"),
     "offer.other_branch": ("{branch} is full that day, but {other} has {times}. Would that work?",
                            "There's nothing left at {branch} that day, but I've got {times} at {other}. Does that suit you?"),
     "offer.full_everywhere": ("I'm sorry, {day} is full at all our branches. The nearest I have is {a} or {b}. "

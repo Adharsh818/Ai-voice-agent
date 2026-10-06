@@ -495,7 +495,7 @@ Checks before search:
 
 ### 5.9 Google Calendar one-way sync (`calendar_sync.py`)
 
-- **Ownership:** a service account owns one calendar per branch ("Pearl Dental — Jayanagar (DEMO)"), created by `tools/setup_calendars.py` and shared as **reader** to the demo Gmail.
+- **Ownership:** a service account owns one calendar per branch ("Pearl Dental — Jayanagar"; "(DEMO)" was dropped from the names on 6 Oct), created by `tools/setup_calendars.py` and shared as **reader** to the demo Gmail.
 - **Triggers:** every appointment change writes an outbox row in the same transaction.
 - **State-based worker:** reads the **current** appointment and makes the calendar match it. Upsert when booked, delete when cancelled, prefix "NEEDS RESCHEDULE" when flagged. Ordering and coalescing problems disappear.
 - **Deterministic event ID** `emma<appointment uuid hex>`: a retried insert gets 409 and becomes a patch, so duplicates are impossible. Delete treats 404/410 as success.
@@ -837,18 +837,20 @@ Backups: typed input, the recorded full run, reseed script.
 - [x] Campaign reporting: a results line per campaign (moved, cancelled, need a new time, retrying, waiting) and a CSV export (masked phones, audited).
 - Schema: `migrations/002_recovery_full.sql` adds columns only, so existing databases upgrade in place. Tests: `tests/test_recovery_full.py` and additions to `tests/test_recovery.py`.
 
-**D — Asterisk (≈4 days):**
-- WSL2 + Ubuntu (reboot, with your permission), Asterisk 22 LTS, MicroSIP/Zoiper extension.
-- `audiosocket_server.py` implementing the same Transport:
-  - TCP frames of `type(1) + length(2, big-endian) + payload`: UUID, audio (signed-linear 8 kHz, 20 ms = 320 bytes), hang-up, error.
-  - The playout queue paces frames.
-  - Barge-in keeps ≤ 60 ms queued so a flush is near-instant.
-- Deepgram at 8 kHz. ElevenLabs 8 kHz output if supported, otherwise resample 16→8 kHz with a stateful resampler. Prompt caches are kept per format.
-- Caller ID: the dialplan pre-registers the caller number keyed by the call UUID via a local HTTP call before `AudioSocket()`. This enables callback tasks for busy callers and "Is the number you're calling from the best one?"
-- DTMF entry for phone numbers.
-- Live transfer to the escalation extension.
-- Outbound via Originate to the softphone extension.
-- Verify during implementation: whether this Asterisk build's AudioSocket supports higher-rate audio types.
+**D — Asterisk: built 6 Oct, on the demo branch by the owner's choice; the real-softphone run waits for WSL2.** Details: [TELEPHONY.md](TELEPHONY.md).
+- [ ] WSL2 + Ubuntu (owner installs: admin rights and a reboot), mirrored networking, Asterisk 20 LTS from Ubuntu (`telephony/install_asterisk.sh`; 22 only if 20 lacks something), MicroSIP extensions 1001 (caller / patient) and 1002 (front desk).
+- [x] `audiosocket.py` implementing the same Transport (the plan's `audiosocket_server.py`):
+  - [x] TCP frames of `type(1) + length(2, big-endian) + payload`: UUID, audio (8 kHz; 16 kHz accepted inbound), keypad digit, hang-up, error.
+  - [x] A real-time playout clock paces 20 ms frames and reports playback started / ended / interrupted with played_ms (the browser's job on the talk page).
+  - [x] Barge-in: at most one frame is queued in Asterisk, so a flush is instant.
+  - [x] Typing and the occasional door / chair / footsteps mixed server-side (`phone_audio.LineSounds`, the twin of `ambience.js`).
+- [x] Sample rates: Emma stays at 16 kHz (Deepgram, VAD, voice, one prompt cache); stateful anti-aliased resampling at the line's edge (`phone_audio.py`) instead of per-format caches.
+- [x] Caller ID: the dialplan registers `CALLERID(num)` (POST body) and gets the UUID; Emma asks "Is the number you're calling from the best one to reach you on?" instead of digits (`ai_engine.phone_line`).
+- [x] DTMF entry for phone numbers (`#` or 3 s of quiet sends them; the first key stops Emma).
+- [x] Live transfer to the front desk: after the caller insists, the callback task is written, then "I'm putting you through..."; `/telephony/next` tells the dialplan to dial `TELEPHONY_FRONT_DESK`.
+- [x] Outbound recovery calls via AMI Originate to the softphone (`ami.py`, `outbound.set_dialer`); Reject on the phone declines.
+- [ ] Verify on the real Asterisk: keypad frames through AudioSocket, 16 kHz AudioSocket audio, the Reject reason code (TELEPHONY.md, last section).
+- Tests: `tests/test_telephony.py` (25) with a simulated Asterisk and manager; live smoke test on the real server (greeting 0.07 s after connect, 49.9 frames/s, clean hang-up).
 
 **E — evaluation hardening (≈3 days):**
 - p50/p95 latency, task success, STT word error on the recorded set, fallback and interruption rates.

@@ -39,6 +39,7 @@ Server -> browser
 """
 
 import asyncio
+import hmac
 import json
 import logging
 import struct
@@ -47,11 +48,11 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import auth
@@ -189,11 +190,18 @@ async def lifespan(app: FastAPI):
     app.state.runner = outbound.Runner(app.state.db, app.state.gate)
     outbound.set_runner(app.state.runner)
     background.append(asyncio.create_task(app.state.runner.run()))
+    # Phone calls through Asterisk (audiosocket.py), when switched on in .env.
+    app.state.audiosocket = None
+    if config.TELEPHONY_ENABLED:
+        await _start_telephony(app)
     logger.info("Emma is listening on http://%s:%d", config.SERVER_HOST, config.SERVER_PORT)
     if config.SERVER_HOST not in ("127.0.0.1", "localhost", "::1"):
         logger.warning("SERVER_HOST=%s exposes Emma to the network; keep it on 127.0.0.1 "
                        "unless it is behind TLS and a login.", config.SERVER_HOST)
     yield
+    if app.state.audiosocket is not None:
+        await app.state.audiosocket.stop()
+        outbound.set_dialer(None)
     app.state.runner.stop()
     outbound.set_runner(None)
     for task in background:
@@ -509,6 +517,198 @@ async def outbound_websocket(ws: WebSocket):
                 ring.result = recovery.call_result(ctx)
             ring.call_done.set()
             calendar_sync.notify()
+
+
+# ---------------------------------------------------------------- phone calls (audiosocket.py)
+# Asterisk (WSL2 Ubuntu, docs/TELEPHONY.md) answers a SIP phone, registers the
+# call here over HTTP, then connects its audio with AudioSocket(). Calls share
+# the call gate, the dashboard's live panel, takeover and transcripts with the
+# browser; Emma herself is the same CallSession.
+
+
+async def _start_telephony(app):
+    import audiosocket
+    import phone_audio
+
+    app.state.phone_bank = phone_audio.SoundBank()
+
+    async def load_sounds():
+        app.state.phone_bank = await asyncio.to_thread(
+            phone_audio.load_bank, STATIC_DIR / "ambience", Path(config.CACHE_DIR) / "phone_sounds")
+
+    app.state.phone_sounds_task = asyncio.create_task(load_sounds())
+    server = audiosocket.AudioSocketServer(lambda key, reader, writer: _phone_call(app, key, reader, writer))
+    try:
+        await server.start()
+    except OSError as exc:
+        logger.error("Phone calls off: AudioSocket can't listen on %s:%d (%s)",
+                     config.AUDIOSOCKET_HOST, config.AUDIOSOCKET_PORT, exc)
+        return
+    app.state.audiosocket = server
+    if not config.TELEPHONY_SECRET:
+        logger.warning("TELEPHONY_SECRET is empty: Asterisk can't register calls (see docs/TELEPHONY.md)")
+    if config.AMI_USER:
+        outbound.set_dialer(_ring_phone)
+
+
+def _line_sounds(state):
+    import phone_audio
+    if not config.AMBIENCE_ENABLED:
+        return phone_audio.LineSounds(enabled=False)
+    return phone_audio.LineSounds(getattr(state, "phone_bank", None), config.AMBIENCE_EVENT_DB)
+
+
+async def _telephony_form(request: Request) -> dict:
+    """The dialplan's POST (loopback only, with the shared secret), as a dict."""
+    host = request.client.host if request.client else ""
+    if not (config.TELEPHONY_ENABLED and config.TELEPHONY_SECRET) or host not in ("127.0.0.1", "::1"):
+        raise HTTPException(status_code=404)
+    body = (await request.body()).decode("utf-8", "replace")
+    form = {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
+    if not hmac.compare_digest(form.get("key", ""), config.TELEPHONY_SECRET):
+        raise HTTPException(status_code=403)
+    return form
+
+
+@app.post("/telephony/register", include_in_schema=False)
+async def telephony_register(request: Request):
+    """A call is coming in: "busy", or the UUID to use with AudioSocket() (its caller ID kept against it)."""
+    import audiosocket
+    form = await _telephony_form(request)
+    if request.app.state.audiosocket is None or request.app.state.gate.busy:
+        return PlainTextResponse("busy")
+    return PlainTextResponse(audiosocket.registry.register_inbound(form.get("from")))
+
+
+@app.post("/telephony/next", include_in_schema=False)
+async def telephony_next(request: Request):
+    """After Emma: "transfer" (put through to the front desk) or "hangup"."""
+    import audiosocket
+    form = await _telephony_form(request)
+    return PlainTextResponse(audiosocket.registry.pop_next(form.get("uuid", "")))
+
+
+async def _hang_up(writer):
+    import audiosocket
+    try:
+        writer.write(audiosocket.frame(audiosocket.KIND_HANGUP))
+        await writer.drain()
+    except Exception:
+        pass
+    writer.close()
+
+
+async def _phone_call(app, key: str, reader, writer):
+    """One AudioSocket connection: an inbound call, or the answered side of a recovery call."""
+    import ai_engine
+    import audiosocket
+
+    pending = audiosocket.registry.take(key)
+    if pending is None:
+        logger.warning("AudioSocket call with an unknown UUID; hung up")
+        await _hang_up(writer)
+        return
+    if pending.kind == "outbound":
+        await _phone_recovery_call(app, pending.ring, key, reader, writer)
+        return
+    state = app.state
+    gate: CallGate = state.gate
+    call_id = uuid.uuid4().hex[:8]
+    if not gate.try_acquire("inbound", call_id):
+        logger.info("Refused a phone call while %s (%s) is active", gate.call_id, gate.kind)
+        await _hang_up(writer)
+        return
+    session = None
+    transport = audiosocket.PhoneTransport(writer, call_id, key, _line_sounds(state))
+    try:
+        session = CallSession(transport, _services(state), call_id=call_id)
+        if ai_engine.phone_line(session.s, pending.caller_id, can_transfer=bool(config.TELEPHONY_FRONT_DESK)):
+            logger.info("[%s] phone call with caller ID", call_id)
+        state.sessions[call_id] = session
+        _start_recording(session, call_id)
+        transport.attach(session)
+        await session.start()
+        await audiosocket.PhoneCall(reader, transport).run(session)
+    except Exception as exc:
+        logger.error("[%s] phone call error: %s", call_id, exc, exc_info=True)
+    finally:
+        try:
+            if session is not None:
+                await session.close()
+                _finish_recording(session)
+            else:
+                await transport.close()
+        except Exception as exc:
+            logger.error("[%s] error closing the phone call: %s", call_id, exc, exc_info=True)
+        finally:
+            state.sessions.pop(call_id, None)
+            gate.release(call_id)
+            calendar_sync.notify()
+
+
+async def _phone_recovery_call(app, ring, key: str, reader, writer):
+    """The patient answered the SIP phone: the same recovery call as /ws/outbound, over the phone line."""
+    import audiosocket
+    from dialogue import recovery
+
+    runner = outbound.get_runner()
+    if runner is None or runner.answer(ring.claimed.job_id, ring.token) is None:
+        logger.info("recovery call answered on the phone after it stopped ringing; hung up")
+        await _hang_up(writer)
+        return
+    ring.connected.set()
+    state = app.state
+    call_id = ring.call_id
+    claimed = ring.claimed
+    session = ctx = None
+    transport = audiosocket.PhoneTransport(writer, call_id, key, _line_sounds(state))
+    try:
+        block = await state.db.run(outbound.campaign_block, claimed.campaign_id)
+        ctx = recovery.new_context(call_id=call_id, job_id=claimed.job_id, phone_e164=claimed.phone_e164,
+                                   appointments=claimed.appointments, block=block)
+        session = CallSession(transport, _services(state), call_id=call_id, state=ctx)
+        state.sessions[call_id] = session
+        _start_recording(session, call_id, direction="outbound")
+        transport.attach(session)
+        await session.start()
+        await audiosocket.PhoneCall(reader, transport).run(session)
+    except Exception as exc:
+        logger.error("[%s] recovery phone call error: %s", call_id, exc, exc_info=True)
+    finally:
+        try:
+            if session is not None:
+                await session.close()
+                session.outcome = f"recovery_{ctx.outcome or 'abandoned'}" if ctx is not None else session.outcome
+                _finish_recording(session)
+            else:
+                await transport.close()
+        except Exception as exc:
+            logger.error("[%s] error closing the recovery phone call: %s", call_id, exc, exc_info=True)
+        finally:
+            state.sessions.pop(call_id, None)
+            if ctx is not None:
+                ring.result = recovery.call_result(ctx)
+            ring.call_done.set()
+            calendar_sync.notify()
+
+
+async def _ring_phone(ring, runner):
+    """outbound's dialer: ring the patient's SIP phone; a Reject there declines the call like the page's button."""
+    import ami
+    import audiosocket
+
+    key = audiosocket.registry.register_outbound(ring)
+    try:
+        result = await ami.originate(channel=config.TELEPHONY_PATIENT_PHONE, context="emma-outbound", exten="s",
+                                     variables={"EMMA_UUID": key}, timeout_s=max(5.0, runner.ring_timeout_s - 2),
+                                     caller_id=config.TELEPHONY_CLINIC_CID)
+    except (OSError, asyncio.TimeoutError, ami.AMIError) as exc:
+        logger.warning("recovery job %s: couldn't ring the phone (%s)", ring.claimed.job_id, exc)
+        return
+    if result.declined:
+        runner.decline(ring.claimed.job_id, ring.token)
+    elif not result.answered:
+        logger.info("recovery job %s: the phone rang out (reason %s)", ring.claimed.job_id, result.reason)
 
 
 def _start_recording(session, call_id: str, direction: str = "inbound"):

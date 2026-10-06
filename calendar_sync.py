@@ -51,7 +51,11 @@ MAX_ATTEMPTS = 12
 NO_CALENDAR_RETRY_S = 60
 REQUEST_TIMEOUT_S = 15
 NEEDS_RESCHEDULE_PREFIX = "NEEDS RESCHEDULE: "
-CALENDAR_NAME = "Pearl Dental — {branch} (DEMO)"
+CALENDAR_NAME = "Pearl Dental — {branch}"
+# What the branch calendars were called until 6 Oct; tools/setup_calendars.py renames them.
+LEGACY_CALENDAR_NAME = "Pearl Dental — {branch} (DEMO)"
+CALENDAR_DESCRIPTION = ("Appointments mirrored one way from the Pearl Dental dashboard; "
+                        "change them there, not here.")
 
 
 class CalendarError(Exception):
@@ -74,6 +78,8 @@ class CalendarClient:
     def calendar_exists(self, calendar_id: str) -> bool: ...
     def find_calendar(self, summary: str) -> Optional[str]: ...
     def create_calendar(self, summary: str, description: str, time_zone: str) -> str: ...
+    def calendar_info(self, calendar_id: str) -> dict: ...
+    def rename_calendar(self, calendar_id: str, summary: str, description: str) -> None: ...
     def readers(self, calendar_id: str) -> set: ...
     def add_reader(self, calendar_id: str, email: str) -> None: ...
 
@@ -136,6 +142,14 @@ class FakeCalendar(CalendarClient):
         self.calendars[cid] = {"summary": summary, "description": description, "timeZone": time_zone,
                                "readers": set()}
         return cid
+
+    def calendar_info(self, calendar_id):
+        c = self.calendars[calendar_id]
+        return {"summary": c["summary"], "description": c["description"]}
+
+    def rename_calendar(self, calendar_id, summary, description):
+        self.calls.append(("rename", calendar_id, None))
+        self.calendars[calendar_id].update(summary=summary, description=description)
 
     def readers(self, calendar_id):
         return set(self.calendars[calendar_id]["readers"])
@@ -211,8 +225,16 @@ class GoogleCalendar(CalendarClient):
             body={"summary": summary, "description": description, "timeZone": time_zone}))
         return created["id"]
 
+    def calendar_info(self, calendar_id):
+        cal = self._run(self.service.calendars().get(calendarId=calendar_id))
+        return {"summary": cal.get("summary", ""), "description": cal.get("description", "")}
+
+    def rename_calendar(self, calendar_id, summary, description):
+        self._run(self.service.calendars().patch(calendarId=calendar_id,
+                                                 body={"summary": summary, "description": description}))
+
     def readers(self, calendar_id):
-        rules = self._run(self.service.acl().list(calendarId=calendar_id)).get("items", [])
+        rules =self._run(self.service.acl().list(calendarId=calendar_id)).get("items", [])
         return {r["scope"]["value"].lower() for r in rules
                 if r.get("scope", {}).get("type") == "user" and r.get("role") in ("reader", "writer", "owner")}
 
@@ -279,7 +301,7 @@ def event_body(appt: dict) -> dict:
             f"Phone: ends {last4}",
             f"Appointment: {appt['id']}",
             "",
-            "Mirrored from the Pearl Dental dashboard (DEMO). Change it there; edits here are overwritten.",
+            "Mirrored from the Pearl Dental dashboard. Change it there; edits here are overwritten.",
         ]),
         "location": f"Pearl Dental, {appt['branch']}",
         "start": {"dateTime": start.isoformat(), "timeZone": config.CLINIC_TIMEZONE},

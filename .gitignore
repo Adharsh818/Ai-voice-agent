@@ -54,3 +54,6 @@ harness_runs/
 
 # Piper voice models (downloaded, ~63 MB each)
 models/
+
+# --- Rendered Asterisk configs (secrets; tools/telephony_setup.py) ---
+telephony/build/

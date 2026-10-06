@@ -34,7 +34,7 @@ Without keys the server still starts, and `/health` reports what is missing. For
 
 ## Staff dashboard
 
-Every page is labelled DEMO: the clinic, doctors and bookings are fictitious.
+The seeded sample clinic (branches, doctors, bookings) is fictitious; the pages carry no DEMO label since 6 Oct 2026.
 
 - **Live call:** captions as they happen, listening/thinking/speaking state, the conversation goal, tier and per-turn timings.
 - **Appointments:** a day, upcoming, past or all; filter by branch, doctor or status, group by branch or doctor, search by name, phone or ID. Cancel, move and book by hand (through the same scheduling rules as Emma). CSV export (each export is recorded in the audit log).
@@ -64,7 +64,7 @@ One-time setup:
    .\.venv\Scripts\python.exe tools\setup_calendars.py
    ```
 
-   It creates "Pearl Dental — <branch> (DEMO)" for each branch, owned by the service account, shares each one read-only with that Gmail, stores the IDs in the database and queues existing bookings for sync. It's safe to run again (`--dry-run` shows what it would do).
+   It creates "Pearl Dental — <branch>" for each branch (and renames one still called "... (DEMO)"), owned by the service account, shares each one read-only with that Gmail, stores the IDs in the database and queues existing bookings for sync. It's safe to run again (`--dry-run` shows what it would do).
 4. In the Gmail, accept the four sharing emails (or open the links the tool prints).
 5. Restart the server. `/health` → `calendar.enabled` should be `true`.
 

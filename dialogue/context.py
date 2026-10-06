@@ -93,6 +93,7 @@ class Goal(str, Enum):
     HELP_FIRST = "help_first"                  # first person request: offer to help
     CALLBACK_OFFER = "callback_offer"          # "Want me to have the team call you back?"
     CALLBACK_DONE = "callback_done"            # task created; tell them who will call
+    TRANSFER = "transfer"                      # phone calls: task created, put through to the front desk; ends Emma's part
     ENGLISH_ONLY = "english_only"
     ABUSE_WARN = "abuse_warn"
     ABUSE_CLOSE = "abuse_close"
@@ -187,6 +188,7 @@ GOAL_SPECS: dict[Goal, GoalSpec] = {
     Goal.HELP_FIRST: _spec(Expect.OPEN),
     Goal.CALLBACK_OFFER: _spec(Expect.YES_NO),
     Goal.CALLBACK_DONE: _spec(Expect.YES_NO, True),
+    Goal.TRANSFER: _spec(Expect.OPEN, True),
     Goal.ENGLISH_ONLY: _spec(Expect.YES_NO, True),
     Goal.ABUSE_WARN: _spec(Expect.OPEN, True),
     Goal.ABUSE_CLOSE: _spec(Expect.OPEN, True),
@@ -231,7 +233,7 @@ GOAL_SPECS: dict[Goal, GoalSpec] = {
 }
 
 # Goals after which the call is over (closed_conversation is set).
-CLOSING_GOALS = frozenset({Goal.CLOSE, Goal.ABUSE_CLOSE, Goal.RED_FLAG})
+CLOSING_GOALS = frozenset({Goal.CLOSE, Goal.ABUSE_CLOSE, Goal.RED_FLAG, Goal.TRANSFER})
 
 # Loop breaker (docs/R2_DESIGN.md, section 9): which rung of the ladder an ask
 # is on, from how many times the caller's reply missed it.
@@ -340,6 +342,10 @@ class Caller:
     phone_state: FieldState = FieldState.EMPTY
     phone_buffer: str = ""                             # digits accumulated across turns
     phone_misses: int = 0                              # read-backs rejected
+    # "caller_id": phone_e164 came from the phone network, so it's confirmed by asking
+    # "Is the number you're calling from the best one?" rather than read back;
+    # "declined": the caller said no to that question (not a mishearing).
+    phone_source: Optional[str] = None
 
 
 @dataclass
@@ -488,7 +494,11 @@ class CallContext:
     callback_reason: Optional[str] = None              # why a callback is on offer (task note)
     tasks_created: list = field(default_factory=list)  # task ids from tasks.create_task
     keep_transcript: bool = True
-    last_emma: str = ""                                # Emma's last full reply (REPEAT re-speaks it)
+    # Phone calls (Asterisk, audiosocket.py): the front desk can take a live
+    # transfer, and set when Emma has promised one (the transport routes the call).
+    can_transfer: bool = False
+    transfer_requested: bool = False
+    last_emma: str = ""                             # Emma's last full reply (REPEAT re-speaks it)
     prompts: PromptMemory = field(default_factory=PromptMemory)
     trace: list = field(default_factory=list)          # TurnTrace, last 50
 

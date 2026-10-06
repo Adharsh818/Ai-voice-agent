@@ -52,7 +52,6 @@ REASON_ORDER = [
 # Reasons that apply to every doctor alike; worth telling the caller.
 CLINIC_WIDE = {"OFF_GRID", "TOO_SOON", "BEYOND_HORIZON", "CLOSED_DAY", "OUTSIDE_HOURS", "LUNCH"}
 
-
 # ---------------------------------------------------------------- types
 
 
@@ -249,9 +248,11 @@ def validate(conn, *, service, doctor_id: int, start: datetime, now=None, emerge
 def find_slots(conn, *, service, dates: Iterable[date], branch_ids=None, doctor_id=None, gender=None,
                window: Optional[tuple] = None, near: Optional[datetime] = None, near_time: Optional[time] = None,
                limit: int = 2, now=None, emergency=False, call_id=None, ignore_appointment=None,
-               distinct_times: bool = True) -> list[Slot]:
+               distinct_times: bool = True, patient: Optional[tuple] = None) -> list[Slot]:
     """
     Valid slots on `dates`, starting inside `window` (start, end) if given.
+    patient: (phone_e164, name_norm): skip times that overlap an appointment
+    that patient already has (book() would refuse them as PATIENT_CONFLICT).
 
     Ordering: with `near`, closest to that moment (earlier wins ties); with
     `near_time`, closest to that time of day, then earliest date; otherwise
@@ -270,6 +271,8 @@ def find_slots(conn, *, service, dates: Iterable[date], branch_ids=None, doctor_
     lead = _lead(emergency)
     w_start, w_end = window or (OPEN, CLOSE)
     found: list[Slot] = []
+    busy = _patient_busy(conn, patient, dates[0], dates[-1]) if patient else []
+    length = timedelta(minutes=svc["duration_min"])
 
     def pick(candidates):
         if near is not None:
@@ -292,7 +295,7 @@ def find_slots(conn, *, service, dates: Iterable[date], branch_ids=None, doctor_
     for day in dates:
         t = _at(day, OPEN)
         while t < _at(day, CLOSE):
-            if w_start <= t.time() < w_end:
+            if w_start <= t.time() < w_end and not _overlaps(busy, t, t + length):
                 for doc in doctors:
                     if not ctx.reasons(doc["id"], svc["id"], svc["duration_min"], t, now, lead):
                         found.append(_slot(doc, svc, t))
@@ -305,18 +308,25 @@ def find_slots(conn, *, service, dates: Iterable[date], branch_ids=None, doctor_
 
 def suggest(conn, *, service, date_c: DateConstraint, time_c: Optional[TimeConstraint] = None,
             branch_ids=None, doctor_id=None, gender=None, now=None, emergency=False, call_id=None,
-            ignore_appointment=None, limit: int = 2, later_days: int = 7) -> Suggestion:
+            ignore_appointment=None, limit: int = 2, later_days: int = 7,
+            same_time_later: bool = False, patient: Optional[tuple] = None) -> Suggestion:
     """
     What to offer for a caller's request (plan 5.1 "Offer policy"):
     the exact slot if it is free; otherwise the nearest slots that day; for a
     window or range, the earliest slots inside it; failing all that, the
     earliest slots on up to `later_days` following days, around the same time.
+
+    same_time_later: the caller has asked for this exact day and time again
+    after hearing the nearest times: the second offer becomes that time on
+    the next day that has it ("5's taken on Tuesday, but Wednesday has 5").
+    patient: (phone_e164, name_norm): never offer a time that patient is already booked at.
     """
     if time_c is not None and time_c.kind == "ambiguous":
         raise ValueError("resolve AM/PM with the caller before searching")
     now = _now(now)
     common = dict(service=service, branch_ids=branch_ids, doctor_id=doctor_id, gender=gender, now=now,
-                  emergency=emergency, call_id=call_id, ignore_appointment=ignore_appointment, limit=limit)
+                  emergency=emergency, call_id=call_id, ignore_appointment=ignore_appointment, limit=limit,
+                  patient=patient)
     exact_time = time_c.start if time_c is not None and time_c.kind == "exact" else None
     window = (time_c.start, time_c.end) if time_c is not None and time_c.kind == "window" else None
     dates = list(date_c.dates())
@@ -327,7 +337,9 @@ def suggest(conn, *, service, date_c: DateConstraint, time_c: Optional[TimeConst
         svc = get_service(conn, service)
         doctors = _doctors(conn, svc["id"], branch_ids, doctor_id, gender) if svc else []
         reason_sets = []
-        for doc in doctors:
+        clash = bool(svc) and patient is not None and _overlaps(
+            _patient_busy(conn, patient, day, day), requested, requested + timedelta(minutes=svc["duration_min"]))
+        for doc in ([] if clash else doctors):
             why = validate(conn, service=svc["id"], doctor_id=doc["id"], start=requested, now=now,
                            emergency=emergency, call_id=call_id, ignore_appointment=ignore_appointment)
             if not why:
@@ -336,9 +348,14 @@ def suggest(conn, *, service, date_c: DateConstraint, time_c: Optional[TimeConst
         shared = set.intersection(*reason_sets) & CLINIC_WIDE if reason_sets else set()
         reasons = [r for r in REASON_ORDER if r in shared] or ["TAKEN"]
         slots = find_slots(conn, dates=[day], near=requested, **common)
-        if slots:
-            return Suggestion("alternatives", slots, "same_day", requested, reasons)
         later = [day + timedelta(days=i) for i in range(1, later_days + 1)]
+        if slots:
+            if same_time_later and limit > 1:
+                same_time =[s for s in find_slots(conn, dates=later, near_time=exact_time, **{**common, "limit": 1})
+                             if s.start.time() == exact_time]
+                if same_time:
+                    slots = [slots[0], same_time[0]]
+            return Suggestion("alternatives", slots, "same_day", requested, reasons)
         slots = find_slots(conn, dates=later, near_time=exact_time, **common)
         return Suggestion("alternatives" if slots else "none", slots, "later_days", requested, reasons,
                           searched_until=later[-1])
@@ -474,6 +491,21 @@ def _outbox(conn, appointment_id: str, now: datetime):
     conn.execute("INSERT INTO sync_outbox (appointment_id, due_at, attempts, status) VALUES (?, ?, 0, 'pending') "
                  "ON CONFLICT (appointment_id) DO UPDATE SET due_at = excluded.due_at, attempts = 0, "
                  "status = 'pending', last_error = NULL", (appointment_id, db.utc_str(now)))
+
+
+def _patient_busy(conn, patient: tuple, first: date, last: date) -> list:
+    """[(start, end)] of the patient's booked appointments from `first` to `last` (local days)."""
+    phone_e164, name_norm = patient
+    lo, hi = db.utc_str(_at(first, time(0, 0))), db.utc_str(_at(last + timedelta(days=1), time(0, 0)))
+    rows = conn.execute(
+        "SELECT a.start_utc, a.end_utc FROM appointments a JOIN patients p ON p.id = a.patient_id "
+        "WHERE p.phone_e164 = ? AND p.name_norm = ? AND a.status = 'booked' AND a.start_utc < ? AND a.end_utc > ?",
+        (phone_e164, name_norm, hi, lo)).fetchall()
+    return [(db.parse_utc(r["start_utc"]), db.parse_utc(r["end_utc"])) for r in rows]
+
+
+def _overlaps(busy: list, start: datetime, end: datetime) -> bool:
+    return any(b_start < end and b_end > start for b_start, b_end in busy)
 
 
 def _patient_conflict(conn, phone_e164, name_norm, start, end, exclude_id=None) -> bool:

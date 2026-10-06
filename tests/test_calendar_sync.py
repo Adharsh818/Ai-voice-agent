@@ -397,7 +397,8 @@ class SetupCalendarsToolTests(unittest.TestCase):
         self.assertEqual(len(self.cal.calendars), 2)
         for name, calendar_id in stored.items():
             calendar = self.cal.calendars[calendar_id]
-            self.assertEqual(calendar["summary"], f"Pearl Dental — {name} (DEMO)")
+            self.assertEqual(calendar["summary"], f"Pearl Dental — {name}")
+            self.assertNotIn("DEMO", calendar["description"])
             self.assertEqual(calendar["timeZone"], config.CLINIC_TIMEZONE)
             self.assertEqual(calendar["readers"], {"demo.pearl@gmail.com"})
 
@@ -413,6 +414,27 @@ class SetupCalendarsToolTests(unittest.TestCase):
         self.assertFalse(any(r["created"] for r in report))
         self.assertEqual(len(self.cal.calendars), 2)
         self.assertTrue(all(re.match(r"fake\d@", cid) for cid in self.branches().values()))
+
+    def test_a_calendar_with_its_old_demo_name_is_found_and_renamed(self):
+        old = self.cal.create_calendar(f"Pearl Dental — {config.DEFAULT_BRANCH} (DEMO)", "DEMO data. Old.",
+                                       config.CLINIC_TIMEZONE)
+        dry = self.db.run_sync(self.tool.setup, self.cal, "", True)
+        self.assertTrue(dry[0]["renamed"])
+        self.assertTrue(self.cal.calendars[old]["summary"].endswith("(DEMO)"))      # a dry run renames nothing
+        report = self.db.run_sync(self.tool.setup, self.cal, "")
+        self.assertEqual((report[0]["calendar_id"], report[0]["created"], report[0]["renamed"]), (old, False, True))
+        self.assertEqual(self.cal.calendars[old]["summary"], f"Pearl Dental — {config.DEFAULT_BRANCH}")
+        self.assertNotIn("DEMO", self.cal.calendars[old]["description"])
+        again = self.db.run_sync(self.tool.setup, self.cal, "")
+        self.assertFalse(any(r["renamed"] for r in again))
+
+    def test_event_text_has_no_demo_label(self):
+        import calendar_sync
+        body = calendar_sync.event_body({"id": "a1", "status": "booked", "version": 1, "service": "Teeth Cleaning",
+                                         "doctor": "Dr Menon", "branch": "Indiranagar", "patient_name": "Neha Kapoor",
+                                         "caller_phone_e164": "+919845022222", "start_utc": "2026-10-12T07:00:00Z",
+                                         "end_utc": "2026-10-12T07:30:00Z"})
+        self.assertNotIn("DEMO", body["summary"] + body["description"])
 
     def test_dry_run_changes_nothing(self):
         report = self.db.run_sync(self.tool.setup, self.cal, "demo.pearl@gmail.com", True)

@@ -808,13 +808,17 @@ _QUESTION_RE = re.compile(
 )
 
 
-# "Can I book a cleaning around 6?" asks for a booking, not a fact.
-_REQUEST_ASK_RE = re.compile(r"\b(can|could|may) (i|you|we)( please)? (book|get|have|make|schedule|fix|come in)\b")
+# "Can I book a cleaning around 6?" / "Is it possible to get an appointment?" ask for a booking, not a fact.
+_REQUEST_ASK_RE = re.compile(
+    r"\b((can|could|may) (i|you|we)( please)? (book|get|have|make|schedule|fix|come)|"
+    r"(is|would) it (be )?possible to (book|get|have|make|schedule|fix|come))\b")
+# "Hello? Yes, I'm still here." answers "are you still there?"; the "?" is the line, not a question.
+_HELLO_RE = re.compile(r"^\s*(hello|hi|hey|hallo)\s*\?+\s*")
 
 
 def looks_like_question(text: str) -> bool:
     """Cheap question detector (question words, "?", price / hours / address words)."""
-    lower = _norm(text)
+    lower = _HELLO_RE.sub("", _norm(text))
     if _REQUEST_ASK_RE.search(lower):
         # The request itself isn't a question; one asked beside it still is
         # ("Can I book a check-up, and where is your Jayanagar branch?").

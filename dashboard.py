@@ -4,7 +4,8 @@ JSON API below and to a server-sent event stream for the live call.
 
 Everything here needs the staff login (auth.py) except the login page itself,
 its auth status and the static code under /dashboard/static (no data there).
-Every page is labelled DEMO: the clinic data is fictitious (decision Q2).
+Pages carry no DEMO label any more (owner, 6 Oct): the product is being finished
+for real use; the seeded sample clinic is still fictitious (decision Q2).
 
     /dashboard/                  the app (Live · Appointments · Tasks · Calls · Recovery · System)
     /dashboard/login             the login page
@@ -312,7 +313,7 @@ async def appointments_csv(scope: str = "day", day: Optional[str] = None, days: 
     await _run(_audit, user, "export_csv", "appointments", filters["scope"], {"rows": len(rows), **described})
     stamp = clock.today().isoformat()
     return Response(buffer.getvalue(), media_type="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": f'attachment; filename="pearl-dental-DEMO-appointments-{stamp}.csv"',
+                    headers={"Content-Disposition": f'attachment; filename="pearl-dental-appointments-{stamp}.csv"',
                              "Cache-Control": "no-store"})
 
 
