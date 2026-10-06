@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import random
 import re
 import time
 from dataclasses import dataclass, field
@@ -116,6 +117,10 @@ async def process_turn(ctx: CallContext, text: str, progress: Optional[Callable]
     if not text and not ctx.greeted:
         return _greet(ctx, goal_before)
 
+    text = _answer_to_greeting(ctx, text)
+    if text == _ASK_WHAT_TO_KNOW:
+        return _say_line(ctx, goal_before, Goal.ASK_INTENT,
+                         random.choice(("Sure, what would you like to know?", "Of course, what would you like to know?")))
     rt = runtime if runtime is not None else await build_runtime(ctx, progress)
     if runtime is not None and progress is not None:
         rt.progress = progress
@@ -139,7 +144,13 @@ async def process_turn(ctx: CallContext, text: str, progress: Optional[Callable]
             if u is None:
                 tier = 1
                 rt.emit("llm_start")
-                stream, u, brief = await _model(ctx, merged, rt)
+                # When the fallback reading already understands the turn clearly (a
+                # name, a number, a yes, a plain request), the model gets only a
+                # short head start: it adds natural wording, but a slow day (first
+                # words after 2-6 s on 6 Oct) must not cost the caller the full wait.
+                quick = _tier0(merged, view, lenient=True) if config.TIER0_ENABLED else None
+                deadline = config.NLU_FAST_DEADLINE_S if _clear_enough(quick) else None
+                stream, u, brief = await _model(ctx, merged, rt, head_deadline_s=deadline)
                 if u is None:
                     tier, fallback = 2, True
                     u = _tier0(merged, view, lenient=True) or Understanding(acts=[Act.UNCLEAR.value])
@@ -313,7 +324,7 @@ def compose(ctx: CallContext, plan, notices: list, say: list, ask: Optional[str]
 # ---------------------------------------------------------------- the model
 
 
-async def _model(ctx: CallContext, text: str, rt: Runtime):
+async def _model(ctx: CallContext, text: str, rt: Runtime, head_deadline_s: Optional[float] = None):
     """(stream, understanding, brief); understanding None means the no-model fallback."""
     import nlu
     from dialogue import brief as briefing
@@ -325,7 +336,7 @@ async def _model(ctx: CallContext, text: str, rt: Runtime):
         return None, None, None
     stream = None
     try:
-        stream = await nlu.understand_stream(brief)
+        stream = await nlu.understand_stream(brief, head_deadline_s=head_deadline_s)
         u = await stream.head()
     except Exception as exc:                     # noqa: BLE001 - asyncio.CancelledError is not an Exception
         logger.warning("model unavailable (%r); answering without it", exc)
@@ -417,9 +428,36 @@ async def _close(stream) -> None:
 # ---------------------------------------------------------------- pieces of the turn
 
 
+_ASK_WHAT_TO_KNOW = "<<ask what to know>>"       # marker: a yes to "anything you'd like to know?"
+_GREETING_YES = {"book": "Yes, I'd like to book an appointment.", "info": _ASK_WHAT_TO_KNOW}
+
+
+def _answer_to_greeting(ctx: CallContext, text: str) -> str:
+    """A bare "yes" to "Would you like to book an appointment?" is that request, not an empty yes."""
+    offer = getattr(ctx, "greeting_offer", None)
+    if not offer or not text or ctx.pending != Goal.GREET:
+        return text
+    ctx.greeting_offer = None
+    from dialogue import match
+    if len(text.split()) <= 4 and safe_call(match.parse_yes_no, text, default=None) == "yes":
+        return _GREETING_YES[offer]
+    return text
+
+
+def _say_line(ctx: CallContext, goal_before: Optional[str], goal: Goal, line: str) -> TurnOutput:
+    """A short fixed reply that needs no understanding (it is recorded like any other)."""
+    ctx.pending = goal
+    ctx.pending_params = {}
+    ctx.remember("yes", line)
+    ctx.last_emma = line
+    ctx.note_said(_split(line))
+    return TurnOutput(line, tier=0, goal_before=goal_before, goal_after=goal.value)
+
+
 def _greet(ctx: CallContext, goal_before: Optional[str]) -> TurnOutput:
     greeting = phrases.next_greeting()
     ctx.greeted = True
+    ctx.greeting_offer = phrases.greeting_offer(greeting)
     ctx.pending = Goal.GREET
     ctx.pending_params = {}
     ctx.remember("", greeting)
@@ -496,6 +534,22 @@ def _view(ctx: CallContext, rt: Runtime) -> Tier0View:
         digits_so_far=ctx.caller.phone_buffer, offered=tuple(ctx.offers()),
         options=tuple(ctx.book.service_options), names_heard=tuple(ctx.caller.names_heard),
         catalog=rt.catalog)
+
+
+_WORKFLOW_INTENTS = (Intent.BOOK, Intent.CANCEL, Intent.RESCHEDULE, Intent.CHECK)
+
+
+def _clear_enough(u: Optional[Understanding]) -> bool:
+    """
+    The no-model reading answers what Emma asked, or is a plain request with no
+    question in it: safe to go ahead without waiting long for the model.
+    Questions, chit-chat and anything unclear still wait, the model does those better.
+    """
+    if u is None or u.has(Act.QUESTION) or u.has(Act.UNCLEAR) or u.emergency != Emergency.NONE:
+        return False
+    if u.has(Act.ANSWER):
+        return True
+    return u.intent in _WORKFLOW_INTENTS
 
 
 def _tier0(text: str, view: Tier0View, lenient: bool = False) -> Optional[Understanding]:

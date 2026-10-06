@@ -181,8 +181,11 @@ class R2WordingTests(unittest.TestCase):
 
 class GreetingTests(unittest.TestCase):
     def test_greetings_are_short_and_never_repeat_back_to_back(self):
-        for g in config.GREETINGS:
+        for g in phrases.all_greetings():
             self.assertLessEqual(len(g.split()), 12, g)
+            self.assertIn("Emma", g)                       # owner, 6 Oct: she always says her name
+            self.assertIn("Pearl Dental", g)
+            self.assertEqual(g.count("?"), 1, g)           # one question, not a menu
         seen = [phrases.next_greeting() for _ in range(40)]
         self.assertTrue(all(a != b for a, b in zip(seen, seen[1:])))
         self.assertGreater(len(set(seen)), 2)
@@ -191,14 +194,14 @@ class GreetingTests(unittest.TestCase):
         import asyncio
         import ai_engine
         result = asyncio.run(ai_engine.async_process_turn("", ai_engine.SessionState()))
-        self.assertIn(result.text, config.GREETINGS)
+        self.assertIn(result.text, phrases.all_greetings())
 
     def test_first_turn_on_the_r2_engine_is_the_same_rotated_greeting(self):
         import asyncio
         import ai_engine
         from dialogue.context import new_context
         result = asyncio.run(ai_engine.async_process_turn("", new_context("greet")))
-        self.assertIn(result.text, config.GREETINGS)
+        self.assertIn(result.text, phrases.all_greetings())
         self.assertEqual(result.tier, -1)
 
     def test_honesty_line_is_truthful(self):

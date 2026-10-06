@@ -1,8 +1,33 @@
 # Project memory and next steps
 
-**Last updated:** 7 Oct 2026 (Day 7 docs and demo tools; Day 6 latency and drills, Day 4 finished, Day 5 built; section 0 is from 5 Oct, sections 1-7 from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
+**Last updated:** 6 Oct 2026, end of session (see START HERE; Day 7 docs and demo tools; Day 6 latency and drills, Day 4 finished, Day 5 built; section 0 is from 5 Oct, sections 1-7 from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
 
 Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
+
+---
+
+## ▶ START HERE (state at the end of the 5-6 Oct session)
+
+**Where the code is.** Branch `day2-r2-engine`, everything pushed; PR [#5](https://github.com/Adharsh818/Ai-voice-agent/pull/5) is open (stacked on #1-#4, none merged). 900 tests (`.\.venv\Scripts\python.exe -m unittest discover -s tests`), all passing.
+
+**Done in this session (details in the dated sections below):** R2 switched on for voice tests; Day 4 (takeover), Day 5 (recovery calls, `/patient` page), Day 6 (latency, fault drills), Day 7 (ARCHITECTURE.md, DEMO_SCRIPT.md, `tools/demo_reset.py`, `tools/preflight.py`), Day 8 prep (typed backup without a mic, Gemini warm-up, slow-check fix), listening rebuilt on the owner's recordings (`vad.py`, `tools/replay.py`), R2.7 and R3.4 bake-offs (Flash-Lite and Nova-3 stay; Sarvam tested), one-yes booking, C-full recovery calls (retries, call-back times, pause/resume, calling hours, reports, migration 002).
+
+**Last change, committed at the end of the session, not yet heard by the owner on a call** (owner's request: "it should always mention its name Emma"; "its latency is too high"):
+- Every greeting names Emma and asks one question (`config.GREETINGS`, `config.TIME_GREETINGS` for morning/afternoon/evening, at most 12 words). A bare "yes" to "Would you like to book an appointment?" starts a booking; to "Any questions about the clinic?" Emma says "Sure, what would you like to know?" (`dialogue/engine.py` `_answer_to_greeting`).
+- Faster replies: when Emma's own rules clearly understood the turn (a name, number, yes, plain request), Gemini gets only `NLU_FAST_DEADLINE_S` = 0.8 s instead of 2.2 s (`dialogue/engine.py` `_clear_enough`); the typing beat is 150-300 ms (was 300-500). Reason: on 6 Oct Gemini took 1.8-6 s to start answering; no Flash-Lite version is faster (3.5-flash-lite ≈ flash-lite-latest ≈ 1.8 s median; 3.1 slower; 2.5 retired).
+
+**Next steps, in order:**
+1. **Owner voice test** (Chrome, http://localhost:8000): check the new greetings and that replies feel quicker; watch for cut-offs or worse understanding (the fast path uses Emma's written lines more often). If needed: `NLU_FAST_DEADLINE_S` up, or the typing beat back.
+2. **Rehearsals** (plan 7.3): three runs of [DEMO_SCRIPT.md](DEMO_SCRIPT.md), one screen-recorded; reset with `tools/demo_reset.py` (Emma stopped) before each. Fix what they find, then **code freeze** (7.1).
+3. **Demo, Thu 8 Oct:** stop Emma → `tools/demo_reset.py` → start Emma → `tools/preflight.py` (apply its `NLU_HEAD_DEADLINE_S` advice if Gemini is slow) → run the script. Mic fails: **Type instead** / `/?typed=1`.
+4. **After the demo:** phase D (Asterisk phone calls; needs WSL2 + Ubuntu installed, a reboot, with the owner's permission) and phase E (hardening), plan section 13.
+
+**Known gaps:** end-of-turn + reply ≈ 1.6 s on rule-handled turns (plan target 0.9 s); simple booking median 10 turns on sim seed 7 (9 on seed 11); Deepgram mishears "Adharsh" and some ordinals (Emma's read-backs catch them; Sarvam hears names better but is 1-1.5 s slower); Chirp untested (Google India needs a ₹500 prepayment).
+
+**Working notes for whoever continues:**
+- Editing files through `python - <<'EOF'` heredocs mangled backslash escapes several times this session (`\b` became a backspace, `\x00` a NUL, and a `str.replace` with an empty search string flooded `config.py`). Prefer the Edit tool for code containing regexes; after scripted edits, scan for control characters and check file sizes.
+- After a long session the full test run hit Windows `WinError 10055` (out of socket buffers) in 3 network tests; they pass when run alone. Restart the PC (or close stale python/server processes) if it happens.
+- The app's built-in browser pane has no microphone: use Chrome for voice, or `/?typed=1` in the pane.
 
 
 ---
