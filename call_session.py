@@ -560,6 +560,7 @@ class CallSession:
         # Staff takeover from the dashboard (plan 5.10): while on, the caller's
         # words are only captioned and recorded, and staff's typed lines are spoken.
         self.operator = False
+        self.typed = False                          # the caller types instead of talking (no microphone)
         self._operator_turns: set[int] = set()
         self._resume_question = ""
         # Transcript recorder (recording.CallRecorder). The server attaches one
@@ -729,7 +730,12 @@ class CallSession:
                 self.outcome = self._abandoned()
             await self.close()
         elif kind == "hello":
-            logger.info("[%s] client protocol v%s", self.call_id, msg.get("v"))
+            logger.info("[%s] client protocol v%s%s", self.call_id, msg.get("v"),
+                        " (typed, no microphone)" if msg.get("typed") else "")
+            if msg.get("typed"):
+                # The typed backup for the demo: typing takes longer than talking,
+                # so the silence ladder doesn't hurry or end the call.
+                self.typed = True
         elif kind == "vad":
             # The browser ducks Emma locally; the server waits for real words.
             pass
@@ -1364,7 +1370,7 @@ class CallSession:
                 await self._check_call_length(now)
                 if self._ending:
                     continue
-                if not self._idle(now) or self.operator:
+                if not self._idle(now) or self.operator or self.typed:
                     self._idle_since = now          # staff run their own pace while they have the call
                     continue
                 if self._owed and now - self._idle_since >= OWED_AFTER_S:

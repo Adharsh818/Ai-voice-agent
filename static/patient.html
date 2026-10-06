@@ -27,6 +27,11 @@
     </button>
     <p id="caption" aria-live="polite"></p>
     <button id="action" type="button" hidden>OK</button>
+    <button id="type-instead" type="button" hidden>Type instead</button>
+    <form id="typed" hidden autocomplete="off">
+      <input id="typed-text" type="text" placeholder="Type what the patient says, then Enter" aria-label="What the patient says">
+      <button type="submit">Send</button>
+    </form>
   </main>
   <p class="waiting" id="waiting">Waiting for a call from the clinic…</p>
   <script type="module" src="/static/patient.js"></script>

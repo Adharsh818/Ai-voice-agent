@@ -47,6 +47,27 @@ class RehearsalFixTests(unittest.TestCase):
         self.assertIsNone(bare.cancel_reason)
         self.assertEqual(bare.intent, Intent.CANCEL)
 
+    def test_a_question_about_opening_hours_is_not_a_booking_day(self):
+        with DemoClinic():
+            async def go():
+                rt = await engine.build_runtime(context.new_context("x"))
+                view = Tier0View(expect=Expect.OPEN, pending=Goal.ASK_INTENT, intent=Intent.NONE, catalog=rt.catalog)
+                return [tier0.understand(t, view, lenient=True) for t in (
+                    "What are your timings on Saturday?", "Can I come on Saturday?")]
+            hours, visit = asyncio.run(go())
+        self.assertIsNone(hours.date_phrase)
+        self.assertTrue(hours.question)
+        self.assertIsNotNone(visit.date_phrase)
+
+    def test_a_typed_call_skips_the_silence_ladder(self):
+        from test_realtime_support import make_session
+
+        async def go():
+            s, _ = make_session()
+            await s.on_control({"type": "hello", "v": 2, "typed": True})
+            return s.typed
+        self.assertTrue(asyncio.run(go()))
+
     def test_when_a_symptom_started_is_not_when_to_come(self):
         with clock.frozen(datetime(2026, 10, 8, 10, 0)):
             for said in ("I have really bad swelling and pain since last night.", "It's hurt since this morning",

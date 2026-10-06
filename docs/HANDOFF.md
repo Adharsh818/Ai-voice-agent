@@ -7,6 +7,15 @@ Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_
 
 ---
 
+## 000000. 6 Oct (Day 8 prep; the demo is Thursday 8 Oct)
+
+- **Typed backup that works without a microphone:** the talk page offers **Type instead** when the mic is blocked or missing, and http://localhost:8000/?typed=1 starts a typed call directly. Emma still speaks; the silence ladder is off for typed calls. Same on the patient page (Answer, then Type instead). Tested in the app's browser pane, which has no microphone.
+- **Gemini is slow and variable today** (first words after 1.7-4.3 s, a cold first request 4.75 s). Emma now sends one realistic warm-up request at startup and another every 4 min while no call is on (`NLU_KEEP_WARM_S`); this removes the very slow cold first turn but can't fix the service's own variability. `tools/preflight.py` now times Gemini and, if it's slow that day, suggests an `NLU_HEAD_DEADLINE_S` (today: 2.6) to put in `.env`.
+- **Fix:** a question about opening hours ("What are your timings on Saturday?") no longer sets Saturday as a booking day in the fallback.
+- 889 tests pass. My typed test calls left 2 calls in the demo database; `tools/demo_reset.py` clears them before rehearsals and the demo.
+
+---
+
 ## Owner decisions, 7 Oct
 
 - **Backup voice:** Piper `en_GB-cori-medium` (the default) stays.

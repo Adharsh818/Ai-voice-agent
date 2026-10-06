@@ -116,6 +116,52 @@ def check_credit():
             report("WARN", "Deepgram balance", _why(exc, "console.deepgram.com > Billing"))
 
 
+def check_model_speed():
+    """Time three real streamed requests: how long Gemini takes to start answering today."""
+    print("Model speed")
+    if not config.GEMINI_API_KEY:
+        report("FAIL", "Gemini", "no key")
+        return
+    import asyncio
+    import time
+
+    import llm
+    from dialogue import brief, context, engine
+
+    async def measure():
+        ctx = context.new_context("preflight")
+        rt = await engine.build_runtime(ctx)
+        b = brief.build(ctx, "Hi, I'd like to book a cleaning on Monday afternoon.", rt.catalog, rt.kb)
+        client = llm.get_nlu()
+        times = []
+        for _ in range(3):
+            started = time.monotonic()
+            first = None
+            async for _chunk in client.generate_json_stream(b.contents, b.system, schema=b.schema,
+                                                             deadline=time.monotonic() + 15):
+                first = first or time.monotonic()
+            times.append((first - started) if first else None)
+        return times
+
+    try:
+        times = asyncio.run(measure())
+    except Exception as exc:
+        report("WARN", "Gemini speed", f"couldn't measure ({type(exc).__name__})")
+        return
+    got = sorted(t for t in times if t is not None)
+    if not got:
+        report("FAIL", "Gemini speed", "no answer in 15 s")
+        return
+    median = got[len(got) // 2]
+    limit = config.NLU_HEAD_DEADLINE_S
+    detail = f"first words after {', '.join(f'{t:.1f}' for t in got)} s (Emma waits up to {limit:.1f} s)"
+    if median <= limit - 0.4:
+        report("OK", "Gemini speed", detail)
+    else:
+        report("WARN", "Gemini speed", detail + "; slow today: many turns will use Emma's written lines. "
+               f"Set NLU_HEAD_DEADLINE_S={min(3.5, round(median + 0.6, 1))} in .env and restart if you'd rather wait")
+
+
 def check_demo_data():
     print("Demo data")
     import db
@@ -149,6 +195,7 @@ def main() -> int:
     check_server()
     check_settings()
     check_credit()
+    check_model_speed()
     check_demo_data()
     failed, warned = results.count("FAIL"), results.count("WARN")
     print(f"\n{'READY' if not failed else 'NOT READY'}: {failed} to fix, {warned} to look at.")

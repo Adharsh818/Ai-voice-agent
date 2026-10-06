@@ -1251,7 +1251,11 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
             u.appt_date_phrase = _split_when(moved.group("old"), old)[0]
             u.date_phrase, u.time_phrase = _split_when(moved.group("new"), new)
             filled_expected = True
-    if not (u.date_phrase or u.time_phrase or u.appt_date_phrase) and not (exp == "phone" and u.phone_digits):
+    # "What are your timings on Saturday?" asks about the clinic; Saturday isn't
+    # a booking day (6 Oct typed-backup test, model cold: "Okay, Saturday the 10th").
+    hours_question = bool(question) and bool(_ABOUT_A_PLACE.search(t)) and exp not in ("date", "time")
+    if not (u.date_phrase or u.time_phrase or u.appt_date_phrase) and not (exp == "phone" and u.phone_digits) \
+            and not hours_question:
         when = _parse_when(raw, expecting=exp if exp in ("date", "time") else None)
         if not when.empty:
             date_phrase, time_phrase = _split_when(raw, when)
