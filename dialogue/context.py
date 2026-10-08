@@ -498,6 +498,7 @@ class CallContext:
     # transfer, and set when Emma has promised one (the transport routes the call).
     can_transfer: bool = False
     transfer_requested: bool = False
+    line_e164: Optional[str] = None                 # the caller ID, kept even after "no, another number"
     last_emma: str = ""                             # Emma's last full reply (REPEAT re-speaks it)
     prompts: PromptMemory = field(default_factory=PromptMemory)
     trace: list = field(default_factory=list)          # TurnTrace, last 50

@@ -327,6 +327,19 @@ NON_NAME_WORDS = {
     "busy", "afraid", "glad", "happy", "ready", "done", "back", "really", "very", "too", "lot",
     "having", "trying", "going", "feeling", "worried", "late", "early", "out", "away", "home",
     "travelling", "traveling", "new", "confused", "interested",
+    # 8 Oct calls: "Seven." taken as a name, "This is another one" as "Another One"
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    "eleven", "twelve", "twenty", "thirty", "forty", "fifty", "hundred", "double", "triple",
+    "another", "other", "same", "first", "second", "last", "both", "none", "all", "any",
+    "i",                                    # "My name is Rahul, I want..." -> not "Rahul I"
+}
+# "I'm talking", "I'm asking": what the caller is doing. A list, not every "-ing" word:
+# Fleming, Manning and Harding are surnames.
+_GERUNDS = {
+    "talking", "speaking", "asking", "saying", "telling", "waiting", "coming", "thinking",
+    "wondering", "checking", "booking", "getting", "doing", "making", "taking", "hoping",
+    "planning", "wanting", "needing", "driving", "working", "leaving", "listening", "hearing",
+    "saying", "phoning", "ringing", "sitting", "standing", "walking", "eating", "sleeping",
 }
 _NAME_LEADS = re.compile(
     r"^(?:(?:yes|yeah|yep|okay|ok|sure|hi|hello|so|um+|uh+|well|right|oh|ah|of course)[ ,]+)*"
@@ -360,8 +373,13 @@ def clean_name(text: str) -> Optional[str]:
         return None
     if any(w in NON_NAME_WORDS or w.replace("-", "") in NON_NAME_WORDS for w in words):
         return None
+    if any(w in _GERUNDS for w in words):
+        return None                         # "I'm talking", "I'm asking": doing, not a name
     if all(len(w) == 1 for w in words):
         return None                         # letters alone are a spelling, not a name
+    half = len(words) // 2
+    if len(words) % 2 == 0 and words[:half] == words[half:]:
+        words = words[:half]                # "Jimmy. Jimmy." said twice to be heard
     return " ".join(w.title() if len(w) > 1 else w.upper() for w in words)
 
 
@@ -810,8 +828,15 @@ _QUESTION_RE = re.compile(
 
 # "Can I book a cleaning around 6?" / "Is it possible to get an appointment?" ask for a booking, not a fact.
 _REQUEST_ASK_RE = re.compile(
-    r"\b((can|could|may) (i|you|we)( please)? (book|get|have|make|schedule|fix|come)|"
-    r"(is|would) it (be )?possible to (book|get|have|make|schedule|fix|come))\b")
+    r"\b((can|could|may) (i|you|we)( please)? (book|get|have|make|schedule|fix|come|"
+    r"cancel|change|move|shift|reschedule|postpone)|"
+    r"(is|would) it (be )?possible to (book|get|have|make|schedule|fix|come|cancel|change|move|reschedule))\b")
+# "Hello? Can you hear me?" (8 Oct: answered "I'm not sure about that one"). handlers.py
+# answers it "Yes, I can hear you." and says the last line again.
+HEAR_CHECK_RE = re.compile(
+    r"^(?:(?:hello|hi|hey|sorry|um+|uh+|ma'?am|madam|emma)[ ,.?!]+)*(?:can|could) you hear me(?: now| okay| ok)?|"
+    r"^(?:(?:hello|hi|hey)[ ,.?!]+)*(?:are you there|are you still there|you there|is anyone there|"
+    r"anybody there|is this working)$")
 # "Hello? Yes, I'm still here." answers "are you still there?"; the "?" is the line, not a question.
 _HELLO_RE = re.compile(r"^\s*(hello|hi|hey|hallo)\s*\?+\s*")
 

@@ -104,7 +104,8 @@ class OpeningRequestTests(EngineCase):
 
     def test_not_said_when_another_line_already_answers_the_request(self):
         braces = self.first_reply("Hi, I need braces at Nagarbhavi.")
-        self.assertTrue(braces.startswith("We don't do braces at Nagarbhavi"), braces)
+        # Either wording of branch.no_service; the point is that nothing is said before it.
+        self.assertRegex(braces, r"^(We don't do braces at Nagarbhavi|Our Nagarbhavi branch doesn't do braces)")
         self.assertNotIn("braces at Nagarbhavi.", braces.split(". ", 1)[1])
         price = self.first_reply("Can I get the price for a cleaning?")
         self.assertEqual(price.lower().count("a cleaning"), 1, price)

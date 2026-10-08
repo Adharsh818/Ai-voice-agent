@@ -306,6 +306,27 @@ _INTENT_GOALS = frozenset({
 # Goals where a bare "cancel it" can only mean the booking or an appointment.
 _BARE_CANCEL_GOALS = _INTENT_GOALS | {Goal.SUMMARY, Goal.SUMMARY_AGAIN, Goal.WHAT_TO_CHANGE}
 _OFFER_GOALS = frozenset({Goal.OFFER_SLOTS, Goal.OFFER_NEW_SLOTS})
+# Only part of a number ("it ends with 003", "the last four are..."): not digits to collect.
+_NOT_A_NUMBER_RE = re.compile(r"\b(?:ends? (?:at|with|in)|last (?:two|three|four|few|digits?)|starts? with)\b")
+# A date or time said while Emma collects a number ("On Saturday, October 10 at 03:30PM").
+# Words, not dateparse: "nine two six one" must stay digits, not 9 o'clock.
+_DATE_TIME_WORDS_RE = re.compile(
+    r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tomorrow|tonight|"
+    r"january|february|march|april|may|june|july|august|september|october|november|december|"
+    r"a\.?m\.?|p\.?m\.?|o'?clock|morning|afternoon|evening|night)\b|\b\d{1,2}:\d{2}\b")
+# "I don't know the number", "I only know the name".
+_NO_NUMBER_RE = re.compile(r"\b(?:(?:don'?t|do not|didn'?t) (?:know|have|remember)(?: (?:the|my|that|which))?"
+                           r"(?: phone)? number|only (?:know|have|remember) the name|forgot (?:the|my) number|"
+                           r"not sure (?:of|about|which) (?:the )?number)\b")
+# Answers to "another one, or change that one?" (Goal.DUPLICATE_CHECK).
+_DUP_CHANGE_RE = re.compile(r"\b(?:change|move|shift|reschedule|replace|swap|instead|update|that one|"
+                            r"the old one|the existing one|existing)\b")
+_DUP_ANOTHER_RE = re.compile(r"\b(?:another|one more|a new one|new one|second|additional|extra|separate|"
+                             r"different one|both)\b")
+# A bare "book it" right after the booking was made.
+_BOOK_IT_AGAIN_RE = re.compile(r"^(?:(?:yes|yeah|yep|okay|ok|sure|alright|fine|great|good|thanks|thank you)"
+                               r"[ ,.!]+)*(?:please )?(?:book it|book that|go ahead|do it|confirm it|"
+                               r"book it please|yes book it)$")
 _DATE_ISSUES = frozenset({"PAST", "SUNDAY", "BEYOND_HORIZON", "INVALID_DAY"})
 
 _LEAD_RE = re.compile(
@@ -769,7 +790,7 @@ def _globals(t: str, raw: str, words: list, view: Tier0View, source: str):
     """Patterns that mean the same whatever Emma asked."""
     if _NON_LATIN_RE.search(raw or "") or _LANGUAGE_RE.match(t):
         return _u(raw, source, [Act.OTHER_LANGUAGE])
-    if _REPEAT_RE.match(t):
+    if _REPEAT_RE.match(t) or match.HEAR_CHECK_RE.match(t):
         return _u(raw, source, [Act.REPEAT])
     if _WAIT_RE.match(t):
         return _u(raw, source, [Act.WAIT])
@@ -1058,6 +1079,11 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
             return _u(raw, "tier0", [Act.INFO], emergency=Emergency.URGENT)
         return None
 
+    if view.pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and _BOOK_IT_AGAIN_RE.match(t.strip(" .!")):
+        return _u(raw, "tier0", [Act.ANSWER], confirmation="yes")     # the booking just made
+    if view.pending == Goal.DUPLICATE_CHECK and (_DUP_CHANGE_RE.search(t) or _DUP_ANOTHER_RE.search(t)):
+        return None                         # the lenient reading has the another / change rules
+
     opener = None if _MOVE_APPT_RE.search(t) else _opener(t, view, strict=True)
     if opener:
         intent, service, phrase = opener
@@ -1170,6 +1196,17 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         if exp == "yes_no" and u.confirmation:
             filled_expected = True
 
+    if pending == Goal.DUPLICATE_CHECK:
+        # "Did you want another one, or to change that one?" (8 Oct: neither answer was
+        # understood, six times round, then a transfer). "change" is not a "no".
+        if _DUP_CHANGE_RE.search(t):
+            u.intent, u.confirmation, filled_expected = Intent.RESCHEDULE, None, True
+        elif _DUP_ANOTHER_RE.search(t):
+            u.intent, u.confirmation, filled_expected = Intent.BOOK, "yes", True
+    elif pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and _BOOK_IT_AGAIN_RE.match(t.strip(" .!")):
+        # "Okay. Book it." straight after "you're booked": the booking just made, not a new one.
+        u.intent, u.confirmation = None, "yes"
+
     # Digits: any amount while a number is expected; elsewhere only a whole number.
     run = match.extract_digits(raw)
     said = _NUMBER_IS_RE.search(raw)
@@ -1177,6 +1214,14 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         # "I'm Vihaan, my number is 90000 00006, and I'd like Tuesday at 1:30":
         # read only the words after "my number is", so the time isn't taken as digits.
         run = match.extract_digits(said.group(1))
+    if exp == "phone" and not run.complete and (_NOT_A_NUMBER_RE.search(t) or _DATE_TIME_WORDS_RE.search(t)):
+        # 8 Oct: "On Saturday, October 10 at 03:30PM" and "my phone number ends at zero zero
+        # three" were added to the number being collected -> "more digits than a phone number".
+        run = match.DigitRun("", complete=False)
+    if (exp == "phone" or pending in (Goal.CONFIRM_PHONE, Goal.ASK_PHONE, Goal.PHONE_MORE)) \
+            and _NO_NUMBER_RE.search(t) and not run.digits:
+        u.acts.append(Act.NON_ANSWER.value)           # "I don't know the number, I only know the name"
+        u.confirmation = None                         # "don't know" is not a "no"
     if run.digits and ((exp == "phone" and (len(run.digits) >= 2 or view.digits_so_far)) or run.complete):
         u.phone_digits = run.digits
         if exp == "phone":
@@ -1197,7 +1242,13 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
                     setattr(u, k, v)
                 filled_expected = True
     if not (u.name or u.patient_name or u.name_spelled):
-        m = re.search(r"\b(?:my name is|my name's|this is|i am|i'm|myself)\s+([a-z][a-z' -]*)", t)
+        # Unasked, only a clear introduction is a name: "my name is" anywhere, but "this is" /
+        # "I'm" only opening the first line ("Hi, this is Priya"). 8 Oct: "Yeah. I'm talking..."
+        # became "change the name to Talking I'M?", "This is another one" -> "Another One".
+        m = re.search(r"\b(?:my name is|my name's|myself|call me)\s+([a-z][a-z' -]*)", t)
+        if not m and pending in (Goal.GREET, Goal.ASK_INTENT):
+            m = re.match(r"^(?:(?:hi|hello|hey|yes|yeah|okay|ok|good morning|good afternoon|good evening)"
+                         r"[ ,.!]+)*(?:this is|i am|i'm)\s+([a-z][a-z' -]*)", t)
         if m:
             cand = " ".join(m.group(1).split()[:3])
             name = match.clean_name(cand)

@@ -60,6 +60,7 @@ from dateparse import DateConstraint
 from dialogue.context import (
     MANAGE_INTENTS, Act, CallContext, Emergency, FieldState, Goal, GoalPlan, Intent, Notice, Understanding,
 )
+from dialogue import match
 from dialogue.manage import phone_plan, plan
 from dialogue.runtime import Runtime, optional_module
 
@@ -241,6 +242,10 @@ def callback_goal(ctx: CallContext) -> Optional[GoalPlan]:
     """
     if not callback_in_progress(ctx):
         return None
+    c = ctx.caller
+    if ctx.line_e164 and c.phone_state == FieldState.EMPTY and not c.phone_buffer and c.phone_misses < 3:
+        # A phone call: "Is the number you're calling from the best one?" rather than digits.
+        c.phone_e164, c.phone_state, c.phone_source = ctx.line_e164, FieldState.PENDING, "caller_id"
     return phone_plan(ctx, "ask.phone.callback")
 
 
@@ -391,7 +396,8 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
         return _stop(out, _statement(Goal.CLOSE, _closing_line(ctx), closes_call=True))
     if u.has(Act.REPEAT) and ctx.last_emma and not u.carries_details:
         # The engine speaks repeat.prefix + ctx.last_emma (asked for, so not a loop).
-        return _stop(out, _statement(Goal.REPEAT, "repeat.prefix"))
+        hearing = match.HEAR_CHECK_RE.match(" ".join(re.sub(r"[^a-z' ]+", " ", text.lower()).split()))
+        return _stop(out, _statement(Goal.REPEAT, "repeat.hear" if hearing else "repeat.prefix"))
     if u.has(Act.WAIT) and not u.carries_details:
         return _stop(out, _statement(Goal.HOLD_ON, "hold_on"))
     if u.has(Act.FRAGMENT) and len(text.split()) <= FRAGMENT_MAX_WORDS:
