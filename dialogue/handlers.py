@@ -488,10 +488,22 @@ async def _offer_answer(ctx: CallContext, u: Understanding, confirmation: Option
             yes, no = confirmation == "yes", confirmation == "no"
         if yes:
             return await _callback_accepted(ctx, u, rt, _offer_reason(ctx), out)
+        if _insists_on_manage(ctx, u):
+            # "I want to move my appointment" instead of a yes / no (sim 7, 8 Oct): once, look
+            # again from the date; after that they want it sorted, so the team calls back.
+            if ctx.stats(Goal.CALLBACK_OFFER).asked >= 2:
+                return await _callback_accepted(ctx, u, rt, _offer_reason(ctx), out)
+            ctx.callback_reason = None
+            ctx.manage.done = True                   # apply.py's retry picks it up from the date
+            return None
         ctx.callback_reason = None                   # declined, or moved on: nothing on offer any more
         if no and pending != Goal.ENGLISH_ONLY and ctx.intent in MANAGE_INTENTS:
             ctx.manage.done = True                   # no callback: hand back to "anything else?"
         return None
+    if pending in _ANYTHING_ELSE_GOALS and _insists_on_manage(ctx, u) and ctx.manage.done \
+            and ctx.stats(Goal.CALLBACK_OFFER).asked >= 2:
+        # Still asking after the look-again and two offers: never "anything else?" on a loop.
+        return await _callback_accepted(ctx, u, rt, _offer_reason(ctx), out)
     # "Anything else?" -> "no": goodbye.
     if (pending in _ANYTHING_ELSE_GOALS and confirmation == "no" and u.intent in (None, Intent.NONE)
             and not u.has(Act.QUESTION) and not u.has(Act.ROBOT_QUESTION) and not _details_besides_yes_no(u)
@@ -504,6 +516,13 @@ async def _offer_answer(ctx: CallContext, u: Understanding, confirmation: Option
         ctx.intent = Intent.BOOK
         return out
     return None
+
+
+def _insists_on_manage(ctx: CallContext, u: Understanding) -> bool:
+    """The same cancel / change asked for again after Emma couldn't find the appointment."""
+    m = ctx.manage
+    return (ctx.intent in MANAGE_INTENTS and u.intent == ctx.intent and not m.verified
+            and not m.matches and m.verify_attempts > 0)
 
 
 def _details_besides_yes_no(u: Understanding) -> bool:

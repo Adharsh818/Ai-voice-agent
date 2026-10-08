@@ -50,7 +50,7 @@ Owner in Sprint 1b: E6.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Optional
 
 import clock
@@ -536,6 +536,15 @@ def _answer(ctx: CallContext, u: Understanding, confirmation: Optional[str]) -> 
             b.duplicate_ok = True
     elif pending == Goal.MAX_REACHED and confirmation == "no":
         notes["max_declined"] = True
+    elif pending in (Goal.OFFER_SLOTS, Goal.OFFER_NEW_SLOTS) and notes.get("other_branch") \
+            and u.branch == notes["other_branch"] and not (u.date_phrase or u.time_phrase) \
+            and u.choice_index is None and b.date_c is not None:
+        # "Indiranagar has 5 or 5:30, or another day at Whitefield?" -> "Whitefield, please."
+        # (sim 7, 8 Oct: the same question three times). Their branch, on the following days.
+        start = b.date_c.end + timedelta(days=1)
+        b.date_c = DateConstraint(start, start + timedelta(days=13), "range")
+        notes.pop("other_branch", None)
+        _changed(ctx, search=True)
     elif pending == Goal.OFFER_SLOTS and b.offered and b.chosen is None and u.choice_index is None:
         if confirmation == "yes" and len(b.offered) == 1:
             _choose(ctx, b.offered[0])
