@@ -1168,6 +1168,11 @@ async def _search(ctx: CallContext, rt: Runtime, notices: list):
             if reason in REASON_LINES:
                 notices.append(Notice(REASON_LINES[reason]))
                 break
+        else:
+            if held and not any(s.start == found.requested for s in held) \
+                    and not any(n.line == "time.taken" for n in notices if isinstance(n, Notice)):
+                # 8 Oct: "At 08:30 evening" -> "4 or 4:30 are free" with no word about 8:30.
+                notices.append(Notice("time.taken", {"time": prompts.speak_time(found.requested.time())}))
     b.offered = held = _in_clock_order(held)
     if notes.get("same_time_later") == _search_key(b) and time_c is not None and time_c.kind == "exact" \
             and not any(s.start.time() == time_c.start for s in held):
