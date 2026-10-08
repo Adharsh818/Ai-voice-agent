@@ -667,7 +667,7 @@ def _fold_request(notices: list, latest: dict, plan) -> list:
     when_notice = latest.get("ack.when")
     when = (when_notice.params.get("when") or "") if when_notice else ""
     folds = bool(when) and plan.goal not in (Goal.OFFER_SLOTS, Goal.OFFER_NEW_SLOTS)
-    if folds and when.startswith("the earliest"):
+    if folds and when.startswith(("the earliest", "the first free day")):
         text += " as soon as we can"
     elif folds:
         joiner = " " if re.match(r"(in the|between|around|this|tonight)\b", when) else \

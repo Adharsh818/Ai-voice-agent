@@ -821,7 +821,7 @@ def speak_when(date_c, time_c, today=None) -> str:
     day = ""
     if date_c is not None:
         if date_c.kind == "earliest":
-            day = "the earliest you can"
+            day = "the first free day"
         elif date_c.kind == "set" and date_c.only:
             day = speak_list([speak_day(d, today) for d in date_c.only], "or")
         elif date_c.start == date_c.end:

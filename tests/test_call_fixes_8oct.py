@@ -130,5 +130,100 @@ class HearingTests(EngineCase):
         self.assertTrue(looks_like_question("Can you tell me the cancellation fee?"))
 
 
+class ValidatorTests(unittest.TestCase):
+    """What the model said on 8 Oct that must never reach the caller."""
+
+    def setUp(self):
+        from dialogue.validate import Allowed
+        self.allowed = Allowed(numbers=frozenset({"7", "8"}), person_names=frozenset({"shetty", "jimmy"}))
+
+    def check(self, sentence, **changes):
+        from dialogue.validate import check_sentence
+        allowed = self.allowed.for_turn(**changes) if changes else self.allowed
+        return check_sentence(sentence, allowed, part="say")
+
+    def test_a_change_claimed_but_not_made(self):
+        self.assertEqual(self.check("Ah, seven instead of eight, got it.").rule, "V3")
+        self.assertEqual(self.check("I've changed it to seven.").rule, "V3")
+        self.assertTrue(self.check("I've changed it to seven.", committed="rescheduled").ok)
+        self.assertTrue(self.check("Got it, morning.").ok)
+
+    def test_an_invented_policy(self):
+        v = self.check("Nothing serious, we just prefer a quick call if you can't make it so we can "
+                       "give the slot to someone else.")
+        self.assertEqual(v.rule, "V9")
+        self.assertTrue(self.check("There's no fee to cancel.").ok)            # a real policy line
+        allowed = self.allowed.for_turn(policies=frozenset({"policy.no_show"}))
+        from dialogue.validate import check_sentence
+        self.assertTrue(check_sentence("If you can't make it, just give us a call.", allowed, part="say").ok)
+
+    def test_the_machinery_and_titles(self):
+        self.assertEqual(self.check("Ah, just a bit of a mix-up with the speech-to-text.").rule, "V2")
+        self.assertEqual(self.check("Got it, Mr Shetty.").rule, "V2")
+        self.assertTrue(self.check("Got it, Jimmy.").ok)
+
+
+class TimeTests(EngineCase):
+    def test_an_hour_after_asking_for_the_morning_is_the_morning(self):
+        # "8 or 8:30 in the morning?" -> "Eight. I'll come at eight." -> "morning or evening?" (twice)
+        c = Call()
+        c.run("", "I want to book a cleaning", "My name is Priya", PHONE, "yes", "Indiranagar", "Monday", "morning")
+        reply = c.say("Eight. I'll come at eight.").text
+        self.assertNotEqual(c.s.pending, Goal.RESOLVE_AMPM, reply)
+        self.assertIn("8 in the morning", reply)
+
+    def test_a_time_said_right_after_booking_moves_that_booking(self):
+        # Booked 8:00, then "Seven": the model said "seven instead of eight, got it" and changed nothing.
+        c = Call()
+        c.run("", "I want to book a cleaning", "My name is Priya", PHONE, "yes", "Indiranagar", "Monday",
+              "morning", "Eight", "Yes")
+        self.assertEqual(c.s.pending, Goal.BOOKED, c.lines)
+        reply = c.say("Seven").text
+        self.assertEqual(c.s.pending, Goal.CONFIRM_RESCHEDULE, reply)
+        self.assertIn("7 in the morning", reply)
+        self.assertEqual(c.say("Yes").action, "rescheduled")
+        rows = self.booked_rows()
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["start_utc"].endswith("01:30:00Z"), rows[0]["start_utc"])   # 7:00 IST
+
+
+class FlowTests(EngineCase):
+    def to_branch(self, c):
+        c.run("", "I want to book a check-up", "My name is Barat", PHONE, "yes")
+        self.assertEqual(c.s.pending, Goal.ASK_BRANCH, c.lines)
+
+    def test_whenever_available_keeps_the_day_given(self):
+        c = Call()
+        self.to_branch(c)
+        c.say("Tomorrow.")
+        reply = c.say("Whenever it's available. Morning only.").text
+        self.assertNotEqual(c.s.pending, Goal.CONFIRM_CHANGE, reply)
+        self.assertNotIn("earliest you can", reply)
+        self.assertEqual(c.s.book.date_c.kind, "exact")
+
+    def test_a_time_inside_the_morning_is_not_a_change(self):
+        c = Call()
+        self.to_branch(c)
+        c.say("Tomorrow morning.")
+        reply = c.say("Ten o'clock.").text
+        self.assertNotEqual(c.s.pending, Goal.CONFIRM_CHANGE, reply)
+
+    def test_the_ai_question_inside_a_longer_turn(self):
+        c = Call()
+        c.run("", "I want to book a cleaning", "My name is Priya", PHONE, "yes", "Indiranagar", "Monday",
+              "morning", "The first one", "Yes")
+        reply = c.say("Yeah. I'm talking. I'm not... Are you an AI?").text
+        self.assertIn("virtual receptionist", reply)
+        self.assertNotEqual(c.s.pending, Goal.CLOSE, reply)
+
+    def test_asking_a_price_after_booking_is_not_a_change(self):
+        c = Call()
+        c.run("", "I want to book a check-up", "My name is Barat", PHONE, "yes", "Indiranagar", "Monday",
+              "morning", "The first one", "Yes")
+        reply = c.say("What is the consultation fees?").text
+        self.assertNotRegex(reply, r"(?i)change the visit")
+        self.assertNotEqual(c.s.pending, Goal.CONFIRM_CHANGE, reply)
+
+
 if __name__ == "__main__":
     unittest.main()

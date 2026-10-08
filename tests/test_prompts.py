@@ -273,7 +273,7 @@ class SpeakableTests(unittest.TestCase):
         self.assertEqual(prompts.speak_when(DateConstraint(TODAY, TODAY), evening, today=TODAY),
                          "this evening")
         earliest = DateConstraint(TODAY, date(2026, 11, 30), "earliest")
-        self.assertEqual(prompts.speak_when(earliest, None, today=TODAY), "the earliest you can")
+        self.assertEqual(prompts.speak_when(earliest, None, today=TODAY), "the first free day")
 
     def test_services_said_naturally(self):
         self.assertEqual(prompts.speak_service("Root Canal Treatment"), "a root canal")

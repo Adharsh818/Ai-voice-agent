@@ -457,6 +457,14 @@ def _take_when(ctx: CallContext, u: Understanding) -> list:
         resolved = _resolve_ampm(b.time_c, time_c)
         if resolved is not None:
             time_c = resolved
+    if time_c is not None and time_c.kind == "ambiguous" and date_c is None:
+        from dialogue.apply import _ampm_from_context
+        time_c = _ampm_from_context(b, time_c)   # an offered time, or the part of day already asked for
+    said = " ".join(p for p in (u.date_phrase, u.time_phrase) if p)
+    if date_c is not None and date_c.kind == "earliest" and b.date_c is not None and b.date_c.kind != "earliest":
+        from dialogue.apply import _FLEXIBLE_RE, _SOONEST_RE
+        if _FLEXIBLE_RE.search(said) and not _SOONEST_RE.search(said):
+            date_c = None                        # "whenever it's available" keeps the day already given
 
     for issue in issues:
         line = ISSUE_LINES.get(issue.code)

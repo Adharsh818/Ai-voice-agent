@@ -175,6 +175,8 @@ def _asks_for(ctx: CallContext, u: Understanding) -> bool:
     """Switch to u.intent? Always from no workflow; from another one only when the words ask for it."""
     if ctx.intent not in WORKFLOW_INTENTS or u.source == "tier0":
         return True                     # Tier-0 only reads an intent from an explicit request
+    if u.intent == Intent.RESCHEDULE and ctx.pending == Goal.BOOKED and ctx.book.appointment_id:
+        return True                     # "Seven" right after "you're booked for 8": a change to it
     pattern = _ASKS_FOR.get(u.intent)
     return pattern is None or bool(pattern.search(u.raw_text or ""))
 
@@ -248,6 +250,9 @@ def switch_intent(ctx: CallContext, new: Intent, rt: Runtime) -> list:
     if old == Intent.BOOK and ctx.pending in (Goal.SUMMARY, Goal.SUMMARY_AGAIN) and new == Intent.CANCEL:
         return _drop(ctx, rt)
     if new in MANAGE_INTENTS:
+        # Changing the appointment booked a moment ago on this call (8 Oct: booked 8:00, then
+        # "Seven"): its phone, name and day are already known, so it needs no verifying again.
+        just_booked = ctx.book.chosen if old == Intent.BOOK and ctx.book.appointment_id else None
         if old == Intent.BOOK and _draft_started(ctx.book) and not ctx.book.appointment_id:
             parked = ctx.book
             parked.offered = []                         # its holds are released below
@@ -260,6 +265,10 @@ def switch_intent(ctx: CallContext, new: Intent, rt: Runtime) -> list:
             ctx.manage.done = False
         else:
             ctx.manage = ManageDraft(action=new)
+            if just_booked is not None and getattr(just_booked, "start", None) is not None:
+                day = just_booked.start.date()
+                ctx.manage.appt_date = DateConstraint(day, day)
+                ctx.manage.booked_start = just_booked.start
     elif new == Intent.BOOK:
         carried = None
         m = ctx.manage
@@ -505,6 +514,10 @@ def _apply_service(ctx: CallContext, u: Understanding, cued: bool, notices: list
         name = consult
     if not name or name == b.service:
         return
+    if b.service and not cued and (u.has(Act.QUESTION) or b.appointment_id):
+        # "What is the consultation fees?" after booking a check-up (8 Oct): asking about a
+        # service, not changing to it ("Should I change the visit to a consultation?").
+        return
     if b.service and not (cued or ctx.pending in (Goal.ASK_SERVICE, Goal.CLARIFY_SERVICE, *SUMMARY_GOALS)):
         notices += apply_correction(ctx, "service", name, rt, cued=False)
         return
@@ -626,6 +639,13 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
         pick = next((c for c in b.time_c.candidates if time_c.start <= c < time_c.end), None)
         if pick is not None:                            # "7" then "evening" -> 19:00
             time_c = TimeConstraint("exact", pick, label=f"{b.time_c.label} {time_c.label}".strip())
+    if time_c is not None and time_c.kind == "ambiguous" and date_c is None:
+        time_c = _ampm_from_context(b, time_c)
+    if date_c is not None and date_c.kind == "earliest" and b.date_c is not None and b.date_c.kind != "earliest" \
+            and _FLEXIBLE_RE.search(phrase) and not _SOONEST_RE.search(phrase):
+        # "Tomorrow." ... "Whenever it's available. Morning only." keeps tomorrow (8 Oct: it became
+        # "change the date to the earliest you can?"). "The earliest you have" still replaces it.
+        date_c = None
     any_time = (time_c is not None and time_c.kind == "any") or (date_c is not None and date_c.kind == "earliest")
     if time_c is not None and time_c.kind == "any":
         time_c = None
@@ -633,8 +653,11 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
     new_time = time_c is not None and time_c != b.time_c
     if not (new_date or new_time or (any_time and not b.any_time)):
         return
+    narrowing = (new_time and b.time_c is not None and b.time_c.kind == "window" and time_c.kind == "exact"
+                 and b.time_c.start <= time_c.start < b.time_c.end)   # "morning" then "10 o'clock"
     changing = (new_date and b.date_c is not None) or \
-        (new_time and b.time_c is not None and b.time_c.kind != "ambiguous" and ctx.pending != Goal.RESOLVE_AMPM)
+        (new_time and b.time_c is not None and b.time_c.kind != "ambiguous" and ctx.pending != Goal.RESOLVE_AMPM
+         and not narrowing)
     value = (date_c if new_date else b.date_c, time_c if new_time else b.time_c, any_time or b.any_time)
     if changing and not (cued or ctx.pending in WHEN_GOALS):
         notices += apply_correction(ctx, "date", value, rt, cued=False, spoken=phrase)
@@ -650,8 +673,47 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
         notices.append(Notice("ack.when", {"when": spoken}, covered_by=_cover_words(phrase)))
 
 
+_FLEXIBLE_RE = re.compile(r"\b(whenever|whatever|any ?time|anything|available|free|you have)\b", re.I)
+_SOONEST_RE = re.compile(r"\b(earliest|soonest|as soon as|asap|first)\b", re.I)
+
+
+def _ampm_from_context(b, time_c: TimeConstraint) -> TimeConstraint:
+    """
+    "Eight" when that's already settled by the call (8 Oct: "8 or 8:30 in the morning?" ->
+    "Eight. I'll come at eight." -> "8 in the morning or the evening?", twice): a time Emma
+    offered at that hour, else the part of the day the caller asked for. Still ambiguous
+    otherwise, and Emma asks.
+    """
+    if b.time_c is not None and b.time_c.kind == "exact" and b.time_c.start in time_c.candidates:
+        return b.time_c                                  # already settled this turn (apply, then book)
+    offered = {s.start.time().replace(tzinfo=None) for s in (b.offered or ()) if getattr(s, "start", None)}
+    hits = [c for c in time_c.candidates if c in offered]
+    if len(hits) == 1:
+        return TimeConstraint("exact", hits[0], label=time_c.label)
+    window = b.time_c if b.time_c is not None and b.time_c.kind == "window" else None
+    if window is not None:
+        hits = [c for c in time_c.candidates if window.start <= c < window.end]
+        if len(hits) == 1:
+            return TimeConstraint("exact", hits[0], label=f"{time_c.label} {window.label}".strip())
+    return time_c
+
+
 def _apply_manage_when(ctx: CallContext, u: Understanding, notices: list, rt: Runtime) -> None:
     m = ctx.manage
+    if not m.verified and ctx.pending == Goal.BOOKED and ctx.intent == Intent.RESCHEDULE and m.appt_date:
+        # "Seven" right after "you're booked for 8": the new time, on the same day unless one is said.
+        when = _parse(" ".join(p for p in (u.date_phrase, u.time_phrase) if p), "time")
+        if when is not None and when.time is not None and when.time.kind != "any":
+            m.new_time_c = when.time
+            if when.time.kind == "ambiguous" and m.booked_start is not None:
+                # "Seven" after 8 in the morning is 7 in the morning: the nearer reading.
+                at = m.booked_start.hour * 60 + m.booked_start.minute
+                near = min(when.time.candidates, key=lambda c: abs(c.hour * 60 + c.minute - at))
+                m.new_time_c = TimeConstraint("exact", near, label=when.time.label)
+            m.new_date_c = when.date or m.appt_date
+        elif when is not None and when.date is not None:
+            m.new_date_c = when.date
+        return
     if not m.verified:
         # "What are your timings on Saturday?" is a question, not the appointment's date.
         asking = u.has(Act.QUESTION) and not u.has(Act.ANSWER)

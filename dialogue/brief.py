@@ -605,6 +605,7 @@ def _allowed(ctx, catalog, kb, system, state, offers, history, caller, notice_li
         prices=_prices(kb),
         callback_task=bool(ctx.tasks_created),
         recent=tuple(_recent(ctx)) + notice_lines,
+        policies=frozenset(f.id for f in getattr(kb, "facts", ()) or () if str(f.id).startswith("policy.")),
     )
 
 

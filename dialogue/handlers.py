@@ -491,7 +491,7 @@ async def _offer_answer(ctx: CallContext, u: Understanding, confirmation: Option
         return None
     # "Anything else?" -> "no": goodbye.
     if (pending in _ANYTHING_ELSE_GOALS and confirmation == "no" and u.intent in (None, Intent.NONE)
-            and not u.has(Act.QUESTION) and not _details_besides_yes_no(u)):
+            and not u.has(Act.QUESTION) and not u.has(Act.ROBOT_QUESTION) and not _details_besides_yes_no(u)):
         await _release_holds(rt)
         return _stop(out, _statement(Goal.CLOSE, _closing_line(ctx), closes_call=True))
     # "If you'd like, I can book that for you too." -> "yes please".
