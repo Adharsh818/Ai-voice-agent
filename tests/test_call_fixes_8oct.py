@@ -225,6 +225,23 @@ class FlowTests(EngineCase):
         self.assertNotEqual(c.s.pending, Goal.CONFIRM_CHANGE, reply)
 
 
+class RequestedTimeTests(EngineCase):
+    def test_a_time_that_cannot_be_had_is_said_before_the_alternatives(self):
+        # A cleaning at Nagarbhavi (Dr Rao, till 5) "At 08:30 evening" -> "4 or 4:30" with no word about 8:30.
+        c = Call()
+        c.run("", "I want to book a cleaning", "My name is Priya", PHONE, "yes", "Nagarbhavi", "Monday")
+        reply = c.say("At 08:30 evening.").text
+        self.assertEqual(c.s.pending, Goal.OFFER_SLOTS, reply)
+        self.assertIn("8:30 in the evening", reply)
+
+    def test_a_time_given_when_asked_the_day_is_heard(self):
+        c = Call()
+        c.run("", "I want to book a cleaning", "My name is Priya", PHONE, "yes", "Nagarbhavi")
+        reply = c.say("8PM.").text
+        self.assertIn("8 in the evening", reply)
+        self.assertEqual(c.s.book.time_c.start.hour, 20)
+
+
 class AfterBookingTests(EngineCase):
     def booked(self):
         c = Call()

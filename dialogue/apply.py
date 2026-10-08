@@ -675,6 +675,10 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
     elif new_date:
         spoken = safe_call(prompts.speak_when, date_c, time_c, default=phrase) or phrase
         notices.append(Notice("ack.when", {"when": spoken}, covered_by=_cover_words(phrase)))
+    elif new_time and ctx.pending == Goal.ASK_WHEN and time_c.kind == "exact":
+        # "8PM." when asked which day (8 Oct: "That's okay, we'll find a time" ignored it).
+        spoken = safe_call(prompts.speak_time, time_c.start, default="") or phrase
+        notices.append(Notice("ack.when", {"when": spoken}, covered_by=_cover_words(phrase)))
 
 
 _ANOTHER_RE = re.compile(r"\b(another|one more|a second|second one|new one)\b", re.I)
