@@ -2,7 +2,7 @@
 
 **Last updated:** 8 Oct 2026, night (after the demo; see START HERE and [FINISH_PLAN.md](FINISH_PLAN.md)) · **Demo:** done Thursday 8 Oct 2026, with a real phone call · **Owner:** Adharsh (GitHub `Adharsh818`)
 
-Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
+**Resuming? Read [RESUME_HERE.md](RESUME_HERE.md) first.** Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
 
 ---
 
