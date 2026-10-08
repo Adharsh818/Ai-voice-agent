@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Staff login · Pearl Dental</title>
+  <meta name="description" content="Staff login for the Pearl Dental dashboard.">
+  <link rel="stylesheet" href="/dashboard/static/dashboard.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="card login-card">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <div class="brand-name">Pearl Dental</div>
+          <div class="muted small">Staff dashboard</div>
+        </div>
+      </div>
+
+      <div id="locked" class="note-box" hidden>
+        <strong>The dashboard is locked.</strong>
+        <div id="locked-reason" class="small"></div>
+      </div>
+
+      <form id="login-form" autocomplete="on" hidden>
+        <input type="text" name="username" value="staff" autocomplete="username" hidden>
+        <label class="field">Password
+          <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+        </label>
+        <div id="login-error" class="error-box" role="alert" hidden></div>
+        <button class="btn primary" type="submit" id="login-button">Log in</button>
+      </form>
+    </div>
+  </div>
+  <script type="module" src="/dashboard/static/login.js"></script>
+</body>
+</html>

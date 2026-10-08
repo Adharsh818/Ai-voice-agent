@@ -21,3 +21,7 @@ tzdata>=2024.1
 # Telephony/fallback-TTS resampling uses the stdlib `audioop`, which Python
 # 3.13 removed. Python 3.12 is the supported version; this restores it on 3.13+.
 audioop-lts>=0.2.1; python_version >= "3.13"
+
+# Backup voice (plan 5.7): local Piper TTS when ElevenLabs fails or runs out.
+# Voices: python tools/fetch_piper_voice.py (models/ is git-ignored)
+piper-tts>=1.2

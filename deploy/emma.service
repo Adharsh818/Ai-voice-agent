@@ -1,0 +1,37 @@
+# Emma, the Pearl Dental voice receptionist (docs/DEPLOY.md).
+# Installed by deploy/install.sh to /etc/systemd/system/emma.service.
+# Emma listens on 127.0.0.1 only; Caddy (deploy/Caddyfile) is the HTTPS front door.
+
+[Unit]
+Description=Emma voice receptionist (Pearl Dental)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=emma
+Group=emma
+WorkingDirectory=/opt/emma
+EnvironmentFile=/opt/emma/.env
+Environment=SERVER_HOST=127.0.0.1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/emma/.venv/bin/python server.py
+Restart=on-failure
+RestartSec=3
+# A hang-up mid-booking finishes within 5 s (call_session.COMMIT_ON_HANGUP_S): give shutdown room.
+TimeoutStopSec=15
+
+# Hardening: Emma needs only its own folder.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/emma/data /opt/emma/logs /opt/emma/cache /opt/emma/backups
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

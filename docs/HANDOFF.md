@@ -1,8 +1,175 @@
 # Project memory and next steps
 
-**Last updated:** 1 Oct 2026, about 01:10 IST · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
+**Last updated:** 8 Oct 2026, night (after the demo; see START HERE and [FINISH_PLAN.md](FINISH_PLAN.md)) · **Demo:** done Thursday 8 Oct 2026, with a real phone call · **Owner:** Adharsh (GitHub `Adharsh818`)
 
 Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
+
+---
+
+## ▶ START HERE (8 Oct, after the demo)
+
+**The demo was done on 8 Oct, including a real call from the owner's phone.** What's left is [FINISH_PLAN.md](FINISH_PLAN.md); its Phase 0 came from reading all 22 calls of that day.
+
+**Where the code is.** Branch `day2-r2-engine` (local and pushed up to cebb2e7; later commits are local until Phase 1's push and merge). 991 tests pass (one dashboard test is flaky under load: it uses the real clock), 53/53 scenarios, the four 200-call sims pass every zero-tolerance check.
+
+**Done on 8 Oct night:**
+- Phase 0, the demo-day calls: replayed through the engine with the model down (Gemini ran at ~2.1 s against Emma's 2.2 s limit, so 65 replies that day came from the fallback path). Fixed with tests in `tests/test_call_fixes_8oct.py` (30): phantom name changes ("Talking I'M", "Another One"), the duplicate-booking loop, digits collected from dates, "I only know the name", "can you hear me?", a change right after booking (now moves that booking), "morning or evening?" when it was settled, requested times quietly replaced, "change that one" ending the call, "Nothing." ending the call, mumbling answered "I don't know that one", names in cancel calls; validator rules against a claimed change, invented policies, speech-to-text wording and "Mr <name>". The sims then found loops two of the fixes introduced, also fixed (an insistent cancel / move caller now gets one more look, then the callback).
+- Phase 2, the phone line: `tools/phone_up.ps1` (keeps Ubuntu running, re-binds on an address change, checks Asterisk, prints firewall commands); Asterisk accepts SRTP or plain audio. TELEPHONY.md "Every time: phone_up".
+- Not bugs after all: the recovery dialer records a failed ring correctly; Asterisk's "Failed to receive frame" at hang-up is normal.
+
+**Still to do (FINISH_PLAN):** Phase 1 merge into `main`; Phase 3 live phone checks (with the owner); Phase 4 deploy check in WSL (asks first: downloads, and a second Emma must not share the Calendar); Phase 5 rest of the docs and EVALUATION refresh; Phase 6 the two chosen gaps (fewer turns per booking, better name hearing); Phase 7 final checks.
+
+## Earlier: state at the end of the 5-6 Oct session
+
+**Where the code is.** Branch `day2-r2-engine`, everything pushed; PR [#5](https://github.com/Adharsh818/Ai-voice-agent/pull/5) is open (stacked on #1-#4, none merged). 900 tests (`.\.venv\Scripts\python.exe -m unittest discover -s tests`), all passing.
+
+**Done in this session (details in the dated sections below):** R2 switched on for voice tests; Day 4 (takeover), Day 5 (recovery calls, `/patient` page), Day 6 (latency, fault drills), Day 7 (ARCHITECTURE.md, DEMO_SCRIPT.md, `tools/demo_reset.py`, `tools/preflight.py`), Day 8 prep (typed backup without a mic, Gemini warm-up, slow-check fix), listening rebuilt on the owner's recordings (`vad.py`, `tools/replay.py`), R2.7 and R3.4 bake-offs (Flash-Lite and Nova-3 stay; Sarvam tested), one-yes booking, C-full recovery calls (retries, call-back times, pause/resume, calling hours, reports, migration 002).
+
+**Last change, committed at the end of the session, not yet heard by the owner on a call** (owner's request: "it should always mention its name Emma"; "its latency is too high"):
+- Every greeting names Emma and asks one question (`config.GREETINGS`, `config.TIME_GREETINGS` for morning/afternoon/evening, at most 12 words). A bare "yes" to "Would you like to book an appointment?" starts a booking; to "Any questions about the clinic?" Emma says "Sure, what would you like to know?" (`dialogue/engine.py` `_answer_to_greeting`).
+- Faster replies: when Emma's own rules clearly understood the turn (a name, number, yes, plain request), Gemini gets only `NLU_FAST_DEADLINE_S` = 0.8 s instead of 2.2 s (`dialogue/engine.py` `_clear_enough`); the typing beat is 150-300 ms (was 300-500). Reason: on 6 Oct Gemini took 1.8-6 s to start answering; no Flash-Lite version is faster (3.5-flash-lite ≈ flash-lite-latest ≈ 1.8 s median; 3.1 slower; 2.5 retired).
+
+**6 Oct afternoon, a text rehearsal (no voice, no Calendar, no ElevenLabs credit used):** scenes 1, 2 and 5 of DEMO_SCRIPT.md played through `tools/converse.py --live` at demo time (Thu 8 Oct 10:00) all complete as written. Two fixes from it (`tests/test_rehearsal_fixes.py`, `OpeningRequestTests`):
+- When the model is slow or down on the opening line, Emma now says the request back before her first question: "Okay, a check-up for your daughter at Jayanagar. Can I get your name first?" (was "Alright, can I get your name first?"); the day is folded in ("Sure, a cleaning for Monday the 12th, in the afternoon."). New notice `ack.request` (`engine._fold_request`); it stays quiet when another line already speaks to the request (a branch that doesn't do the service, the emergency line, a fact answer).
+- "Can I book a cleaning around 6?" is no longer treated as a clinic question ("I'm not sure about that, sorry" first): `match.looks_like_question` ignores the booking request itself; a question beside it still counts.
+- 906 tests, 53/53 scenarios; sims unchanged (offline seed 7: all pass but T5 10; model-down seed 11: M7 97%, M3 1.0%, M10 2.0%, identical before the change).
+- Then fixed: model-down, "Can I get a check-up on Saturday, and where is your Jayanagar branch?" answered with the branches that do check-ups and dropped Saturday. Now `facts.lookup` gives a named branch's address for a where/address question, and tier0 keeps a day said in the booking request before a place question ("What are your timings on Saturday?" still books nothing). 908 tests (one Piper test erred under load in the full run, passes alone), 53/53 scenarios, sims unchanged.
+
+**6 Oct afternoon, phase D (Asterisk phone calls) built, on this branch by the owner's choice; off unless `TELEPHONY_ENABLED=true`, so the browser demo path is unchanged.** Setup, behaviour and checks: [TELEPHONY.md](TELEPHONY.md); plan section 13.
+- New: `audiosocket.py` (protocol, `PhoneTransport` with a real-time playout clock and playback reports, keypad digits, call registry), `phone_audio.py` (stateful 16↔8 kHz resampling, server-side typing / door / chair sounds), `ami.py` (Originate), `server.py` phone section (`/telephony/register`, `/telephony/next`, inbound and recovery phone calls, the recovery dialer), `telephony/asterisk/*.conf` + `tools/telephony_setup.py` + `telephony/install_asterisk.sh`.
+- Engine (phone calls only): caller ID replaces asking for digits ("Is the number you're calling from the best one to reach you on?"); insisting on a person writes the callback task, then puts them through to the front desk (`Goal.TRANSFER`, line `transfer`). `tests/test_realism.py` allows "put you through" in that one line only.
+- 933 tests (25 new in `tests/test_telephony.py`, with a simulated Asterisk and manager), 53/53 scenarios, sims unchanged. Live smoke test on the real server with a scripted Asterisk: greeting 0.07 s after connect, 49.9 frames/s, clean hang-up, call slot freed.
+- **Waiting on the owner:** WSL2 + Ubuntu installed (`wsl --install -d Ubuntu-24.04`, admin, reboot), then TELEPHONY.md *Setup* steps 2-7 and the real-softphone checks. Note: numpy/OpenBLAS failed to start with 2 GB free; `phone_audio` caps it at one thread.
+
+**6 Oct, owner: "focus on completing the entire project"; DEMO labels removed.** No DEMO badge, title or footer on the dashboard, login or patient page; the CSV is `pearl-dental-appointments-<date>.csv`; the four Google calendars are renamed "Pearl Dental — <branch>" and event descriptions no longer say DEMO (renamed by `tools/setup_calendars.py`, which also finds a calendar still carrying the old name; 44 events rewritten, checked in Google: 0 mention DEMO). Internal names (`seed_demo.py`, `is_demo`, `DEMO_SEED_ON_EMPTY`, `tools/demo_reset.py`) are unchanged; the seeded clinic is still sample data. 935 tests.
+
+**6 Oct evening, simulation triage (no-model path) and the final-phases plan.** The 200-call sims' failing calls had nine causes, all fixed (`tests/test_sim_fixes.py`): booking requests phrased as questions ("is it possible to get…"), "Hello?" read as a question, small talk read as a day, "move my existing appointment" read as a booking, "what do you suggest" unanswered, a plain yes to two times turning into a callback offer ("which one: 12 or 12:30?" now), the caller's own appointments offered as free (`scheduling.suggest(patient=)`), the same far-off time offered again when the caller repeats theirs (now that time on a later day or at another branch), and "let me look at at 5" / "{doctor} has" wording. Sims, all four now pass M3/M7/M10 (model down seeds 11 and 7: M7 100%, M10 0% / 0.5%, M3 0.5%; faked model: 0 / 100% / 0). T5 is still 10 on seed 7.
+
+**The plan for what's left: [FINAL_PHASES_PLAN.md](FINAL_PHASES_PLAN.md)** (softphone real calls over Wi-Fi, free; Phase E: evaluation report, booking-integrity report, backups, log rotation, Linux deploy kit, threat model, viva notes). Twilio (a real phone number) is skipped for now.
+
+**6 Oct night, Phase E built** ([FINAL_PHASES_PLAN.md](FINAL_PHASES_PLAN.md), Part 2): `tools/evaluate.py` → [EVALUATION.md](EVALUATION.md) (real-call latency: rules turns p50 1.63 s vs 0.9 s target, model turns 2.46 s vs 1.8 s, both FAIL; 49% of turns need no model; sims and drills all pass); `tools/backup.py` (online, verified, keep 14, restore, `--check`); turn-log rotation and optional `LOG_FILE`; `deploy/` (systemd, Caddy, backup timer, install script; [DEPLOY.md](DEPLOY.md)); [THREAT_MODEL.md](THREAT_MODEL.md); [VIVA_NOTES.md](VIVA_NOTES.md). Softphone prep (Part 1): `tools/telephony_setup.py --lan` (SIP on the Wi-Fi address, `acl.conf` admits only that subnet), TELEPHONY.md "A softphone on your mobile", DEMO_SCRIPT scene 7b. **Still open:** the deploy check in WSL, and the whole softphone run (needs WSL installed by the owner).
+
+**6 Oct late evening, E1-E3 finished (except the WSL deploy check).** `tools/crash_drill.py` (the plan's E2 drill tool): a writer process booking, moving and cancelling through `scheduling.py` is killed outright at random moments; after each kill the database is checked (integrity, claims, nothing lost or half-written) and the interrupted request is retried (acts once, then replays). 30 kills, 309 changes, no problem; `evaluate.py --crash` puts it in EVALUATION.md section 4. Also: turn-log rotation no longer drops a record when Windows briefly locks a renamed file; `tests/data/stt_script.json` is now tracked (`.gitignore` ignored every `data/` folder, so a fresh clone failed `test_stt_script`); the docs said claims are 15-minute cells, they are 30. Fresh runs: 53/53 scenarios, the four sims identical to before. A sim run hit `WinError 10055` once (2 calls lost, marked indicative); rerun clean. **Softphone: the first real call works** (6 Oct night). WSL2 + Ubuntu 24.04 installed (`--web-download`; the plain install ran out of memory), Asterisk 20.6, firewall rules for 10.49.155.0/24 (the owner's phone hotspot), Linphone 1001 on the phone and MicroSIP 1002 on the PC both registered; dialling 100 reached Emma with caller ID. Fixes: `modules.conf` now loads only what Emma uses (loading all 357 modules never finished starting); MicroSIP must use source port 5070 and `127.0.0.1` (a loopback SIP line beside the Wi-Fi one). The owner: "working pretty well", but Emma cut them off once. Still to do with the owner: barge-in, keypad `#`, transfer to 1002, a recovery call answered and rejected, and the three open questions in TELEPHONY.md; the deploy check in WSL. Asterisk admin from Windows without a password prompt: `wsl -d Ubuntu-24.04 -u root -- asterisk -rx "..."`. Emma must run from the main checkout (`.env`, database).
+
+**Next steps, in order:**
+1. **Owner voice test** (Chrome, http://localhost:8000): check the new greetings and that replies feel quicker; watch for cut-offs or worse understanding (the fast path uses Emma's written lines more often). If needed: `NLU_FAST_DEADLINE_S` up, or the typing beat back.
+2. **Rehearsals** (plan 7.3): three runs of [DEMO_SCRIPT.md](DEMO_SCRIPT.md), one screen-recorded; reset with `tools/demo_reset.py` (Emma stopped) before each. Fix what they find, then **code freeze** (7.1).
+3. **Demo, Thu 8 Oct:** stop Emma → `tools/demo_reset.py` → start Emma → `tools/preflight.py` (apply its `NLU_HEAD_DEADLINE_S` advice if Gemini is slow) → run the script. Mic fails: **Type instead** / `/?typed=1`.
+4. **Phase D's last step** (any time WSL2 is installed): TELEPHONY.md *Setup* and the real-softphone checks. **After the demo:** phase E (hardening), plan section 13.
+
+**Known gaps:** end-of-turn + reply ≈ 1.6 s on rule-handled turns (plan target 0.9 s); simple booking median 10 turns on sim seed 7 (9 on seed 11); Deepgram mishears "Adharsh" and some ordinals (Emma's read-backs catch them; Sarvam hears names better but is 1-1.5 s slower); Chirp untested (Google India needs a ₹500 prepayment).
+
+**Working notes for whoever continues:**
+- Editing files through `python - <<'EOF'` heredocs mangled backslash escapes several times this session (`\b` became a backspace, `\x00` a NUL, and a `str.replace` with an empty search string flooded `config.py`). Prefer the Edit tool for code containing regexes; after scripted edits, scan for control characters and check file sizes.
+- After a long session the full test run hit Windows `WinError 10055` (out of socket buffers) in 3 network tests; they pass when run alone. Restart the PC (or close stale python/server processes) if it happens.
+- The app's built-in browser pane has no microphone: use Chrome for voice, or `/?typed=1` in the pane.
+
+
+---
+
+## 6 Oct, C-full recovery calls (owner chose: now, on the demo branch)
+
+- **Retries:** unanswered → tried again 2 h later, up to 3 tries, inside calling hours; then NEEDS RESCHEDULE + task. **Declined → task at once** (the demo scene is unchanged).
+- **"Call me after 6":** Emma says "No problem at all, we'll call you back after 6" and the runner books that time as the next try. "In an hour", "in 20 minutes", "tomorrow morning" work too; "call me later" uses the 2 h gap. (Found and fixed by its test: this path would have crashed the call.)
+- **Pause / Resume / Stop** per campaign; **per-patient calling hours** (Recovery tab, bottom card); **results line + Export CSV** per campaign; the runner badge shows "Waiting" with the next retry time.
+- `migrations/002_recovery_full.sql` (columns only) upgraded the live demo database in place: fixtures intact, preflight READY, demo scenes still complete. 900 tests pass.
+- Settings: `RECOVERY_MAX_ATTEMPTS=3`, `RECOVERY_RETRY_GAP_MIN=120` (in `.env.example`).
+
+---
+
+## 6 Oct, R3.4: Sarvam tested, Nova-3 stays
+
+Sarvam saaras:v4 (`stt_sarvam.py`; `python tools/replay.py --provider sarvam <wav>`; `SARVAM_API_KEY` in `.env`) on the owner's two recordings: it heard "Adarsh Kumar" (Deepgram: "Adesh" or dropped), numbers and branches right, word errors ~19-20% (Deepgram 17%), but turns end much later (p50 0.81 s headset / 2.25 s laptop, p90 2.3 s; Deepgram ~0.8-0.9 / ~1.0 s) and finals sometimes arrive seconds late in bursts. **Deepgram Nova-3 stays.** Google Chirp wasn't tested: billing in India needs a ₹500+ prepayment, and the owner chose Sarvam only.
+
+---
+
+## 000000. 6 Oct (Day 8 prep; the demo is Thursday 8 Oct)
+
+- **Typed backup that works without a microphone:** the talk page offers **Type instead** when the mic is blocked or missing, and http://localhost:8000/?typed=1 starts a typed call directly. Emma still speaks; the silence ladder is off for typed calls. Same on the patient page (Answer, then Type instead). Tested in the app's browser pane, which has no microphone.
+- **Gemini is slow and variable today** (first words after 1.7-4.3 s, a cold first request 4.75 s). Emma now sends one realistic warm-up request at startup and another every 4 min while no call is on (`NLU_KEEP_WARM_S`); this removes the very slow cold first turn but can't fix the service's own variability. `tools/preflight.py` now times Gemini and, if it's slow that day, suggests an `NLU_HEAD_DEADLINE_S` (today: 2.6) to put in `.env`.
+- **Fix:** a question about opening hours ("What are your timings on Saturday?") no longer sets Saturday as a booking day in the fallback.
+- 889 tests pass. My typed test calls left 2 calls in the demo database; `tools/demo_reset.py` clears them before rehearsals and the demo.
+
+---
+
+## Owner decisions, 7 Oct
+
+- **Backup voice:** Piper `en_GB-cori-medium` (the default) stays.
+- **One yes, not two (T5):** when the exact day and time the caller asked for is free, Emma says so and goes straight to the summary ("Good news, that time's free. That's a cleaning with Dr Rao… Shall I book it?"); the same for a reschedule. Changes R2_DESIGN 10.1's `offer.exact`. Simple-booking median: seed 11 now 9 (target met), seed 7 still 10 (those callers give the day and time in separate turns). 887 tests, 53/53 scenarios, sims clean.
+
+---
+
+## 00000. 7 Oct, Day 7: demo docs, reset and preflight
+
+- **Docs:** [ARCHITECTURE.md](ARCHITECTURE.md) (pipeline, who decides what, invariants with their tests, data, Calendar, recovery, security, failure behaviour, tools) and [DEMO_SCRIPT.md](DEMO_SCRIPT.md) (setup, eight scenes with exact lines, fixtures, recovery steps, what to do if something goes wrong).
+- **Demo data:** `tools/demo_reset.py` (Emma stopped) removes the Calendar events Emma created, rebuilds `data/emma.db`, books the fixtures the script uses (Priya and Rahul with Dr Rao on the day after the demo for recovery; Anita to move; Kiran to cancel) plus ~40 random DEMO bookings, and reconnects the calendars without new sharing emails. `--dry-run` reports only.
+- **Readiness:** `tools/preflight.py` (Emma running) checks the server, Gemini, keys, prompts, Calendar, dashboard login, settings, recovery window and fixtures. The ElevenLabs and Deepgram keys can't read balances (fine for calls): check credit on their websites.
+- **Bugs found by running the script through the engine, all fixed and tested (`tests/test_rehearsal_fixes.py`):** a question about a branch chose that branch; "Her name is Diya" wasn't taken as the patient's name; "pain since last night" made an emergency search the evening; a reason given with a cancel request was dropped (model-down path).
+- **Checks:** 887 tests, 53/53 scenarios, 200 fake-model calls (Z1-Z7 0, M7 100%, M10 0%).
+- **Owner, before the demo:** three rehearsals with the headset following DEMO_SCRIPT.md (run `demo_reset.py` before each), screen-record one full run as the backup, check ElevenLabs credit on the website. Code freeze after the rehearsal fixes.
+
+---
+
+## 0000. 6 Oct morning: the owner's recordings, and listening fixed
+
+The owner recorded the 30 test lines twice (headset; laptop speakers), in `captures/` (git-ignored). `tools/replay.py` streams a recording through the live listening pipeline in real time and counts lines cut in half and the wait after the last word.
+
+- **Finding:** cut-offs came from ending turns on Deepgram's transcript timing (words arrive late and in bursts). Day 6's quicker watchdog made it worse (10 of 30 lines cut on the headset): replaced.
+- **Fix:** `vad.py` measures the caller's microphone level. A turn ends only once the line is really quiet and the recognised words reach the point where the voice stopped; a held turn stays open while the caller is audible; words Deepgram sends twice are dropped.
+- **Result (cut lines, wait after last word p50/p90):** headset 5 -> 1, 1.30/1.80 s -> 0.92/1.01 s; laptop speakers 11 -> 2, 0.87/1.88 s -> 0.80/0.91 s.
+- **Recogniser:** Nova-3 stays (Nova-2 en-IN mangles branch names). Both mishear "Adharsh"; ordinals like "the twenty sixth" and "seven in the evening" were misheard once each, so Emma's read-backs matter.
+- `DEV_CAPTURE_AUDIO` is back to false. 880 tests pass.
+
+---
+
+## 000. 6 Oct, Day 6: latency pass and fault drills
+
+- **Latency (6.1).** The 5 Oct R2 voice calls show end-of-speech detection, not the model, as the biggest wait: p50 1.6 s, because Deepgram sent `speech_final` on only about a third of turns and the rest waited for the 1 s STT watchdog. The watchdog now asks the turn detector how complete the words are (complete answer 0.35 s, likely 0.6 s, default 0.8 s, unfinished 1 s). (Superseded the same morning: on real recordings this cut more lines; see section 0000.) Gemini's first chunk has a floor of about 1.05 s however small the request (now about 1.3 s), so the brief stays as it is. **Check in the morning's voice test**: replies to "yes", numbers and dates should feel quicker; tell me if Emma now cuts you off.
+- **Fault drills (6.2), automated** in `tests/test_fault_drills.py`. Two real fixes: a hang-up now frees the offered slots at once (they stayed held for 5 minutes), and a booking being written when the caller hangs up finishes and is recorded as `booked_hangup`. Gemini-off drill (200 calls): safety checks all 0, bookings 97%, dead ends 2.0% after fixing "It's on the 13th, and..." / "...move it to the 20th" being checked against the 20th. Correction acknowledgements now use Emma's words ("Okay, around 6 instead") and no longer say "Sure, 6:30 it is" before offering another time.
+- **Regression (6.3).** 872 tests, 53/53 scripted scenarios, and 200 fake-model calls all pass on R2 (Z1-Z7 0, M7 100%, M10 0%); T5 is still 10 vs 9 (owner's call).
+- **Fix list for the rehearsal:** live drills (ElevenLabs quota, a Deepgram drop, closing the tab mid-call), the latency gate (Tier-0 p50 about 1.6 s vs 0.9 s; needs the recordings to see why `speech_final` rarely fires), T5.
+
+---
+
+## 00. 6 Oct (night of 5-6 Oct): Day 4 finished, Day 5 recovery calls built
+
+**Owner setup done on 5 Oct:** dashboard password set, `SERVER_HOST=127.0.0.1`, Google Calendar connected (4 branch calendars, all 46 appointments synced; the owner confirmed a booking appears once and a cancellation disappears), ElevenLabs has 8,000+ characters. `.env` has `R2_ENGINE=true`, `NLU_HEAD_DEADLINE_S=2.2`, `GEMINI_TIMEOUT=4`.
+
+**Owner's next steps (morning of 6 Oct):** the voice test calls and the 30-line recordings ([STT_TEST_SET.md](STT_TEST_SET.md)), then a recovery-call rehearsal (below).
+
+**Day 5, doctor-unavailability recovery (plan 5.11), demo grade:**
+- `outbound.py`: blocks (effective at once), preview grouped by phone, campaigns with a version snapshot per job, stop, lift, and the `Runner` (one job at a time; waits for the call gate, so an inbound call pauses it; calling window `RECOVERY_CALL_WINDOW`, default 09:00-20:00 clinic time; do-not-call; stale check). No answer within `RECOVERY_RING_TIMEOUT_S` (30 s) or Decline: one attempt only, the appointments go to NEEDS RESCHEDULE (Calendar shows the prefix) and staff get a `recovery_failed` task.
+- `dialogue/recovery.py`: Emma's side of the call, Tier-0 only (no model wait). Identity before any detail; wrong person or "is this a scam?" ends politely with nothing shared; what changed (never the block's reason); preference first (same doctor another day / another doctor same branch / another branch / earliest); the nearest valid slot, then two alternatives; a named day or time is searched; recap with the heard rule; atomic idempotent reschedule; several appointments one by one; cancel, on hold, staff, busy, do-not-call and the honesty line at any point. When the preference has no slot (only Dr Rao does cleanings at Nagarbhavi) she offers the nearest thing that exists.
+- Dashboard **Recovery** tab: block a doctor, preview with ticks, Start recovery calls (confirm), live job status, Stop, Lift. **`/patient`** (staff login) is the demo patient phone: it rings with Answer / Decline and runs the call over `/ws/outbound`, with the same voice and listening as inbound calls.
+- **To rehearse:** log in to the dashboard, open http://localhost:8000/patient in a second tab and click anywhere on it once (browsers only allow the ringtone after a click), then in Recovery block Dr Rao for a day that has bookings, tick, Start. Outside 09:00-20:00 the runner waits ("Paused: outside the calling window"); for a late-night test set `RECOVERY_CALL_WINDOW=00:00-23:59` in `.env` and restart.
+
+**Day 4 finished:** live-call takeover on the dashboard's Live panel (Take over: Emma says a colleague is taking over and stops answering; typed lines are spoken and recorded as staff; Hand back: Emma re-asks her last question; End call + task).
+
+**Also:** R2.7 bake-off done, **Flash-Lite stays** (Flash was slower and hit the free quota). Time to the model's first streamed chunk is about 1.4 s warm (2.2 s cold) and the head takes 0.1-0.2 s more, so Day 6's latency work is the request size (about 4.5k tokens, mostly the 14k-character system brief) or caching. The two `tests/test_nlu.py` tests that read `.env` deadlines now pin the config instead.
+
+**Tests:** 865 pass (40 expected failures, the 12-step machine's known bugs). New: `tests/test_recovery.py` (30), `tests/test_takeover.py` (2).
+
+**Still open before the demo:** R3.1/R3.4 (need the recordings), Day 6 latency pass and fault drills, Day 7 docs and rehearsal, T5 (10 turns vs 9, owner's call on skipping the exact-slot offer). Committed on `day2-r2-engine` (PR #5).
+
+---
+
+## 0. Sprint 1b integration (5 Oct): R2 works end to end, still off by default
+
+**How to switch.** The 12-step machine is still the engine the talk page uses. `R2_ENGINE=true` in `.env` (then restart the server) runs the R2 engine for every call: the talk page through `call_session`, the harness (`python -m harness run sim --engine r2`) and `python tools/converse.py new --r2`. Committed as `06c3aa6` on `day2-r2-engine`. **On 5 Oct evening the owner's local `.env` was switched to `R2_ENGINE=true` for voice testing** (see the latency note below).
+
+**Tests.** 829 tests pass with `R2_ENGINE` off and on (40 expected failures: the 12-step machine's known bugs in `tests/test_conversations.py`). Every HANDOFF section 5 call passes as a plain test on R2 (`R2Scenarios`): the location "No" loop, cancel at the recap, braces at Nagarbhavi, the time-only fragment, meta and price questions, fragments. `tests/test_r2_booking_flow.py` is the old booking tests ported to R2 (its docstring lists each dropped test and its replacement); `tests/test_r2_integration.py` pins this round's fixes.
+
+**Simulated calls (offline fake NLU, R2, 200 calls per seed, seeds 7 / 11 / 23):** M1 0, M2 under 0.5%, M3 under 1%, M7 above 95%, M9 0, M10 under 2%, Z1-Z7 all 0 (every target met except T5). T5 (simple booking) median 10 against a target of 9 (see below). With the model down (`--nlu-down`, seed 7): M1 0, M7 above 95%, M10 2.0% (4 of 200, target under 2%), M3 3%, Z1-Z7 0.
+
+**What the rounds found and fixed:** "Wednesday the 14th" read as the 7th (dateparse); "Tuesday, sorry, I mean Monday" kept Tuesday; a full day insisted on now tries the other branches that day ("Nagarbhavi is full that day, but Jayanagar has 2:30"); "No, it should be 11:30" at the summary when 11:30 wasn't free looped on "what should I change?"; a trailing "bye" got another question; slots kept being offered after a callback was arranged; ", no?" tag questions read as a no; "would be best" read as a cut-off; a declined callback or small talk closed the call while the caller still wanted the change; "cancel that one instead" rejected the phone read-back; an overlapping appointment re-asked the duplicate question; a pick during a reschedule was searched again; a question's date ("timings on Saturday?") taken as the appointment date; model-down reading of "teeth cleaned", "braces consultation", "I'm in a lot of pain" (read as the name "In"), "move it to" and "my number is ..."; repeated offers now rephrase on rungs 2-3.
+
+**Before switching R2 on for voice tests:**
+- **Model latency.** On 5 Oct the first streamed answer from `gemini-3.5-flash-lite` took about 2.3 s in a fresh process, above the 1.6 s head deadline (`NLU_HEAD_DEADLINE_S`) and close to the 2.5 s reply limit (`GEMINI_TIMEOUT`). Turns that miss it are answered by the no-model fallback, which works but is less natural. Measure on the running server (warm client) and, if needed, set `NLU_HEAD_DEADLINE_S=2.2` and `GEMINI_TIMEOUT=4` in `.env`. Live harness runs and `converse.py --live` already allow 4 s / 6 s, so they score the conversation rather than the cold start.
+- **Measured 5 Oct (warm client, one process, 4 live R2 sim calls, 16 model turns):** head 1.7-3.4 s, median about 2.0 s. All 16 missed 1.6 s, 4 missed 2.2 s, 3 missed 2.5 s. The local `.env` now has `NLU_HEAD_DEADLINE_S=2.2` and `GEMINI_TIMEOUT=4`, so about 3 in 4 model turns get the model, at the cost of a pause of about 2 s on those turns. The real fix is a faster head (trim the brief or cache its fixed part); that is the top latency task before the demo. Run: `harness_runs/20261005-225210-sim-live-r2-latency` (git-ignored).
+- **T5.** A simple booking takes 10 caller turns in the sim. The exact time asked for is offered first ("Monday at 4 is free with Dr Rao. Shall I take that?") and then summarised, which is two yeses for one slot (R2_DESIGN 10.1 says `offer.exact`). Going straight to the summary when the exact slot is free would save a turn; it changes the locked design, so it is the owner's call.
+- **Logs.** `LOG_CALLER_TEXT=false` keeps the caller's words out of the console log (default true for development).
+
+**Realtime and plan notes.** Silence belongs to `call_session`'s ladder for both engines (the engine is only called with "" for the greeting). The talk page handles the server's busy message. Deepgram endpointing is 300 ms (recommended; `turn_detector.py` waits on the words), and the typing beat is 300-500 ms and overlaps engine time.
 
 ---
 

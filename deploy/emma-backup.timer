@@ -1,0 +1,12 @@
+# Daily database backup at 02:30 (clinic closed); a missed run (machine off) runs at next boot.
+
+[Unit]
+Description=Daily backup of Emma's database
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
