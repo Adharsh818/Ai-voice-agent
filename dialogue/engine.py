@@ -635,7 +635,8 @@ def _caller_id_line(ctx: CallContext, plan) -> None:
         plan.line = "confirm.phone.caller_id.manage" if manage else "confirm.phone.caller_id"
         plan.params = {}
         plan.critical = True
-    elif plan.goal == Goal.ASK_PHONE and c.phone_source == "declined" and ctx.pending == Goal.CONFIRM_PHONE:
+    elif plan.goal == Goal.ASK_PHONE and c.phone_source == "declined" and ctx.pending == Goal.CONFIRM_PHONE \
+            and plan.line != "ask.phone.why":
         plan.line, plan.params, plan.critical = "ask.phone.not_caller_id", {}, True
 
 

@@ -260,6 +260,12 @@ def _identity_plan(ctx: CallContext, goal: Goal, u, catalog) -> GoalPlan:
                         closes_call=True, expect=Expect.OPEN)
     plan = _plan(ctx, goal, catalog, u=u)
     manage_flow = ctx.intent in MANAGE_INTENTS
+    if goal == Goal.ASK_PHONE and manage_flow and u is not None and u.has(Act.NON_ANSWER) \
+            and ctx.pending in (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE):
+        # "I don't know the number, I only know the name" (8 Oct): say why it's needed
+        # rather than "a few digits at a time" on a loop.
+        plan.line = "ask.phone.why"
+        return plan
     if goal == Goal.ASK_PHONE and plan.rung == RUNG_ASK:
         if ctx.pending == Goal.CONFIRM_PHONE:
             plan.line = "confirm.phone.retry"           # the read-back was wrong, no new digits
@@ -590,9 +596,12 @@ def take_exit(ctx: CallContext, plan: GoalPlan) -> Optional[GoalPlan]:
     if goal == Goal.ASK_CANCEL_REASON:
         ctx.manage.reason_asked = True
         return None
-    if goal in (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE):
+    if goal in (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE) and not (
+            ctx.intent in MANAGE_INTENTS and ctx.line_e164 and ctx.caller.phone_misses < 3):
         return GoalPlan(Goal.CLOSE, "phone.failed", rung=RUNG_EXIT, critical=True, use_model_say=False,
                         closes_call=True, expect=Expect.OPEN)
+    # A phone call where they can't give the number the booking is under (8 Oct: "I only
+    # know the name"): the team can find it by name and call back, rather than hanging up.
     if goal in _CLOSE_ON_EXIT or goal in CLOSING_GOALS:
         return GoalPlan(Goal.CLOSE, "close", rung=RUNG_EXIT, critical=True, use_model_say=False,
                         closes_call=True, expect=Expect.OPEN)

@@ -1184,6 +1184,7 @@ def phone_line(s, caller_id: str | None = None, can_transfer: bool = False) -> b
     from dialogue.context import FieldState
     s.can_transfer = bool(can_transfer)
     e164 = phones.to_e164(caller_id) if caller_id else None
+    s.line_e164 = e164
     if not e164 or s.caller.phone_state != FieldState.EMPTY:
         return False
     s.caller.phone_e164, s.caller.phone_state, s.caller.phone_source = e164, FieldState.PENDING, "caller_id"

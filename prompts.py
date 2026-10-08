@@ -77,6 +77,8 @@ LINES: dict[str, LineSpec] = {
     "close.booked": _l("Goodbye after a booking. 'Great, see you then. Take care!'", cache=True),
     "hold_on": _l("'Sure, take your time.'", critical=True, cache=True),
     "repeat.prefix": _l("Before re-speaking the last line. 'Sure.' / 'Of course.'", critical=True, cache=True),
+    "repeat.hear": _l("'Can you hear me?' Before re-speaking the last line. 'Yes, I can hear you.'", critical=True,
+                      cache=True),
     "go_on": _l("After a cut-off fragment. 'Sorry, go on.' / 'Go ahead.'", critical=True, cache=True),
     "silence.1": _l("First silence nudge. 'Are you still there?'", critical=True, cache=True),
     "silence.2": _l("'I can't hear you. If you're there, just say something.'", critical=True),
@@ -137,6 +139,8 @@ LINES: dict[str, LineSpec] = {
     "ask.phone.choices": _l("'Could you say it a few digits at a time? I'm listening.'"),
     "ask.phone.manage": _l("'Sure. What's the number the appointment is booked under?'"),
     "ask.phone.callback": _l("'What's the best number for them to call you on?'"),
+    "ask.phone.why": _l("They don't know the number. 'No problem. I find bookings by the number they were "
+                        "made with. Could it be this number, or one you've used with us before?'"),
     "phone.more": _l("Partial number heard. 'Mm-hmm.'", critical=True, cache=True),
     "phone.too_many": _l("'Sorry, I got a few too many digits there. Could you say it once more?'",
                          critical=True),
@@ -316,6 +320,7 @@ VARIANTS: dict[str, tuple] = {
                      "Perfect, see you soon. Take care!"),
     "hold_on": ("Sure, take your time.", "No problem, I'll wait.", "Of course, no rush."),
     "repeat.prefix": ("Sure.", "Of course.", "No problem."),
+    "repeat.hear": ("Yes, I can hear you.", "Yes, I'm here.", "I can hear you, yes."),
     "go_on": ("Sorry, go on.", "Go ahead.", "Sorry, you were saying?"),
     "silence.1": ("Are you still there?", "Hello, can you hear me?"),
     "silence.2": ("I can't hear you. If you're there, just say something.",
@@ -394,6 +399,10 @@ VARIANTS: dict[str, tuple] = {
                          "Which phone number is the appointment under?"),
     "ask.phone.callback": ("What's the best number for them to call you on?",
                            "Which number should they call you on?"),
+    "ask.phone.why": ("No problem. I find bookings by the number they were made with. Is there another "
+                      "number you might have used with us?",
+                      "That's okay. Bookings are kept under a phone number, so I'll need that one. "
+                      "Might it be a family member's number, or an older one of yours?"),
     "phone.more": ("Mm-hmm.", "Yes, go on.", "Okay, go on."),
     "phone.too_many": ("Sorry, I got a few too many digits there. Could you say it once more?",
                        "Hmm, that's more digits than a phone number. Could you say it again for me?"),
