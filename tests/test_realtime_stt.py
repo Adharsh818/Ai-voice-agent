@@ -197,7 +197,7 @@ class KeytermTests(unittest.TestCase):
 
     def test_keyterms_are_capped_and_only_sent_to_nova_3(self):
         stt = DeepgramSTT(api_key="k")
-        stt.add_keyterms([f"term{i}" for i in range(80)])
+        stt.add_keyterms([f"term{i}" for i in range(stt_deepgram.MAX_KEYTERMS + 30)])
         self.assertEqual(len(stt.keyterms), stt_deepgram.MAX_KEYTERMS)
         older = DeepgramSTT(api_key="k", model="nova-2", keyterms=["Dr Rao"])
         self.assertNotIn("keyterm", self.params(older))

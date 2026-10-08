@@ -668,6 +668,7 @@ class CallSession:
             return
         self.stt.add_keyterms(terms)
         turn_detector.add_vocabulary(terms)
+        self.stt.add_keyterms(getattr(config, "DEEPGRAM_NAME_KEYTERMS", []))   # last: never crowds out the clinic's words
 
     # How long the recogniser's watchdog waits on unchanged words, by what they
     # are (turn_detector verdicts): a complete answer to Emma's question needs

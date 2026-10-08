@@ -114,6 +114,15 @@ DEEPGRAM_KEYTERMS = [
         "Invisalign,braces,extraction,consultation,check-up,cleaning,filling",
     ).split(",") if t.strip()
 ]
+# Common Indian first names, added after the clinic's own words so they never push those out
+# (8 Oct: "Adharsh" heard as "Adesh"). Deepgram allows 100 keyterms; set it empty to turn off.
+DEEPGRAM_NAME_KEYTERMS = [
+    t.strip() for t in os.getenv(
+        "DEEPGRAM_NAME_KEYTERMS",
+        "Adharsh,Aarav,Aditya,Arjun,Bharat,Deepak,Karthik,Kiran,Pankaj,Rahul,Rohan,Sandeep,Vihaan,Vikram,"
+        "Ananya,Anika,Diya,Ishita,Kavya,Lakshmi,Meera,Neha,Pooja,Priya,Saanvi,Sneha,Sriranjani",
+    ).split(",") if t.strip()
+]
 
 # ElevenLabs TTS — used by the real-time pipeline (speech.py)
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")

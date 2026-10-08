@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 KEEPALIVE_AFTER_S = 4.0
 MAX_BUFFER_S = 5.0                       # audio kept while the socket is down
 RECONNECT_BACKOFF_S = (0.25, 0.5, 1.0)   # one attempt after each delay
-MAX_KEYTERMS = 50                        # well inside Deepgram's keyterm limit
+MAX_KEYTERMS = 90                        # Deepgram allows 100 (and 500 tokens): clinic words first, then names
 # Background noise can keep Deepgram from ever sending speech_final, and its
 # UtteranceEnd backstop then waits for real quiet too (5-6 s measured on 1 Oct).
 # When the caller's words have stopped changing for this long, end the turn
