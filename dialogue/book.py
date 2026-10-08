@@ -777,6 +777,7 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
         their = f"your {b.relation}'s" if b.relation else "their"
         return _plan(Goal.ASK_PATIENT, "ask.patient", relation_or_their=their)
     if checks.get("dup") and not b.duplicate_ok:
+        # Forced: the booking clashed with one this patient already has (PATIENT_CONFLICT).
         return _plan(Goal.DUPLICATE_CHECK, "duplicate", patient=_patient_name(ctx))
 
     if b.service_options:
@@ -784,6 +785,10 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
                      options=prompts.speak_list([_spoken_service(o) for o in b.service_options], "or"))
     if not b.service:
         return _plan(Goal.ASK_SERVICE, "ask.service")
+    if _same_service_booked(ctx):
+        # Owner decision, 8 Oct (IMPLEMENTATION_PLAN 4.x "same patient and service"): asked only when
+        # this patient already has this service booked; another treatment needs no question.
+        return _plan(Goal.DUPLICATE_CHECK, "duplicate", patient=_patient_name(ctx))
     if _is_pediatric(b.service) and b.age is None:
         return _plan(Goal.ASK_AGE, "ask.age", patient=_patient_name(ctx))
     if not b.branch and not b.branch_any:
@@ -1003,12 +1008,19 @@ def _yes_to_two(ctx: CallContext, u: Understanding, confirmation: Optional[str])
         notes["which"] = _offer_key(b)
 
 
+def _same_service_booked(ctx: CallContext) -> bool:
+    """This patient already has the service being booked (and hasn't said it's another one)."""
+    b = ctx.book
+    checks = _notes(b).get("checks") or {}
+    return bool(b.service) and not b.duplicate_ok and b.service in (checks.get("dup_services") or ())
+
+
 def _checks_clear(ctx: CallContext) -> bool:
     """No search while the max-3 limit or an unanswered duplicate stands in the way (nothing could be booked)."""
     checks = _notes(ctx.book).get("checks") or {}
     if checks.get("future", 0) >= config.MAX_FUTURE_APPOINTMENTS_PER_PHONE:
         return False
-    return not (checks.get("dup") and not ctx.book.duplicate_ok)
+    return not ((checks.get("dup") or _same_service_booked(ctx)) and not ctx.book.duplicate_ok)
 
 
 async def _sync_holds(ctx: CallContext, rt: Runtime):
@@ -1052,8 +1064,10 @@ async def _run_checks(ctx: CallContext, rt: Runtime):
     except Exception:
         logger.exception("future_appointments failed for call %s", rt.call_id)
         return
-    dup = bool(patient) and any(_same_name(patient, r.get("patient_name") or "") for r in rows)
-    notes["checks"] = {"key": key, "future": len(rows), "dup": dup}
+    services = sorted({r.get("service") or "" for r in rows
+                       if patient and _same_name(patient, r.get("patient_name") or "")} - {""})
+    # Only the count and which services are kept (never a date, time or doctor: Z7).
+    notes["checks"] = {"key": key, "future": len(rows), "dup": False, "dup_services": services}
 
 
 def _commit_ready(ctx: CallContext, confirmation: Optional[str], catalog) -> bool:

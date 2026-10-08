@@ -72,6 +72,16 @@ class DuplicateBookingTests(EngineCase):
         self.assertEqual(c.s.intent, Intent.RESCHEDULE)
         self.assertNotEqual(c.s.pending, Goal.DUPLICATE_CHECK)
 
+    def test_the_question_is_only_for_the_same_service(self):
+        # Owner decision, 8 Oct: a different treatment needs no "another one, or change it?".
+        self.booked()                                         # a cleaning
+        other = Call("filling")
+        other.run("", "I want to book a filling", "My name is Priya", PHONE, "yes")
+        self.assertNotEqual(other.s.pending, Goal.DUPLICATE_CHECK, other.lines)
+        same = Call("cleaning-again")
+        same.run("", "I want to book a cleaning", "My name is Priya", PHONE, "yes")
+        self.assertEqual(same.s.pending, Goal.DUPLICATE_CHECK, same.lines)
+
     def test_another_one_is_understood(self):
         self.booked()
         c = Call("third")
