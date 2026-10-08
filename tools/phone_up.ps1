@@ -56,7 +56,10 @@ $ip = $net.IPv4Address.IPAddress
 $netName = (Get-NetConnectionProfile -InterfaceIndex $net.InterfaceIndex).Name
 $bound = EnvValue "TELEPHONY_SIP_BIND"
 Write-Host "  PC address $ip on '$netName' (SIP bound to: $(if ($bound) { $bound } else { 'loopback only' }))"
-$changed = $Force -or ($bound -ne $ip)
+# What Asterisk is really listening on (an interrupted run can leave .env ahead of it).
+$live = (Root "asterisk -rx 'pjsip show transports' 2>/dev/null" | Select-String "transport-lan\s+udp\s+\d+\s+\d+\s+([\d.]+):5060" |
+    ForEach-Object { $_.Matches[0].Groups[1].Value } | Select-Object -First 1)
+$changed = $Force -or ($bound -ne $ip) -or ($live -ne $ip)
 if ($changed) {
     Write-Host "  Binding SIP to $ip ..."
     & $Python (Join-Path $Root "tools\telephony_setup.py") --lan
