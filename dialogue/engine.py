@@ -616,6 +616,8 @@ def _mark_question(u: Understanding, text: str) -> None:
     asked = safe_call(match.looks_like_question, text, default=None)
     if asked is None:
         asked = bool(_QUESTION_FALLBACK.search(text))
+    if asked and (safe_call(match.asks_nothing, text, default=False) or u.name_spelled):
+        asked = False                            # mumbling, or a spelling said with a rising voice
     if asked:
         u.acts = list(u.acts) + [Act.QUESTION.value]
         u.question = u.question or text

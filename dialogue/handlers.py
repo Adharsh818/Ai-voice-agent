@@ -147,6 +147,9 @@ _HYPOTHETICAL = re.compile(r"\b(?:what if|if|in case|suppose|supposing|is it nor
 # isn't working, I'll just come in person. Bye."): a reading that missed the
 # END act must never answer a goodbye with another question.
 _SIGN_OFF = re.compile(r"\b(?:bye|good\s*bye|bye[- ]bye)\b[\s.!]*$", re.IGNORECASE)
+# A "no" to "anything else?" that really means no more ("no", "nothing", "that's all", "I'm good").
+_PLAIN_NO = re.compile(r"\b(?:no|nope|nah|nothing|none|not really|that'?s (?:all|it|everything)|"
+                       r"i'?m (?:good|fine|done|ok|okay)|all good|that will be all)\b", re.IGNORECASE)
 _LANGUAGE_NAMES = re.compile(r"\b(?:kannada|hindi|tamil|telugu|malayalam|marathi|bengali|urdu|gujarati)\b")
 
 
@@ -491,7 +494,9 @@ async def _offer_answer(ctx: CallContext, u: Understanding, confirmation: Option
         return None
     # "Anything else?" -> "no": goodbye.
     if (pending in _ANYTHING_ELSE_GOALS and confirmation == "no" and u.intent in (None, Intent.NONE)
-            and not u.has(Act.QUESTION) and not u.has(Act.ROBOT_QUESTION) and not _details_besides_yes_no(u)):
+            and not u.has(Act.QUESTION) and not u.has(Act.ROBOT_QUESTION) and not _details_besides_yes_no(u)
+            and _PLAIN_NO.search(u.raw_text or "")):
+        # Only a real "no" closes: "Yeah. Change that one." also reads as a "no" (8 Oct: it ended the call).
         await _release_holds(rt)
         return _stop(out, _statement(Goal.CLOSE, _closing_line(ctx), closes_call=True))
     # "If you'd like, I can book that for you too." -> "yes please".

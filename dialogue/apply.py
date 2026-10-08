@@ -112,8 +112,11 @@ def apply(ctx: CallContext, u: Understanding, rt: Runtime) -> list:
         u.intent = None                  # "No, I don't want to book anything" never starts a booking
     if u.intent in WORKFLOW_INTENTS and u.intent != ctx.intent and _asks_for(ctx, u):
         notices += switch_intent(ctx, u.intent, rt)
-    elif u.intent == Intent.BOOK and ctx.book.appointment_id and u.carries_details:
-        notices += _fresh_booking(ctx, rt)              # "and one for my son too"
+    elif u.intent == Intent.BOOK and ctx.book.appointment_id and (
+            u.carries_details or (ctx.pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and _ANOTHER_RE.search(text))):
+        notices += _fresh_booking(ctx, rt)              # "and one for my son too", "I want another one"
+        if _ANOTHER_RE.search(text):
+            ctx.book.duplicate_ok = True                # they said it's another one: don't ask again
     elif u.intent == Intent.INFO and ctx.intent == Intent.NONE:
         ctx.intent = Intent.INFO
     elif u.intent in MANAGE_INTENTS and u.intent == ctx.intent and _verification_given_up(ctx):
@@ -336,22 +339,22 @@ def _apply_name(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
         ctx.manage.patient_name = name
         if not c.name:
             c.name, c.name_state = name, FieldState.HEARD
-        notices.append(_name_notice(name, spelled))
+        notices.append(_name_notice(name, spelled, ctx.intent in MANAGE_INTENTS))
         return
     if not c.name:
         c.name = name
         c.name_state = FieldState.CONFIRMED if spelled else FieldState.HEARD
-        notices.append(_name_notice(name, spelled))
+        notices.append(_name_notice(name, spelled, ctx.intent in MANAGE_INTENTS))
         return
     if name.lower() == c.name.lower():
         if spelled and c.name_state != FieldState.CONFIRMED:
             c.name_state = FieldState.CONFIRMED
-            notices.append(_name_notice(name, spelled))
+            notices.append(_name_notice(name, spelled, ctx.intent in MANAGE_INTENTS))
         return
     if spelled:                                         # the answer to "could you spell that?"
         c.name, c.name_state = name, FieldState.CONFIRMED
         ctx.book.touch()
-        notices.append(_name_notice(name, spelled))
+        notices.append(_name_notice(name, spelled, ctx.intent in MANAGE_INTENTS))
         return
     asked = ctx.pending in (Goal.ASK_NAME, Goal.SPELL_NAME)
     if not (cued or asked or ctx.pending in SUMMARY_GOALS):
@@ -365,7 +368,7 @@ def _apply_name(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
     ctx.book.touch()
     if c.name_misses >= 3:
         c.name_state = FieldState.UNVERIFIED
-        notices.append(_name_notice(name, None))
+        notices.append(_name_notice(name, None, ctx.intent in MANAGE_INTENTS))
     else:
         c.name_state = FieldState.HEARD
         rt.raised.append(Goal.SPELL_NAME)
@@ -384,11 +387,12 @@ def _with_spelled_word(full: str, spelled: str) -> str:
     return " ".join(words)
 
 
-def _name_notice(name: str, spelled: Optional[str]) -> Notice:
+def _name_notice(name: str, spelled: Optional[str], manage: bool = False) -> Notice:
     if spelled:
         return Notice("ack.spelled", {"letters": " ".join(spelled.replace(" ", "").upper())},
                       covered_by=(name,))
-    return Notice("ack.name", {"name": name}, covered_by=(name,))
+    # A cancel or change names an existing booking: never "Nice to meet you, Sharon" (8 Oct).
+    return Notice("ack.name.manage" if manage else "ack.name", {"name": name}, covered_by=(name,))
 
 
 def _apply_phone(ctx: CallContext, u: Understanding, conf: Optional[str], cued: bool, notices: list) -> None:
@@ -673,6 +677,7 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
         notices.append(Notice("ack.when", {"when": spoken}, covered_by=_cover_words(phrase)))
 
 
+_ANOTHER_RE = re.compile(r"\b(another|one more|a second|second one|new one)\b", re.I)
 _FLEXIBLE_RE = re.compile(r"\b(whenever|whatever|any ?time|anything|available|free|you have)\b", re.I)
 _SOONEST_RE = re.compile(r"\b(earliest|soonest|as soon as|asap|first)\b", re.I)
 

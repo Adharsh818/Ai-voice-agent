@@ -810,6 +810,11 @@ def _globals(t: str, raw: str, words: list, view: Tier0View, source: str):
         return _u(raw, source, [Act.CAPABILITY])
     # Closing: "bye", "that's all, thanks", "no thank you". Never a yes (Z1:
     # "okay bye" at the summary must not book), at most a "no".
+    if words in (["nothing"], ["no"], ["none"]) and view.pending not in _CLOSING_QUESTION_GOALS \
+            and view.pending not in (None, Goal.GREET, Goal.ASK_INTENT) and _expect(view) not in ("yes_no", "choice"):
+        # "What's the visit for?" -> "Nothing." (8 Oct: "Thanks for calling, take care!" and the
+        # call ended). Not an answer; Emma asks again. "No thanks, that's all" still ends it.
+        return _u(raw, source, [Act.NON_ANSWER])
     if words and all(w in _END_VOCAB for w in words) and _END_RE.search(t):
         has_bye = bool(_BYE_RE.search(t))
         if has_bye or view.pending in _CLOSING_QUESTION_GOALS or _expect(view) not in ("yes_no", "choice"):
@@ -1151,6 +1156,9 @@ _ASKS_TO_BOOK = re.compile(r"\b(book|appointment|come in|(can|could|may) (i|we) 
 
 
 _MOVE_IT_RE = re.compile(r"\b(?:move|shift|change|make|push|bring) (?:it|that|this)\b|\binstead\b")
+# A change asked for without a new time yet ("change that one", "I want to move it").
+_CHANGE_IT_RE = re.compile(r"\b(?:change|move|shift|reschedule|postpone|prepone) (?:it|that|this|that one|"
+                           r"this one|the time|the day|the date|the appointment|my appointment)\b")
 
 
 def _changes_just_booked(t: str, raw: str, words: list) -> bool:
@@ -1205,6 +1213,10 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         u.intent = Intent.BOOK
 
     question = match.looks_like_question(raw)
+    if question and match.asks_nothing(raw):
+        question = False                      # "I mean, what what is... Okay.": nothing asked (8 Oct)
+    if question and exp == "spelling" and match.join_spelled(raw):
+        question = False                      # "s r I r a n j a n I?": the "?" is the voice going up
     if question:
         u.acts.append(Act.QUESTION.value)
         u.question = raw.strip()
@@ -1225,6 +1237,12 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
     elif pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and _BOOK_IT_AGAIN_RE.match(t.strip(" .!")):
         # "Okay. Book it." straight after "you're booked": the booking just made, not a new one.
         u.intent, u.confirmation = None, "yes"
+    elif pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and u.intent in (None, Intent.NONE) \
+            and _CHANGE_IT_RE.search(t):
+        u.intent, u.confirmation = Intent.RESCHEDULE, None   # "Yeah. Change that one." after booking
+    elif pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and u.intent in (None, Intent.NONE, Intent.BOOK) \
+            and _DUP_ANOTHER_RE.search(t):
+        u.intent, u.confirmation = Intent.BOOK, None         # "I want another one" after booking
     elif pending == Goal.BOOKED and u.intent in (None, Intent.NONE) and _changes_just_booked(t, raw, words):
         u.intent = Intent.RESCHEDULE                  # "Can you move it to 7?", or just "Seven"
         if not (u.date_phrase or u.time_phrase):
