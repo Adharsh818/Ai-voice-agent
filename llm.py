@@ -7,6 +7,9 @@ budget is left), and a circuit breaker so a key that is rate-limited or erroring
 is skipped instead of retried on every turn. A failed startup check is retried
 in the background (keep_verified) instead of disabling Gemini for good.
 
+generate_json serves the old 12-step engine; generate_json_stream is the R2
+engine's one streamed request per turn (nlu.py reads it as it arrives).
+
 The model only extracts and phrases. It never decides a state transition — see
 ai_engine._handle_conversation_step — so any failure here degrades to the
 deterministic fallback rather than to a wrong action.
@@ -126,7 +129,7 @@ class GeminiNLU:
     def usable(self) -> bool:
         return GENAI_AVAILABLE and bool(self.keys) and bool(self.model) and self.available is not False
 
-    def _config(self, system: str, max_tokens: int, json_mode: bool):
+    def _config(self, system: str, max_tokens: int, json_mode: bool, schema: dict | None = None):
         cfg = {
             "system_instruction": system,
             "temperature": 0.0,
@@ -135,6 +138,8 @@ class GeminiNLU:
         }
         if json_mode:
             cfg["response_mime_type"] = "application/json"
+        if schema:
+            cfg["response_schema"] = _schema(schema)
         thinking = _thinking_config(self.thinking)
         if thinking is not None:
             cfg["thinking_config"] = thinking
@@ -181,6 +186,83 @@ class GeminiNLU:
                 logger.warning("Gemini NLU failed on %s (%s): %s", key.alias, model, _short(exc))
         return None
 
+    async def generate_json_stream(self, contents: str, system: str, *, schema: dict | None = None,
+                                   deadline: float | None = None, max_tokens: int = 400):
+        """
+        The R2 turn's one request, streamed (docs/R2_DESIGN.md, sections 5
+        and 14): an async iterator of raw text chunks of a JSON object that
+        follows `schema` (nlu.build_schema). Nothing yielded means "use the
+        fallback".
+
+        `deadline` is an absolute time.monotonic() value (default: now +
+        GEMINI_TIMEOUT). Same key, breaker and cool-down rules as
+        generate_json, but the retry rule is stricter, because the caller may
+        already be hearing the first sentence: at most one retry, only before
+        the first token arrived and only with MIN_RETRY_BUDGET_S left. Once a
+        token has been yielded there is never a second call; an error after
+        that just ends the stream and the engine falls back for whatever is
+        missing. Closing the iterator (aclose) closes the HTTP stream.
+        """
+        if not self.usable:
+            return
+        if deadline is None:
+            deadline = time.monotonic() + self.timeout
+        tried = []
+        for attempt in range(2):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or (attempt and remaining < MIN_RETRY_BUDGET_S):
+                break
+            key = self._pick(exclude=tried) or (self._pick() if attempt else None)
+            if key is None:
+                break
+            tried.append(key)
+            model = self.model if attempt == 0 else (self.fallback_model or self.model)
+            yielded = False
+            iterator = None
+            try:
+                stream = await asyncio.wait_for(
+                    self._client(key).aio.models.generate_content_stream(
+                        model=model,
+                        contents=contents,
+                        config=self._config(system, max_tokens, json_mode=True, schema=schema),
+                    ),
+                    timeout=remaining,
+                )
+                iterator = stream.__aiter__()
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise asyncio.TimeoutError
+                    try:
+                        chunk = await asyncio.wait_for(iterator.__anext__(), timeout=remaining)
+                    except StopAsyncIteration:
+                        break
+                    text = _chunk_text(chunk)
+                    if text:
+                        yielded = True
+                        yield text
+                key.count()
+                return
+            except asyncio.TimeoutError:
+                key.count(failed=True)
+                logger.warning("Gemini NLU stream timed out on %s (%s)%s", key.alias, model,
+                               " mid-reply" if yielded else "")
+                return  # the budget is spent; a retry cannot finish in time
+            except Exception as exc:  # quota, overload, auth, network
+                key.count(failed=True)
+                if _is_key_problem(exc):
+                    key.cooldown_until = time.monotonic() + KEY_COOLDOWN_S
+                logger.warning("Gemini NLU stream failed on %s (%s)%s: %s", key.alias, model,
+                               " mid-reply" if yielded else "", _short(exc))
+                if yielded:
+                    return  # tokens already reached the caller: never a second call
+            finally:
+                if iterator is not None and hasattr(iterator, "aclose"):
+                    try:
+                        await iterator.aclose()
+                    except Exception:
+                        pass
+
     async def verify_model(self, timeout: float = 10.0, quiet: bool = False) -> bool:
         """Health check: the configured model must answer a tiny request."""
         if not GENAI_AVAILABLE or not self.keys or not self.model:
@@ -202,6 +284,15 @@ class GeminiNLU:
             logger.info("Gemini model %s: %s", "recovered" if was_down else "verified", self.model)
             return True
         except Exception as exc:
+            if not _definitive(exc):
+                # Slow or busy (a timeout, 429, 5xx): the model is probably fine. Keep
+                # using it and check again soon, rather than putting every call on
+                # the fallback until the next re-check (6 Oct: a slow startup check
+                # switched Gemini off for a minute).
+                self.available = None
+                logger.warning("Gemini model %r check was slow or busy (%s); still using it, checking again",
+                               self.model, _short(exc))
+                return False
             self.available = False
             if quiet:
                 logger.warning("Gemini model %r still failing its check: %s", self.model, _short(exc))
@@ -224,8 +315,8 @@ class GeminiNLU:
         if not GENAI_AVAILABLE or not self.keys or not self.model:
             return
         while True:
-            await asyncio.sleep(interval)
-            if self.available is False:
+            await asyncio.sleep(interval if self.available is False else min(interval, 15))
+            if self.available is not True:
                 await self.verify_model(quiet=True)
 
     async def _flash_lite_models(self, key) -> str:
@@ -253,6 +344,22 @@ class GeminiNLU:
         }
 
 
+def _schema(schema: dict):
+    """The response schema as google-genai's Schema (validated up front); the dict if that fails."""
+    try:
+        return genai_types.Schema.model_validate(schema)
+    except Exception:
+        return schema
+
+
+def _chunk_text(chunk) -> str:
+    """The text of one streamed response chunk ("" for thought-only or empty chunks)."""
+    try:
+        return chunk.text or ""
+    except Exception:
+        return ""
+
+
 def _is_key_problem(exc: Exception) -> bool:
     """429 quota / 401-403 auth errors are about the key; 5xx overload is not."""
     code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
@@ -261,6 +368,18 @@ def _is_key_problem(exc: Exception) -> bool:
     except (TypeError, ValueError):
         return False
     return code in (401, 403, 429)
+
+
+def _definitive(exc: Exception) -> bool:
+    """A failure that retrying won't fix soon: unknown model, bad or unauthorised key."""
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+        return False
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    if code in (400, 401, 403, 404):
+        return True
+    text = str(exc).lower()
+    return any(w in text for w in ("not found", "permission", "api key", "api_key", "unauthenticated",
+                                   "invalid argument"))
 
 
 def _short(exc: Exception) -> str:

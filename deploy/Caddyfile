@@ -1,0 +1,32 @@
+# HTTPS front door for Emma (docs/DEPLOY.md). Installed to /etc/caddy/Caddyfile.
+#
+# EMMA_DOMAIN is a real domain pointing at this machine: Caddy gets and renews
+# a Let's Encrypt certificate by itself. For a machine with no public domain
+# (a lab VM, WSL), use "localhost" and Caddy issues a locally trusted one.
+# Browsers only allow the microphone on HTTPS (or localhost), so this is what
+# makes the talk page work from another device.
+
+{$EMMA_DOMAIN:localhost} {
+	encode gzip
+
+	# WebSockets (/ws/voice, /ws/outbound) and server-sent events (/dashboard/api/events)
+	# pass straight through; no buffering, so live audio and the Live tab stay real time.
+	reverse_proxy 127.0.0.1:8000 {
+		flush_interval -1
+	}
+
+	# The Asterisk dialplan calls these on loopback only; never from the internet.
+	@telephony path /telephony/*
+	respond @telephony 404
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	log {
+		output file /var/log/caddy/emma-access.log {
+			roll_size 10mb
+			roll_keep 7
+		}
+	}
+}

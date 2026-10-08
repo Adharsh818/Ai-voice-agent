@@ -39,7 +39,7 @@ Thumbs.db
 cache/
 logs/
 # Appointments database (SQLite + WAL files)
-data/
+/data/
 # Caller voices: dev captures and call recordings
 captures/
 recordings/
@@ -49,3 +49,14 @@ static/ambience/*.mp3
 *.db-wal
 *.db-shm
 .claude/settings.local.json
+# Conversation test harness output (python -m harness, tools/converse.py)
+harness_runs/
+
+# Piper voice models (downloaded, ~63 MB each)
+models/
+
+# --- Rendered Asterisk configs (secrets; tools/telephony_setup.py) ---
+telephony/build/
+
+# --- Database backups (patient data; tools/backup.py) ---
+backups/

@@ -1,7 +1,7 @@
 """
 The DEMO clinic: 4 Bengaluru branches, 8 fictional doctors, 9 services and a
-few weeks of sample appointments. Everything is marked is_demo, and the
-dashboard labels it DEMO; Emma never says "demo" on a call.
+few weeks of sample appointments. Everything is marked is_demo (no label is
+shown since 6 Oct); Emma never says "demo" on a call.
 
 Doctors, patients and phone numbers are invented. Sample appointments are made
 through scheduling.book(), so every one of them obeys the same rules as a
@@ -74,7 +74,7 @@ DOCTORS = [
 ]
 
 # A closure after the demo date, to show closures are respected.
-CLOSURES = [(date(2026, 10, 15), "Nagarbhavi", "Staff training (DEMO)")]
+CLOSURES = [(date(2026, 10, 15), "Nagarbhavi", "Staff training")]
 
 PATIENTS = [
     "Aarav Sharma", "Diya Patel", "Rohan Gupta", "Ishita Nair", "Kabir Singh", "Ananya Krishnan",

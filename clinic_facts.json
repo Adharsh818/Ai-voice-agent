@@ -1,79 +1,413 @@
 {
-  "version": "2026-09-30.2",
-  "_note": "DEMO knowledge base for the fictional Pearl Dental clinic (decision R8). Emma only speaks entries with \"verified\": true; each has an id so the LLM can pick facts instead of inventing them. Replace with real clinic data before any real deployment.",
+  "version": "2026-10-01.1",
+  "_note": "DEMO knowledge base for the fictional Pearl Dental clinic (decision R8). Emma only speaks entries with \"verified\": true; each has an id so the LLM can pick facts instead of inventing them. Replace with real clinic data before any real deployment. Every branch is bookable; which branch offers which service comes from the database (doctor_services), never from this file. The 'escalation' entry is read only by the old 12-step engine and is never loaded by facts.py; delete it at integration.",
   "clinic_name": "Pearl Dental Clinic",
   "demo": true,
   "hours": {
     "verified": true,
-    "text": "We're open Monday to Saturday, 7 in the morning to 9 at night, with a short lunch break from 2 to 2:30. We're closed on Sundays."
+    "text": "We're open Monday to Saturday, 7 in the morning to 9 at night, with a short lunch break from 2 to 2:30. We're closed on Sundays.",
+    "keywords": [
+      "hours",
+      "timings",
+      "timing",
+      "open",
+      "close",
+      "closing",
+      "opening",
+      "sunday",
+      "saturday",
+      "what time"
+    ]
   },
   "services": {
     "verified": true,
     "list": [
-      "General Check-up", "Consultation", "Teeth Cleaning", "Tooth Filling",
-      "Root Canal Treatment", "Tooth Extraction", "Braces", "Invisalign",
+      "General Check-up",
+      "Consultation",
+      "Teeth Cleaning",
+      "Tooth Filling",
+      "Root Canal Treatment",
+      "Tooth Extraction",
+      "Braces",
+      "Invisalign",
       "Pediatric Dentistry"
     ]
   },
   "pricing_policy": {
     "verified": true,
-    "text": "Prices depend on the tooth and the treatment, so the doctor confirms the exact cost after a quick look, but I can give you a rough range."
+    "text": "Prices depend on the tooth and the treatment, so the doctor confirms the exact cost after a quick look, but I can give you a rough range.",
+    "keywords": [
+      "price",
+      "prices",
+      "cost",
+      "charges",
+      "fees",
+      "how much",
+      "rates",
+      "expensive"
+    ]
   },
   "insurance_policy": {
     "verified": true,
-    "text": "We don't do cashless insurance, but we give you itemised bills and reports so you can claim it back from your insurer."
+    "text": "We don't do cashless insurance, but we give you itemised bills and reports so you can claim it back from your insurer.",
+    "keywords": [
+      "insurance",
+      "cashless",
+      "claim",
+      "mediclaim",
+      "insurer"
+    ]
   },
   "escalation": {
     "verified": true,
     "text": "The doctor can go through that with you at your visit."
   },
   "facts": [
-    {"id": "price.consultation", "topic": "consultation or check-up fee", "verified": true,
-     "text": "A consultation or check-up is 400 rupees, and it's adjusted against any treatment you start that day."},
-    {"id": "price.cleaning", "topic": "teeth cleaning price", "verified": true,
-     "text": "A cleaning is usually between 1,000 and 1,500 rupees."},
-    {"id": "price.filling", "topic": "filling price", "verified": true,
-     "text": "A filling is usually 1,000 to 2,500 rupees, depending on the size and the material."},
-    {"id": "price.root_canal", "topic": "root canal price", "verified": true,
-     "text": "A root canal is usually 5,000 to 8,000 rupees per tooth, and a crown afterwards is extra, from about 4,000."},
-    {"id": "price.extraction", "topic": "extraction price", "verified": true,
-     "text": "A simple extraction is about 800 to 1,500 rupees; a wisdom tooth can be 3,000 to 6,000."},
-    {"id": "price.braces", "topic": "braces price", "verified": true,
-     "text": "Braces usually come to 35,000 to 70,000 rupees for the full treatment, and there's a no-cost EMI option."},
-    {"id": "price.invisalign", "topic": "Invisalign price", "verified": true,
-     "text": "Invisalign is usually between one and a half and three lakh rupees, depending on how much correction is needed."},
-    {"id": "price.pediatric", "topic": "children's visit price", "verified": true,
-     "text": "A children's visit is usually 400 to 600 rupees."},
-    {"id": "price.whitening", "topic": "teeth whitening", "verified": true,
-     "text": "We do whitening too, usually 6,000 to 12,000 rupees; the doctor sees you briefly first to check it suits your teeth."},
-    {"id": "price.implant", "topic": "dental implants", "verified": true,
-     "text": "We do implants as well, usually 25,000 to 45,000 rupees per tooth; it starts with a consultation."},
-    {"id": "payment.methods", "topic": "payment methods", "verified": true,
-     "text": "You can pay by UPI, card or cash."},
-    {"id": "payment.emi", "topic": "EMI or instalments", "verified": true,
-     "text": "For braces and Invisalign there's a no-cost EMI option over six to twelve months."},
-    {"id": "visit.what_to_bring", "topic": "what to bring", "verified": true,
-     "text": "Just bring any old X-rays or prescriptions, and a list of any medicines you take."},
-    {"id": "visit.first_visit", "topic": "how long the first visit takes", "verified": true,
-     "text": "A first visit takes about 30 to 45 minutes, including the check-up and an X-ray if it's needed."},
-    {"id": "visit.children", "topic": "children and minors", "verified": true,
-     "text": "We see children of all ages; a parent just needs to come along for anyone under 18."},
-    {"id": "visit.root_canal_sittings", "topic": "how many visits a root canal takes", "verified": true,
-     "text": "A root canal usually takes two or three visits of about an hour each."},
-    {"id": "visit.xray", "topic": "X-rays", "verified": true,
-     "text": "All our branches have digital X-rays, so you get it done right there."},
-    {"id": "visit.comfort", "topic": "whether treatment hurts", "verified": true,
-     "text": "Treatments are done with local anaesthetic, so it's usually very comfortable, and the doctor checks in with you throughout."},
-    {"id": "visit.hygiene", "topic": "sterilisation and hygiene", "verified": true,
-     "text": "All instruments are sterilised after every patient, and we use disposables wherever we can."},
-    {"id": "policy.cancellation", "topic": "cancelling or rescheduling", "verified": true,
-     "text": "There's no fee to cancel or move an appointment, just let us know."},
-    {"id": "policy.emergency", "topic": "dental emergencies", "verified": true,
-     "text": "If you're in a lot of pain or have swelling, we'll fit you in the same day."},
-    {"id": "policy.walk_in", "topic": "walk-ins", "verified": true,
-     "text": "Walk-ins are welcome, but booking ahead means you won't have to wait."},
-    {"id": "clinic.languages", "topic": "languages spoken at the clinic", "verified": true,
-     "text": "Our staff speak English, Kannada and Hindi."}
+    {
+      "id": "price.consultation",
+      "topic": "consultation or check-up fee",
+      "verified": true,
+      "text": "A consultation or check-up is 400 rupees, and it's adjusted against any treatment you start that day.",
+      "keywords": [
+        "consultation",
+        "check-up",
+        "checkup",
+        "check up",
+        "fee",
+        "price",
+        "cost",
+        "charges"
+      ],
+      "service": "Consultation"
+    },
+    {
+      "id": "price.cleaning",
+      "topic": "teeth cleaning price",
+      "verified": true,
+      "text": "A cleaning is usually between 1,000 and 1,500 rupees.",
+      "keywords": [
+        "cleaning",
+        "scaling",
+        "polishing",
+        "price",
+        "cost",
+        "charges"
+      ],
+      "service": "Teeth Cleaning"
+    },
+    {
+      "id": "price.filling",
+      "topic": "filling price",
+      "verified": true,
+      "text": "A filling is usually 1,000 to 2,500 rupees, depending on the size and the material.",
+      "keywords": [
+        "filling",
+        "cavity",
+        "price",
+        "cost",
+        "charges"
+      ],
+      "service": "Tooth Filling"
+    },
+    {
+      "id": "price.root_canal",
+      "topic": "root canal price",
+      "verified": true,
+      "text": "A root canal is usually 5,000 to 8,000 rupees per tooth, and a crown afterwards is extra, from about 4,000.",
+      "keywords": [
+        "root canal",
+        "rct",
+        "crown",
+        "price",
+        "cost",
+        "charges"
+      ],
+      "service": "Root Canal Treatment"
+    },
+    {
+      "id": "price.extraction",
+      "topic": "extraction price",
+      "verified": true,
+      "text": "A simple extraction is about 800 to 1,500 rupees; a wisdom tooth can be 3,000 to 6,000.",
+      "keywords": [
+        "extraction",
+        "wisdom tooth",
+        "pull out",
+        "remove",
+        "price",
+        "cost",
+        "charges"
+      ],
+      "service": "Tooth Extraction"
+    },
+    {
+      "id": "price.braces",
+      "topic": "braces price",
+      "verified": true,
+      "text": "Braces usually come to 35,000 to 70,000 rupees for the full treatment, and there's a no-cost EMI option.",
+      "keywords": [
+        "braces",
+        "orthodontic",
+        "price",
+        "cost",
+        "charges"
+      ],
+      "service": "Braces"
+    },
+    {
+      "id": "price.invisalign",
+      "topic": "Invisalign price",
+      "verified": true,
+      "text": "Invisalign is usually between one and a half and three lakh rupees, depending on how much correction is needed.",
+      "keywords": [
+        "invisalign",
+        "aligners",
+        "clear aligners",
+        "price",
+        "cost",
+        "charges"
+      ],
+      "service": "Invisalign"
+    },
+    {
+      "id": "price.pediatric",
+      "topic": "children's visit price",
+      "verified": true,
+      "text": "A children's visit is usually 400 to 600 rupees.",
+      "keywords": [
+        "children",
+        "child",
+        "kids",
+        "pediatric",
+        "price",
+        "cost",
+        "charges"
+      ],
+      "service": "Pediatric Dentistry"
+    },
+    {
+      "id": "price.whitening",
+      "topic": "teeth whitening",
+      "verified": true,
+      "text": "We do whitening too, usually 6,000 to 12,000 rupees; the doctor sees you briefly first to check it suits your teeth.",
+      "keywords": [
+        "whitening",
+        "whiten",
+        "white teeth",
+        "bleaching"
+      ]
+    },
+    {
+      "id": "price.implant",
+      "topic": "dental implants",
+      "verified": true,
+      "text": "We do implants as well, usually 25,000 to 45,000 rupees per tooth; it starts with a consultation.",
+      "keywords": [
+        "implant",
+        "implants"
+      ]
+    },
+    {
+      "id": "payment.methods",
+      "topic": "payment methods",
+      "verified": true,
+      "text": "You can pay by UPI, card or cash.",
+      "keywords": [
+        "pay",
+        "payment",
+        "upi",
+        "card",
+        "cash",
+        "gpay",
+        "paytm",
+        "credit card",
+        "debit card"
+      ]
+    },
+    {
+      "id": "payment.emi",
+      "topic": "EMI or instalments",
+      "verified": true,
+      "text": "For braces and Invisalign there's a no-cost EMI option over six to twelve months.",
+      "keywords": [
+        "emi",
+        "instalments",
+        "installments",
+        "monthly"
+      ]
+    },
+    {
+      "id": "visit.what_to_bring",
+      "topic": "what to bring",
+      "verified": true,
+      "text": "Just bring any old X-rays or prescriptions, and a list of any medicines you take.",
+      "keywords": [
+        "bring",
+        "carry",
+        "documents"
+      ]
+    },
+    {
+      "id": "visit.first_visit",
+      "topic": "how long the first visit takes",
+      "verified": true,
+      "text": "A first visit takes about 30 to 45 minutes, including the check-up and an X-ray if it's needed.",
+      "keywords": [
+        "first visit",
+        "how long",
+        "duration",
+        "take long"
+      ]
+    },
+    {
+      "id": "visit.children",
+      "topic": "children and minors",
+      "verified": true,
+      "text": "We see children of all ages; a parent just needs to come along for anyone under 18.",
+      "keywords": [
+        "children",
+        "child",
+        "kids",
+        "minor",
+        "son",
+        "daughter",
+        "age"
+      ]
+    },
+    {
+      "id": "visit.root_canal_sittings",
+      "topic": "how many visits a root canal takes",
+      "verified": true,
+      "text": "A root canal usually takes two or three visits of about an hour each.",
+      "keywords": [
+        "sittings",
+        "how many visits",
+        "how many sessions",
+        "how many sittings",
+        "root canal take",
+        "root canal takes"
+      ]
+    },
+    {
+      "id": "visit.xray",
+      "topic": "X-rays",
+      "verified": true,
+      "text": "All our branches have digital X-rays, so you get it done right there.",
+      "keywords": [
+        "x-ray",
+        "xray",
+        "x ray",
+        "x-rays",
+        "scan"
+      ]
+    },
+    {
+      "id": "visit.comfort",
+      "topic": "whether treatment hurts",
+      "verified": true,
+      "text": "Treatments are done with local anaesthetic, so it's usually very comfortable, and the doctor checks in with you throughout.",
+      "keywords": [
+        "hurt",
+        "pain",
+        "painful",
+        "comfortable",
+        "anaesthetic",
+        "anesthesia",
+        "scared"
+      ]
+    },
+    {
+      "id": "visit.hygiene",
+      "topic": "sterilisation and hygiene",
+      "verified": true,
+      "text": "All instruments are sterilised after every patient, and we use disposables wherever we can.",
+      "keywords": [
+        "hygiene",
+        "sterilised",
+        "sterilized",
+        "clean",
+        "safe",
+        "disposable"
+      ]
+    },
+    {
+      "id": "policy.cancellation",
+      "topic": "cancelling or rescheduling",
+      "verified": true,
+      "text": "There's no fee to cancel or move an appointment, just let us know.",
+      "keywords": [
+        "cancellation fee",
+        "cancel fee",
+        "cancellation",
+        "reschedule fee",
+        "charge to cancel"
+      ]
+    },
+    {
+      "id": "policy.emergency",
+      "topic": "dental emergencies",
+      "verified": true,
+      "text": "If you're in a lot of pain or have swelling, we'll fit you in the same day.",
+      "keywords": [
+        "emergency",
+        "urgent",
+        "same day"
+      ]
+    },
+    {
+      "id": "policy.walk_in",
+      "topic": "walk-ins",
+      "verified": true,
+      "text": "Walk-ins are welcome, but booking ahead means you won't have to wait.",
+      "keywords": [
+        "walk in",
+        "walk-in",
+        "walk-ins",
+        "without appointment"
+      ]
+    },
+    {
+      "id": "clinic.languages",
+      "topic": "languages spoken at the clinic",
+      "verified": true,
+      "text": "Our staff speak English, Kannada and Hindi.",
+      "keywords": [
+        "language",
+        "languages",
+        "kannada",
+        "hindi",
+        "tamil",
+        "telugu",
+        "speak"
+      ]
+    },
+    {
+      "id": "clinic.overview",
+      "topic": "about the clinic",
+      "verified": true,
+      "text": "Pearl Dental has four branches in Bengaluru, at Nagarbhavi, Indiranagar, Jayanagar and Whitefield, with eight doctors between them. We do check-ups, cleanings, fillings, root canals, extractions, braces, Invisalign and children's dentistry.",
+      "keywords": [
+        "about the clinic",
+        "about your clinic",
+        "tell me about",
+        "what is pearl dental",
+        "about pearl dental",
+        "what kind of clinic"
+      ]
+    },
+    {
+      "id": "clinic.capability",
+      "topic": "what Emma can help with",
+      "verified": true,
+      "text": "I can tell you about our clinic, the services we offer, our doctors, prices and timings, and book, change or cancel appointments.",
+      "keywords": [
+        "how can you help",
+        "what can you do",
+        "what do you do",
+        "how do you help",
+        "what can you help"
+      ]
+    }
   ],
   "branches": [
     {
@@ -87,7 +421,7 @@
     {
       "name": "Indiranagar",
       "verified": true,
-      "bookable": false,
+      "bookable": true,
       "address": "12th Main, Indiranagar, about five minutes' walk from the Indiranagar metro station",
       "parking": "Parking is limited on 12th Main, so the metro is easiest.",
       "phone": "PLACEHOLDER"
@@ -95,7 +429,7 @@
     {
       "name": "Jayanagar",
       "verified": true,
-      "bookable": false,
+      "bookable": true,
       "address": "4th Block, Jayanagar, near the shopping complex",
       "parking": "There's paid parking at the shopping complex next door.",
       "phone": "PLACEHOLDER"
@@ -103,11 +437,12 @@
     {
       "name": "Whitefield",
       "verified": true,
-      "bookable": false,
+      "bookable": true,
       "address": "ITPL Main Road, Whitefield, opposite the tech park gate",
       "parking": "We have a few free parking spots in the building's basement.",
       "phone": "PLACEHOLDER"
     }
   ],
-  "doctors": []
+  "doctors": [],
+  "unknown_line": "Hmm, I'm not sure about that one."
 }
