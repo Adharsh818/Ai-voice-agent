@@ -1287,6 +1287,9 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         # "I'm" only opening the first line ("Hi, this is Priya"). 8 Oct: "Yeah. I'm talking..."
         # became "change the name to Talking I'M?", "This is another one" -> "Another One".
         m = re.search(r"\b(?:my name is|my name's|myself|call me)\s+([a-z][a-z' -]*)", t)
+        if not m and exp in ("name", "spelling"):
+            # Asked for a name: "It's for my son, Saanvi Patel. I'm Pooja Shenoy." (sim 7)
+            m = re.search(r"\b(?:this is|i am|i'm)\s+([a-z][a-z' -]*)", t)
         if not m and pending in (Goal.GREET, Goal.ASK_INTENT):
             m = re.match(r"^(?:(?:hi|hello|hey|yes|yeah|okay|ok|good morning|good afternoon|good evening)"
                          r"[ ,.!]+)*(?:this is|i am|i'm)\s+([a-z][a-z' -]*)", t)

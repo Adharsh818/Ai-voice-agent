@@ -117,6 +117,13 @@ def apply(ctx: CallContext, u: Understanding, rt: Runtime) -> list:
         notices += _fresh_booking(ctx, rt)              # "and one for my son too", "I want another one"
         if _ANOTHER_RE.search(text):
             ctx.book.duplicate_ok = True                # they said it's another one: don't ask again
+    elif u.intent == Intent.BOOK and ctx.intent == Intent.BOOK and ctx.tasks_created \
+            and not ctx.book.appointment_id and ctx.book.offer_rounds >= 3 \
+            and not ctx.book.__dict__.get("_retried_after_callback"):
+        # "I just want to book a consultation" after the callback was set up (sim 7, 8 Oct:
+        # the callback offer came back six times). Look once more, from the day.
+        ctx.book.offer_rounds = 0
+        ctx.book.__dict__["_retried_after_callback"] = True
     elif u.intent == Intent.INFO and ctx.intent == Intent.NONE:
         ctx.intent = Intent.INFO
     elif u.intent in MANAGE_INTENTS and u.intent == ctx.intent and _verification_given_up(ctx):

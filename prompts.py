@@ -390,7 +390,7 @@ VARIANTS: dict[str, tuple] = {
     "ask.name.spell": ("Sorry, could you spell that for me?", "Could you spell your name for me, please?"),
     "ask.name.manage": ("And what name is the appointment under?", "Which name is it booked under?"),
     "ask.name.manage.rephrase": ("Sorry, which name is the appointment under?",
-                                 "Sorry, I didn't catch the name it's booked under."),
+                                 "Sorry, I didn't catch which name the appointment is under."),
     "ack.name.manage": ("{name}, got it.", "Thanks, {name}."),
     "ask.name.callback": ("And who should they ask for?", "And what name should they ask for?"),
     "ack.name": ("{name}, got it.", "Thanks, {name}.", "Nice to meet you, {name}."),
@@ -587,7 +587,7 @@ _LOWERABLE = frozenset("""
     a all an and any anything are can could did do doing every for give go happy have hello hmm honestly how
     if is it it's just let let's my no of oh okay our please should so sorry still that that's the
     there there's this those treatments we we'd we're what what's when when's which would yeah yes you you're your
-    may shall where who whose tell
+    may shall where who whose tell roughly sure right alright great perfect lovely nice thanks thank
     """.split())
 _PLACEHOLDER = re.compile(r"{(\w+)}")
 _RECENT_KEEP = 10
