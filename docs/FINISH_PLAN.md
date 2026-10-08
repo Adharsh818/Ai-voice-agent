@@ -15,7 +15,9 @@ Written 8 Oct 2026, after the demo (done with a real phone call through Asterisk
 - Checks: 961 tests, 53/53 scenarios, preflight READY, the four 200-call sims and the crash drill pass.
 - Phone: WSL2 Ubuntu 24.04 + Asterisk 20.6, Linphone 1001 on the owner's phone, MicroSIP 1002 on the PC. Booking calls work end to end (Emma → database → dashboard → Google Calendar).
 
-## Phase 0: fix what the 8 Oct calls showed (first; mine)
+## Phase 0: fix what the 8 Oct calls showed (first; mine) — DONE 8 Oct night
+
+Done: items 1-12 fixed with tests (`tests/test_call_fixes_8oct.py`); 13 and 15 turned out not to be bugs (the dialer records a failed ring; the AudioSocket error at hang-up is how Asterisk 20 logs the hang-up frame); 14 is checked during Phase 3; 16 is a setting (`NLU_HEAD_DEADLINE_S`), left to the owner. The four sims then found two loops the fixes introduced; fixed. Sims: all zero-tolerance checks 0, M3 <= 0.5%, M7 >= 97.9%, M10 <= 1.0%; T5 still 10 (Phase 6).
 
 22 calls on demo day (most by phone). Gemini was slow (model replies p50 2.07 s against Emma's 2.2 s limit), so 65 replies came from the fallback path, which exposed these. Each gets a test built from the real transcript first, then the fix; then suite + scenarios + sims.
 
@@ -49,7 +51,9 @@ Written 8 Oct 2026, after the demo (done with a real phone call through Asterisk
 2. Merge the stack #1-#5 into `main` in order (each PR's CI and conflicts checked first); `main` then holds the finished project.
 3. Note the demo in HANDOFF.md: done on 8 Oct with the phone; anything the examiners said goes into Phase 6.
 
-## Phase 2: phone setup that survives a restart (30 min, mostly mine)
+## Phase 2: phone setup that survives a restart (30 min, mostly mine) — DONE 8 Oct night
+
+`tools/phone_up.ps1` and SRTP-or-plain audio; tested on the real WSL (it re-bound SIP from 10.69.54.x to 10.221.82.x by itself).
 
 Found on demo day; each cost time.
 

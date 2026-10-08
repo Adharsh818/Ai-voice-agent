@@ -1,12 +1,25 @@
 # Project memory and next steps
 
-**Last updated:** 6 Oct 2026, afternoon (text rehearsal, then see START HERE; Day 7 docs and demo tools; Day 6 latency and drills, Day 4 finished, Day 5 built; section 0 is from 5 Oct, sections 1-7 from 1 Oct) · **Demo:** Thursday 8 Oct 2026 · **Owner:** Adharsh (GitHub `Adharsh818`)
+**Last updated:** 8 Oct 2026, night (after the demo; see START HERE and [FINISH_PLAN.md](FINISH_PLAN.md)) · **Demo:** done Thursday 8 Oct 2026, with a real phone call · **Owner:** Adharsh (GitHub `Adharsh818`)
 
 Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
 
 ---
 
-## ▶ START HERE (state at the end of the 5-6 Oct session)
+## ▶ START HERE (8 Oct, after the demo)
+
+**The demo was done on 8 Oct, including a real call from the owner's phone.** What's left is [FINISH_PLAN.md](FINISH_PLAN.md); its Phase 0 came from reading all 22 calls of that day.
+
+**Where the code is.** Branch `day2-r2-engine` (local and pushed up to cebb2e7; later commits are local until Phase 1's push and merge). 991 tests pass (one dashboard test is flaky under load: it uses the real clock), 53/53 scenarios, the four 200-call sims pass every zero-tolerance check.
+
+**Done on 8 Oct night:**
+- Phase 0, the demo-day calls: replayed through the engine with the model down (Gemini ran at ~2.1 s against Emma's 2.2 s limit, so 65 replies that day came from the fallback path). Fixed with tests in `tests/test_call_fixes_8oct.py` (30): phantom name changes ("Talking I'M", "Another One"), the duplicate-booking loop, digits collected from dates, "I only know the name", "can you hear me?", a change right after booking (now moves that booking), "morning or evening?" when it was settled, requested times quietly replaced, "change that one" ending the call, "Nothing." ending the call, mumbling answered "I don't know that one", names in cancel calls; validator rules against a claimed change, invented policies, speech-to-text wording and "Mr <name>". The sims then found loops two of the fixes introduced, also fixed (an insistent cancel / move caller now gets one more look, then the callback).
+- Phase 2, the phone line: `tools/phone_up.ps1` (keeps Ubuntu running, re-binds on an address change, checks Asterisk, prints firewall commands); Asterisk accepts SRTP or plain audio. TELEPHONY.md "Every time: phone_up".
+- Not bugs after all: the recovery dialer records a failed ring correctly; Asterisk's "Failed to receive frame" at hang-up is normal.
+
+**Still to do (FINISH_PLAN):** Phase 1 merge into `main`; Phase 3 live phone checks (with the owner); Phase 4 deploy check in WSL (asks first: downloads, and a second Emma must not share the Calendar); Phase 5 rest of the docs and EVALUATION refresh; Phase 6 the two chosen gaps (fewer turns per booking, better name hearing); Phase 7 final checks.
+
+## Earlier: state at the end of the 5-6 Oct session
 
 **Where the code is.** Branch `day2-r2-engine`, everything pushed; PR [#5](https://github.com/Adharsh818/Ai-voice-agent/pull/5) is open (stacked on #1-#4, none merged). 900 tests (`.\.venv\Scripts\python.exe -m unittest discover -s tests`), all passing.
 

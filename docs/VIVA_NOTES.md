@@ -34,7 +34,7 @@ caller audio ─> Deepgram Nova-3 (en-IN) ─> voice-activity + turn detector �
 
 | What | Result |
 |---|---|
-| Tests | about 950 unit/integration tests, 53 scripted conversation scenarios |
+| Tests | 991 unit/integration tests (8 Oct), 53 scripted conversation scenarios |
 | Simulated calls (4 × 200, model faked and switched off) | bookings completed 100%, dead ends ≤ 0.5%, loops ≤ 0.5%, safety checks 0 |
 | Real-call latency (520 replies) | rules turns p50 1.63 s (target 0.9 s), model turns p50 2.46 s (target 1.8 s) |
 | Turns needing no model | 49%; model fallback 3% of model turns |
@@ -49,7 +49,11 @@ caller audio ─> Deepgram Nova-3 (en-IN) ─> voice-activity + turn detector �
 - **How do you know it works?** A simulated-caller harness (disruptions: corrections, silence, interruptions, intent switches, the bot question), scored against written success criteria with zero-tolerance safety checks; real-call latency logs; replay of real recordings.
 - **Why is latency above target?** Most of it is end-of-speech detection; it was tuned to avoid cutting callers off, which matters more to the caller than half a second.
 - **Privacy?** Minimal data to Calendar (first name, last 4 digits), phone numbers masked in logs, transcripts blanked after 30 days, no audio stored, staff actions audited.
-- **Is it a real phone system?** Yes: Asterisk with AudioSocket; a SIP phone (or a softphone on a mobile over Wi-Fi) calls Emma, with caller ID, keypad entry, live transfer and outbound recovery calls. A public phone number (PSTN) is future work.
+- **Is it a real phone system?** Yes: Asterisk with AudioSocket; a SIP phone (or a softphone on a mobile over Wi-Fi) calls Emma, with caller ID, keypad entry, live transfer and outbound recovery calls. A public phone number (PSTN) is future work. The 8 Oct demo included a real call from a phone.
+- **What is Asterisk?** An open-source phone exchange (PBX). It registers the phones (usernames, passwords, a Wi-Fi-only access list), routes calls (dial 100 → Emma; transfer → the front desk), agrees the audio format with each phone, and streams the caller's audio to Emma over AudioSocket. Emma never speaks SIP herself, so a phone provider can be connected later without changing her code.
+- **What are SIP and RTP?** SIP (Session Initiation Protocol) sets calls up and ends them: REGISTER (with a 401 password challenge, then 200 OK), INVITE with an audio offer (SDP), BYE. RTP (Real-time Transport Protocol) carries the voice itself, about 50 packets of 20 ms a second.
+- **Why UDP?** Live voice needs timeliness more than perfect delivery: a late packet is useless, so UDP drops it rather than stalling the call like TCP would; it's also the SIP and RTP standard. Encryption (TLS for SIP, SRTP for audio) matters on the public internet; on a closed local network Asterisk accepts SRTP when the phone asks for it.
+- **What went wrong on demo day, and what did you learn?** Gemini was slow (about 2.1 s against Emma's 2.2 s limit), so many replies came from the fallback path, which exposed misreadings: "I'm talking" taken as a new name, "change that one" read as a "no" that ended the call, digits collected from a date. Each was replayed from the real transcript, fixed with a test, and checked against the four 200-call simulations, which themselves caught two loops the first fixes introduced.
 
 ## Limitations and future work
 
