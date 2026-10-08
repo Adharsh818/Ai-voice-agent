@@ -61,7 +61,7 @@ if ($changed) {
     Write-Host "  Binding SIP to $ip ..."
     & $Python (Join-Path $Root "tools\telephony_setup.py") --lan
     if ($LASTEXITCODE -ne 0) { throw "telephony_setup.py failed" }
-    $wslRoot = (wsl.exe -d $Distro -- wslpath -a "$Root").Trim()
+    $wslRoot = "/mnt/" + $Root.Substring(0, 1).ToLower() + $Root.Substring(2).Replace("\", "/")   # A:\Voice-Agent -> /mnt/a/Voice-Agent
     Root "bash '$wslRoot/telephony/install_asterisk.sh'"
     Ok "Asterisk configs reinstalled for $ip"
 } else {
