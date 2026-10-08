@@ -87,8 +87,8 @@ class CrashDrillTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def op(self, call_id="drill-t-1"):
-        slot = scheduling.find_slots(self.conn, service="Consultation",
-                                     dates=[clock.now().date() + timedelta(days=3)], limit=1)[0]
+        days = [clock.now().date() + timedelta(days=d) for d in range(2, 10)]   # some days the clinic is closed
+        slot = scheduling.find_slots(self.conn, service="Consultation", dates=days, limit=1)[0]
         return {"kind": "book", "idem": f"{call_id}:x", "call_id": call_id, "service": slot.service,
                 "doctor_id": slot.doctor_id, "start": slot.start.isoformat(), "name": "Drill Patient",
                 "phone": "+919812345678"}
