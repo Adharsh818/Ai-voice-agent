@@ -683,7 +683,9 @@ class KeytermTests(unittest.TestCase):
 
         try:
             terms = asyncio.run(run())
-            self.assertEqual(terms, ["Dr Rao", "Nagarbhavi", "check-up"])
+            # Clinic words first; the common first names (config) after them, so never crowding them out.
+            self.assertEqual(terms[:3], ["Dr Rao", "Nagarbhavi", "check-up"])
+            self.assertEqual(terms[3:], config.DEEPGRAM_NAME_KEYTERMS)
             self.assertIn("rao", turn_detector._KNOWN_WORDS)
         finally:
             turn_detector._KNOWN_WORDS.difference_update({"dr", "rao", "nagarbhavi", "check-up"})
