@@ -407,6 +407,7 @@ class ManageDraft:
     action: Optional[Intent] = None                    # RESCHEDULE | CANCEL | CHECK
     patient_name: Optional[str] = None                 # the name the appointment is under
     appt_date: Optional[DateConstraint] = None
+    booked_start: Optional[datetime] = None            # the appointment booked earlier on this call
     verify_attempts: int = 0
     verified: bool = False
     matches: list = field(default_factory=list)        # VerifiedAppointment, after verification only

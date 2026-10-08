@@ -78,6 +78,23 @@ DEFLECTION = (
     r"\bdiscuss (that|this|it) (with (the|your) (doctor|dentist)|at your (visit|appointment))",
     r"\b(doctor|dentist) (is|would be) (the )?best (person|placed)\b",
 )
+# V2b: the machinery behind the call. 8 Oct: "Ah, just a bit of a mix-up with the speech-to-text."
+MACHINERY = (
+    r"\bspeech[- ]to[- ]text\b", r"\btranscri(be|bed|ption|pt)\b", r"\b(my|the|our) (system|software|program)\b",
+    r"\b(technical|system) (glitch|issue|problem|error)\b", r"\bglitch\b", r"\b(voice|speech) recognition\b",
+    r"\b(my|the) (microphone|audio) (picked|didn'?t pick|is|was)\b",
+)
+# V9: clinic policies with no fact behind them (8 Oct: "If I don't turn up, what will happen?" ->
+# "Nothing serious, we just prefer a quick call..."). Topic -> the fact id that would allow it.
+POLICY_TOPICS = {
+    "policy.no_show": (r"\bno[- ]shows?\b", r"\b(don'?t|do not|didn'?t|can'?t) (turn|show) up\b",
+                       r"\bmiss(ed|ing)? (your|the|an|their) appointment\b",
+                       r"\bif you (can'?t|cannot|don'?t|do not) (make it|come|turn up)\b"),
+    "policy.late": (r"\b(arrive|arriving|come|coming|running) late\b", r"\blate (arrival|fee|charge)s?\b"),
+    "policy.penalty": (r"\bpenalt(y|ies)\b", r"\bfined?\b"),
+    "policy.refund": (r"\brefunds?\b", r"\brefunded\b"),
+    "policy.deposit": (r"\bdeposits?\b", r"\badvance (payment|fee|amount)\b", r"\bpay (in advance|upfront)\b"),
+}
 # V3: outcome words, allowed only when that action committed this turn.
 CLAIMS = {
     "booked": (
@@ -92,6 +109,11 @@ CLAIMS = {
     "rescheduled": (
         r"\b(i'?ve|i have|we'?ve|it'?s|that'?s|is|has been|been|now) (moved|rescheduled|shifted|preponed|postponed)\b",
         r"\b(moved|rescheduled|shifted) (it|that|this|your)\b",
+        # A change acknowledged as made (8 Oct, after booking 8:00: "Seven" -> "Ah, seven
+        # instead of eight, got it." and nothing changed). Python asks "Move it to 7?" itself.
+        r"\binstead( of [^,.!?]+)?,? (got it|noted|done|that'?s fine|no problem|perfect)\b",
+        r"\b(got it|noted|done|perfect|okay|sure)[,!]? [^.?!]*\binstead\b(?![^.?!]*\?)",
+        r"\b(i'?ve |i have )?(changed|updated|switched|swapped|amended) (it|that|this|your|the)\b",
     ),
     "any": (
         r"\b(is|been|it'?s|that'?s|all|now|you'?re) confirmed\b", r"\bconfirmed (it|that|this|your|the)\b",
@@ -130,6 +152,7 @@ _VOCATIVE_RE = (
                r"no problem|no worries|of course|wonderful|nice to meet you)[,!]?\s+([A-Z][a-z]+)\b"),
     re.compile(r",\s+([A-Z][a-z]+)[.!?]*$"),
 )
+_TITLE_RE = re.compile(r"\b(?:Mr|Mrs|Ms|Miss|Mister)\.?\s+[A-Z][a-z]+")
 _PRICE_RE = re.compile(r"₹|\brs\.?\s?\d|\brupees?\b|\binr\b|\bcosts?\b|\bprice[sd]?\b|\bfees?\b|\bcharges?\b", re.I)
 
 _OPENERS = re.compile(
@@ -151,6 +174,7 @@ class Allowed:
     clinical: bool = False                 # the question was genuinely clinical
     callback_task: bool = False            # a callback task exists (a promise may be made)
     recent: tuple = ()                     # Emma's recent sentences and this turn's notices (V7)
+    policies: frozenset = frozenset()      # "policy.*" fact ids in the knowledge base (V9)
 
     def for_turn(self, **changes) -> "Allowed":
         """
@@ -207,6 +231,21 @@ def check_sentence(sentence: str, allowed: Allowed, *, part: str) -> Verdict:
         hit = _first(DEFLECTION, low)
         if hit:
             return Verdict(False, "V2", f"doctor deflection {hit!r}")
+    hit = _first(MACHINERY, low)
+    if hit:
+        return Verdict(False, "V2", f"machinery wording {hit!r}")
+    # "Got it, Mr Shetty" (8 Oct): a title guesses the caller's gender; Emma uses names only.
+    m = _TITLE_RE.search(text)
+    if m:
+        return Verdict(False, "V2", f"title {m.group(0)!r}")
+
+    # V9: a clinic policy with no fact behind it.
+    for fact_id, patterns in POLICY_TOPICS.items():
+        if fact_id in allowed.policies:
+            continue
+        hit = _first(patterns, low)
+        if hit:
+            return Verdict(False, "V9", f"policy without a fact ({fact_id}) {hit!r}")
 
     # V3: outcome claims Python didn't make.
     for action, patterns in CLAIMS.items():

@@ -797,6 +797,12 @@ def _globals(t: str, raw: str, words: list, view: Tier0View, source: str):
     if len(words) <= 12 and _ROBOT_RE.search(t) and not _HUMAN_RE.search(t):
         if all(w in _ROBOT_FILLER for w in _tokens(_ROBOT_RE.sub(" ", t))):
             return _u(raw, source, [Act.ROBOT_QUESTION])
+    # One sentence of a longer turn (8 Oct: "Yeah. I'm talking. I'm not... Are you an AI?").
+    for sentence in re.split(r"[.?!]+", (raw or "").lower()):
+        s = _clean(sentence)
+        if s and _ROBOT_RE.search(s) and not _HUMAN_RE.search(s) \
+                and all(w in _ROBOT_FILLER for w in _tokens(_ROBOT_RE.sub(" ", s))):
+            return _u(raw, source, [Act.ROBOT_QUESTION])
     if len(words) <= 10 and _HUMAN_RE.search(t):
         return _u(raw, source, [Act.WANTS_HUMAN])
     cap = _CAP_LEAD_RE.sub("", t).strip()
@@ -1083,6 +1089,8 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
         return _u(raw, "tier0", [Act.ANSWER], confirmation="yes")     # the booking just made
     if view.pending == Goal.DUPLICATE_CHECK and (_DUP_CHANGE_RE.search(t) or _DUP_ANOTHER_RE.search(t)):
         return None                         # the lenient reading has the another / change rules
+    if view.pending == Goal.BOOKED and _changes_just_booked(t, raw, words):
+        return None                         # a change to the booking just made: the model, else lenient
 
     opener = None if _MOVE_APPT_RE.search(t) else _opener(t, view, strict=True)
     if opener:
@@ -1140,6 +1148,17 @@ _SMALL_TALK_RE = re.compile(
 # A booking asked for before that question ("Can I get a check-up on Saturday, and where...").
 _ASKS_TO_BOOK = re.compile(r"\b(book|appointment|come in|(can|could|may) (i|we) (get|have|come)|"
                            r"i'?d like|i want|i need)\b")
+
+
+_MOVE_IT_RE = re.compile(r"\b(?:move|shift|change|make|push|bring) (?:it|that|this)\b|\binstead\b")
+
+
+def _changes_just_booked(t: str, raw: str, words: list) -> bool:
+    """Right after "you're booked": a change to that booking, or a bare day / time on its own."""
+    when = _parse_when(raw, expecting="time")
+    if when.empty:
+        return False
+    return bool(_MOVE_IT_RE.search(t)) or (len(words) <= 4 and _when_residue_ok(t))
 
 
 def _lenient(raw: str, view: Tier0View) -> Understanding:
@@ -1206,6 +1225,10 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
     elif pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and _BOOK_IT_AGAIN_RE.match(t.strip(" .!")):
         # "Okay. Book it." straight after "you're booked": the booking just made, not a new one.
         u.intent, u.confirmation = None, "yes"
+    elif pending == Goal.BOOKED and u.intent in (None, Intent.NONE) and _changes_just_booked(t, raw, words):
+        u.intent = Intent.RESCHEDULE                  # "Can you move it to 7?", or just "Seven"
+        if not (u.date_phrase or u.time_phrase):
+            u.time_phrase = raw.strip(" .!?")
 
     # Digits: any amount while a number is expected; elsewhere only a whole number.
     run = match.extract_digits(raw)
