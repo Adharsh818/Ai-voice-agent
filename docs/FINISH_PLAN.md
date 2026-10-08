@@ -15,6 +15,34 @@ Written 8 Oct 2026, after the demo (done with a real phone call through Asterisk
 - Checks: 961 tests, 53/53 scenarios, preflight READY, the four 200-call sims and the crash drill pass.
 - Phone: WSL2 Ubuntu 24.04 + Asterisk 20.6, Linphone 1001 on the owner's phone, MicroSIP 1002 on the PC. Booking calls work end to end (Emma → database → dashboard → Google Calendar).
 
+## Phase 0: fix what the 8 Oct calls showed (first; mine)
+
+22 calls on demo day (most by phone). Gemini was slow (model replies p50 2.07 s against Emma's 2.2 s limit), so 65 replies came from the fallback path, which exposed these. Each gets a test built from the real transcript first, then the fix; then suite + scenarios + sims.
+
+**Safety (Z-checks: must be fixed)**
+1. **A change claimed but not made.** After booking 8:00, the caller said "Seven"; the model answered "Ah, seven instead of eight, got it" and nothing changed (call cb801054). A time or date after a booking must start a proper change ("Move it to 7?"), and a "got it" about a change that wasn't made must be blocked.
+2. **An invented fact.** "If I don't turn up, what will happen?" → "Nothing serious, we just prefer a quick call…" There is no no-show fact in `clinic_facts.json` (24e43b4e). The validator must stop policy answers that aren't in the facts.
+3. **Revealing the machinery.** "Just a bit of a mix-up with the speech-to-text" (f90e7120). Block "speech-to-text" and similar wording.
+
+**Wrong understanding (the call goes wrong)**
+4. **Name changes out of nowhere.** "Yeah. I'm talking…" → "Did you want to change the name to Talking I'M?" (asked 3 times); "This is another one" → "change the name to Another One?" (e4771898, a7e5e822).
+5. **The duplicate-booking loop.** "Okay. Book it." straight after booking started "Sharon already has an appointment…", then "change that one", "I wanted to change it" and "another one" were not understood 6 times, ending in a transfer (a7e5e822).
+6. **"The earliest you can" used as a date.** After "9 or 10?", "Ten o'clock" (after an interrupted "It's") gave "Should I change the date to the earliest you can at 10?" and a fresh offer, instead of booking 10 (e4771898).
+7. **Phone digits swallow other numbers.** While collecting digits, "On Saturday, October 10 at 03:30PM" and "my phone number ends at zero zero three" were added as digits → "more digits than a phone number"; "I only know the name" was never answered with why the number is needed (910ff35f).
+8. **Spelled names not understood:** "s r I r a n j a n I" (f90e7120); and a spelling request came out of nowhere mid-request.
+9. **Doubled or odd names:** "Jimmy. Jimmy." → "Jimmy Jimmy"; "Seven" accepted as a name; "Mr Shetty" assumes gender.
+10. **A requested time quietly replaced.** "8:30 evening" for a cleaning at Nagarbhavi → "I can do today at 4 or 4:30" without saying 8:30 isn't possible (a7e5e822). "8PM" at "which day?" → "That's okay, we'll find a time" (de4343e9).
+11. **Missing or wrong replies:** no reply to "It's October 10 Name Sharon Sharon" (2df5cc63 turn 7); "could you check the date" when no date was asked; "Hello? Can you hear me?" → "I'm not sure about that one"; unclear speech at the greeting → "I'm not sure about that, sorry"; "Nothing." to "what's it for?" ends the call at once.
+12. **The date given early is dropped:** "On Saturday, 3PM" while she asked the name, in a cancel (2df5cc63).
+
+**Phone and recovery**
+13. Recovery calls to 1001 while the phone was not registered failed in Asterisk ("Could not create dialog", 16:24 and 16:52) and the jobs show no record of those tries. Record them as a failed try (and retry), never lose them.
+14. 5 phone calls ended at the greeting with nothing heard (13 s each). Find out whether audio reached Emma (one-way audio after the encryption change?) using the SIP log during Phase 3.
+15. "Failed to receive frame from AudioSocket" at every hang-up: Emma closes first; harmless, but make the close clean so real errors stand out.
+
+**Speed**
+16. Gemini at ~2.1 s means many replies fall back. Check `preflight.py`'s advice (`NLU_HEAD_DEADLINE_S`) against today's numbers; the fallback path must handle everything above on its own anyway.
+
 ## Phase 1: save the work (10 min)
 
 1. Push `day2-r2-engine` to GitHub (PR #5).
@@ -82,10 +110,10 @@ Each chosen fix: test first, then the change, then suite + scenarios + sims.
 2. Preflight READY; one browser call and one phone call end to end.
 3. Push; merge per Phase 1's decision; final HANDOFF "state at the end".
 
-## On hold
+## Dropped
 
-- **VoiceLink** (a real Indian phone number): not built until the owner's guide approves (memory: telephony-voicelink-pending).
+- **VoiceLink** (a real Indian phone number): dropped by the owner on 8 Oct.
 
 ## Order and time
 
-Phase 1 → 2 → 3 (needs the owner and the phone) → 4 → 5 → 6 (only what's picked) → 7. About 4 hours without Phase 6.
+Phase 0 → 1 → 2 → 3 (needs the owner and the phone) → 4 → 5 → 6 (only what's picked) → 7. About 4 hours without Phase 6.
