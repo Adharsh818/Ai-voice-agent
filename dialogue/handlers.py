@@ -488,11 +488,18 @@ async def _offer_answer(ctx: CallContext, u: Understanding, confirmation: Option
             yes, no = confirmation == "yes", confirmation == "no"
         if yes:
             return await _callback_accepted(ctx, u, rt, _offer_reason(ctx), out)
+        if _insists_on_moving(ctx, u):
+            # "No, I want to move my existing appointment" at the callback offer (sim 7): look for
+            # times once more; after that they want it sorted, so the team calls back.
+            if ctx.manage.__dict__.get("_looked_again"):
+                return await _callback_once(ctx, u, rt, out)
+            _look_again_for_times(ctx)
+            return None
         if _insists_on_manage(ctx, u):
             # "I want to move my appointment" instead of a yes / no (sim 7, 8 Oct): once, look
             # again from the date; after that they want it sorted, so the team calls back.
             if ctx.stats(Goal.CALLBACK_OFFER).asked >= 2:
-                return await _callback_accepted(ctx, u, rt, _offer_reason(ctx), out)
+                return await _callback_once(ctx, u, rt, out)
             ctx.callback_reason = None
             ctx.manage.done = True                   # apply.py's retry picks it up from the date
             return None
@@ -500,10 +507,15 @@ async def _offer_answer(ctx: CallContext, u: Understanding, confirmation: Option
         if no and pending != Goal.ENGLISH_ONLY and ctx.intent in MANAGE_INTENTS:
             ctx.manage.done = True                   # no callback: hand back to "anything else?"
         return None
+    if pending in _ANYTHING_ELSE_GOALS and _insists_on_moving(ctx, u):
+        if ctx.manage.__dict__.get("_looked_again"):
+            return await _callback_once(ctx, u, rt, out)
+        _look_again_for_times(ctx)
+        return None
     if pending in _ANYTHING_ELSE_GOALS and _insists_on_manage(ctx, u) and ctx.manage.done \
             and ctx.stats(Goal.CALLBACK_OFFER).asked >= 2:
         # Still asking after the look-again and two offers: never "anything else?" on a loop.
-        return await _callback_accepted(ctx, u, rt, _offer_reason(ctx), out)
+        return await _callback_once(ctx, u, rt, out)
     # "Anything else?" -> "no": goodbye.
     if (pending in _ANYTHING_ELSE_GOALS and confirmation == "no" and u.intent in (None, Intent.NONE)
             and not u.has(Act.QUESTION) and not u.has(Act.ROBOT_QUESTION) and not _details_besides_yes_no(u)
@@ -516,6 +528,35 @@ async def _offer_answer(ctx: CallContext, u: Understanding, confirmation: Option
         ctx.intent = Intent.BOOK
         return out
     return None
+
+
+async def _callback_once(ctx: CallContext, u: Understanding, rt: Runtime, out: GlobalOutcome) -> GlobalOutcome:
+    """The team calls back; if that's already arranged, say so rather than arranging it again."""
+    if ctx.tasks_created:
+        if ctx.stats(Goal.CALLBACK_DONE).asked >= 2:
+            # Reassured twice already: end kindly rather than say it a third time.
+            await _release_holds(rt)
+            return _stop(out, _statement(Goal.CLOSE, "close", closes_call=True))
+        return _stop(out, _statement(Goal.CALLBACK_DONE, "callback.already"))
+    return await _callback_accepted(ctx, u, rt, _offer_reason(ctx), out)
+
+
+def _insists_on_moving(ctx: CallContext, u: Understanding) -> bool:
+    """A found appointment, every time turned down, and "I want to move it" again."""
+    m = ctx.manage
+    return (ctx.intent == Intent.RESCHEDULE and u.intent == Intent.RESCHEDULE and m.verified
+            and m.target is not None and m.offer_rounds >= 3 and not m.chosen)
+
+
+def _look_again_for_times(ctx: CallContext) -> None:
+    """Once per call: the turned-down times are forgotten and Emma asks what would suit."""
+    m = ctx.manage
+    m.__dict__["_looked_again"] = True
+    m.offer_rounds, m.done, m.offered = 0, False, []
+    m.new_date_c = m.new_time_c = None
+    ctx.callback_reason = None
+    for goal in (Goal.ASK_NEW_WHEN, Goal.CALLBACK_OFFER):
+        ctx.goal_stats.pop(goal.value, None)
 
 
 def _insists_on_manage(ctx: CallContext, u: Understanding) -> bool:

@@ -90,6 +90,34 @@ Free and with no phone number: a SIP app on your phone calls Emma over the same 
 
 If the phone can't register: check both are on the same Wi-Fi (not a guest network that isolates devices), that the address printed in step 2 is the PC's current one, and `asterisk -rx "pjsip show contacts"` in Ubuntu. `asterisk -rx "pjsip set logger on"` shows every SIP message (a `401` then `200 OK` to a REGISTER is a good login). A phone's own hotspot works too: the PC joins it, and the phone reaches the PC on the hotspot network (keep mobile data on; it is the PC's internet).
 
+### Every time: `phone_up`
+
+Before using the phone (after a restart, or when the PC joins another Wi-Fi or hotspot), in normal PowerShell in the repo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\phone_up.ps1
+```
+
+It needs no admin rights and no Ubuntu password, and:
+- keeps Ubuntu running. WSL stops a distro about a minute after its last window closes, and Asterisk with it; that broke calls twice on 8 Oct. A hidden `wsl ... sleep infinity`, started through WMI so it outlives any window, keeps it up until the PC restarts or `wsl --shutdown`;
+- re-binds SIP when the address changed (a phone hotspot hands out a new one each time: 10.49.155.x on 6 Oct, 10.69.54.x and 10.221.82.x on 8 Oct) and reinstalls the configs; it compares against what Asterisk is really listening on, so an interrupted run is repaired;
+- checks Asterisk and turns on the SIP log (`/var/log/asterisk/sip.log`);
+- prints the two admin firewall commands when the rules still admit an old subnet;
+- lists the registered phones. A phone that isn't listed: restart the app (MicroSIP and Linphone give up while Asterisk is down).
+
+`-Force` re-renders and reinstalls the configs anyway (after pulling new telephony templates).
+
+### Things that broke on 8 Oct, and what stops them now
+
+| What happened | Fix |
+|---|---|
+| Linphone, after a re-login, offered encrypted audio only (`RTP/SAVP`); Asterisk answered `488 Not Acceptable Here` and calls failed | Asterisk accepts SRTP (SDES) or plain audio (`media_encryption=sdes`, `media_encryption_optimistic=yes`, `res_srtp`); Linphone's "Media encryption: None" also works |
+| Ubuntu stopped when its window closed, taking Asterisk with it | `phone_up` keeps it running |
+| The hotspot address changed | `phone_up` re-binds; the firewall commands it prints need an admin window |
+| MicroSIP showed offline after Asterisk restarted | restart MicroSIP |
+
+Asterisk's `ERROR app_audiosocket.c: Failed to receive frame from AudioSocket message` at the end of every call is normal: Emma sends AudioSocket's hang-up frame when the call ends, and Asterisk 20 logs that frame this way.
+
 ### First real call, 6 Oct 2026
 
 On a OnePlus phone's hotspot (PC 10.49.155.171, phone 10.49.155.12), Linphone as 1001 and MicroSIP as 1002 both registered; dialling 100 reached Emma with the caller ID, and she took the call through the name and the caller-ID question. The owner: "it is working pretty well"; Emma cut them off once (to look at). Two fixes it needed, both now in the repo:
