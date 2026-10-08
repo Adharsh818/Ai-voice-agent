@@ -779,7 +779,7 @@ def _verify_plan(ctx: CallContext) -> Optional[GoalPlan]:
     if fails == 1:
         return laddered(ctx, Goal.VERIFY_FAILED, ("verify.failed", "ask.appt_date.rephrase"))
     if not _names(ctx):
-        return laddered(ctx, Goal.ASK_NAME, ("ask.name.manage", "ask.name.rephrase"))
+        return laddered(ctx, Goal.ASK_NAME, ("ask.name.manage", "ask.name.manage.rephrase"))
     return laddered(ctx, Goal.ASK_APPT_DATE, ("ask.appt_date", "ask.appt_date.rephrase"))
 
 

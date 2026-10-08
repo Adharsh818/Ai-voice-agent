@@ -841,6 +841,22 @@ HEAR_CHECK_RE = re.compile(
 _HELLO_RE = re.compile(r"^\s*(hello|hi|hey|hallo)\s*\?+\s*")
 
 
+# Words that make no question on their own ("I mean, what what is... Okay.", 8 Oct).
+EMPTY_QUESTION_WORDS = frozenset({
+    "what", "what's", "whats", "is", "are", "the", "a", "an", "i", "i'm", "mean", "okay", "ok", "um", "umm",
+    "uh", "like", "so", "it", "it's", "this", "that", "you", "how", "why", "where", "when", "which", "who",
+    "do", "does", "can", "could", "would", "will", "there", "here", "just", "saying", "sounds", "oh", "have",
+    "has", "to", "get", "and", "but", "or", "well", "hmm", "sorry", "hello", "hi", "yeah", "yes", "no",
+    "was", "be", "of", "me", "my", "we",
+})
+
+
+def asks_nothing(text: str) -> bool:
+    """A "question" with no content words: mumbling, not something to answer."""
+    words = re.findall(r"[a-z]+(?:'[a-z]+)?", _norm(text))
+    return bool(words) and all(w in EMPTY_QUESTION_WORDS for w in words)
+
+
 def looks_like_question(text: str) -> bool:
     """Cheap question detector (question words, "?", price / hours / address words)."""
     lower = _HELLO_RE.sub("", _norm(text))

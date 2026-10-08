@@ -225,5 +225,56 @@ class FlowTests(EngineCase):
         self.assertNotEqual(c.s.pending, Goal.CONFIRM_CHANGE, reply)
 
 
+class AfterBookingTests(EngineCase):
+    def booked(self):
+        c = Call()
+        c.run("", "I want to book a cleaning", "My name is Priya", PHONE, "yes", "Indiranagar", "Monday",
+              "morning", "The first one", "Yes", "Okay. Book it.")
+        self.assertEqual(c.s.pending, Goal.ANYTHING_ELSE, c.lines)
+        return c
+
+    def test_change_that_one_never_ends_the_call(self):
+        c = self.booked()
+        reply = c.say("Yeah. Change that one. to this.").text
+        self.assertNotEqual(c.s.pending, Goal.CLOSE, reply)
+        self.assertEqual(c.s.intent, Intent.RESCHEDULE)
+
+    def test_a_plain_no_still_ends_the_call(self):
+        c = self.booked()
+        c.say("No, that's all.")
+        self.assertEqual(c.s.pending, Goal.CLOSE)
+
+    def test_another_one_starts_a_second_booking(self):
+        c = self.booked()
+        reply = c.say("I want another one.").text
+        self.assertEqual(c.s.pending, Goal.ASK_SERVICE, reply)
+        self.assertNotIn("already has an appointment", reply)
+
+
+class ShortAnswerTests(EngineCase):
+    def test_nothing_mid_booking_is_asked_again_not_a_goodbye(self):
+        c = Call()
+        c.run("", "I want an appointment with the doctor.", "Pankaj", PHONE, "yes")
+        self.assertEqual(c.s.pending, Goal.ASK_SERVICE, c.lines)
+        c.say("Nothing.")
+        self.assertEqual(c.s.pending, Goal.ASK_SERVICE)
+
+    def test_mumbling_is_not_a_question_to_answer(self):
+        reply = Call().run("", "I mean, what what is... Okay.").text
+        self.assertNotRegex(reply, r"(?i)don't know that|not sure about that")
+
+    def test_a_spelling_said_with_a_question_mark(self):
+        u = _understand("s r I r a n j a n I?", Goal.SPELL_NAME, Expect.SPELLING)
+        self.assertEqual(u.name_spelled, "Sriranjani")
+        self.assertFalse(u.has(Act.QUESTION))
+
+    def test_no_nice_to_meet_you_when_naming_a_booking(self):
+        c = Call()
+        c.run("", "I'd like to cancel my appointment.", PHONE, "yes")
+        self.assertEqual(c.s.pending, Goal.ASK_NAME, c.lines)
+        reply = c.say("Priya.").text
+        self.assertNotIn("Nice to meet you", reply)
+
+
 if __name__ == "__main__":
     unittest.main()
