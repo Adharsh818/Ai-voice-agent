@@ -681,6 +681,15 @@ async def _phone_call(app, key: str, reader, writer):
             calendar_sync.notify()
 
 
+def patient_channel(phone_e164: str) -> str:
+    """The Asterisk channel that rings this patient: their own number over the trunk, or the lab softphone."""
+    template = config.TELEPHONY_TRUNK_DIAL
+    if not template or not phone_e164:
+        return config.TELEPHONY_PATIENT_PHONE
+    national = phone_e164[3:] if phone_e164.startswith("+91") else phone_e164.lstrip("+")
+    return template.format(e164=phone_e164, national=national, zero="0" + national, number=phone_e164)
+
+
 async def _phone_recovery_call(app, ring, key: str, reader, writer):
     """The patient answered the SIP phone: the same recovery call as /ws/outbound, over the phone line."""
     import audiosocket
@@ -734,7 +743,7 @@ async def _ring_phone(ring, runner):
 
     key = audiosocket.registry.register_outbound(ring)
     try:
-        result = await ami.originate(channel=config.TELEPHONY_PATIENT_PHONE, context="emma-outbound", exten="s",
+        result = await ami.originate(channel=patient_channel(ring.claimed.phone_e164), context="emma-outbound", exten="s",
                                      variables={"EMMA_UUID": key}, timeout_s=max(5.0, runner.ring_timeout_s - 2),
                                      caller_id=config.TELEPHONY_CLINIC_CID)
     except (OSError, asyncio.TimeoutError, ami.AMIError) as exc:
