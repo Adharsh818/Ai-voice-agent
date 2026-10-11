@@ -131,5 +131,30 @@ class SessionTests(unittest.TestCase):
         self.assertTrue(all(turn == tid for turn, _ in second))     # one line, updated in place
 
 
+class UrgentHangUpTests(unittest.TestCase):
+    """An urgent caller who ends the call without a booking still gets a task (F3, 11 Oct)."""
+
+    def test_task_only_without_a_booking(self):
+        from types import SimpleNamespace
+        from dialogue.context import Emergency
+        from test_realtime_support import make_session
+
+        async def run(outcome):
+            s, _ = make_session()
+            made = []
+
+            async def fake_task(kind, priority, phone, note):
+                made.append((kind, priority))
+            s._create_task = fake_task
+            s.s = SimpleNamespace(emergency=Emergency.URGENT, line_e164="+919845022222")
+            s.outcome = outcome
+            await s._urgent_without_booking()
+            return made
+
+        self.assertEqual(asyncio.run(run("abandoned@ask_name")), [("emergency", "urgent")])
+        self.assertEqual(asyncio.run(run("booked")), [])
+        self.assertEqual(asyncio.run(run("booked_hangup")), [])
+
+
 if __name__ == "__main__":
     unittest.main()

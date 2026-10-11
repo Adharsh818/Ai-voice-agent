@@ -70,6 +70,69 @@ class NameTests(ClinicCallCase):
         reply = Call().run("", "Hi, this is Dr Rao, I'm not coming in tomorrow.").text
         self.assertNotIn("Rao I", reply)
 
+    def test_a_patient_introduction_still_works(self):
+        reply = Call().run("", "Hi, this is Mr Arjun Sharma, I'd like to book a cleaning.").text
+        self.assertIn("Arjun Sharma", reply)
+        self.assertNotIn("Mr", reply)
+
+
+class OtherCallerTests(ClinicCallCase):
+    """Not every caller is a patient booking (C7, K4)."""
+
+    def tasks(self):
+        return self.clinic.query("SELECT kind, priority, note FROM tasks")
+
+    def test_running_late_is_passed_on(self):
+        call = Call()
+        reply = call.run("", "Hi, I'm stuck in traffic, I'll be 15 minutes late for my 11 o'clock.").text
+        self.assertRegex(reply, r"front desk|the team")
+        self.assertTrue(any("running late" in t["note"] for t in self.tasks()))
+
+    def test_wrong_number_is_closed_kindly(self):
+        call = Call()
+        reply = call.run("", "Hello, is this Domino's?").text
+        self.assertIn("wrong number", reply)
+        self.assertTrue(call.s.closed_conversation)
+
+    def test_a_sales_call_goes_to_the_manager(self):
+        call = Call()
+        reply = call.run("", "Hi, I'm calling from a digital marketing agency about SEO services.").text
+        self.assertIn("clinic manager", reply)
+        self.assertTrue(any("Business" in t["note"] for t in self.tasks()))
+
+    def test_a_doctor_calling_in(self):
+        reply = Call().run("", "Hi, this is Dr Rao, I'm not coming in tomorrow.").text
+        self.assertIn("Dr Rao", reply)
+        self.assertIn("clinic manager", reply)
+        self.assertTrue(any(t["kind"] == "escalation" and t["priority"] == "high" for t in self.tasks()))
+
+    def test_records_request(self):
+        reply = Call().run("", "I need a copy of my X-ray report from last week.").text
+        self.assertIn("front desk", reply)
+
+
+class DoctorAwayTests(ClinicCallCase):
+    def test_a_doctor_on_leave_is_said_and_a_colleague_offered(self):
+        import scheduling
+        from datetime import datetime as dt
+        import clock
+        rao = self.clinic.query("SELECT id FROM doctors WHERE spoken_name = 'Dr Rao'")[0]["id"]
+        monday = dt(2026, 10, 5)
+        def block(conn):
+            import db
+            conn.execute("INSERT INTO blocked_times (doctor_id, start_utc, end_utc, reason_category, created_by, created_at) "
+                         "VALUES (?, ?, ?, 'personal', 'test', '2026-10-01T00:00:00Z')",
+                         (rao, db.utc_str(clock.localize(monday.replace(hour=0))),
+                          db.utc_str(clock.localize(monday.replace(hour=23)))))
+        self.clinic.db.run_sync(block)
+        self.assertTrue(self.clinic.db.run_sync(scheduling.doctor_away, rao, monday.date()))
+        call = Call()
+        call.run("", "I'd like a cleaning with Dr Rao at Nagarbhavi.", "Priya Sharma", "9845012345", "yes")
+        call.say("Monday")
+        reply = call.say("Morning, please.").text
+        self.assertRegex(reply, r"away|isn.t in")
+        self.assertNotIn("fully booked", reply)
+
 
 if __name__ == "__main__":
     unittest.main()

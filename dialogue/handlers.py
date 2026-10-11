@@ -392,7 +392,12 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
         if routed and _BLEEDING.search(text.lower()):
             _add_fact(out, rt, "visit.bleeding_after")          # first aid before the slot (gauze, pressure)
 
-    # 3. terminal and meta acts.
+    # 3. callers who aren't booking for themselves (the audit, 11 Oct; docs/REAL_CLINIC_GAPS.md C7, K4).
+    other = await _other_caller(ctx, u, text, rt)
+    if other is not None:
+        return _stop(out, other)
+
+    # 4. terminal and meta acts.
     if u.has(Act.ABUSE):
         if ctx.abuse_warnings == 0:
             ctx.abuse_warnings = 1
@@ -464,6 +469,69 @@ def next_open_day(now) -> Optional[date]:
     while day.weekday() == 6:
         day += timedelta(days=1)
     return day
+
+
+_LATE = re.compile(
+    r"\b(?:running|be|am|i'?m|we'?re|bit|little)\s+(?:a\s+)?(?:bit\s+|little\s+|few\s+|about\s+|around\s+)?"
+    r"(?:\d+|five|ten|fifteen|twenty|thirty|few)?\s*(?:minutes?|mins?)?\s*late\b|\bstuck in traffic\b|"
+    r"\b(?:on my|on the|on our) way\b.{0,30}\blate\b")
+_WRONG_NUMBER = re.compile(
+    r"\bwrong number\b|\bis (?:this|that) (?:domino'?s|pizza|swiggy|zomato|the bank|a bank|the hospital|"
+    r"the hotel|the restaurant|the pharmacy|airtel|jio)\b|\bsorry,? (?:i )?(?:dialled|dialed|called) (?:the )?wrong\b")
+_VENDOR = re.compile(
+    r"\b(?:calling|i'?m|we are|we'?re)\s+(?:calling\s+)?from\s+(?:a\s+|an\s+|the\s+)?[a-z]+\s+"
+    r"(?:company|pvt|private limited|ltd|solutions|technologies|agency|marketing|digital|media|supplies|"
+    r"suppliers|software|labs?|finance|bank)\b|\b(?:sales|marketing) (?:call|team|executive)\b|"
+    r"\b(?:business proposal|partnership|collaboration|advertis\w*|seo services|dental supplies)\b")
+_STAFF = re.compile(r"\b(?:calling from (?:the |our |your )?(?:nagarbhavi|indiranagar|jayanagar|whitefield)"
+                    r"(?: branch| clinic)?|i work (?:at|in|for) (?:the|your) clinic|from the front desk)\b")
+_RECORDS = re.compile(r"\b(?:need|want|get|send|share|copy|copies|collect)\b.{0,30}"
+                      r"\b(?:x-?rays?|reports?|bills?|invoices?|receipts?|prescriptions?|records?|opg)\b")
+
+
+async def _other_caller(ctx: CallContext, u: Understanding, text: str, rt: Runtime) -> Optional[GoalPlan]:
+    """
+    A patient running late, a wrong number, a sales call, a doctor or staff
+    member, a records request: what a receptionist does with each, and a
+    task so the front desk knows. Only at the start of a call or when nothing
+    is being booked, so "I'll be late" mid-booking isn't hijacked.
+    """
+    t = text.lower()
+    if not t.strip() or ctx.closed_conversation:
+        return None
+    idle = ctx.intent in (Intent.NONE, Intent.INFO) and not ctx.book.service and not ctx.book.date_c
+    if _WRONG_NUMBER.search(t) and idle:
+        ctx.outcome = ctx.outcome or "wrong_number"
+        return _statement(Goal.CLOSE, "wrong_number", closes_call=True)
+    if _VENDOR.search(t) and idle:
+        ctx.outcome = ctx.outcome or "vendor"
+        await create_task(ctx, rt, kind="callback", priority="normal",
+                          note=f"Business / sales call for the clinic manager: {text.strip()[:200]}")
+        return _statement(Goal.CLOSE, "vendor.ack", closes_call=True)
+    doctor = _staff_doctor(t, rt)
+    if (doctor or _STAFF.search(t)) and idle:
+        await create_task(ctx, rt, kind="escalation", priority="high",
+                          note=f"Staff call ({doctor or 'staff'}): {text.strip()[:200]}")
+        return _statement(Goal.ANYTHING_ELSE, "staff.ack", params={"who": doctor or "there"})
+    if _LATE.search(t) and ctx.intent not in (Intent.BOOK,):
+        await create_task(ctx, rt, kind="callback", priority="high",
+                          note=f"Patient running late: {text.strip()[:200]}")
+        return _statement(Goal.ANYTHING_ELSE, "late.ack")
+    if _RECORDS.search(t) and idle:
+        task = await create_task(ctx, rt, kind="callback", priority="normal",
+                                 note=f"Records request: {text.strip()[:200]}")
+        if task is not None:
+            return _statement(Goal.ANYTHING_ELSE, "records.ack")
+    return None
+
+
+def _staff_doctor(t: str, rt: Runtime) -> Optional[str]:
+    """ "This is Dr Rao" / "Dr Rao here": one of the clinic's own doctors calling in."""
+    for d in getattr(getattr(rt, "catalog", None), "doctors", ()) or ():
+        surname = d.spoken.split()[-1].lower()
+        if re.search(rf"\b(?:this is|i'?m|it'?s) (?:dr\.?|doctor) {surname}\b|\b(?:dr\.?|doctor) {surname} here\b", t):
+            return d.spoken
+    return None
 
 
 def _route_urgent(ctx: CallContext, u: Understanding, rt: Runtime):

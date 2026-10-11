@@ -1173,6 +1173,18 @@ async def _search(ctx: CallContext, rt: Runtime, notices: list):
         notes["searched"] = True
         rt.emit("before_action", phrase=checking_phrase(ctx))
     time_c = b.time_c if b.time_c is not None and b.time_c.kind in ("exact", "window") else None
+    if b.doctor_id is not None and b.date_c is not None and b.date_c.exact:
+        # "I want Dr Rao on Monday" with Dr Rao on leave: say so and look at her colleagues that day,
+        # not "Monday's fully booked" (the audit, 11 Oct).
+        try:
+            away = await rt.run(scheduling.doctor_away, b.doctor_id, b.date_c.start)
+        except Exception:
+            away = False
+        doctor = next((d for d in catalog.doctors if d.id == b.doctor_id), None)
+        if away and doctor is not None:
+            notices.append(Notice("doctor.away", {"doctor": doctor.spoken, "day": prompts.speak_day(b.date_c.start)},
+                                  covered_by=("away",)))
+            b.doctor_id = None
     try:
         await rt.run(scheduling.release_holds, rt.call_id)
         found = await rt.run(scheduling.suggest, service=b.service, date_c=b.date_c, time_c=time_c,
