@@ -1,21 +1,22 @@
-# Resume here (written 8 Oct 2026, late night)
+# Resume here (updated 11 Oct 2026)
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
 ## Where everything is
 
-- **Code:** branch `day2-r2-engine` = `main` on GitHub up to 2bf949a; later commits are local (see "Not pushed" below). The working copy Emma runs from is the main checkout **`A:\Voice-Agent`** (it has `.env`, `data/`, `logs/`, `captures/`). Sessions may work in a git worktree under `A:\Voice-Agent\.claude\worktrees\...`; fast-forward the main checkout with `git merge --ff-only <worktree branch>` before running Emma.
+- **Code:** branch `day2-r2-engine` = `main` on GitHub up to f5cd820; later commits may be local (check `git status -sb`). The working copy Emma runs from is the main checkout **`A:\Voice-Agent`** (it has `.env`, `data/`, `logs/`, `captures/`). Sessions may work in a git worktree under `A:\Voice-Agent\.claude\worktrees\...`; fast-forward the main checkout with `git merge --ff-only <worktree branch>` before running Emma.
 - **PRs #1-#5:** all merged (8 Oct): `main` was fast-forwarded to `day2-r2-engine`; #5 merged into its base.
-- **Tests:** `.\.venv\Scripts\python.exe -m unittest discover -s tests` (992, all pass; `test_dashboard ... test_lists_filter_and_search` is flaky under load: real clock).
+- **Tests:** `.\.venv\Scripts\python.exe -m unittest discover -s tests` (994, all pass; `test_dashboard ... test_lists_filter_and_search` is flaky under load: real clock).
 - **Scenarios / sims:** `.\.venv\Scripts\python.exe -m harness run scenarios --engine r2 --offline`; sims `... run sim --engine r2 --offline|--nlu-down --n 200 --seed 7|11 --concurrency 2`.
 
-## Not pushed yet (local only, push first)
+## Pushing
 
-- `a4aa6d0` Phase 6: common Indian first names as Deepgram keyterms.
-- `7c3e71b` Phase 6: the duplicate question only for the same service.
-- This file.
+Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Everything up to f5cd820 was pushed on 9 Oct.
 
-Push: in `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct).
+## Done on 11 Oct
+
+- **Step 2 (sims):** 992 tests, 53/53 scenarios, the four 200-call sims all on target: Z1-Z7 all 0; M3 0-0.5%; M7 97.9-100%; M10 0-1%; **T5 = 9 in all four** (was 10).
+- **Step 4 (deploy check in WSL): done.** Throwaway install from a `git archive` copy (no `.env`, no `secrets/`), all checks passed, including a distro restart; then disabled. Two bugs fixed (backup left `-wal/-shm` files; `.env.example` CID line unparseable). Results in DEPLOY.md, "Tested in WSL".
 
 ## What was done on 8 Oct (after the demo, which included a real phone call)
 
@@ -29,11 +30,11 @@ Push: in `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin
 
 ## Work left, in order
 
-1. **Push** the local commits (above).
-2. **Re-run the four 200-call sims and the 53 scenarios** after the Phase 6 duplicate change (only seed 7 faked-model was re-run). Targets: Z1-Z7 = 0, M3 < 1%, M7 >= 95%, M10 < 2%, T5 <= 9.
+1. ~~Push~~ (done 9 Oct).
+2. ~~Re-run the four sims and the scenarios~~ (done 11 Oct, all on target).
 3. **Name test (Phase 6, paid, owner said yes):** replay the two recordings through Deepgram with the new name keyterms and compare with 6 Oct (17% / 18% word error; "Adharsh" heard as "Adesh"):
-   `.\.venv\Scripts\python.exe tools\replay.py --show captures\20261006-092434-fee33507.wav captures\20261006-092647-e2a713c4.wav` (in `A:\Voice-Agent`). About 2 minutes of audio. The owner interrupted this run on 8 Oct, so **confirm with the owner before running it**. If the names don't help (or hurt), set `DEEPGRAM_NAME_KEYTERMS=` empty in `.env` / the default.
-4. **Phase 4, deploy check in WSL (owner chose: safe test, then switch off):** run `deploy/install.sh` from a copy of the repo **without `.env` or `secrets/`** (e.g. `git archive` into Ubuntu) so it uses `.env.example`: no real API keys, no Google Calendar (a second Emma must never sync the real calendars). Check `systemctl status emma`, the backup timer and a backup `--check`, Caddy HTTPS on localhost, survival of a distro restart. Then `systemctl disable --now emma caddy emma-backup.timer` so it never takes port 8000 from Windows Emma. Downloads ~300-500 MB: check the owner isn't on a metered hotspot. Results into DEPLOY.md.
+   `.\.venv\Scripts\python.exe tools\replay.py --show captures\20261006-092434-fee33507.wav captures\20261006-092647-e2a713c4.wav` (in `A:\Voice-Agent`). About 2 minutes of audio. The owner interrupted this run on 8 Oct; on 11 Oct they asked whether it costs money (about 1 US cent, or free sign-up credit) and hadn't said go yet, so **confirm with the owner before running it**. If the names don't help (or hurt), set `DEEPGRAM_NAME_KEYTERMS=` empty in `.env` / the default.
+4. ~~Phase 4, deploy check in WSL~~ (done 11 Oct; results in DEPLOY.md "Tested in WSL"; the test copy stays in `/opt/emma`, disabled).
 5. **Phase 5, rest:** regenerate EVALUATION.md (`tools\evaluate.py --fresh --crash`, plus `--stt` if the name test ran), add the 8 Oct phone calls; DEMO_SCRIPT note that the demo happened.
 6. **Phase 3, with the owner holding the phone (next session, ~20 min):** run `tools\phone_up.ps1` first (and the firewall commands it prints, in an admin window). Then: interrupt Emma mid-sentence; key a number with `#` (do keypad frames reach Emma?); "I want to talk to a person" twice → MicroSIP 1002 rings; block Dr Rao on the dashboard → recovery call to the phone, answer once, reject once (which reason code does Reject send? adjust `ami.REASON_DECLINED`); does Asterisk send 16 kHz audio? Also watch for calls that end at the greeting with nothing heard (5 on 8 Oct). Results into TELEPHONY.md.
 7. **Phase 7:** full suite, scenarios, 4 sims, crash drill, preflight READY, one browser and one phone call; push; final HANDOFF "state at the end".
