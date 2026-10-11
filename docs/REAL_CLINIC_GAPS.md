@@ -1,0 +1,78 @@
+# What Emma needs for real clinics (audit, 11 Oct 2026)
+
+Owner's request (11 Oct): check latency and which tier answers, check the whole dashboard, fix the jumbled live transcript, find every improvement and edge case a real clinic would hit, give Emma real clinic knowledge (callers ask about problems, prices, doctors, family suitability, not only appointments), and list what's missing to sell Emma as a service to clinics. Then do the work.
+
+Sources: an audit agent read the code and drove the R2 engine with the model off (the path that answered 63 of 84 phone model turns on 8 Oct); a research agent read Bangalore clinic sites (Clove, Partha, Sabka, Samhita, Dentick), Practo, insurer guides and the DCI ethics code; latency from `logs/turns.jsonl` (766 replies); the dashboard was reviewed on a copy of the live database. Status is ticked as items are done.
+
+## Done already
+
+- [x] **Live tab transcript jumbled on phone calls** (owner): Emma's line appeared seconds before it was heard and each sentence added another copy of the reply. Now paced to playback, one line per turn (`caption_pacer.py`, 1671820).
+
+## Latency and tiers (real calls)
+
+Tier 0 = Emma's own rules, 1 = the model (Gemini), 2 = fallback when the model is too slow (over `NLU_HEAD_DEADLINE_S` 2.2 s) or down.
+
+| | Browser (119 calls) | Phone (22 calls, 8 Oct) |
+|---|---|---|
+| Replies by tier 0 / 1 / 2 | 284 / 265 / 14 | 119 / 21 / **63** |
+| Simple reply, p50 / p95 | 1.51 / 3.06 s | 1.64 / 3.15 s |
+| of which end-of-speech detection, p50 | 1.23 s | 1.24 s |
+| Model reply, p50 / p95 | 2.46 / 5.15 s | 3.13 / 6.73 s |
+| Model time, p50 / p95 | 1.39 / 2.49 s | **2.21 / 2.23 s** (at the limit) |
+| End of turn found by Emma's watchdog, not Deepgram | 23% | **51%** |
+| Simple replies spoken by live TTS, not the prompt cache | 36% | **58%** |
+
+1. **L1 Gemini on the phone day ran into the limit** on almost every model turn (p50 2.21 s against 2.2 s), so 3 in 4 model replies were the plainer fallback. Measure Gemini today (`tools/preflight.py`); the fallback path must stay good (it's what the audit tested).
+2. **L2 End-of-speech detection is most of the wait** on simple turns (1.2 s of 1.6 s). On the phone Deepgram's own end-of-speech came less often (8 kHz audio), so the slower watchdog decided half the turns.
+3. **L3 Rule replies often go to live TTS** because their wording varies (prompts.py variants); the cache only holds fixed lines. Pre-render all variants of the commonest tier-0 lines.
+4. **L4 Deliberate pauses**: tier-0 replies add a 0.2-0.36 s "typing beat" (realism) on top.
+
+## Dashboard
+
+- **D1** Calls tab shows internal outcome codes (`abandoned@ask_name`); show plain words ("Hung up while giving name").
+- **D2** No browser/phone column on calls (the turn log has it from 11 Oct).
+- **D3** Nothing on the dashboard shows latency or tiers; add a "How Emma is doing" panel (last 7 days: reply time, share answered by rules / model / fallback, by channel).
+- **D4** Transcript turns show "tier -1" etc.; label them (greeting, rules, model, fallback).
+- **D5** Audit log shows appointment hashes (`appointment 753b50db…`); show patient, time, branch.
+- **D6** `needs_reschedule` count has no date filter (`dashboard.py:159`): past ones count forever.
+- **D7** Appointments never become `completed` / `no_show`; add buttons (and a nightly "past and still booked" list).
+- **D8** A closed day (Sunday) shows an empty list with no "closed" note.
+
+## P0: would break or embarrass in a real clinic
+
+- **C1 One call at a time** (`server.py` `CallGate`): a second caller gets "busy"; a recovery campaign blocks inbound calls.
+- **C2 Recovery calls ring one fixed phone** (`TELEPHONY_PATIENT_PHONE`), not the patient's number (needs a trunk, P1-13).
+- **C3 Closed hours**: urgent callers hear "let's get you seen today" at 22:40; no "we're closed now"; no after-hours advice; "are you open now?" recites weekly hours.
+- **C4 Bleeding ends the call with "call 108"**: post-extraction bleeding is the commonest post-op call; it should be first aid + urgent slot, with 108 only for red flags.
+- **C5 Post-treatment complaints become new bookings** ("I had an extraction yesterday…" → "that date's passed"). Needs a follow-up intent.
+- **C6 Names captured from sentences**: "I'm stuck in traffic" → "Nice to meet you, Stuck"; "this is Dr Rao, I'm not coming" → "Dr Rao I'M".
+- **C7 "Running late"** starts a new booking.
+- **C8 Bookings made outside Emma** (walk-ins, paper diary) are invisible; the dashboard's "New appointment" must be the diary.
+- **C9 Spoken hours vs rota**: "our timings are 7 to 9" while 8:30 pm can't be booked; hours live in three places (config, clinic_facts.json, rota).
+
+## P1: needed to sell this
+
+- **K1 Clinic knowledge** (research): crowns, dentures, gum treatment, X-ray and kids' preventive prices; after-care; medical conditions (diabetes, BP, blood thinners, pregnancy: "tell the doctor, don't stop medicines"); child's first visit; elderly patients; second opinions; records copies; written estimates; warranties; EMI over ~10,000; insurance detail (OPD/reimbursement only); wheelchair access per branch; red-flag emergencies. Price corrections: extraction, implant lower bound, aligners. All need the owner's sign-off (decision R8: Emma speaks only verified facts).
+- **K2 Doctor profiles**: degrees (BDS / MDS specialty), years, languages, memberships; "who's best for my kid" → the pediatric dentists. Never "best" (DCI ethics 8.2.7); "specialist" only for MDS holders.
+- **K3 "Can you do X?"** misses treat/remove/fix verbs (`facts._DO_YOU_DO`).
+- **K4 Other callers**: wrong number, sales/vendor, staff or doctor calling, records/bill/prescription requests: polite handling + a task.
+- **F1 Family bookings**: second person in the same call loops; the per-phone cap of 3 blocks families and multi-sitting treatment.
+- **F2 Kannada/Hindi callers** get no next step; always offer a callback and create a language task.
+- **F3 Urgent callers who don't book leave no task.**
+- **F4 Doctor on leave** is described as "fully booked"; say she's away and offer a colleague.
+- **T1 Real phone number** (Exotel / Twilio India / Plivo SIP trunk); today it's a laptop's Asterisk with softphones.
+- **T2 WhatsApp/SMS confirmations and reminders** (DLT-registered templates for SMS).
+- **S1 DPDP Act 2023**: notice, retention beyond transcripts (audit JSON, actions, patients), erase-by-phone, breach runbook, `LOG_CALLER_TEXT=false` default.
+- **S2 Per-staff logins and roles**; audit says "staff" for everyone.
+- **S3 Config without code**: clinic hours, closures/holidays (Diwali etc. unknown today), doctors, rotas from the dashboard.
+
+## P2: SaaS readiness and polish
+
+- Multi-tenancy (one process + DB + config per clinic first; `clinic_id` later); "Pearl Dental" is hard-coded in greetings, prompts, keyterms.
+- Cost metering per call; alerting on degraded health, failed sync, stuck call slot; `/health` and `/metrics` are public behind Caddy.
+- `/ws/voice` public in production spends API credit: gate it.
+- `deploy/install.sh` should generate `DASHBOARD_SESSION_SECRET`.
+- Booking edge cases: two branches the same day without travel time; "Adesh"/"Adharsh" become two patients; guardians for minors; non-Indian numbers loop; landlines read in mobile grouping; "tomorrow" said at 23:59; same-day move within 2 h always refused.
+- The honesty line "Yeah, you caught me…" implies hiding; NORTH_STAR's example is neutral.
+- Prune `actions`, old `slot_claims`, expired holds; retire the legacy 12-step engine.
+- Research flags: Dr Ali (extractions + braces + Invisalign) is unrealistic, make him an oral surgeon or move braces; OPG at every branch is unlikely; say "clear aligners, including Invisalign".
