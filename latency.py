@@ -65,6 +65,7 @@ class TurnTimer:
     call_id: str
     turn: int
     user_text: str = ""
+    channel: Optional[str] = None           # browser | phone (the transport's `channel`)
     tier: Optional[int] = None
     step_before: Optional[int] = None
     step_after: Optional[int] = None
@@ -98,6 +99,7 @@ class TurnTimer:
         return {
             "ts": round(time.time(), 3),
             "call_id": self.call_id,
+            "channel": self.channel,
             "turn": self.turn,
             "tier": self.tier,
             "step_before": self.step_before,

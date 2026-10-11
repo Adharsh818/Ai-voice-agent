@@ -286,6 +286,8 @@ app.include_router(dashboard.router)
 class BrowserTransport:
     """CallSession's Transport over the browser WebSocket; mirrors call events to the dashboard."""
 
+    channel = "browser"                 # recorded per turn in logs/turns.jsonl
+
     def __init__(self, ws: WebSocket, call_id: Optional[str] = None):
         self.ws = ws
         self.call_id = call_id

@@ -139,6 +139,8 @@ registry = Registry()
 class PhoneTransport:
     """CallSession's Transport over one AudioSocket connection (see the module notes)."""
 
+    channel = "phone"                   # recorded per turn in logs/turns.jsonl
+
     def __init__(self, writer: asyncio.StreamWriter, call_id: str, key: str,
                  sounds: Optional[phone_audio.LineSounds] = None):
         self.writer = writer
