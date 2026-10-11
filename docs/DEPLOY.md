@@ -51,3 +51,28 @@ Then:
 - Set `LOG_CALLER_TEXT=false` so callers' words never reach the log.
 - Set a strong dashboard password (`tools/hash_password.py`) and `DASHBOARD_SESSION_SECRET`.
 - Read [THREAT_MODEL.md](THREAT_MODEL.md).
+
+## Tested in WSL (11 Oct 2026)
+
+`deploy/install.sh` was run in WSL Ubuntu 24.04 (the same distro as Asterisk) from a `git archive` copy of the repo **without `.env` or `secrets/`**, so it used `.env.example`: no API keys and no Google key, so a second Emma could never sync the real calendars.
+
+| Check | Result |
+|---|---|
+| Install (packages, `emma` user, venv, services, Caddy; ~5 min) | OK; `/health` answers `degraded` (no keys, as expected) |
+| `systemctl status emma`, `caddy`, `emma-backup.timer` | all active and enabled; next backup 02:30 |
+| Caddy on `https://localhost/` | 200 over HTTP/2 with HSTS; `/dashboard` redirects to login; `/telephony/*` refused (404) |
+| Ports | Emma on `127.0.0.1:8000` only; Caddy on 80/443 |
+| Backup now (`systemctl start emma-backup`) and `backup.py --check` | written and verified healthy |
+| Calendar sync without a key | switches itself off: "no service-account key" |
+| Running the installer again (update) | OK; `.env`, database and backups kept |
+| `wsl --terminate Ubuntu-24.04`, then start again | Emma, Caddy and the timer came back by themselves; HTTPS 200 |
+
+Two bugs found and fixed (`f314a0b`): the backup inherited the database's WAL mode and left `.partial-wal`/`.partial-shm` files beside each copy (copies are now one self-contained file), and python-dotenv couldn't parse `TELEPHONY_CLINIC_CID` in `.env.example`, logging a warning on every start (now single-quoted, which systemd and python-dotenv both read as `"Pearl Dental" <08041234567>`). Tests in `tests/test_operations.py`.
+
+Afterwards the test copy was switched off so it never takes port 8000 from Emma on Windows (WSL forwards its ports to Windows `localhost`):
+
+```bash
+sudo systemctl disable --now emma caddy emma-backup.timer
+```
+
+It stays installed in `/opt/emma` (switched off). Asterisk in the same distro was not touched.
