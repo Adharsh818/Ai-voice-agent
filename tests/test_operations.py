@@ -48,6 +48,17 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(self.count(copy), self.count(live))
         self.assertGreater(self.count(copy), 0)
 
+    def test_backup_is_one_file_with_nothing_left_beside_it(self):
+        # Found in the WSL deploy check: the live database is in WAL mode, the copy inherited it,
+        # and the read-only check left emma-....db.partial-wal/-shm behind in the backups folder.
+        copy = backup.backup(config.DB_PATH, self.dest)
+        self.assertEqual(sorted(p.name for p in self.dest.iterdir()), [copy.name])
+        conn = sqlite3.connect(copy)
+        try:
+            self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0], "delete")
+        finally:
+            conn.close()
+
     def test_only_the_newest_copies_are_kept(self):
         start = datetime(2026, 10, 1, 2, 0)
         for day in range(5):
@@ -136,6 +147,17 @@ class RotationTests(unittest.TestCase):
                 self.assertLessEqual(os.path.getsize(os.path.join(d, name)), 600 + 400)
                 for line in Path(d, name).read_text(encoding="utf-8").splitlines():
                     json.loads(line)                    # whole records only, never split
+
+
+class EnvExampleTests(unittest.TestCase):
+    def test_env_example_parses_cleanly(self):
+        # deploy/install.sh copies .env.example when there's no .env; a line python-dotenv can't
+        # parse ("Pearl Dental" <...> unquoted) was logged on every start in the WSL deploy check.
+        from dotenv import dotenv_values
+        path = Path(__file__).resolve().parent.parent / ".env.example"
+        with self.assertNoLogs("dotenv.main", level="WARNING"):
+            values = dotenv_values(path)
+        self.assertEqual(values["TELEPHONY_CLINIC_CID"], '"Pearl Dental" <08041234567>')
 
 
 if __name__ == "__main__":

@@ -47,6 +47,7 @@ def backup(src_path: str, dest_dir: Path, keep: int = KEEP, now: datetime | None
     dst = sqlite3.connect(partial)
     try:
         src.backup(dst)                       # consistent snapshot even while Emma writes
+        dst.execute("PRAGMA journal_mode = DELETE")   # one self-contained file, no -wal/-shm beside it
     finally:
         dst.close()
         src.close()
