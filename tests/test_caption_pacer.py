@@ -105,6 +105,7 @@ class SessionTests(unittest.TestCase):
 
         async def run():
             s, t = make_session(transport=PlayingTransport(auto=False), tts=tts)
+            s._playback_reports = True                     # a client that reports playback (talk page, phone)
             await s._start_turn("Can I come Monday evening?", time.perf_counter())
             await wait_until(lambda: s._turn_task.done(), timeout=2)
             tid = s.turn_id
