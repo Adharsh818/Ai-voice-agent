@@ -402,7 +402,7 @@ class DatabaseAndSeedTests(unittest.TestCase):
     def test_migrations_are_idempotent_and_pragmas_set(self):
         with tempfile.TemporaryDirectory() as tmp:
             conn = db.connect(os.path.join(tmp, "x.db"))
-            self.assertEqual(db.migrate(conn), ["001_init", "002_recovery_full", "003_call_channel", "004_patient_messages"])
+            self.assertEqual(db.migrate(conn), ["001_init", "002_recovery_full", "003_call_channel", "004_patient_messages", "005_staff_users"])
             self.assertEqual(db.migrate(conn), [])
             self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0], "wal")
             self.assertEqual(conn.execute("PRAGMA foreign_keys").fetchone()[0], 1)

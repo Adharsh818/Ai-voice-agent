@@ -970,6 +970,40 @@ $("privacy-erase").addEventListener("click", async () => {
   } catch (err) { $("privacy-result").textContent = err.message; }
 });
 
+async function loadStaff() {
+  let me;
+  try { me = await api("/dashboard/api/auth"); } catch { return; }
+  $("staff-card").hidden = me.role !== "admin";
+  if (me.role !== "admin") return;
+  $("staff-me").textContent = `You're logged in as ${me.user}.`;
+  let data;
+  try { data = await api("/dashboard/api/staff"); } catch (err) { $("staff-result").textContent = err.message; return; }
+  $("staff-rows").replaceChildren(...(data.staff.length ? data.staff.map((s) => el("tr", { class: s.active ? "" : "muted-row" },
+    el("td", { class: "mono", text: s.username }),
+    el("td", { text: s.display_name }),
+    el("td", { text: s.role }),
+    el("td", { class: "nowrap", text: s.last_login_at ? fmtDateTime(s.last_login_at) : "never" }),
+    el("td", { class: "actions" }, el("button", { class: "btn small", type: "button",
+      text: s.active ? "Switch off" : "Switch on",
+      onclick: async () => {
+        try {
+          await api(`/dashboard/api/staff/${encodeURIComponent(s.username)}/active`, { method: "POST", body: { active: !s.active } });
+          loadStaff();
+        } catch (err) { toast(err.message, "error"); }
+      } })))) : [emptyRow(5, "Only the clinic password so far. Add a login for each person.")]));
+}
+$("staff-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await api("/dashboard/api/staff", { method: "POST", body: {
+      username: $("staff-username").value, display_name: $("staff-name").value,
+      password: $("staff-password").value, role: $("staff-role").value } });
+    $("staff-result").textContent = `Added ${$("staff-username").value}. They log in with that user name and password.`;
+    $("staff-form").reset();
+    loadStaff();
+  } catch (err) { $("staff-result").textContent = err.message; }
+});
+
 async function loadClosures() {
   let data;
   try { data = await api("/dashboard/api/closures"); } catch (err) { $("closure-result").textContent = err.message; return; }
@@ -1032,6 +1066,7 @@ async function loadPerformance() {
 async function loadSystem() {
   loadPerformance();
   loadClosures();
+  loadStaff();
   let data;
   try {
     data = await api("/dashboard/api/system");

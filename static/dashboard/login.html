@@ -24,7 +24,9 @@
       </div>
 
       <form id="login-form" autocomplete="on" hidden>
-        <input type="text" name="username" value="staff" autocomplete="username" hidden>
+        <label class="field">User name <span class="muted small">(leave empty for the clinic password)</span>
+          <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none">
+        </label>
         <label class="field">Password
           <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
         </label>

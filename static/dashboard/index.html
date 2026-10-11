@@ -300,6 +300,21 @@
           </div>
         </div>
       </div>
+      <div class="card" id="staff-card" hidden>
+        <div class="card-head"><h3>Staff logins</h3><span class="muted small" id="staff-me"></span></div>
+        <form class="inline-form" id="staff-form">
+          <input id="staff-username" type="text" placeholder="user name (e.g. anita)" autocomplete="off" required>
+          <input id="staff-name" type="text" placeholder="Name shown" autocomplete="off">
+          <input id="staff-password" type="password" placeholder="Password (10+ characters)" autocomplete="new-password" required>
+          <select id="staff-role"><option value="staff">Staff</option><option value="admin">Admin</option></select>
+          <button class="btn small" type="submit">Add</button>
+        </form>
+        <p class="muted small" id="staff-result"></p>
+        <div class="table-wrap">
+          <table><thead><tr><th>User</th><th>Name</th><th>Role</th><th>Last login</th><th></th></tr></thead>
+            <tbody id="staff-rows"></tbody></table>
+        </div>
+      </div>
       <div class="card">
         <div class="card-head"><h3>Holidays and closures</h3><span class="muted small">Emma tells callers the clinic is closed</span></div>
         <form class="inline-form" id="closure-form">

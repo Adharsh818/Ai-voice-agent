@@ -172,7 +172,7 @@ class MigrationTests(unittest.TestCase):
         conn.executescript("BEGIN;" + script + "INSERT INTO schema_migrations VALUES ('001_init', 'x'); COMMIT;")
         conn.execute("INSERT INTO contact_prefs (phone_e164, do_not_call, updated_at) VALUES ('+919876543210', 1, 'x')")
         conn.commit()
-        self.assertEqual(db.migrate(conn), ["002_recovery_full", "003_call_channel", "004_patient_messages"])
+        self.assertEqual(db.migrate(conn), ["002_recovery_full", "003_call_channel", "004_patient_messages", "005_staff_users"])
         row = conn.execute("SELECT do_not_call, call_after FROM contact_prefs").fetchone()
         self.assertEqual((row["do_not_call"], row["call_after"]), (1, None))      # kept, new column empty
         self.assertEqual(db.migrate(conn), [])                                      # once only

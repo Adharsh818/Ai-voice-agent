@@ -182,6 +182,8 @@ async def lifespan(app: FastAPI):
     app.state.backup_tts = tts_piper.from_config()
     # The appointments database: migrated on start, DEMO-seeded when empty.
     app.state.db = await asyncio.to_thread(db.get_db)
+    import staff
+    await app.state.db.run(staff.refresh)          # switched-off staff accounts can't use old sessions
     app.state.cache_ready = False
     if not auth.configured():
         logger.warning("Dashboard locked: %s", auth.status()["reason"])
