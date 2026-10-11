@@ -157,8 +157,8 @@ def _overview(conn) -> dict:
         "timezone": config.CLINIC_TIMEZONE,
         "appointments_today": sum(by_branch.values()),
         "appointments_today_by_branch": by_branch,
-        "needs_reschedule": conn.execute("SELECT COUNT(*) FROM appointments WHERE status = 'needs_reschedule'")
-                                .fetchone()[0],
+        "needs_reschedule": conn.execute("SELECT COUNT(*) FROM appointments WHERE status = 'needs_reschedule' "
+                                         "AND start_utc >= ?", (db.utc_str(clock.now()),)).fetchone()[0],
         "tasks": tasks.open_counts(conn),
         "sync": calendar_sync.outbox_counts(conn),
         "calls_today": conn.execute("SELECT COUNT(*) FROM calls WHERE started_at >= ?", (lo,)).fetchone()[0],
@@ -381,6 +381,17 @@ async def cancel_appointment(appointment_id: str, request: Request, user: str = 
                         reason=(str(data.get("reason") or "").strip() or "Cancelled by staff"),
                         expected_version=_int(data, "version", required=False), actor=user)
     return _result(result, "cancelled")
+
+
+@router.post("/dashboard/api/appointments/{appointment_id}/attendance")
+async def mark_attendance(appointment_id: str, request: Request, user: str = staff):
+    """After the visit: {"status": "completed" | "no_show"}."""
+    data = await _body(request)
+    status = str(data.get("status") or "")
+    if status not in ("completed", "no_show"):
+        raise HTTPException(status_code=400, detail="status must be completed or no_show")
+    result = await _run(scheduling.mark_attendance, appointment_id, status, actor=user)
+    return _result(result, status)
 
 
 @router.post("/dashboard/api/appointments")
@@ -622,9 +633,27 @@ async def delete_call_data(call_id: str, user: str = staff):
 
 
 # ---------------------------------------------------------------- system
+def _audit_rows(conn, limit: int = 60) -> list:
+    """The latest audit events, each with a plain description of what it was about."""
+    rows = [dict(r) for r in conn.execute(
+        "SELECT e.id, e.ts, e.actor, e.action, e.entity, e.entity_id, p.name AS patient, a.start_utc, "
+        "b.name AS branch, s.name AS service FROM audit_events e "
+        "LEFT JOIN appointments a ON e.entity = 'appointment' AND a.id = e.entity_id "
+        "LEFT JOIN patients p ON p.id = a.patient_id LEFT JOIN branches b ON b.id = a.branch_id "
+        "LEFT JOIN services s ON s.id = a.service_id ORDER BY e.id DESC LIMIT ?", (limit,))]
+    for r in rows:
+        if r["entity"] == "appointment" and r["start_utc"]:
+            when = db.local(r["start_utc"]).strftime("%a %d %b, %H:%M")
+            r["what"] = f"{r['patient'] or 'patient'}, {r['service']}, {when}, {r['branch']}"
+        else:
+            r["what"] = f"{r['entity']} {r['entity_id']}"
+        for key in ("patient", "start_utc", "branch", "service"):
+            r.pop(key, None)
+    return rows
+
+
 def _system(conn) -> dict:
-    audit = [dict(r) for r in conn.execute(
-        "SELECT id, ts, actor, action, entity, entity_id FROM audit_events ORDER BY id DESC LIMIT 60")]
+    audit = _audit_rows(conn)
     dnc = [dict(r, phone_display=phones.national(r["phone_e164"])) for r in conn.execute(
         "SELECT phone_e164, updated_at FROM contact_prefs WHERE do_not_call = 1 ORDER BY updated_at DESC")]
     return {
@@ -634,6 +663,71 @@ def _system(conn) -> dict:
         "do_not_call": dnc,
         "audit": audit,
     }
+
+
+def _pct(values: list, q: float):
+    if not values:
+        return None
+    values = sorted(values)
+    return round(values[min(len(values) - 1, int(round(q * (len(values) - 1))))])
+
+
+def _performance(conn, days: int = 7) -> dict:
+    """
+    How Emma did on real calls in the last `days` days, browser and phone
+    apart, from logs/turns.jsonl: reply times (simple turns answered by her
+    own rules, and turns that needed the model) and which tier answered.
+    Tier 0 = rules, 1 = the model, 2 = the fallback when the model was too
+    slow or down.
+    """
+    import json
+    import os
+    floor = (clock.now() - timedelta(days=days)).timestamp()
+    channel_of = {r["id"]: r["channel"] for r in conn.execute(
+        "SELECT id, channel FROM calls WHERE channel IS NOT NULL")}
+    folder = config.LOG_DIR
+    rows = []
+    try:
+        names = [n for n in os.listdir(folder) if n.startswith("turns.jsonl")]
+    except OSError:
+        names = []
+    for name in names:
+        try:
+            with open(os.path.join(folder, name), encoding="utf-8") as fh:
+                for line in fh:
+                    try:
+                        r = json.loads(line)
+                    except ValueError:
+                        continue
+                    if r.get("ts", 0) >= floor and r.get("tier") is not None and r["tier"] >= 0:
+                        rows.append(r)
+        except OSError:
+            continue
+    out = {"days": days, "channels": {}}
+    for channel in ("browser", "phone"):
+        mine = [r for r in rows if (r.get("channel") or channel_of.get(r.get("call_id")) or "browser") == channel]
+        if not mine:
+            continue
+        perceived = lambda tiers: [r["perceived_ms"] for r in mine if r["tier"] in tiers and r.get("perceived_ms")]
+        model_turns = [r for r in mine if r["tier"] in (1, 2)]
+        out["channels"][channel] = {
+            "calls": len({r.get("call_id") for r in mine}),
+            "replies": len(mine),
+            "rules": sum(1 for r in mine if r["tier"] == 0),
+            "model": sum(1 for r in mine if r["tier"] == 1),
+            "fallback": sum(1 for r in mine if r["tier"] == 2),
+            "simple_p50_ms": _pct(perceived((0,)), .5), "simple_p95_ms": _pct(perceived((0,)), .95),
+            "model_p50_ms": _pct(perceived((1, 2)), .5), "model_p95_ms": _pct(perceived((1, 2)), .95),
+            "end_of_speech_p50_ms": _pct([r["endpoint_ms"] for r in mine if r.get("endpoint_ms")], .5),
+            "fallback_share": round(sum(1 for r in model_turns if r["tier"] == 2) / len(model_turns), 2)
+            if model_turns else None,
+        }
+    return out
+
+
+@router.get("/dashboard/api/performance")
+async def performance(days: int = 7, user: str = staff):
+    return await _run(_performance, max(1, min(days, 90)))
 
 
 @router.get("/dashboard/api/system")

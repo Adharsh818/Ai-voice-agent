@@ -394,7 +394,7 @@ class DetailTests(BookTestCase):
     def test_lunch_time_is_explained_with_real_alternatives(self):
         call = self.call().given()
         call.turn(U(service="General Check-up", branch="Nagarbhavi", date_phrase="Monday", time_phrase="2 pm"))
-        self.assertIn("time.lunch", call.notice_ids())
+        self.assertIn("time.lunch.at", call.notice_ids())
         self.assertEqual(call.goal, Goal.OFFER_SLOTS)
 
 

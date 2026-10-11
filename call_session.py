@@ -1585,7 +1585,8 @@ class CallSession:
             import recording
             if getattr(db, "_db", None) is None or not hasattr(recording, "CallRecorder"):
                 return
-            self.recorder = recording.CallRecorder(self.call_id, direction="inbound")
+            self.recorder = recording.CallRecorder(self.call_id, direction="inbound",
+                                                   channel=getattr(self.t, "channel", None))
             self._own_recorder = True
             await _maybe_await(self.recorder.start())
         except Exception as exc:

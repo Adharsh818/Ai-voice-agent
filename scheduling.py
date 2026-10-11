@@ -346,7 +346,10 @@ def suggest(conn, *, service, date_c: DateConstraint, time_c: Optional[TimeConst
                 return Suggestion("exact", [_slot(doc, svc, requested)], "same_day", requested)
             reason_sets.append(set(why))
         shared = set.intersection(*reason_sets) & CLINIC_WIDE if reason_sets else set()
-        reasons = [r for r in REASON_ORDER if r in shared] or ["TAKEN"]
+        reasons = [r for r in REASON_ORDER if r in shared] or (
+            # Nobody who does this works at that hour (7:30 pm for aligners, 11 Oct): not "taken".
+            ["DOCTOR_OFF"] if reason_sets and all("DOCTOR_OFF" in s and "TAKEN" not in s for s in reason_sets)
+            else ["TAKEN"])
         slots = find_slots(conn, dates=[day], near=requested, **common)
         later = [day + timedelta(days=i) for i in range(1, later_days + 1)]
         if slots:
@@ -643,6 +646,32 @@ def reschedule(conn, appointment_id: str, *, doctor_id: int, start: datetime, id
             return _record(conn, idem_key, "reschedule", Result(True, "OK", appointment_id, after), now)
     except sqlite3.IntegrityError:
         return Result(False, "TAKEN", appointment_id)
+
+
+def mark_attendance(conn, appointment_id: str, status: str, *, actor: str = "staff", now=None) -> Result:
+    """
+    After the visit: 'completed' (they came) or 'no_show'. Only a booked
+    appointment whose time has started; the calendar event stays as it is.
+    """
+    now = _now(now)
+    if status not in ("completed", "no_show"):
+        return Result(False, "BAD_STATUS", appointment_id)
+    with db.transaction(conn):
+        before = get_appointment(conn, appointment_id)
+        if before is None:
+            return Result(False, "NOT_FOUND", appointment_id)
+        if before["status"] == status:
+            return Result(True, "UNCHANGED", appointment_id, before)
+        if before["status"] not in ("booked", "completed", "no_show"):
+            return Result(False, "NOT_ACTIVE", appointment_id, before)
+        if db.parse_utc(before["start_utc"]) > now:
+            return Result(False, "NOT_YET", appointment_id, before)
+        conn.execute("UPDATE appointments SET status = ?, version = version + 1, updated_at = ? WHERE id = ?",
+                     (status, db.utc_str(now), appointment_id))
+        after = get_appointment(conn, appointment_id)
+        _audit(conn, actor=actor, action=status, entity_id=appointment_id, before=before, after=after,
+               correlation_id=None, now=now)
+        return Result(True, "OK", appointment_id, after)
 
 
 def cancel(conn, appointment_id: str, *, idem_key: str, reason: Optional[str] = None,

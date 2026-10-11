@@ -232,7 +232,10 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         asks_about_booking = bool(u.date_phrase or u.time_phrase) and (plan.goal in (
             Goal.OFFER_SLOTS, Goal.OFFER_NEW_SLOTS, Goal.SUMMARY, Goal.CONFIRM_RESCHEDULE, Goal.NO_SLOTS)
             or ctx.intent in (Intent.BOOK, Intent.RESCHEDULE))
-        if not (answer.line == "unknown" and asks_about_booking):
+        # "This Sunday?" already hears "We're closed on Sundays": not the weekly hours as well (sim, 11 Oct).
+        hours_again = answer.line == "answer.fact" and answer.params.get("text") == rt.kb.hours \
+            and any(isinstance(n, Notice) and n.line == "date.sunday" for n in notices)
+        if not (answer.line == "unknown" and asks_about_booking) and not hours_again:
             notices.insert(0, answer)
 
     ask = None
