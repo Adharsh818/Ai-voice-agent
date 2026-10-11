@@ -7,6 +7,10 @@ Sources: an audit agent read the code and drove the R2 engine with the model off
 ## Done already
 
 - [x] **Live tab transcript jumbled on phone calls** (owner): Emma's line appeared seconds before it was heard and each sentence added another copy of the reply. Now paced to playback, one line per turn (`caption_pacer.py`, 1671820).
+- [x] **K1-K3 clinic knowledge, doctor profiles, Dr Ali an oral surgeon** (746cbf3): 26 new or rewritten facts, complete answers (owner: no "the doctor will confirm"), profiles with degrees/years/languages, kids and language questions, the most specific fact wins.
+- [x] **D1-D8 dashboard** (e3b9a94): plain outcomes, browser/phone column (migration 003), "How Emma is doing" panel, readable audit log, Attended/No-show, Sunday note, upcoming-only reschedule count.
+- [x] **C1 up to 3 calls at once** (9a5dd4b): one line always kept for callers; the Live tab follows one call with a switcher.
+- [x] **Sim-found fixes**: honest reasons for impossible times (doctor hours, lunch), the same time at another branch offered at once and never assumed, turned-down reschedule times not offered again, "why do you need my number?", no "consultation" line after a treatment answer.
 
 ## Latency and tiers (real calls)
 
