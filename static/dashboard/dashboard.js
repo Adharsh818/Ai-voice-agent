@@ -970,6 +970,35 @@ $("privacy-erase").addEventListener("click", async () => {
   } catch (err) { $("privacy-result").textContent = err.message; }
 });
 
+async function loadClosures() {
+  let data;
+  try { data = await api("/dashboard/api/closures"); } catch (err) { $("closure-result").textContent = err.message; return; }
+  const select = $("closure-branch");
+  if (select.options.length === 1 && catalog && catalog.branches) {
+    for (const b of catalog.branches) select.append(el("option", { value: b.name, text: b.name }));
+  }
+  $("closure-rows").replaceChildren(...(data.closures.length ? data.closures.map((c) => el("tr", {},
+    el("td", { class: "nowrap", text: prettyDay(c.date) }),
+    el("td", { text: c.branch || "All branches" }),
+    el("td", { text: c.reason }),
+    el("td", { class: "actions" }, el("button", { class: "btn small", type: "button", text: "Remove",
+      onclick: async () => {
+        try { await api(`/dashboard/api/closures/${c.id}/delete`, { method: "POST", body: {} }); loadClosures(); }
+        catch (err) { toast(err.message, "error"); }
+      } })))) : [emptyRow(4, "No closures coming up.")]));
+}
+$("closure-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    const out = await api("/dashboard/api/closures", { method: "POST", body: {
+      date: $("closure-date").value, branch: $("closure-branch").value, reason: $("closure-reason").value } });
+    $("closure-result").textContent = out.affected.length
+      ? `Added. ${out.affected.length} appointment(s) already booked that day: block the doctors on the Recovery tab to have Emma call them.`
+      : "Added.";
+    loadClosures();
+  } catch (err) { $("closure-result").textContent = err.message; }
+});
+
 async function loadPerformance() {
   const box = $("perf-body");
   let data;
@@ -1002,6 +1031,7 @@ async function loadPerformance() {
 
 async function loadSystem() {
   loadPerformance();
+  loadClosures();
   let data;
   try {
     data = await api("/dashboard/api/system");

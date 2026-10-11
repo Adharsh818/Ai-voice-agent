@@ -106,6 +106,8 @@ LINES: dict[str, LineSpec] = {
                            "out a time that works.'", critical=True),
     "english_only": _l("Gently English only. 'Sorry, I can only help in English on this line. Our clinic team "
                        "speaks Kannada and Hindi, shall I have them call you?'", critical=True),
+    "date.closure": _l("Notice: the clinic (or that branch) is closed that day. 'We're closed on Monday the "
+                       "20th, I'm afraid.'", "day", critical=True),
     "doctor.away": _l("Notice: the doctor asked for is on leave that day; colleagues are offered next. "
                       "'Dr Rao's away on Monday, I'm afraid.'", "doctor", "day", critical=True),
     "late.ack": _l("A patient running late. 'No problem, thanks for letting us know. I'll tell the front desk "
@@ -397,6 +399,7 @@ VARIANTS: dict[str, tuple] = {
                      "shall I have them call you?",
                      "I'm sorry, I can only do English on this line. Shall I ask someone who speaks Kannada or "
                      "Hindi to call you?"),
+    "date.closure": ("We're closed on {day}, I'm afraid.", "The clinic's closed on {day}, I'm sorry."),
     "doctor.away": ("{doctor}'s away on {day}, I'm afraid.", "{doctor} isn't in on {day}, I'm sorry."),
     "late.ack": ("No problem, thanks for letting us know. I'll tell the front desk you're running late. "
                  "Anything else?",

@@ -185,5 +185,24 @@ class LanguageTests(ClinicCallCase):
         self.assertIn("call you", reply)
 
 
+class ClosureTests(ClinicCallCase):
+    """S3: a holiday added on the dashboard is what Emma tells callers (not "Monday is full")."""
+
+    def test_a_closed_day_is_said_and_listed(self):
+        import scheduling
+        from datetime import date
+        out = self.clinic.db.run_sync(scheduling.add_closure, date(2026, 10, 5), None, "Holiday", "staff")
+        self.assertEqual(out["affected"], [])
+        self.assertTrue(self.clinic.db.run_sync(scheduling.closed_on, date(2026, 10, 5), [1, 2]))
+        self.assertEqual([c["reason"] for c in self.clinic.db.run_sync(scheduling.list_closures, date(2026, 10, 1))
+                          if c["date"] == "2026-10-05"], ["Holiday"])
+        call = Call()
+        call.run("", "I'd like a cleaning at Jayanagar.", "Priya Sharma", "9845012345", "yes", "Monday")
+        reply = call.say("Morning, please.").text
+        self.assertRegex(reply, r"closed on Monday")
+        self.assertNotIn("full", reply)
+        self.assertTrue(self.clinic.db.run_sync(scheduling.remove_closure, out["id"], "staff"))
+
+
 if __name__ == "__main__":
     unittest.main()
