@@ -87,6 +87,9 @@ class FakeGate:
     def busy(self):
         return self.call_id is not None
 
+    def can_take(self, kind):
+        return not self.busy                    # one line, as the runner sees it
+
     def try_acquire(self, kind, call_id):
         if self.busy:
             return False
@@ -295,7 +298,7 @@ class RunnerTests(unittest.TestCase):
             runner = self._runner(c, gate)
             self.assertEqual(asyncio.run(runner.step()), "paused")
             self.assertEqual(c.run(outbound.get_job, jobs[0])["status"], "queued")
-            self.assertIn("another call", runner.paused_reason)
+            self.assertIn("lines are busy", runner.paused_reason)
 
     def test_outside_the_calling_window_waits(self):
         with RecoveryClinic() as c:

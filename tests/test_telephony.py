@@ -358,12 +358,14 @@ class DialplanEndpointTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_busy_wrong_key_and_not_loopback(self):
         gate = self.server.app.state.gate
-        self.assertTrue(gate.try_acquire("inbound", "other"))
+        others = [f"other{i}" for i in range(gate.lines)]          # every line taken
+        self.assertTrue(all(gate.try_acquire("inbound", c) for c in others))
         try:
             r = await self.client.post("/telephony/register", content="key=s3cret&from=1001")
             self.assertEqual(r.text, "busy")
         finally:
-            gate.release("other")
+            for c in others:
+                gate.release(c)
         r = await self.client.post("/telephony/register", content="key=nope&from=1001")
         self.assertEqual(r.status_code, 403)
         import httpx

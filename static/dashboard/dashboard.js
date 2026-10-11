@@ -252,84 +252,117 @@ document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click",
 document.querySelectorAll("[data-go]").forEach((chip) => chip.addEventListener("click", () => showTab(chip.dataset.go)));
 
 // ------------------------------------------------------------------ live call
-const live = {
-  callId: null, started: null, ended: false, state: "idle", lines: [], interim: "",
-  turns: new Map(), goal: null, tier: null, entities: {}, outcome: null, lastSeq: 0,
-};
-
-function resetLive(callId = null) {
-  Object.assign(live, {
+// Up to MAX_CONCURRENT_CALLS calls can be on at once (11 Oct): each has its own state, and the
+// Live tab follows one of them (`live`); the chips above the transcript switch between them.
+function newLiveState(callId = null) {
+  return {
     callId, started: callId ? new Date() : null, ended: false, state: callId ? "listening" : "idle", lines: [],
     interim: "", turns: new Map(), goal: null, tier: null, entities: {}, outcome: null, operator: false,
-  });
+  };
+}
+const liveCalls = new Map();          // call_id -> state
+let live = newLiveState();
+let lastSeq = 0;
+
+function resetLive() {
+  liveCalls.clear();
+  live = newLiveState();
 }
 
-function addCaption(who, text, final, turn) {
+function followCall(callId) {
+  const st = liveCalls.get(callId);
+  if (!st) return;
+  live = st;
+  renderLive();
+}
+
+function stateFor(event) {
+  const id = event.call_id;
+  if (!id) return null;
+  let st = liveCalls.get(id);
+  if (!st) {
+    st = newLiveState(id);
+    liveCalls.set(id, st);
+  }
+  // Follow a new call when the one shown has ended (or nothing is shown yet).
+  if (!live.callId || (live.ended && st !== live && !st.ended)) live = st;
+  return st;
+}
+
+function addCaption(st, who, text, final, turn) {
   if (!text) return;
   if (who === "emma") {
     // Each of Emma's turns is one line, growing sentence by sentence as the caller hears it.
     const same = turn !== undefined && turn !== null
-      ? live.lines.find((line) => line.who === "emma" && line.turn === turn) : null;
+      ? st.lines.find((line) => line.who === "emma" && line.turn === turn) : null;
     if (same) {
       same.text = text;
       return;
     }
-    const last = live.lines[live.lines.length - 1];
+    const last = st.lines[st.lines.length - 1];
     if (last) last.closed = true;
-    live.lines.push({ who: "emma", text, closed: true, turn });
+    st.lines.push({ who: "emma", text, closed: true, turn });
     return;
   }
   if (!final) {
-    live.interim = text;
+    st.interim = text;
     return;
   }
-  live.interim = "";
-  const last = live.lines[live.lines.length - 1];
+  st.interim = "";
+  const last = st.lines[st.lines.length - 1];
   if (last && last.who === "caller" && !last.closed) last.text = `${last.text} ${text}`;
-  else live.lines.push({ who: "caller", text, closed: false });
+  else st.lines.push({ who: "caller", text, closed: false });
 }
 
 function handleEvent(event) {
-  if (event.seq && event.seq <= live.lastSeq) return;
-  if (event.seq) live.lastSeq = event.seq;
+  if (event.seq && event.seq <= lastSeq) return;
+  if (event.seq) lastSeq = event.seq;
+  const CALL_EVENTS = ["call_started", "caption", "state", "turn", "metrics", "call_turn", "call_ended", "operator"];
+  const st = CALL_EVENTS.includes(event.type) ? stateFor(event) : null;
+  if (CALL_EVENTS.includes(event.type) && !st) return;
   switch (event.type) {
     case "call_started":
-      resetLive(event.call_id);
+      Object.assign(st, newLiveState(event.call_id));
       updateCallChip({ busy: true });
       break;
     case "caption":
-      if (!live.callId) resetLive(event.call_id);
-      addCaption(event.who === "emma" ? "emma" : "caller", event.text, event.final, event.turn);
+      addCaption(st, event.who === "emma" ? "emma" : "caller", event.text, event.final, event.turn);
       break;
     case "state":
-      if (!live.ended) live.state = event.state;
+      if (!st.ended) st.state = event.state;
       break;
     case "turn":
-      if (event.phase === "start" && !live.ended) live.state = "speaking";
+      if (event.phase === "start" && !st.ended) st.state = "speaking";
       break;
     case "metrics":
-      live.turns.set(event.turn, event);
-      if (event.tier !== undefined && event.tier !== null) live.tier = event.tier;
-      if (event.goal_after || event.step_after) live.goal = event.goal_after || `step ${event.step_after}`;
+      st.turns.set(event.turn, event);
+      if (event.tier !== undefined && event.tier !== null) st.tier = event.tier;
+      if (event.goal_after || event.step_after) st.goal = event.goal_after || `step ${event.step_after}`;
       break;
     case "call_turn": {
       const meta = event.meta || {};
-      if (meta.goal_after) live.goal = meta.goal_after;
-      if (meta.tier !== undefined && meta.tier !== null) live.tier = meta.tier;
-      if (meta.entities && typeof meta.entities === "object") Object.assign(live.entities, meta.entities);
+      if (meta.goal_after) st.goal = meta.goal_after;
+      if (meta.tier !== undefined && meta.tier !== null) st.tier = meta.tier;
+      if (meta.entities && typeof meta.entities === "object") Object.assign(st.entities, meta.entities);
       if (meta.action) {
         // Emma just booked, moved or cancelled something: the lists change too.
-        live.outcome = meta.action;
+        st.outcome = meta.action;
         refreshSoon();
         if (currentTab === "appointments") reloadAppointmentsSoon();
       }
       break;
     }
     case "call_ended":
-      live.ended = true;
-      live.state = "ended";
-      live.outcome = event.outcome;
-      updateCallChip({ busy: false });
+      st.ended = true;
+      st.state = "ended";
+      st.outcome = event.outcome;
+      // Ended calls drop off the switcher once another call is shown; the one shown stays to read.
+      for (const [id, other] of liveCalls) if (other.ended && other !== live && other !== st) liveCalls.delete(id);
+      if (st === live) {
+        const next = [...liveCalls.values()].find((other) => !other.ended);
+        if (next) live = next;
+      }
+      updateCallChip({ busy: [...liveCalls.values()].some((other) => !other.ended) });
       refreshSoon();
       if (currentTab === "calls") loadCalls();
       if (currentTab === "appointments") reloadAppointmentsSoon();
@@ -354,7 +387,7 @@ function handleEvent(event) {
       if (currentTab === "calls") loadCalls();
       break;
     case "operator":
-      if (event.call_id === live.callId) live.operator = Boolean(event.active);
+      st.operator = Boolean(event.active);
       break;
     case "recovery":
     case "ring":
@@ -368,7 +401,18 @@ function handleEvent(event) {
   if (currentTab === "live") renderLive();
 }
 
+function renderCallSwitcher() {
+  const box = $("live-calls");
+  const active = [...liveCalls.values()].filter((st) => !st.ended || st === live);
+  box.hidden = active.length < 2;
+  box.replaceChildren(...active.map((st, i) => el("button", {
+    type: "button", class: `chip${st === live ? " active" : ""}`, title: st.callId,
+    text: `Call ${i + 1}${st.ended ? " (ended)" : ""}`, onclick: () => followCall(st.callId),
+  })));
+}
+
 function renderLive() {
+  renderCallSwitcher();
   const hasCall = Boolean(live.callId);
   $("live-empty").hidden = hasCall;
   const pill = $("live-state");
@@ -460,7 +504,7 @@ function connectEvents() {
   let failures = 0;
   source.addEventListener("open", () => {
     failures = 0;
-    live.lastSeq = 0;           // the server replays the call in progress from the start
+    lastSeq = 0;                // the server replays the calls in progress from the start
     resetLive();
     if (currentTab === "live") renderLive();
   });

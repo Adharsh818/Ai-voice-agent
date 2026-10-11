@@ -383,3 +383,9 @@ dialog::backdrop { background: rgba(10, 14, 20, 0.45); }
   .line { max-width: 100%; }
   .brand-sub { display: none; }
 }
+
+/* More than one call at once (Live tab): pick the one to follow. */
+.call-switcher { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; }
+.call-switcher .chip { border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 999px;
+  padding: 3px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+.call-switcher .chip.active { border-color: var(--accent, #2dd4bf); }

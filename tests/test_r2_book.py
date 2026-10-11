@@ -183,7 +183,7 @@ class BookTestCase(unittest.TestCase):
 class BranchTests(BookTestCase):
     def test_a_root_canal_at_whitefield_is_refused_and_names_the_branches_that_do_it(self):
         call = self.call().given()
-        call.turn(U(service="Root Canal Treatment", branch="Whitefield", date_phrase="Monday", time_phrase="8 am"))
+        call.turn(U(service="Root Canal Treatment", branch="Whitefield", date_phrase="Monday", time_phrase="afternoon"))
         self.assertIn("branch.no_service", call.notice_ids())
         notice = call.notices[call.notice_ids().index("branch.no_service")]
         for name in ("Nagarbhavi", "Indiranagar", "Jayanagar"):
@@ -217,8 +217,10 @@ class BranchTests(BookTestCase):
         call = self.call().given()
         call.turn(U(service="Tooth Extraction", branch="Whitefield", date_phrase="Monday", time_phrase="8 am"))
         self.assertEqual(call.goal, Goal.OFFER_SLOTS)
-        for slot in call.ctx.book.offered:                    # Dr Ali starts at 2:30: real afternoon slots
-            self.assertGreaterEqual(slot.start.time(), time(14, 30))
+        # Dr Ali starts at 2:30, but Dr Menon at Indiranagar does extractions at 8: offered, not assumed.
+        self.assertEqual([(s.branch, s.start.time()) for s in call.ctx.book.offered], [("Indiranagar", time(8, 0))])
+        self.assertIn("Whitefield", call.text)
+        self.assertEqual(call.ctx.book.branch, "Whitefield")
         call.turn(confirmation="no")
         self.assertEqual(call.goal, Goal.ASK_WHEN)
         self.assertEqual(call.plan.line, "ask.when.after_reject")

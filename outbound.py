@@ -743,8 +743,8 @@ class Runner:
             self.waiting = await self.db.run(waiting_summary)
             return None
         self.waiting = None
-        if self.gate.busy:
-            self._pause("another call is in progress")
+        if not self.gate.can_take("outbound"):
+            self._pause("the lines are busy (one is always kept free for patients calling in)")
             return "paused"
         if not self.window_check():
             self._pause(f"outside the calling window ({calling_window_text()})")

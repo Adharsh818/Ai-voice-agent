@@ -145,6 +145,9 @@ BARGE_IN_MIN_WORDS = int(os.getenv("BARGE_IN_MIN_WORDS", "2"))
 # network unless SERVER_HOST is set deliberately, behind TLS and a login.
 SERVER_HOST = os.getenv("SERVER_HOST", "127.0.0.1")
 SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
+# Calls Emma takes at once (owner, 11 Oct: 3). Each uses its own speech-to-text and voice streams,
+# so check the provider plans' concurrency limits. Recovery calls never take the last free line.
+MAX_CONCURRENT_CALLS = int(os.getenv("MAX_CONCURRENT_CALLS", "3"))
 # Extra browser origins allowed to open /ws/voice, comma-separated
 # (e.g. "https://emma.example.org"). The page's own origin is always allowed.
 ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]

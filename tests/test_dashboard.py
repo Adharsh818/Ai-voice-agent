@@ -554,8 +554,20 @@ class FakeSession:
 
 
 class CallGateTests(DashboardTestCase):
+    def test_three_lines_and_one_always_kept_for_callers(self):
+        gate = server.CallGate(lines=3)
+        self.assertTrue(gate.try_acquire("inbound", "a"))
+        self.assertTrue(gate.try_acquire("outbound", "b"))       # two lines still free
+        self.assertFalse(gate.try_acquire("outbound", "c"))      # never the last free line
+        self.assertTrue(gate.try_acquire("inbound", "c"))        # a patient calling in gets it
+        self.assertTrue(gate.full)
+        self.assertFalse(gate.try_acquire("inbound", "d"))
+        self.assertEqual([c["call_id"] for c in gate.status()["calls"]], ["a", "b", "c"])
+        self.assertTrue(gate.release("b"))
+        self.assertFalse(gate.full)
+
     def test_gate_holds_one_call_and_only_its_holder_releases_it(self):
-        gate = server.CallGate()
+        gate = server.CallGate(lines=1)
         self.assertTrue(gate.try_acquire("inbound", "a"))
         self.assertFalse(gate.try_acquire("outbound", "b"))
         self.assertFalse(gate.release("b"))
@@ -563,8 +575,12 @@ class CallGateTests(DashboardTestCase):
         self.assertTrue(gate.release("a"))
         self.assertFalse(gate.busy)
 
-    def test_a_second_caller_gets_busy_and_the_socket_closes(self):
-        server.app.state.gate.try_acquire("inbound", "someone")
+    def test_a_caller_gets_busy_when_every_line_is_taken(self):
+        gate = server.app.state.gate
+        others = [f"someone{i}" for i in range(gate.lines)]
+        for call_id in others:
+            gate.try_acquire("inbound", call_id)
+        self.addCleanup(lambda: [gate.release(c) for c in others])
         with self.client.websocket_connect("/ws/voice") as ws:
             message = ws.receive_json()
             self.assertEqual(message["type"], "busy")
@@ -572,7 +588,7 @@ class CallGateTests(DashboardTestCase):
             with self.assertRaises(WebSocketDisconnect) as ctx:
                 ws.receive_json()
             self.assertEqual(ctx.exception.code, 1013)
-        self.assertEqual(server.app.state.gate.call_id, "someone")          # the real call keeps its slot
+        self.assertEqual(server.app.state.gate.call_id, "someone0")         # the real calls keep their lines
 
     def test_a_call_is_recorded_mirrored_and_always_releases_the_gate(self):
         seen = []
