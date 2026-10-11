@@ -868,7 +868,8 @@ class CallSession:
 
     # ------------------------------------------------------------------ turns
     def _timer(self, tid: int, text: str) -> TurnTimer:
-        timer = TurnTimer(call_id=self.call_id, turn=tid, user_text=text)
+        timer = TurnTimer(call_id=self.call_id, turn=tid, user_text=text,
+                          channel=getattr(self.t, "channel", None))
         self._timers[tid] = timer
         # Only recent turns can still receive playback reports.
         for old in [k for k in self._timers if k < tid - 10]:

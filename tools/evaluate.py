@@ -106,18 +106,49 @@ def _pct(values: list, q: float) -> float | None:
     return values[min(len(values) - 1, int(round(q * (len(values) - 1))))]
 
 
-def real_calls(since: str | None) -> dict:
-    """Latency, fallback, filler and barge-in rates from the real calls in logs/turns.jsonl."""
+def old_phone_calls(db_path: str | None = None) -> set:
+    """
+    Phone calls logged before turns carried a `channel` (the 8 Oct demo calls). The
+    database tells them apart: only a phone call has the phone line's caller ID, and
+    only with a caller ID does Emma ask "Is the number you're calling from the best one?".
+    """
+    import sqlite3
+    import phones
+    path = db_path or config.DB_PATH
+    if not os.path.exists(path):
+        return set()
+    line = phones.to_e164(os.getenv("TELEPHONY_CALLER_NUMBER", "9845022222"))
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        return {r[0] for r in conn.execute(
+            "SELECT id FROM calls WHERE caller_phone_e164 = ? OR id IN (SELECT call_id FROM call_turns "
+            "WHERE role = 'emma' AND text LIKE '%number you''re calling from%')", (line,))}
+    except sqlite3.DatabaseError:
+        return set()
+    finally:
+        conn.close()
+
+
+def real_calls(since: str | None, channel: str | None = None, phone_ids: set | None = None) -> dict:
+    """Latency, fallback, filler and barge-in rates from the real calls in logs/turns.jsonl
+    (only `channel`'s, "browser" or "phone", when given)."""
     rows = []
     floor = datetime.fromisoformat(since).timestamp() if since else 0
+    if channel and phone_ids is None:
+        phone_ids = old_phone_calls()
     for path in [p for p in TURNS.parent.glob(TURNS.name + "*") if p.is_file()]:     # rotated files too
         for line in path.read_text(encoding="utf-8").splitlines():
             try:
                 r = json.loads(line)
             except ValueError:
                 continue
-            if r.get("ts", 0) >= floor:
-                rows.append(r)
+            if r.get("ts", 0) < floor:
+                continue
+            if channel:
+                seen = r.get("channel") or ("phone" if r.get("call_id") in phone_ids else "browser")
+                if seen != channel:
+                    continue
+            rows.append(r)
     replies = [r for r in rows if r.get("tier") is not None and r["tier"] >= 0]
     rules = [r["perceived_ms"] / 1000 for r in replies if r["tier"] == 0 and r.get("perceived_ms")]
     model = [r["perceived_ms"] / 1000 for r in replies if r["tier"] in (1, 2) and r.get("perceived_ms")]
@@ -210,30 +241,38 @@ def render(h: dict, calls: dict, stt: dict | None, drills: dict, since: str | No
            "[SUCCESS_CRITERIA.md](SUCCESS_CRITERIA.md); every number below comes from data in the repo "
            "(harness runs, `logs/turns.jsonl`, the fault-drill tests), so run the tool again to refresh it.", ""]
 
-    # Latency
-    r50, r95 = _pct(calls["rules"], .5), _pct(calls["rules"], .95)
-    m50, m95 = _pct(calls["model"], .5), _pct(calls["model"], .95)
-    window = f"since {since}" if since else f"{calls['first']} to {calls['last']}"
+    # Latency, browser and phone calls apart (a phone line adds its own delay)
     out += ["## 1. Reply latency on real calls", "",
-            f"{calls['turns']} replies in {calls['calls']} browser calls ({window}). Perceived latency is from the "
-            "end of the caller's speech to Emma's first audible sound (`latency.TurnTimer`).", "",
-            "| Turns | Count | p50 | p95 | Target p50 / p95 | Result |", "|---|---|---|---|---|---|",
-            f"| Simple (rules, T1) | {len(calls['rules'])} | {_s(r50)} | {_s(r95)} | {T1[0]} s / {T1[1]} s | "
-            f"{_verdict(r50 is not None and r50 <= T1[0] and r95 <= T1[1])} |",
-            f"| Needs the model (T2) | {len(calls['model'])} | {_s(m50)} | {_s(m95)} | {T2[0]} s / {T2[1]} s | "
-            f"{_verdict(m50 is not None and m50 <= T2[0] and m95 <= T2[1])} |",
-            f"| End-of-speech detection alone | {len(calls['endpoint'])} | {_s(_pct(calls['endpoint'], .5))} | "
-            f"{_s(_pct(calls['endpoint'], .95))} | (part of the above) | |", ""]
-    fb, fb_n = calls["fallback"]
-    fl, fl_n = calls["filler"]
-    bi, bi_n = calls["barge_in"]
-    rs, rs_n = calls["rule_share"]
-    out += ["| Rate | Value |", "|---|---|",
-            f"| Turns handled by Emma's own rules (no model wait) | {rs}/{rs_n} ({100 * rs / max(1, rs_n):.0f}%) |",
-            f"| Model turns answered by the fallback (model too slow or down) | {fb}/{fb_n} ({100 * fb / max(1, fb_n):.0f}%) |",
-            f"| Replies that needed a filler (\"Okay, ...\") | {fl}/{fl_n} ({100 * fl / max(1, fl_n):.0f}%) |",
-            f"| Replies the caller interrupted (barge-in) | {bi}/{bi_n} ({100 * bi / max(1, bi_n):.0f}%) |", "",
-            "Most of the wait on simple turns is end-of-speech detection (the recogniser deciding the caller has "
+            "Perceived latency is from the end of the caller's speech to Emma's first audible sound "
+            "(`latency.TurnTimer`).", ""]
+    labels = {"browser": ("Browser calls", "browser calls (headset and laptop)"),
+              "phone": ("Phone calls", "phone calls through Asterisk")}
+    for channel, (title, what) in labels.items():
+        c = calls.get(channel)
+        if not c or not c["turns"]:
+            continue
+        r50, r95 = _pct(c["rules"], .5), _pct(c["rules"], .95)
+        m50, m95 = _pct(c["model"], .5), _pct(c["model"], .95)
+        window = f"since {since}" if since else f"{c['first']} to {c['last']}"
+        fb, fb_n = c["fallback"]
+        fl, fl_n = c["filler"]
+        bi, bi_n = c["barge_in"]
+        rs, rs_n = c["rule_share"]
+        out += [f"### {title}", "",
+                f"{c['turns']} replies in {c['calls']} {what} ({window}).", "",
+                "| Turns | Count | p50 | p95 | Target p50 / p95 | Result |", "|---|---|---|---|---|---|",
+                f"| Simple (rules, T1) | {len(c['rules'])} | {_s(r50)} | {_s(r95)} | {T1[0]} s / {T1[1]} s | "
+                f"{_verdict(r50 is not None and r50 <= T1[0] and r95 <= T1[1])} |",
+                f"| Needs the model (T2) | {len(c['model'])} | {_s(m50)} | {_s(m95)} | {T2[0]} s / {T2[1]} s | "
+                f"{_verdict(m50 is not None and m50 <= T2[0] and m95 <= T2[1])} |",
+                f"| End-of-speech detection alone | {len(c['endpoint'])} | {_s(_pct(c['endpoint'], .5))} | "
+                f"{_s(_pct(c['endpoint'], .95))} | (part of the above) | |", "",
+                "| Rate | Value |", "|---|---|",
+                f"| Turns handled by Emma's own rules (no model wait) | {rs}/{rs_n} ({100 * rs / max(1, rs_n):.0f}%) |",
+                f"| Model turns answered by the fallback (model too slow or down) | {fb}/{fb_n} ({100 * fb / max(1, fb_n):.0f}%) |",
+                f"| Replies that needed a filler (\"Okay, ...\") | {fl}/{fl_n} ({100 * fl / max(1, fl_n):.0f}%) |",
+                f"| Replies the caller interrupted (barge-in) | {bi}/{bi_n} ({100 * bi / max(1, bi_n):.0f}%) |", ""]
+    out += ["Most of the wait on simple turns is end-of-speech detection (the recogniser deciding the caller has "
             "finished), not Emma's thinking; the T1 gap is the main open issue (see section 6).", ""]
 
     # Task success
@@ -324,8 +363,12 @@ def render(h: dict, calls: dict, stt: dict | None, drills: dict, since: str | No
                 f"{'pass' if not crash['holds_remaining'] else 'FAIL'} |", ""]
 
     # Gaps
+    t5_over = [f"seed {seed}" for _, seed, summary, _ in h["sims"]
+               if (_metric(summary, "T5") or {}).get("status") not in (None, "PASS")]
     out += ["## 5. How this was measured", "",
-            "- Real calls: the owner's browser calls (headset and laptop), logged per turn by `latency.LatencyLog`.",
+            "- Real calls: the owner's browser calls (headset and laptop) and phone calls (Linphone through Asterisk), "
+            "logged per turn by `latency.LatencyLog`; each turn records its channel (before 11 Oct, phone calls are "
+            "recognised in the database by the phone line's caller ID).",
             "- Simulated callers: `harness` (scripted scenarios and an LLM-free simulated caller with disruptions: "
             "corrections, silence, barge-in, chit-chat, intent switches, the bot question).",
             "- Recordings: `captures/` (git-ignored), the 30-line test set read twice by the owner.", "",
@@ -333,8 +376,7 @@ def render(h: dict, calls: dict, stt: dict | None, drills: dict, since: str | No
             "- Simple-turn latency (T1) is above target: end-of-speech detection dominates; Deepgram's endpointing "
             "and the voice-gated end of turn were tuned on the owner's recordings to avoid cutting callers off, "
             "which costs time.",
-            "- T5 (turns per simple booking) is 10 on seed 7: those simulated callers already have an appointment, "
-            "and Emma asks whether they want another one or a change.",
+            *([f"- T5 (turns per simple booking) is above 9 on {', '.join(t5_over)}."] if t5_over else []),
             "- Deepgram mishears some Indian names; Emma confirms names implicitly and reads numbers back.", ""]
     return "\n".join(out)
 
@@ -348,7 +390,9 @@ def main(argv=None) -> int:
     parser.add_argument("--out", default=str(OUT))
     args = parser.parse_args(argv)
     h = harness_results(args.fresh)
-    text = render(h, real_calls(args.since), stt_results(args.stt), fault_drills(), args.since,
+    phone_ids = old_phone_calls()
+    calls = {ch: real_calls(args.since, ch, phone_ids) for ch in ("browser", "phone")}
+    text = render(h, calls, stt_results(args.stt), fault_drills(), args.since,
                   crash_results(args.crash))
     with open(args.out, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text + "\n")
