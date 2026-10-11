@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 from typing import Optional
 
@@ -40,7 +40,7 @@ import clock
 import config
 import phones
 
-CACHE_CHAR_BUDGET = 2500     # extra characters the new cached lines may cost, in total
+CACHE_CHAR_BUDGET = 4800     # extra characters the new cached lines may cost, in total
 
 
 @dataclass(frozen=True)
@@ -322,6 +322,16 @@ CHECKING_FIRST = "Let me just check that for you."
 # a Bengaluru front desk should sound like this. The first variant of every
 # cached line is the most neutral one; render() starts with a random unused
 # one, so two calls don't open with the same sentence either.
+# Fixed lines real calls used often but that played through live voice (the audit of 11 Oct: on the
+# phone, 58% of rule-based replies waited on live TTS). Pre-rendered too; about 1,900 characters.
+_CACHE_TOO = ("confirm.phone.caller_id", "ask.phone.not_caller_id", "ask.phone.choices", "exact.free",
+              "callback.offer", "phone.too_many", "verify.failed", "confirm.phone.caller_id.manage",
+              "ask.phone.rephrase", "ask.time", "ask.phone.manage", "time.outside_hours", "verify.failed.final",
+              "offer.rebook", "ask.service.rephrase", "ask.branch.choices", "ask.new_when.choices")
+for _id in _CACHE_TOO:
+    if _id in LINES:
+        LINES[_id] = replace(LINES[_id], cache=True)
+
 VARIANTS: dict[str, tuple] = {
     # conversation
     "ask.intent": ("What can I do for you?", "How can I help you today?", "What can I help you with?",
