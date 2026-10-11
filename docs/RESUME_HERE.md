@@ -6,7 +6,7 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 - **Code:** branch `day2-r2-engine` = `main` on GitHub up to f5cd820; later commits may be local (check `git status -sb`). The working copy Emma runs from is the main checkout **`A:\Voice-Agent`** (it has `.env`, `data/`, `logs/`, `captures/`). Sessions may work in a git worktree under `A:\Voice-Agent\.claude\worktrees\...`; fast-forward the main checkout with `git merge --ff-only <worktree branch>` before running Emma.
 - **PRs #1-#5:** all merged (8 Oct): `main` was fast-forwarded to `day2-r2-engine`; #5 merged into its base.
-- **Tests:** `.\.venv\Scripts\python.exe -m unittest discover -s tests` (994, all pass; `test_dashboard ... test_lists_filter_and_search` is flaky under load: real clock).
+- **Tests:** `.\.venv\Scripts\python.exe -m unittest discover -s tests` (999, all pass; `test_dashboard ... test_lists_filter_and_search` is flaky under load: real clock).
 - **Scenarios / sims:** `.\.venv\Scripts\python.exe -m harness run scenarios --engine r2 --offline`; sims `... run sim --engine r2 --offline|--nlu-down --n 200 --seed 7|11 --concurrency 2`.
 
 ## Pushing
@@ -17,6 +17,7 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
 
 - **Step 2 (sims):** 992 tests, 53/53 scenarios, the four 200-call sims all on target: Z1-Z7 all 0; M3 0-0.5%; M7 97.9-100%; M10 0-1%; **T5 = 9 in all four** (was 10).
 - **Step 4 (deploy check in WSL): done.** Throwaway install from a `git archive` copy (no `.env`, no `secrets/`), all checks passed, including a distro restart; then disabled. Two bugs fixed (backup left `-wal/-shm` files; `.env.example` CID line unparseable). Results in DEPLOY.md, "Tested in WSL".
+- **Step 5 (EVALUATION):** the phone section shows the 8 Oct calls: model turns p50 3.13 s and 63/84 answered by the fallback (Gemini slow that day); simple turns p50 1.63 s, the same as in the browser.
 
 ## What was done on 8 Oct (after the demo, which included a real phone call)
 
@@ -35,7 +36,7 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
 3. **Name test (Phase 6, paid, owner said yes):** replay the two recordings through Deepgram with the new name keyterms and compare with 6 Oct (17% / 18% word error; "Adharsh" heard as "Adesh"):
    `.\.venv\Scripts\python.exe tools\replay.py --show captures\20261006-092434-fee33507.wav captures\20261006-092647-e2a713c4.wav` (in `A:\Voice-Agent`). About 2 minutes of audio. The owner interrupted this run on 8 Oct; on 11 Oct they asked whether it costs money (about 1 US cent, or free sign-up credit) and hadn't said go yet, so **confirm with the owner before running it**. If the names don't help (or hurt), set `DEEPGRAM_NAME_KEYTERMS=` empty in `.env` / the default.
 4. ~~Phase 4, deploy check in WSL~~ (done 11 Oct; results in DEPLOY.md "Tested in WSL"; the test copy stays in `/opt/emma`, disabled).
-5. **Phase 5, rest:** regenerate EVALUATION.md (`tools\evaluate.py --fresh --crash`, plus `--stt` if the name test ran), add the 8 Oct phone calls; DEMO_SCRIPT note that the demo happened.
+5. ~~Phase 5, rest~~ (done 11 Oct): EVALUATION.md regenerated with fresh runs and the crash drill; it now reports browser and phone calls apart (the turn log records the channel from 11 Oct; the 8 Oct phone calls are found by caller ID). DEMO_SCRIPT notes the demo happened. **Still to do:** after the name test, `tools\evaluate.py --stt` (run it in `A:\Voice-Agent`, it reads `logs/` and `captures/`).
 6. **Phase 3, with the owner holding the phone (next session, ~20 min):** run `tools\phone_up.ps1` first (and the firewall commands it prints, in an admin window). Then: interrupt Emma mid-sentence; key a number with `#` (do keypad frames reach Emma?); "I want to talk to a person" twice → MicroSIP 1002 rings; block Dr Rao on the dashboard → recovery call to the phone, answer once, reject once (which reason code does Reject send? adjust `ami.REASON_DECLINED`); does Asterisk send 16 kHz audio? Also watch for calls that end at the greeting with nothing heard (5 on 8 Oct). Results into TELEPHONY.md.
 7. **Phase 7:** full suite, scenarios, 4 sims, crash drill, preflight READY, one browser and one phone call; push; final HANDOFF "state at the end".
 

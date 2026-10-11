@@ -1,5 +1,7 @@
 # Demo script: Thursday 8 October 2026 (about 12 minutes)
 
+> **The demo took place on 8 Oct 2026**, including a real call from the owner's phone through Asterisk. What the 22 calls that day showed, and the fixes, are in [FINISH_PLAN.md](FINISH_PLAN.md) (Phase 0) and [EVALUATION.md](EVALUATION.md) ("Phone calls"). The script below still works for a rehearsal or a second showing with `tools/demo_reset.py --demo-date <day>`.
+
 Everything on screen is fictitious DEMO data. The appointments the scenes rely on are created by `tools/demo_reset.py` (its `FIXTURES`), relative to the demo date:
 
 | Fixture | Patient | Phone to say | Appointment |
