@@ -1,11 +1,11 @@
 {
-  "version": "2026-10-01.1",
+  "version": "2026-10-11.1",
   "_note": "DEMO knowledge base for the fictional Pearl Dental clinic (decision R8). Emma only speaks entries with \"verified\": true; each has an id so the LLM can pick facts instead of inventing them. Replace with real clinic data before any real deployment. Every branch is bookable; which branch offers which service comes from the database (doctor_services), never from this file. The 'escalation' entry is read only by the old 12-step engine and is never loaded by facts.py; delete it at integration.",
   "clinic_name": "Pearl Dental Clinic",
   "demo": true,
   "hours": {
     "verified": true,
-    "text": "We're open Monday to Saturday, 7 in the morning to 9 at night, with a short lunch break from 2 to 2:30. We're closed on Sundays.",
+    "text": "We're open Monday to Saturday, from 7 in the morning at Indiranagar and until 9 at night at Nagarbhavi, Jayanagar and Whitefield, with a short lunch break from 2 to 2:30. Each doctor has their own hours, and we're closed on Sundays.",
     "keywords": [
       "hours",
       "timings",
@@ -35,7 +35,7 @@
   },
   "pricing_policy": {
     "verified": true,
-    "text": "Prices depend on the tooth and the treatment, so the doctor confirms the exact cost after a quick look, but I can give you a rough range.",
+    "text": "Prices depend on the tooth and the treatment, so I'll give you the usual range, and before anything starts you get a written estimate, so there are no surprises.",
     "keywords": [
       "price",
       "prices",
@@ -49,13 +49,19 @@
   },
   "insurance_policy": {
     "verified": true,
-    "text": "We don't do cashless insurance, but we give you itemised bills and reports so you can claim it back from your insurer.",
+    "text": "We don't do cashless insurance. Most health policies only cover dental work after an accident or a hospital stay, but if your plan has an OPD or dental benefit, we give you itemised bills and reports the same day so you can claim it back.",
     "keywords": [
-      "insurance",
       "cashless",
       "claim",
+      "company insurance",
+      "corporate insurance",
+      "covered",
+      "does insurance cover",
+      "insurance",
+      "insurer",
       "mediclaim",
-      "insurer"
+      "opd",
+      "reimbursement"
     ]
   },
   "escalation": {
@@ -117,7 +123,6 @@
       "keywords": [
         "root canal",
         "rct",
-        "crown",
         "price",
         "cost",
         "charges"
@@ -128,7 +133,7 @@
       "id": "price.extraction",
       "topic": "extraction price",
       "verified": true,
-      "text": "A simple extraction is about 800 to 1,500 rupees; a wisdom tooth can be 3,000 to 6,000.",
+      "text": "A simple extraction is usually 1,000 to 2,000 rupees. A wisdom tooth that needs minor surgery is usually 3,000 to 8,000, depending on how it's placed; Dr Ali, our oral surgeon at Whitefield, does those.",
       "keywords": [
         "extraction",
         "wisdom tooth",
@@ -144,7 +149,7 @@
       "id": "price.braces",
       "topic": "braces price",
       "verified": true,
-      "text": "Braces usually come to 35,000 to 70,000 rupees for the full treatment, and there's a no-cost EMI option.",
+      "text": "Metal braces are usually 30,000 to 50,000 rupees for the full treatment, and tooth-coloured ceramic ones 45,000 to 70,000. It takes about 12 to 24 months with a short check every month, and there's a no-cost EMI option.",
       "keywords": [
         "braces",
         "orthodontic",
@@ -158,7 +163,7 @@
       "id": "price.invisalign",
       "topic": "Invisalign price",
       "verified": true,
-      "text": "Invisalign is usually between one and a half and three lakh rupees, depending on how much correction is needed.",
+      "text": "Clear aligners start at about 70,000 rupees, and Invisalign is usually between one and two and a half lakh, depending on how much correction is needed. Dr Iyer at Indiranagar does them, and there's a no-cost EMI option.",
       "keywords": [
         "invisalign",
         "aligners",
@@ -189,7 +194,7 @@
       "id": "price.whitening",
       "topic": "teeth whitening",
       "verified": true,
-      "text": "We do whitening too, usually 6,000 to 12,000 rupees; the doctor sees you briefly first to check it suits your teeth.",
+      "text": "In-clinic whitening is usually 6,000 to 12,000 rupees and takes about an hour in one visit. We check your teeth first, because whitening doesn't change the colour of crowns or fillings.",
       "keywords": [
         "whitening",
         "whiten",
@@ -201,7 +206,7 @@
       "id": "price.implant",
       "topic": "dental implants",
       "verified": true,
-      "text": "We do implants as well, usually 25,000 to 45,000 rupees per tooth; it starts with a consultation.",
+      "text": "An implant with its crown is usually 30,000 to 55,000 rupees per tooth, depending on the implant brand and whether bone support is needed. It takes two or three visits over about three months, and Dr Nair at Jayanagar and Dr Ali at Whitefield do them.",
       "keywords": [
         "implant",
         "implants"
@@ -211,7 +216,7 @@
       "id": "payment.methods",
       "topic": "payment methods",
       "verified": true,
-      "text": "You can pay by UPI, card or cash.",
+      "text": "You can pay by UPI, any debit or credit card, net banking or cash, with no extra charge.",
       "keywords": [
         "pay",
         "payment",
@@ -228,11 +233,12 @@
       "id": "payment.emi",
       "topic": "EMI or instalments",
       "verified": true,
-      "text": "For braces and Invisalign there's a no-cost EMI option over six to twelve months.",
+      "text": "For treatments over about 10,000 rupees, like braces, aligners, implants or crowns, there's a no-cost EMI over three to twelve months through our finance partner, and credit card EMI works too.",
       "keywords": [
         "emi",
-        "instalments",
         "installments",
+        "instalment",
+        "instalments",
         "monthly"
       ]
     },
@@ -292,7 +298,7 @@
       "id": "visit.xray",
       "topic": "X-rays",
       "verified": true,
-      "text": "All our branches have digital X-rays, so you get it done right there.",
+      "text": "All our branches take digital X-rays of single teeth right there, with very low radiation, and the full-mouth OPG X-ray is done at Indiranagar or Jayanagar.",
       "keywords": [
         "x-ray",
         "xray",
@@ -305,7 +311,7 @@
       "id": "visit.comfort",
       "topic": "whether treatment hurts",
       "verified": true,
-      "text": "Treatments are done with local anaesthetic, so it's usually very comfortable, and the doctor checks in with you throughout.",
+      "text": "Treatments are done under local anaesthetic, so you feel pressure but not pain, and the doctor checks in with you throughout. There's usually mild soreness for a day or two afterwards.",
       "keywords": [
         "hurt",
         "pain",
@@ -347,7 +353,7 @@
       "id": "policy.emergency",
       "topic": "dental emergencies",
       "verified": true,
-      "text": "If you're in a lot of pain or have swelling, we'll fit you in the same day.",
+      "text": "If you're in a lot of pain or have swelling, we keep same-day slots for emergencies and we'll fit you in today.",
       "keywords": [
         "emergency",
         "urgent",
@@ -370,7 +376,7 @@
       "id": "clinic.languages",
       "topic": "languages spoken at the clinic",
       "verified": true,
-      "text": "Our staff speak English, Kannada and Hindi.",
+      "text": "Our team speaks English, Kannada and Hindi, and between our doctors we also speak Tamil, Telugu, Malayalam, Marathi, Tulu and Urdu.",
       "keywords": [
         "language",
         "languages",
@@ -385,7 +391,7 @@
       "id": "clinic.overview",
       "topic": "about the clinic",
       "verified": true,
-      "text": "Pearl Dental has four branches in Bengaluru, at Nagarbhavi, Indiranagar, Jayanagar and Whitefield, with eight doctors between them. We do check-ups, cleanings, fillings, root canals, extractions, braces, Invisalign and children's dentistry.",
+      "text": "Pearl Dental has four branches in Bengaluru, at Nagarbhavi, Indiranagar, Jayanagar and Whitefield, with eight doctors, including specialists for root canals, braces and aligners, children, crowns and dentures, and oral surgery. We do everything from check-ups and cleanings to implants.",
       "keywords": [
         "about the clinic",
         "about your clinic",
@@ -407,6 +413,397 @@
         "how do you help",
         "what can you help"
       ]
+    },
+    {
+      "id": "price.crown",
+      "text": "A crown, or cap, is usually 4,000 to 8,000 rupees for a metal-ceramic one, and 9,000 to 15,000 for zirconia, which looks the most natural. It takes two visits about a week apart; Dr Nair at Jayanagar is our crown and denture specialist.",
+      "verified": true,
+      "topic": "crowns and caps",
+      "keywords": [
+        "crown",
+        "crowns",
+        "cap",
+        "caps",
+        "tooth cap",
+        "zirconia",
+        "ceramic crown"
+      ]
+    },
+    {
+      "id": "price.dentures",
+      "text": "Yes, we make dentures. A full denture is usually 10,000 to 18,000 rupees per jaw, and a partial one 5,000 to 15,000, depending on the material. It takes four or five short visits over two to three weeks, with Dr Nair at Jayanagar.",
+      "verified": true,
+      "topic": "dentures",
+      "keywords": [
+        "denture",
+        "dentures",
+        "false teeth",
+        "set of teeth",
+        "partial denture",
+        "teeth set"
+      ]
+    },
+    {
+      "id": "price.xray",
+      "text": "An X-ray of a single tooth is about 250 rupees, done right there at any branch. A full-mouth OPG X-ray is about 800, at our Indiranagar and Jayanagar branches.",
+      "verified": true,
+      "topic": "X-ray prices",
+      "keywords": [
+        "x-ray",
+        "xray",
+        "x ray",
+        "opg",
+        "full mouth x-ray",
+        "scan",
+        "iopa"
+      ]
+    },
+    {
+      "id": "price.kids_preventive",
+      "text": "For children, a fluoride coating is about 800 to 1,000 rupees, and sealants, which protect the back teeth from cavities, are about 800 to 1,200 per tooth. Dr Kulkarni at Jayanagar and Dr Reddy at Whitefield do them in a short visit.",
+      "verified": true,
+      "topic": "fluoride and sealants for children",
+      "keywords": [
+        "fluoride",
+        "sealant",
+        "sealants",
+        "cavity protection"
+      ]
+    },
+    {
+      "id": "price.gum_treatment",
+      "text": "Gum treatment starts with a deep cleaning, usually 1,500 to 2,500 rupees per section of the mouth; most people need two to four sections, done over one or two visits. Bleeding or swollen gums are the usual first sign, and it's very treatable when caught early.",
+      "verified": true,
+      "topic": "gum treatment and deep cleaning",
+      "keywords": [
+        "gum",
+        "gums",
+        "bleeding gums",
+        "swollen gums",
+        "gum disease",
+        "deep cleaning",
+        "root planing",
+        "pyorrhea",
+        "loose teeth"
+      ]
+    },
+    {
+      "id": "visit.after_extraction",
+      "text": "After an extraction, bite on the gauze for about 30 minutes, then stick to soft, cool food like curd or idli for a day or two. Avoid straws, spitting, smoking and spicy food for 24 hours, and don't rinse hard on the first day.",
+      "verified": true,
+      "topic": "care after an extraction",
+      "keywords": [
+        "after extraction",
+        "after the extraction",
+        "eat after",
+        "what to eat",
+        "can i eat",
+        "after removal",
+        "care after",
+        "after tooth removal"
+      ]
+    },
+    {
+      "id": "visit.bleeding_after",
+      "text": "A little oozing for a day after an extraction is normal. Fold some clean gauze or cotton, bite on it firmly for 20 to 30 minutes and keep your head raised. If it's still bleeding heavily after that, come straight in, or go to the nearest hospital emergency if we're closed.",
+      "verified": true,
+      "topic": "bleeding after an extraction",
+      "keywords": [
+        "still bleeding",
+        "bleeding after",
+        "bleeding since",
+        "blood after",
+        "won't stop bleeding",
+        "oozing"
+      ]
+    },
+    {
+      "id": "visit.after_filling",
+      "text": "After a filling, wait until the numbness wears off before eating, usually two hours, and avoid very hard or sticky food that day. After a root canal, chew on the other side until the crown is fitted.",
+      "verified": true,
+      "topic": "care after a filling or root canal",
+      "keywords": [
+        "after filling",
+        "after the filling",
+        "after root canal",
+        "after rct",
+        "eat after filling"
+      ]
+    },
+    {
+      "id": "visit.back_to_work",
+      "text": "Most people go straight back to work the same day; after an extraction or a wisdom tooth it's best to rest that day, and after implant surgery a day or two.",
+      "verified": true,
+      "topic": "going back to work",
+      "keywords": [
+        "back to work",
+        "office",
+        "leave",
+        "rest",
+        "recovery time",
+        "how long to recover"
+      ]
+    },
+    {
+      "id": "visit.child_first",
+      "text": "We suggest a child's first visit around the first birthday or when the first tooth comes in, then a check-up every six months, and a braces check around age seven. Dr Kulkarni at Jayanagar and Dr Reddy at Whitefield are great with children.",
+      "verified": true,
+      "topic": "child's first dental visit",
+      "keywords": [
+        "child's first visit",
+        "first visit for my child",
+        "what age",
+        "baby teeth",
+        "toddler",
+        "milk teeth",
+        "first dental visit",
+        "age for dentist"
+      ]
+    },
+    {
+      "id": "visit.elderly",
+      "text": "We see a lot of senior patients, for dentures, check-ups and gum care. Bring their medicine list, and someone can come in with them; for a wheelchair, Indiranagar is on the ground floor and Jayanagar and Whitefield have lifts.",
+      "verified": true,
+      "topic": "elderly patients",
+      "keywords": [
+        "elderly",
+        "senior",
+        "seniors",
+        "old age",
+        "old people",
+        "older people",
+        "old parents",
+        "grandmother",
+        "grandfather",
+        "aged"
+      ]
+    },
+    {
+      "id": "visit.medical_conditions",
+      "text": "We treat patients with diabetes, BP, heart conditions and on blood thinners every day. Tell the doctor at the start, and bring your medicine list and recent sugar or BP readings; don't stop any medicine on your own, because the treatment is planned around it.",
+      "verified": true,
+      "topic": "diabetes, BP, heart, blood thinners",
+      "keywords": [
+        "diabetes",
+        "diabetic",
+        "sugar",
+        "bp",
+        "blood pressure",
+        "heart",
+        "blood thinner",
+        "aspirin",
+        "medical condition",
+        "heart patient"
+      ]
+    },
+    {
+      "id": "visit.pregnancy",
+      "text": "Check-ups and cleanings are safe during pregnancy, and the middle three months are the best time for any treatment that's needed. We only take an X-ray if it's really needed, with a lead apron, so just tell us how far along you are.",
+      "verified": true,
+      "topic": "dental care in pregnancy",
+      "keywords": [
+        "pregnant",
+        "pregnancy",
+        "expecting",
+        "trimester"
+      ]
+    },
+    {
+      "id": "visit.sensitivity",
+      "text": "Sensitivity to cold or sweet things is very common, usually from worn enamel, receding gums or a small cavity. A sensitivity toothpaste helps mild cases, and a check-up finds the cause; the fix is often a quick filling or a protective coating in one visit.",
+      "verified": true,
+      "topic": "sensitive teeth",
+      "keywords": [
+        "sensitive",
+        "sensitivity",
+        "cold water",
+        "hurts with cold",
+        "shooting pain"
+      ]
+    },
+    {
+      "id": "visit.wisdom_tooth",
+      "text": "A wisdom tooth that hurts or is coming in sideways is usually taken out. Dr Ali, our oral surgeon at Whitefield, does it under local anaesthetic in about 30 to 45 minutes; it's usually 3,000 to 8,000 rupees, and most people rest for a day.",
+      "verified": true,
+      "topic": "wisdom teeth",
+      "keywords": [
+        "wisdom",
+        "wisdom tooth",
+        "wisdom teeth",
+        "third molar",
+        "impacted"
+      ]
+    },
+    {
+      "id": "visit.second_opinion",
+      "text": "Of course, we're happy to give a second opinion; just bring any X-rays and the treatment plan you were given, and the consultation is 400 rupees.",
+      "verified": true,
+      "topic": "second opinions",
+      "keywords": [
+        "second opinion",
+        "another dentist",
+        "other clinic",
+        "already told",
+        "other doctor said"
+      ]
+    },
+    {
+      "id": "visit.followup",
+      "text": "There's usually a short follow-up a week after treatment at no charge, and we recommend a check-up and cleaning every six months.",
+      "verified": true,
+      "topic": "follow-up visits",
+      "keywords": [
+        "follow up",
+        "follow-up",
+        "review visit",
+        "how often",
+        "every six months"
+      ]
+    },
+    {
+      "id": "policy.records",
+      "text": "Yes, you can have copies of your X-rays, reports and prescriptions; just ask at the front desk and we'll share them the same day, on WhatsApp or printed.",
+      "verified": true,
+      "topic": "copies of records",
+      "keywords": [
+        "bill copy",
+        "copies",
+        "copies of",
+        "copy",
+        "copy of",
+        "copy of my",
+        "documents",
+        "prescription copy",
+        "records",
+        "report",
+        "reports",
+        "x-ray copy"
+      ]
+    },
+    {
+      "id": "policy.warranty",
+      "text": "Crowns come with a warranty of five years for metal-ceramic and ten years for zirconia, and implants carry the manufacturer's warranty on the implant itself; you get it in writing with your estimate.",
+      "verified": true,
+      "topic": "warranty on crowns and implants",
+      "keywords": [
+        "warranty",
+        "guarantee",
+        "how long will it last",
+        "lifetime",
+        "last long"
+      ]
+    },
+    {
+      "id": "policy.estimate",
+      "text": "Before any treatment starts you get a written estimate with every step and its cost, so there are no hidden charges.",
+      "verified": true,
+      "topic": "written estimates",
+      "keywords": [
+        "estimate",
+        "quote",
+        "hidden charges",
+        "total cost",
+        "exact cost",
+        "final cost"
+      ]
+    },
+    {
+      "id": "policy.after_hours",
+      "text": "When we're closed, for pain you can take the painkiller you normally use and hold a cold pack on the cheek, then call us when we open; we keep same-day slots for emergencies. If swelling spreads to the eye or neck, or you have trouble breathing or swallowing, go to the nearest hospital emergency.",
+      "verified": true,
+      "topic": "what to do when the clinic is closed",
+      "keywords": [
+        "after hours",
+        "at night",
+        "closed now",
+        "night time",
+        "middle of the night",
+        "till morning"
+      ]
+    },
+    {
+      "id": "policy.emergency_red_flags",
+      "text": "If swelling is spreading to your eye or neck, you have trouble breathing or swallowing, a high fever with swelling, or bleeding that won't stop after 30 minutes of pressure, please go to the nearest hospital emergency or call 108 right away.",
+      "verified": true,
+      "topic": "severe emergencies",
+      "keywords": [
+        "swelling eye",
+        "can't breathe",
+        "difficulty breathing",
+        "difficulty swallowing",
+        "high fever",
+        "face swelling",
+        "accident"
+      ]
+    },
+    {
+      "id": "clinic.services_more",
+      "text": "Besides check-ups, cleanings, fillings, root canals, extractions, braces and children's dentistry, we also do crowns, dentures, gum treatment, implants, wisdom teeth, whitening and clear aligners.",
+      "verified": true,
+      "topic": "other treatments",
+      "keywords": [
+        "what else",
+        "other treatments",
+        "full list",
+        "all treatments",
+        "anything else you do"
+      ]
+    },
+    {
+      "id": "clinic.family",
+      "text": "Yes, we see whole families: Dr Kulkarni and Dr Reddy for children, our general dentists for adults, and dentures and gum care for parents and grandparents. You can book everyone on the same day, one after the other.",
+      "verified": true,
+      "topic": "family visits",
+      "keywords": [
+        "family",
+        "whole family",
+        "all of us",
+        "parents and kids",
+        "me and my kids"
+      ]
+    },
+    {
+      "id": "clinic.quality",
+      "text": "Our doctors include MDS specialists for root canals, braces, children, crowns and dentures, and oral surgery, each with seven to fifteen years' experience. Every instrument is sterilised after each patient, and you get a written estimate before any treatment.",
+      "verified": true,
+      "topic": "about the clinic and doctors' experience",
+      "keywords": [
+        "any good",
+        "best clinic",
+        "best dentist",
+        "clinic good",
+        "experience",
+        "experienced",
+        "good clinic",
+        "good dentist",
+        "good doctors",
+        "good enough",
+        "how good",
+        "is it good",
+        "qualified",
+        "quality",
+        "reliable",
+        "reviews",
+        "this clinic good",
+        "trust",
+        "why should i"
+      ]
+    },
+    {
+      "id": "clinic.accessibility",
+      "text": "Indiranagar is on the ground floor, and Jayanagar and Whitefield have lifts, so they're all easy with a wheelchair or walker. Nagarbhavi is on the first floor by stairs only.",
+      "verified": true,
+      "topic": "wheelchair access",
+      "keywords": [
+        "wheelchair",
+        "lift",
+        "elevator",
+        "stairs",
+        "disabled",
+        "walker",
+        "walking difficulty",
+        "can't climb"
+      ]
     }
   ],
   "branches": [
@@ -416,7 +813,8 @@
       "bookable": true,
       "address": "80 Feet Road, 2nd Stage Nagarbhavi, on the first floor above the pharmacy near the bus stop",
       "parking": "There's street parking right outside, and two-wheeler parking in front.",
-      "phone": "PLACEHOLDER"
+      "phone": "PLACEHOLDER",
+      "accessibility": "It's on the first floor by stairs only, so with a wheelchair Indiranagar, Jayanagar or Whitefield is easier."
     },
     {
       "name": "Indiranagar",
@@ -424,7 +822,8 @@
       "bookable": true,
       "address": "12th Main, Indiranagar, about five minutes' walk from the Indiranagar metro station",
       "parking": "Parking is limited on 12th Main, so the metro is easiest.",
-      "phone": "PLACEHOLDER"
+      "phone": "PLACEHOLDER",
+      "accessibility": "It's on the ground floor, step-free from the road."
     },
     {
       "name": "Jayanagar",
@@ -432,7 +831,8 @@
       "bookable": true,
       "address": "4th Block, Jayanagar, near the shopping complex",
       "parking": "There's paid parking at the shopping complex next door.",
-      "phone": "PLACEHOLDER"
+      "phone": "PLACEHOLDER",
+      "accessibility": "There's a lift up to the clinic."
     },
     {
       "name": "Whitefield",
@@ -440,9 +840,118 @@
       "bookable": true,
       "address": "ITPL Main Road, Whitefield, opposite the tech park gate",
       "parking": "We have a few free parking spots in the building's basement.",
-      "phone": "PLACEHOLDER"
+      "phone": "PLACEHOLDER",
+      "accessibility": "There's a lift from the basement parking to the clinic."
     }
   ],
-  "doctors": [],
+  "doctors": [
+    {
+      "name": "Dr. Meera Rao",
+      "verified": true,
+      "degrees": "BDS",
+      "title": "family dentist",
+      "years": 12,
+      "languages": [
+        "English",
+        "Kannada",
+        "Hindi"
+      ],
+      "about": "sees a lot of first-time and nervous patients"
+    },
+    {
+      "name": "Dr. Arjun Shetty",
+      "verified": true,
+      "degrees": "BDS and MDS in conservative dentistry and endodontics",
+      "title": "root canal specialist",
+      "years": 14,
+      "languages": [
+        "English",
+        "Kannada",
+        "Tulu",
+        "Hindi"
+      ]
+    },
+    {
+      "name": "Dr. Kavya Iyer",
+      "verified": true,
+      "degrees": "BDS and MDS in orthodontics",
+      "title": "orthodontist",
+      "years": 11,
+      "languages": [
+        "English",
+        "Tamil",
+        "Kannada",
+        "Hindi"
+      ],
+      "about": "is a certified Invisalign provider"
+    },
+    {
+      "name": "Dr. Rahul Menon",
+      "verified": true,
+      "degrees": "BDS",
+      "title": "general dentist",
+      "years": 9,
+      "languages": [
+        "English",
+        "Malayalam",
+        "Kannada",
+        "Hindi"
+      ]
+    },
+    {
+      "name": "Dr. Sneha Kulkarni",
+      "verified": true,
+      "degrees": "BDS and MDS in pediatric dentistry",
+      "title": "children's dentist",
+      "years": 10,
+      "languages": [
+        "English",
+        "Kannada",
+        "Marathi",
+        "Hindi"
+      ]
+    },
+    {
+      "name": "Dr. Vikram Nair",
+      "verified": true,
+      "degrees": "BDS and MDS in prosthodontics",
+      "title": "crown, denture and implant specialist",
+      "years": 15,
+      "languages": [
+        "English",
+        "Malayalam",
+        "Kannada",
+        "Hindi"
+      ]
+    },
+    {
+      "name": "Dr. Ananya Reddy",
+      "verified": true,
+      "degrees": "BDS",
+      "title": "family dentist",
+      "years": 7,
+      "languages": [
+        "English",
+        "Telugu",
+        "Kannada",
+        "Hindi"
+      ],
+      "about": "sees a lot of children"
+    },
+    {
+      "name": "Dr. Farhan Ali",
+      "verified": true,
+      "degrees": "BDS and MDS in oral and maxillofacial surgery",
+      "title": "oral surgeon",
+      "years": 8,
+      "languages": [
+        "English",
+        "Hindi",
+        "Urdu",
+        "Kannada"
+      ],
+      "about": "does wisdom teeth, surgical extractions and implants"
+    }
+  ],
   "unknown_line": "Hmm, I'm not sure about that one."
 }

@@ -134,8 +134,8 @@ class OpeningRequestTests(EngineCase):
         for said in ("Can I get a check-up on Saturday, and where is your Jayanagar branch?",
                      "Sorry, where is your Jayanagar branch?", "What's the address of the Jayanagar branch?"):
             self.assertTrue(facts.lookup(said, kb, catalog).startswith("Our Jayanagar branch is at 4th Block"), said)
-        self.assertIn("Indiranagar and Whitefield", facts.lookup("Where can I get braces?", kb, catalog))
-        self.assertTrue(facts.lookup("Do you do braces at Whitefield?", kb, catalog).startswith("Yes, we do braces"))
+        self.assertIn("Jayanagar and Whitefield", facts.lookup("Which branches do pediatric dentistry?", kb, catalog))
+        self.assertTrue(facts.lookup("Do you do braces at Indiranagar?", kb, catalog).startswith("Yes, we do braces"))
 
     def test_the_day_asked_for_before_a_place_question_is_kept(self):
         call = Call()

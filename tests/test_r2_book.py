@@ -181,32 +181,31 @@ class BookTestCase(unittest.TestCase):
 
 
 class BranchTests(BookTestCase):
-    def test_braces_at_nagarbhavi_is_refused_and_names_the_branches_that_do_it(self):
+    def test_a_root_canal_at_whitefield_is_refused_and_names_the_branches_that_do_it(self):
         call = self.call().given()
-        call.turn(U(service="Braces", branch="Nagarbhavi", date_phrase="Monday", time_phrase="8 am"))
+        call.turn(U(service="Root Canal Treatment", branch="Whitefield", date_phrase="Monday", time_phrase="8 am"))
         self.assertIn("branch.no_service", call.notice_ids())
         notice = call.notices[call.notice_ids().index("branch.no_service")]
-        self.assertIn("Indiranagar", notice)
-        self.assertIn("Whitefield", notice)
-        self.assertNotIn("Jayanagar", notice)
+        for name in ("Nagarbhavi", "Indiranagar", "Jayanagar"):
+            self.assertIn(name, notice)
+            self.assertIn(name, call.text)
         self.assertIsNone(call.ctx.book.branch)
         self.assertEqual(call.goal, Goal.ASK_BRANCH)
-        self.assertIn("Indiranagar or Whitefield", call.text)
         self.assertEqual(call.holds(), [])                   # never searched there
         self.assertFalse(call.ctx.book.offered)
 
-        call.turn(U(branch="Whitefield"))
+        call.turn(U(branch="Jayanagar"))
         self.assertEqual(call.goal, Goal.OFFER_SLOTS)
         holds = call.holds()
         self.assertTrue(holds)
-        ali = self.doctor("Dr Ali")
-        self.assertTrue(all(h["doctor_id"] == ali.id for h in holds))
-        self.assertTrue(all(s.branch == "Whitefield" and s.hold_id for s in call.ctx.book.offered))
+        nair = self.doctor("Dr Nair")
+        self.assertTrue(all(h["doctor_id"] == nair.id for h in holds))
+        self.assertTrue(all(s.branch == "Jayanagar" and s.hold_id for s in call.ctx.book.offered))
         self.assertEqual({h["id"] for h in holds}, {s.hold_id for s in call.ctx.book.offered})
 
     def test_a_mismatched_branch_put_on_the_draft_by_anyone_is_never_searched(self):
         call = self.call().given()
-        call.ctx.book.service, call.ctx.book.branch = "Braces", "Nagarbhavi"
+        call.ctx.book.service, call.ctx.book.branch = "Root Canal Treatment", "Whitefield"
         call.ctx.book.date_c = scheduling.DateConstraint(NOW.date() + timedelta(days=4), NOW.date() + timedelta(days=4))
         call.ctx.book.any_time = True
         call.turn(U())
@@ -214,9 +213,9 @@ class BranchTests(BookTestCase):
         self.assertEqual(call.goal, Goal.ASK_BRANCH)
         self.assertEqual(call.holds(), [])
 
-    def test_braces_8am_three_times_gets_real_slots_then_a_callback_not_a_loop(self):
+    def test_an_extraction_8am_three_times_gets_real_slots_then_a_callback_not_a_loop(self):
         call = self.call().given()
-        call.turn(U(service="Braces", branch="Whitefield", date_phrase="Monday", time_phrase="8 am"))
+        call.turn(U(service="Tooth Extraction", branch="Whitefield", date_phrase="Monday", time_phrase="8 am"))
         self.assertEqual(call.goal, Goal.OFFER_SLOTS)
         for slot in call.ctx.book.offered:                    # Dr Ali starts at 2:30: real afternoon slots
             self.assertGreaterEqual(slot.start.time(), time(14, 30))
@@ -737,11 +736,12 @@ class ApplyFirstTests(BookTestCase):
 
     def test_the_real_catalog_loader_gives_the_same_branch_rules(self):
         catalog = self.clinic.db.run_sync(facts.load_catalog)
-        self.assertEqual(tuple(catalog.branches_offering("Braces")), ("Indiranagar", "Whitefield"))
+        self.assertEqual(tuple(catalog.branches_offering("Braces")), ("Indiranagar",))
+        self.assertEqual(tuple(catalog.branches_offering("Pediatric Dentistry")), ("Jayanagar", "Whitefield"))
         call = Call(self.clinic, catalog).given()
-        call.turn(U(service="Braces", branch="Nagarbhavi", date_phrase="Monday", time_phrase="8 am"))
+        call.turn(U(service="Root Canal Treatment", branch="Whitefield", date_phrase="Monday", time_phrase="8 am"))
         self.assertIn("branch.no_service", call.notice_ids())
-        call.turn(U(branch="Whitefield"))
+        call.turn(U(branch="Jayanagar"))
         self.assertTrue(call.holds())
 
 

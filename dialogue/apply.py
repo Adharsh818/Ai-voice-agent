@@ -562,6 +562,14 @@ def _apply_branch(ctx: CallContext, u: Understanding, cued: bool, notices: list,
         name = br.name
     if name == b.branch:
         return
+    settled = next((n for n in notices if n.line == "branch.only"), None)
+    if settled is not None:
+        # "I need braces at Nagarbhavi": the service just settled its only branch, but the caller
+        # named another in the same breath. That's no change of mind: say the branch doesn't do it.
+        notices.remove(settled)
+        b.branch = None
+        notices += _set_field(ctx, "branch", name, rt)
+        return
     if b.branch and not (cued or ctx.pending in (Goal.ASK_BRANCH, Goal.NO_SLOTS, *SUMMARY_GOALS)):
         notices += apply_correction(ctx, "branch", name, rt, cued=False)
         return

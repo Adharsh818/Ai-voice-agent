@@ -64,6 +64,12 @@ class Doctor:
     branch_id: int
     services: tuple = ()               # service names
     hours: str = ""                    # spoken summary: "Monday to Saturday, 9 to 5"
+    # Profile from the verified knowledge base (clinic_facts.json "doctors"); empty when there is none.
+    title: str = ""                    # "orthodontist"
+    degrees: str = ""                  # "BDS and MDS in orthodontics"
+    years: int = 0                     # years of experience
+    languages: tuple = ()
+    about: str = ""                    # "is a certified Invisalign provider"
 
 
 @dataclass(frozen=True)
@@ -76,6 +82,7 @@ class Branch:
     parking: str = ""
     hours: str = ""                    # spoken, from the doctors' rota within clinic hours
     services: tuple = ()               # service names offered here
+    accessibility: str = ""            # wheelchair / stairs, from the knowledge base
 
 
 @dataclass(frozen=True)
@@ -126,6 +133,7 @@ class Knowledge:
     facts: tuple = ()                  # Fact
     unknown_line: str = ""             # honest "not sure" wording (never the doctor deflection)
     branches: tuple = ()               # (name, ((key, value), ...)): verified address / landmark / parking
+    doctors: tuple = ()                # (name, ((key, value), ...)): verified doctor profiles
 
     def get(self, fact_id: str) -> Optional[Fact]:
         return next((f for f in self.facts if f.id == fact_id), None)
@@ -134,6 +142,11 @@ class Knowledge:
         """Verified address / landmark / parking for a branch name ({} when the KB has none)."""
         key = (name or "").lower()
         return next((dict(info) for n, info in self.branches if n.lower() == key), {})
+
+    def doctor_profile(self, name: str) -> dict:
+        """Verified profile for a doctor's full name ({} when the KB has none)."""
+        key = (name or "").lower()
+        return next((dict(info) for n, info in self.doctors if n.lower() == key), {})
 
 
 # ---------------------------------------------------------------- loading
@@ -211,12 +224,16 @@ def load_catalog(conn, kb: Optional[Knowledge] = None) -> Catalog:
                           "ORDER BY doctor_id, weekday, start_time"):
         rota.setdefault(r["doctor_id"], {}).setdefault(r["weekday"], []).append((r["start_time"], r["end_time"]))
 
-    doctors = tuple(
-        Doctor(id=r["id"], name=r["name"], spoken=r["spoken_name"], gender=r["gender"], branch=r["branch"],
-               branch_id=r["branch_id"], services=tuple(does.get(r["id"], ())),
-               hours=_speak_rota(rota.get(r["id"], {})))
-        for r in doctor_rows
-    )
+    doctors = []
+    for r in doctor_rows:
+        profile = kb.doctor_profile(r["name"])
+        doctors.append(Doctor(
+            id=r["id"], name=r["name"], spoken=r["spoken_name"], gender=r["gender"], branch=r["branch"],
+            branch_id=r["branch_id"], services=tuple(does.get(r["id"], ())),
+            hours=_speak_rota(rota.get(r["id"], {})), title=profile.get("title", ""),
+            degrees=profile.get("degrees", ""), years=int(profile.get("years") or 0),
+            languages=tuple(profile.get("languages", ())), about=profile.get("about", "")))
+    doctors = tuple(doctors)
 
     branches = []
     for r in branch_rows:
@@ -233,6 +250,7 @@ def load_catalog(conn, kb: Optional[Knowledge] = None) -> Catalog:
         branches.append(Branch(
             id=r["id"], name=r["name"], area=r["area"], address=info.get("address", ""),
             landmark=info.get("landmark", ""), parking=info.get("parking", ""), hours=_speak_rota(days),
+            accessibility=info.get("accessibility", ""),
             services=tuple(s["name"] for s in service_rows if s["name"] in offered),
         ))
 
@@ -289,7 +307,7 @@ def load_knowledge(path: Optional[str] = None) -> Knowledge:
         if not (isinstance(entry, dict) and entry.get("verified") and entry.get("name")):
             continue
         name = entry["name"]
-        info = {k: entry[k] for k in ("address", "landmark", "parking")
+        info = {k: entry[k] for k in ("address", "landmark", "parking", "accessibility")
                 if entry.get(k) and entry[k] != "PLACEHOLDER"}
         branches.append((name, tuple(sorted(info.items()))))
         low = name.lower()
@@ -300,6 +318,16 @@ def load_knowledge(path: Optional[str] = None) -> Knowledge:
         if info.get("parking"):
             facts.append(Fact(id=f"branch.{name}.parking", topic=f"{name} parking", text=info["parking"],
                               keywords=(low, "parking", "park", "car", "bike", "two-wheeler")))
+        if info.get("accessibility"):
+            facts.append(Fact(id=f"branch.{name}.accessibility", topic=f"{name} wheelchair access",
+                              text=f"At our {name} branch, {info['accessibility'][0].lower()}{info['accessibility'][1:]}",
+                              keywords=(low, "wheelchair", "lift", "elevator", "stairs", "walker", "disabled")))
+    doctors = []
+    for entry in raw.get("doctors", []):
+        if isinstance(entry, dict) and entry.get("verified") and entry.get("name"):
+            info = {k: (tuple(v) if isinstance(v, list) else v) for k, v in entry.items()
+                    if k in ("title", "degrees", "years", "languages", "about") and v}
+            doctors.append((entry["name"], tuple(sorted(info.items()))))
     overview = next((f.text for f in facts if f.id == "clinic.overview"), "")
     return Knowledge(
         version=str(raw.get("version", "")),
@@ -309,6 +337,7 @@ def load_knowledge(path: Optional[str] = None) -> Knowledge:
         facts=tuple(facts),
         unknown_line=raw.get("unknown_line") or DEFAULT_UNKNOWN,
         branches=tuple(branches),
+        doctors=tuple(doctors),
     )
 
 
@@ -335,13 +364,19 @@ def knowledge_block(catalog: Catalog, kb: Knowledge) -> str:
             detail.append(f"address: {b.address}")
         if b.parking:
             detail.append(f"parking: {b.parking}")
+        if b.accessibility:
+            detail.append(f"access: {b.accessibility}")
         if b.hours:
             detail.append(f"hours: {b.hours}")
         detail.append("services: " + (", ".join(b.services) or "none"))
         lines.append("; ".join(detail))
-    lines.append("DOCTORS:")
+    lines.append("DOCTORS (never call one the best; 'specialist' only for an MDS):")
     for d in catalog.doctors:
-        lines.append(f"- {d.spoken} ({d.name}), {d.gender or 'unspecified'}, {d.branch}: "
+        profile = ""
+        if d.title:
+            profile = f" {d.title}, {d.degrees}, {d.years} years' experience, speaks {', '.join(d.languages)}"
+            profile += (f", {d.about}" if d.about else "") + ";"
+        lines.append(f"- {d.spoken} ({d.name}), {d.gender or 'unspecified'}, {d.branch}:{profile} "
                      f"{', '.join(d.services)}; hours: {d.hours or 'not on the rota'}")
     lines.append("SERVICES:")
     for s in catalog.services:
@@ -361,7 +396,11 @@ _WHO_CUE = re.compile(r"\b(who|which|what|any|names?|list|tell me)\b")
 _HOURS_CUE = re.compile(r"\b(hours|timings?|open|opening|close|closing|what time|available on|in on|working)\b")
 _SERVICES_CUE = re.compile(r"\b(what|which)\s+(services|treatments)\b|\bwhat (all )?do you (do|offer)\b|"
                            r"\bservices (do you|you) (have|offer|provide)\b")
-_DO_YOU_DO = re.compile(r"\b(do you|can you|you guys|is there)\s+(do|offer|provide|have|treat)\b|\bdo you do\b")
+_DO_YOU_DO = re.compile(r"\b(do you|can you|could you|will you|you guys|is there|does (the|your) clinic)\s+"
+                        r"(do|offer|provide|have|treat|remove|fix|handle|help with|take care of|take out)\b|"
+                        r"\bdo you do\b")
+_CHILD = re.compile(r"\b(kids?|child|children|son|daughter|baby|toddler|my boy|my girl)\b")
+_LANGUAGES = ("english", "kannada", "hindi", "tamil", "telugu", "malayalam", "marathi", "tulu", "urdu")
 _BRANCHES_CUE = re.compile(r"\b(where are you|where is the clinic|your (branches|locations)|how many branches|"
                            r"which areas|branches do you have|located)\b")
 _BRANCH_WHERE = re.compile(r"\b(where'?s|where (is|are)|address|located|directions|landmark|"
@@ -417,10 +456,25 @@ def _catalog_answer(t: str, catalog: Catalog, kb: Knowledge) -> Optional[str]:
                    if _has(t, d.spoken) or _has(t, d.name.replace(".", "")) or _has(t, d.name)
                    or _has(t, "doctor " + d.spoken.split()[-1])), None)
 
+    language = next((lang for lang in _LANGUAGES if _has(t, lang)), None)
     if doctor is not None:
         if _HOURS_CUE.search(t) or re.search(r"\b(when|which days?|days)\b", t):
             return f"{doctor.spoken} works {doctor.hours}, at our {doctor.branch} branch."
-        return f"{doctor.spoken} is at our {doctor.branch} branch, for {prompts.speak_list([prompts.service_plural(s) for s in doctor.services], 'and')}."
+        if language and doctor.languages:
+            speaks = language.title() in doctor.languages
+            return (f"{'Yes' if speaks else 'No'}, {doctor.spoken} speaks "
+                    f"{prompts.speak_list(list(doctor.languages), 'and')}.")
+        return doctor_profile_line(doctor)
+
+    if language and re.search(r"\b(speak|speaks|speaking|talk|knows?)\b", t):
+        who = [d for d in catalog.doctors if language.title() in d.languages]
+        if who:
+            groups: dict = {}
+            for d in who:
+                groups.setdefault(d.branch, []).append(d)
+            parts = [f"{_doctor_names(ds)} at {b}" for b, ds in groups.items()]
+            verb = "speaks" if len(who) == 1 else "speak"
+            return f"Yes, {prompts.speak_list(parts, 'and')} {verb} {language.title()}."
 
     # "Can I get a check-up, and where is your Jayanagar branch?" asks for the
     # branch's address, not which branches do check-ups.
@@ -431,6 +485,13 @@ def _catalog_answer(t: str, catalog: Catalog, kb: Knowledge) -> Optional[str]:
 
     if services and (_WHERE_CUE.search(t) or _DO_YOU_DO.search(t) or _BRANCHES_CUE.search(t)) \
             and not _DOCTOR_CUE.search(t):
+        # "Can you remove a wisdom tooth?" / "Do you have EMI for a root canal?": a verified fact about
+        # exactly that says more than "we do extractions at ..." (the audit, 11 Oct).
+        if _DO_YOU_DO.search(t) and not _WHERE_CUE.search(t):
+            score, fact, matched = _keyword_best(t, kb, catalog)
+            if fact is not None and not fact.id.startswith("branch.") and (
+                    score >= 2 or any(not _is_service_word(k, catalog) for k in matched)):
+                return fact.text
         s = services[0]
         plural = prompts.service_plural(s.name)
         if not s.branches:
@@ -439,12 +500,16 @@ def _catalog_answer(t: str, catalog: Catalog, kb: Knowledge) -> Optional[str]:
         noun = "branch" if len(s.branches) == 1 else "branches"
         prefix = "Yes, we" if _DO_YOU_DO.search(t) and not _WHERE_CUE.search(t) else "We"
         if branches and branches[0].name not in s.branches:
-            return f"Our {branches[0].name} branch doesn't do {plural}, but our {where} {noun} do."
+            return f"Our {branches[0].name} branch doesn't do {plural}, but our {where} {noun} {'does' if len(s.branches) == 1 else 'do'}."
         return f"{prefix} do {plural} at our {where} {noun}."
 
-    if (_DOCTOR_CUE.search(t) and (_WHO_CUE.search(t) or services or branches or _gender_in(t))) \
+    if (_DOCTOR_CUE.search(t) and (_WHO_CUE.search(t) or services or branches or _gender_in(t)
+                                   or _CHILD.search(t))) \
             or (services and re.search(r"\bwho (does|do|can do|is doing|handles)\b", t)):
         gender = _gender_in(t)
+        if not services and _CHILD.search(t):
+            kids = catalog.service("Pediatric Dentistry")
+            services = [kids] if kids else services
         pool = [d for d in catalog.doctors
                 if (not services or services[0].name in d.services)
                 and (not branches or d.branch == branches[0].name)
@@ -478,8 +543,35 @@ def _catalog_answer(t: str, catalog: Catalog, kb: Knowledge) -> Optional[str]:
     return None
 
 
+def doctor_profile_line(doctor: Doctor) -> str:
+    """
+    "Dr Iyer is our orthodontist at Indiranagar, with a BDS and an MDS in
+    orthodontics and eleven years' experience. She is a certified Invisalign
+    provider, and does braces and Invisalign. She speaks English, Tamil,
+    Kannada and Hindi." (the profile from the knowledge base; branch and
+    services from the database)
+    """
+    services = prompts.speak_list([prompts.service_plural(s) for s in doctor.services], "and")
+    if not doctor.title:
+        return f"{doctor.spoken} is at our {doctor.branch} branch, for {services}."
+    if doctor.degrees.startswith("BDS and MDS"):
+        degrees = "a BDS and an MDS" + doctor.degrees[len("BDS and MDS"):]
+    else:
+        degrees = f"a {doctor.degrees}"
+    they = {"female": "She", "male": "He"}.get(doctor.gender or "", "They")
+    does, speaks = ("do", "speak") if they == "They" else ("does", "speaks")
+    line = (f"{doctor.spoken} is our {doctor.title} at {doctor.branch}, with {degrees} and "
+            f"{_count_word(doctor.years)} years' experience.")
+    line += f" {they} {doctor.about}, and {does} {services}." if doctor.about else f" {they} {does} {services}."
+    if doctor.languages:
+        line += f" {they} {speaks} {prompts.speak_list(list(doctor.languages), 'and')}."
+    return line
+
+
 def _count_word(n: int) -> str:
-    return ("zero one two three four five six seven eight nine ten".split() + [str(n)] * 99)[n] if n < 11 else str(n)
+    words = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
+             "sixteen seventeen eighteen nineteen twenty").split()
+    return words[n] if 0 <= n < len(words) else str(n)
 
 
 def _price_answer(t: str, kb: Knowledge, catalog: Catalog) -> Optional[str]:
@@ -490,9 +582,13 @@ def _price_answer(t: str, kb: Knowledge, catalog: Catalog) -> Optional[str]:
         if f.service and f.service in named:
             return f.text
     generic = {"price", "cost", "charges", "fee"}
+    best, answer = 0, None                                   # the price fact naming the treatment most closely
     for f in prices:
-        if any(_has(t, k) for k in f.keywords if k not in generic):
-            return f.text
+        score = sum(len(k.split()) for k in f.keywords if k not in generic and _has(t, k))
+        if score > best:
+            best, answer = score, f.text
+    if answer:
+        return answer
     if re.search(r"\b(cancel|reschedul)", t):
         fact = kb.get("policy.cancellation")
         return fact.text if fact else None
@@ -500,19 +596,50 @@ def _price_answer(t: str, kb: Knowledge, catalog: Catalog) -> Optional[str]:
     return fact.text if fact else None
 
 
-def _keyword_answer(t: str, kb: Knowledge, catalog: Catalog) -> Optional[str]:
-    """The fact whose keywords overlap the question most. Ties between branches mean the branch wasn't said."""
+def _is_service_word(word: str, catalog: Catalog) -> bool:
+    """A keyword that is just a catalog service's name or alias ("root canal", "wisdom tooth")."""
+    for s in catalog.services:
+        names = {s.name.lower(), s.spoken.lower().removeprefix("a ").removeprefix("an "), *s.aliases}
+        if word in names or any(word in n.split() for n in names):
+            return True
+    return False
+
+
+def _scored_facts(t: str, kb: Knowledge) -> list:
+    """(score, fact, matched keywords) for every fact whose keywords appear; longer phrases count more."""
     scored = []
     for f in kb.facts:
         if f.service:                                        # catalog price facts need a price cue (see lookup)
             continue
-        score = sum(len(k.split()) for k in f.keywords if _has(t, k))
-        if score:
-            scored.append((score, f))
+        matched = [k for k in f.keywords if _has(t, k)]
+        if matched:
+            scored.append((sum(len(k.split()) for k in matched), f, matched))
+    return scored
+
+
+def _keyword_best(t: str, kb: Knowledge, catalog: Catalog) -> tuple:
+    """The best single fact: (score, fact, matched) or (0, None, ()). Ties go to a non-price fact."""
+    scored = _scored_facts(t, kb)
+    if not scored:
+        return 0, None, ()
+    best = max(s for s, _, _ in scored)
+    top = [(f, m) for s, f, m in scored if s == best]
+    top.sort(key=lambda fm: fm[0].id.startswith("price."))
+    return best, top[0][0], tuple(top[0][1])
+
+
+def _keyword_answer(t: str, kb: Knowledge, catalog: Catalog) -> Optional[str]:
+    """
+    The fact whose keywords overlap the question most. Ties between branches
+    mean the branch wasn't said; other ties go to a non-price fact (a price
+    question took the price path already: "is there a warranty on crowns?").
+    """
+    scored = _scored_facts(t, kb)
     if not scored:
         return None
-    best = max(s for s, _ in scored)
-    top = [f for s, f in scored if s == best]
+    best = max(s for s, _, _ in scored)
+    top = [f for s, f, _ in scored if s == best]
+    top.sort(key=lambda f: f.id.startswith("price."))
     if len(top) > 1 and all(f.id.startswith("branch.") for f in top):
         names = prompts.speak_list([b.name for b in catalog.branches] or [f.id.split(".")[1] for f in top], "and")
         if all(f.id.endswith(".parking") for f in top):
@@ -586,6 +713,10 @@ def allowed_numbers(catalog: Catalog, kb: Knowledge) -> frozenset:
         parts += [b.address, b.parking, b.hours]
     for d in catalog.doctors:
         parts.append(d.hours)
+        if d.years:
+            parts.append(f"{d.years} years")
+    for b in catalog.branches:
+        parts.append(b.accessibility)
     nums = set(_numbers(" ".join(p for p in parts if p)))
     nums |= {str(s.duration_min) for s in catalog.services}
     nums |= {str(len(catalog.branches)), str(len(catalog.doctors)), str(len(catalog.services))}

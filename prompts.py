@@ -442,8 +442,9 @@ VARIANTS: dict[str, tuple] = {
     "ask.branch.choices": ("I can just book whichever has the earliest slot, if you like?",
                            "Shall I just go with whichever branch has the earliest slot?"),
     "branch.only": ("We do {service} at our {branch} branch.", "{service} are done at our {branch} branch."),
-    "branch.no_service": ("Our {branch} branch doesn't do {service}, but {branches} do.",
-                          "We don't do {service} at {branch}, but {branches} do."),
+    # No verb agreement to get wrong: {branches} may be one branch or several.
+    "branch.no_service": ("Our {branch} branch doesn't do {service}, but {branches} can.",
+                          "We don't do {service} at {branch}, but {branches} can do that for you."),
     "doctor.unknown": ("We don't have a {name} here, but {doctors} {are_is} at {branch}.",
                        "There's no {name} with us, but {doctors} {are_is} at our {branch} branch."),
     "doctor.other_branch": ("{doctor} is at our {branch} branch.", "{doctor} works at our {branch} branch."),

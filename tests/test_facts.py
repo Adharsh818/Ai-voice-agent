@@ -29,7 +29,7 @@ class CatalogTests(unittest.TestCase):
     def test_branches_per_service_come_from_the_doctors(self):
         with DemoClinic() as clinic:
             cat = demo_catalog(clinic)
-        self.assertEqual(cat.branches_offering("Braces"), ("Indiranagar", "Whitefield"))
+        self.assertEqual(cat.branches_offering("Braces"), ("Indiranagar",))
         self.assertEqual(cat.branches_offering("Pediatric Dentistry"), ("Jayanagar", "Whitefield"))
         self.assertEqual(cat.branches_offering("Root Canal Treatment"), ("Nagarbhavi", "Indiranagar", "Jayanagar"))
         self.assertNotIn("Braces", cat.branch("Nagarbhavi").services)
@@ -45,7 +45,7 @@ class CatalogTests(unittest.TestCase):
                 conn.execute("INSERT INTO doctor_services VALUES (?, ?)", (rao, braces))
             clinic.db.run_sync(give_rao_braces)
             cat = demo_catalog(clinic)
-        self.assertEqual(cat.branches_offering("Braces"), ("Nagarbhavi", "Indiranagar", "Whitefield"))
+        self.assertEqual(cat.branches_offering("Braces"), ("Nagarbhavi", "Indiranagar"))
         self.assertIn("Braces", cat.branch("Nagarbhavi").services)
 
     def test_doctors_carry_gender_branch_services_and_spoken_name(self):
@@ -57,7 +57,8 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(rao.hours, "Monday to Saturday, 9 to 5")
         self.assertEqual(cat.doctor("Dr. Farhan Ali").hours,
                          "Monday, Wednesday, Friday and Saturday, 2:30 to 9 at night")
-        self.assertEqual([d.spoken for d in cat.doctors_for("Braces")], ["Dr Iyer", "Dr Ali"])
+        self.assertEqual([d.spoken for d in cat.doctors_for("Braces")], ["Dr Iyer"])
+        self.assertEqual([d.spoken for d in cat.doctors_for("Tooth Extraction", branch="Whitefield")], ["Dr Ali"])
         self.assertEqual([d.spoken for d in cat.doctors_for("Pediatric Dentistry", gender="female")],
                          ["Dr Kulkarni", "Dr Reddy"])
         self.assertTrue(all(d.gender in ("female", "male") and d.branch for d in cat.doctors))
@@ -88,7 +89,7 @@ class CatalogTests(unittest.TestCase):
             with mock.patch.object(facts, "CATALOG_TTL_S", 0.0):
                 self.assertIsNot(asyncio.run(facts.get_catalog()), first)
             facts.clear_cache()
-        self.assertEqual(first.branches_offering("Braces"), ("Indiranagar", "Whitefield"))
+        self.assertEqual(first.branches_offering("Braces"), ("Indiranagar",))
 
 
 class KnowledgeTests(unittest.TestCase):
@@ -161,8 +162,10 @@ class KnowledgeTests(unittest.TestCase):
         self.assertNotIn(cat.loaded_at, block)               # nothing time-dependent: prompt cache friendly
         self.assertIn("[price.root_canal]", block)
         self.assertIn("[clinic.overview]", block)
-        self.assertIn("- Dr Iyer (Dr. Kavya Iyer), female, Indiranagar: Consultation, Braces, Invisalign", block)
-        self.assertIn("- Braces (say \"braces\"), 30 min, at Indiranagar, Whitefield", block)
+        self.assertIn("- Dr Iyer (Dr. Kavya Iyer), female, Indiranagar: orthodontist, BDS and MDS in orthodontics, "
+                      "11 years' experience, speaks English, Tamil, Kannada, Hindi, is a certified Invisalign "
+                      "provider; Consultation, Braces, Invisalign", block)
+        self.assertIn("- Braces (say \"braces\"), 30 min, at Indiranagar\n", block)
         nagarbhavi = next(line for line in block.splitlines() if line.startswith("- Nagarbhavi;"))
         self.assertNotIn("Braces", nagarbhavi)
         self.assertNotIn("go through", block)
@@ -180,22 +183,22 @@ class LookupTests(unittest.TestCase):
 
     def test_prices_without_the_model(self):
         self.assertIn("5,000 to 8,000", self.ask("How much is a root canal?"))
-        self.assertIn("35,000 to 70,000", self.ask("what are the charges for braces"))
+        self.assertIn("30,000 to 50,000", self.ask("what are the charges for braces"))
         self.assertIn("6,000 to 12,000", self.ask("how much does whitening cost"))
-        self.assertIn("rough range", self.ask("how much does it cost?"))
+        self.assertIn("usual range", self.ask("how much does it cost?"))
         self.assertIn("no fee", self.ask("is there a fee to cancel?"))
 
     def test_which_branch_does_a_service(self):
-        self.assertEqual(self.ask("Which branch does braces?"), "We do braces at our Indiranagar and Whitefield branches.")
+        self.assertEqual(self.ask("Which branch does braces?"), "We do braces at our Indiranagar branch.")
         self.assertEqual(self.ask("do you do braces at nagarbhavi"),
-                         "Our Nagarbhavi branch doesn't do braces, but our Indiranagar and Whitefield branches do.")
+                         "Our Nagarbhavi branch doesn't do braces, but our Indiranagar branch does.")
         self.assertIn("Jayanagar and Whitefield", self.ask("where can I get my kid's teeth checked, pediatric?"))
 
     def test_doctors_and_hours(self):
         doctors = self.ask("who are your doctors?")
         for d in self.cat.doctors:
             self.assertIn(d.spoken, doctors)
-        self.assertEqual(self.ask("who does braces"), "For braces, it's Dr Iyer at Indiranagar and Dr Ali at Whitefield.")
+        self.assertEqual(self.ask("who does braces"), "For braces, it's Dr Iyer at Indiranagar.")
         self.assertEqual(self.ask("do you have a lady doctor at Jayanagar?"), "Dr Kulkarni is at our Jayanagar branch.")
         self.assertIn("Monday, Wednesday, Friday and Saturday", self.ask("when is Dr Ali in?"))
         self.assertIn("Monday to Saturday", self.ask("what are your timings?"))
@@ -211,7 +214,7 @@ class LookupTests(unittest.TestCase):
         self.assertIn("children's dentistry", self.ask("what services do you offer?"))
 
     def test_faq_ids_win(self):
-        self.assertEqual(self.ask("anything", faq_ids=("payment.methods",)), "You can pay by UPI, card or cash.")
+        self.assertEqual(self.ask("anything", faq_ids=("payment.methods",)), "You can pay by UPI, any debit or credit card, net banking or cash, with no extra charge.")
         self.assertEqual(self.ask("how much is braces", faq_ids=("no.such.fact",)),
                          self.kb.get("price.braces").text)
 
@@ -221,18 +224,62 @@ class LookupTests(unittest.TestCase):
         self.assertIsNone(self.ask(""))
 
 
+class ClinicKnowledgeTests(LookupTests):
+    """Callers who aren't booking (owner, 11 Oct): problems, prices, doctors, family, access; complete answers."""
+
+    def test_treatment_questions_get_the_whole_answer(self):
+        wisdom = self.ask("Can you remove a wisdom tooth?")
+        self.assertIn("Dr Ali", wisdom)
+        self.assertIn("3,000 to 8,000", wisdom)
+        self.assertIn("10,000 to 18,000", self.ask("do you do dentures for my mother"))
+        self.assertIn("zirconia", self.ask("how much is a crown"))
+        self.assertIn("30,000 to 55,000", self.ask("do you do implants"))
+        self.assertIn("deep cleaning", self.ask("my gums bleed when I brush"))
+        self.assertIn("sensitivity toothpaste", self.ask("my teeth are sensitive to cold"))
+
+    def test_no_deflection_to_the_doctor(self):
+        for q in ("how much is a crown", "do you do dentures", "how much are your prices", "is there a warranty on crowns"):
+            answer = self.ask(q).lower()
+            self.assertNotIn("doctor confirms", answer, q)
+            self.assertNotIn("doctor will", answer, q)
+
+    def test_doctors_profiles_children_and_languages(self):
+        iyer = self.ask("tell me about Dr Iyer")
+        self.assertTrue(iyer.startswith("Dr Iyer is our orthodontist at Indiranagar, with a BDS and an MDS"), iyer)
+        self.assertIn("eleven years' experience", iyer)
+        self.assertIn("Tamil", iyer)
+        self.assertEqual(self.ask("which doctor is good for my kid"),
+                         "For children's dentistry, it's Dr Kulkarni at Jayanagar and Dr Reddy at Whitefield.")
+        self.assertEqual(self.ask("does anyone speak tamil"), "Yes, Dr Iyer at Indiranagar speaks Tamil.")
+        self.assertEqual(self.ask("does Dr Shetty speak Hindi"), "Yes, Dr Shetty speaks English, Kannada, Tulu and Hindi.")
+        self.assertNotIn("best", self.ask("is this clinic good").lower())
+
+    def test_policies_after_care_and_access(self):
+        self.assertIn("copies of your X-rays", self.ask("can I get a copy of my x-ray"))
+        self.assertIn("no-cost EMI", self.ask("do you have EMI for a root canal"))
+        self.assertIn("warranty", self.ask("is there a warranty on crowns"))
+        self.assertIn("curd or idli", self.ask("what should I eat after extraction"))
+        self.assertIn("20 to 30 minutes", self.ask("it's still bleeding after my extraction"))
+        self.assertIn("medicine list", self.ask("I have diabetes, can I get an extraction"))
+        self.assertIn("middle three months", self.ask("I'm pregnant, can I get a cleaning"))
+        self.assertIn("stairs only", self.ask("is there a lift at Nagarbhavi"))
+        self.assertIn("wheelchair", self.ask("is the clinic wheelchair friendly"))
+        self.assertIn("whole families", self.ask("can my whole family come"))
+        self.assertIn("cold pack", self.ask("what if it hurts at night when you're closed"))
+
+
 class AllowListTests(unittest.TestCase):
     def test_allowed_numbers_cover_the_knowledge_and_catalog(self):
         with DemoClinic() as clinic:
             cat = demo_catalog(clinic)
         nums = facts.allowed_numbers(cat, facts.load_knowledge())
-        for n in ("400", "1000", "1500", "5000", "8000", "35000", "70000", "30", "45", "60", "4", "8", "7", "9"):
+        for n in ("400", "1000", "1500", "5000", "8000", "30000", "70000", "30", "45", "60", "4", "8", "7", "9"):
             self.assertIn(n, nums)
         self.assertNotIn("999", nums)
 
     def test_price_numbers_per_service(self):
         prices = facts.price_numbers(facts.load_knowledge())
-        self.assertEqual(prices["braces"], frozenset({"35000", "70000"}))
+        self.assertTrue({"30000", "50000", "45000", "70000"} <= prices["braces"])
         self.assertEqual(prices["root canal treatment"], prices["root canal"])
         self.assertIn("5000", prices["root canal"])
         self.assertIn("400", prices["consultation"])

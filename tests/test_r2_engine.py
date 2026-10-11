@@ -453,5 +453,20 @@ class SteerAndLoops(EngineCase):
         self.assertEqual(self.booked_rows(), [])     # never booked without a heard summary and a yes
 
 
+class FactAnswerTests(unittest.TestCase):
+    """A question a verified fact answers is answered with the whole fact (owner, 11 Oct)."""
+
+    def test_whole_fact_for_knowledge_questions_only(self):
+        from types import SimpleNamespace
+        from dialogue.context import Act, Understanding
+        rt = SimpleNamespace(kb=facts.load_knowledge())
+        q = lambda **kw: Understanding(acts=[Act.QUESTION.value], **kw)
+        self.assertTrue(engine._fact_answers(q(faq_ids=["price.dentures"]), rt))
+        self.assertFalse(engine._fact_answers(q(faq_ids=["hours"]), rt))              # fits the booking flow
+        self.assertFalse(engine._fact_answers(q(faq_ids=["no.such.fact"]), rt))
+        self.assertFalse(engine._fact_answers(q(faq_ids=["price.dentures"], clinical=True), rt))
+        self.assertFalse(engine._fact_answers(Understanding(faq_ids=["price.dentures"]), rt))  # not a question
+
+
 if __name__ == "__main__":
     unittest.main()
