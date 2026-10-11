@@ -404,6 +404,11 @@ async def voice_websocket(ws: WebSocket):
         logger.warning("Rejected /ws/voice from origin %r", ws.headers.get("origin"))
         await ws.close(code=1008)
         return
+    if not config.TALK_PAGE_PUBLIC and auth.current_user(ws) is None:
+        # Deployed: the talk page is for staff (it spends API credit), not for anyone with the URL.
+        logger.warning("Rejected /ws/voice without a staff session")
+        await ws.close(code=1008)
+        return
     await ws.accept()
     state = ws.app.state
     gate: CallGate = state.gate

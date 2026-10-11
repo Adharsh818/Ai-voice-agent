@@ -44,6 +44,8 @@ if ! grep -q '^DASHBOARD_SESSION_SECRET=..' "$DEST/.env"; then
     sed -i '/^DASHBOARD_SESSION_SECRET=/d' "$DEST/.env"
     echo "DASHBOARD_SESSION_SECRET=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" >> "$DEST/.env"
 fi
+# The talk page spends API credit: only for logged-in staff on a server.
+grep -q '^TALK_PAGE_PUBLIC=' "$DEST/.env" || echo 'TALK_PAGE_PUBLIC=false' >> "$DEST/.env"
 # Behind HTTPS the dashboard cookie must be Secure; Emma itself stays on loopback.
 grep -q '^DASHBOARD_COOKIE_SECURE=' "$DEST/.env" || echo 'DASHBOARD_COOKIE_SECURE=true' >> "$DEST/.env"
 grep -q '^SERVER_HOST=' "$DEST/.env" && sed -i 's/^SERVER_HOST=.*/SERVER_HOST=127.0.0.1/' "$DEST/.env"
