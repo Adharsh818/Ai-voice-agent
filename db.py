@@ -15,6 +15,7 @@ convert; clock.localize() turns them back into clinic time.
 """
 
 import asyncio
+import contextvars
 import functools
 import logging
 import os
@@ -129,10 +130,11 @@ class Database:
         return fn(self._conn, *args, **kwargs)
 
     async def run(self, fn, *args, **kwargs):
-        """Run fn(conn, *args, **kwargs) on the database thread."""
+        """Run fn(conn, *args, **kwargs) on the database thread (with the caller's context: clock.call_day)."""
         loop = asyncio.get_running_loop()
+        context = contextvars.copy_context()
         return await loop.run_in_executor(
-            self._executor, functools.partial(self._call, fn, *args, **kwargs)
+            self._executor, functools.partial(context.run, self._call, fn, *args, **kwargs)
         )
 
     def run_sync(self, fn, *args, **kwargs):

@@ -13,6 +13,7 @@ Tests freeze the clock:
 """
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -22,6 +23,8 @@ import config
 TZ = ZoneInfo(config.CLINIC_TIMEZONE)
 
 _frozen: Optional[datetime] = None
+# The day a call started, for that call's "today" / "tomorrow" (call_day).
+_call_day: ContextVar[Optional[date]] = ContextVar("clinic_call_day", default=None)
 
 
 def now() -> datetime:
@@ -32,8 +35,22 @@ def now() -> datetime:
 
 
 def today() -> date:
-    """Today's date in the clinic's timezone."""
-    return now().date()
+    """
+    Today's date in the clinic's timezone; inside call_day(), the day the call
+    started, so "tomorrow" said at 23:59 means the same day after midnight.
+    """
+    pinned = _call_day.get()
+    return pinned if pinned is not None else now().date()
+
+
+@contextmanager
+def call_day(day: Optional[date]):
+    """today() is `day` for the code inside (one call's turn). now() stays the real time."""
+    token = _call_day.set(day)
+    try:
+        yield
+    finally:
+        _call_day.reset(token)
 
 
 def localize(dt: datetime) -> datetime:

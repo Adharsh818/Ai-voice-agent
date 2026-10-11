@@ -160,6 +160,10 @@ def _is_pediatric(service: Optional[str]) -> bool:
     return bool(service) and "pediatric" in service.lower()
 
 
+# Bookings for these are a child's: Emma asks the age (BookingDraft.relation, tier0 _FOR_SOMEONE_RE).
+_CHILD_RELATIONS = {"son", "daughter", "child", "kid", "kids", "children", "baby", "grandson", "granddaughter"}
+
+
 def _branch_names(catalog) -> list:
     return [b.name for b in catalog.branches]
 
@@ -711,7 +715,7 @@ def _phone_plan(ctx: CallContext) -> Optional[GoalPlan]:
     if c.phone_state == FieldState.CONFIRMED and c.phone_e164:
         return None
     if c.phone_state == FieldState.PENDING and c.phone_e164:
-        return _plan(Goal.CONFIRM_PHONE, "confirm.phone", phone=prompts.speak_phone(c.phone_e164))
+        return _plan(Goal.CONFIRM_PHONE, "confirm.phone", phone=prompts.speak_phone(c.phone_e164, c.phone_landline))
     if c.phone_buffer:
         return _plan(Goal.PHONE_MORE, "phone.more")
     return _plan(Goal.ASK_PHONE, "ask.phone")
@@ -792,6 +796,11 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
         # this patient already has this service booked; another treatment needs no question.
         return _plan(Goal.DUPLICATE_CHECK, "duplicate", patient=_patient_name(ctx))
     if _is_pediatric(b.service) and b.age is None:
+        return _plan(Goal.ASK_AGE, "ask.age", patient=_patient_name(ctx))
+    if b.for_someone_else and (b.relation or "").lower() in _CHILD_RELATIONS and b.age is None \
+            and ctx.stats(Goal.ASK_AGE).asked == 0:
+        # A cleaning for "my son": the clinic needs a child's age as well (the audit, 11 Oct). Asked
+        # once; an answer that isn't an age is let go.
         return _plan(Goal.ASK_AGE, "ask.age", patient=_patient_name(ctx))
     if not b.branch and not b.branch_any:
         return _plan(Goal.ASK_BRANCH, "ask.branch", service=_service_plural(b.service),

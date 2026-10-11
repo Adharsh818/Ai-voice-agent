@@ -298,7 +298,7 @@ async def _callback_commit(ctx: CallContext, rt: Runtime, out: GlobalOutcome) ->
         # not this booking): the booking stops here instead of offering the
         # same slots again. The draft stays, so "actually, let's book it" resumes.
         ctx.intent = Intent.NONE
-    phone = prompts.speak_phone(ctx.caller.phone_e164)
+    phone = prompts.speak_phone(ctx.caller.phone_e164, ctx.caller.phone_landline)
     if ctx.can_transfer:
         # On the phone the front desk can take the call now; the task stays,
         # so if nobody picks up the promise to call back still holds.

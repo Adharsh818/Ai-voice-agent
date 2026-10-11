@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Awaitable, Callable, Optional
 
+import clock
 import config
 import phrases
 import prompts
@@ -100,6 +101,19 @@ async def build_runtime(ctx: CallContext, progress: Optional[Callable] = None) -
 
 async def process_turn(ctx: CallContext, text: str, progress: Optional[Callable] = None,
                        on_sentence: Optional[OnSentence] = None, runtime=None) -> TurnOutput:
+    """
+    One caller turn (_process_turn), with "today" pinned to the day the call
+    started: "tomorrow" said at 23:59 and confirmed at 00:01 is the same day.
+    """
+    if ctx.day is None:
+        ctx.day = clock.today()
+    pinned = ctx.day if 0 <= (clock.now().date() - ctx.day).days <= 1 else None
+    with clock.call_day(pinned):
+        return await _process_turn(ctx, text, progress, on_sentence, runtime)
+
+
+async def _process_turn(ctx: CallContext, text: str, progress: Optional[Callable] = None,
+                        on_sentence: Optional[OnSentence] = None, runtime=None) -> TurnOutput:
     """
     One caller turn. `text` == "" means the greeting (first call) or silence
     (later: handlers.silence). If on_sentence is given, each reply sentence

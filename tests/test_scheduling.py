@@ -303,6 +303,17 @@ class BookingTests(EngineTestCase):
         # A different family member on the same number can be seen at the same time.
         self.assertTrue(self.book(at(MON, 10), doctor=3, name="Ravi", phone="9876543210").ok)
 
+    def test_one_name_spelled_two_ways_is_one_patient(self):
+        # "Adarsh" one call, "Adharsh" the next (speech recognition): one patient, not two.
+        self.assertTrue(self.book(at(MON, 10), doctor=1, name="Adarsh Kumar", phone="9876543210").ok)
+        self.assertEqual(self.book(at(MON, 10), doctor=3, name="Adharsh Kumar", phone="9876543210").code,
+                         "PATIENT_CONFLICT")
+        self.assertTrue(self.book(at(MON, 15), doctor=1, name="Adharsh Kumar", phone="9876543210").ok)
+        self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0], 1)
+        # Siblings with close but different names stay two patients.
+        self.assertTrue(self.book(at(TUE, 10), doctor=1, name="Arun", phone="9876543210").ok)
+        self.assertTrue(self.book(at(TUE, 10), doctor=3, name="Arjun", phone="9876543210").ok)
+
     def test_no_two_branches_too_close_together_for_one_patient(self):
         # 10:00 at one branch and 10:45 at another: no time to get there (the audit, 11 Oct).
         self.assertTrue(self.book(at(MON, 10), name="Asha", phone="9876543210", doctor=1).ok)          # branch A
@@ -396,6 +407,16 @@ class RescheduleCancelTests(EngineTestCase):
                              "TOO_LATE")
             self.assertTrue(sch.reschedule(self.conn, self.id, doctor_id=1, start=at(TUE, 10), idem_key="d",
                                            enforce_notice=False, actor="staff:dashboard").ok)
+
+    def test_inside_the_notice_a_move_later_that_day_with_the_same_doctor_is_allowed(self):
+        # The audit, 11 Oct: "same-day move within 2 h always refused". Dr 1 is expecting the patient anyway.
+        with clock.frozen(datetime(2026, 10, 5, 8, 30)):     # 1.5 h before the 10:00 appointment
+            self.assertEqual(sch.reschedule(self.conn, self.id, doctor_id=3, start=at(MON, 12), idem_key="a").code,
+                             "TOO_LATE")                       # another doctor
+            self.assertNotEqual(sch.reschedule(self.conn, self.id, doctor_id=1, start=at(MON, 8, 45),
+                                               idem_key="b").ok, True)  # under 30 minutes away
+            r = sch.reschedule(self.conn, self.id, doctor_id=1, start=at(MON, 12), idem_key="c")
+            self.assertTrue(r.ok, r.code)
 
     def test_reschedule_retry_is_harmless(self):
         first = sch.reschedule(self.conn, self.id, doctor_id=1, start=at(TUE, 10), idem_key="mv1")

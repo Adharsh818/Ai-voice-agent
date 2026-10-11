@@ -439,6 +439,8 @@ def _apply_phone(ctx: CallContext, u: Understanding, conf: Optional[str], cued: 
             c.phone_buffer = ""
             notices.append(Notice("phone.too_many"))
             return
+        # As said, before the 0 / +91 prefix is stripped ("080 2345 6789" is read back as a landline).
+        said = c.phone_buffer + (safe_call(match._read_digits, u.raw_text or "", default="") or digits)
         buffer, e164 = _accumulate(c.phone_buffer, u.phone_digits, digits)
         if e164 is None:
             if not buffer and len(c.phone_buffer) + len(digits) > 12:
@@ -459,6 +461,7 @@ def _apply_phone(ctx: CallContext, u: Understanding, conf: Optional[str], cued: 
             c.phone_misses += 1                         # "937, not 837": the read-back was wrong
         c.phone_source = None                           # a number they said, read back in groups
         c.phone_e164 = e164
+        c.phone_landline = phones.said_as_landline(said)
         c.phone_state = FieldState.PENDING              # read back in groups, explicit yes required
         return
     if ctx.pending == Goal.CONFIRM_PHONE and c.phone_state == FieldState.PENDING:

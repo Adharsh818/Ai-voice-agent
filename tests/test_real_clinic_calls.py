@@ -148,6 +148,8 @@ class FamilyBookingTests(ClinicCallCase):
         call = Call()
         call.run(*self.BOOK_PRIYA)
         reply = call.say("Can you also book my son Arjun for a check-up, same day, right after mine?").text
+        if "old" in reply:                                  # a child's age is asked (12 Oct)
+            reply = call.say("He's eight.").text
         self.assertIn("for Arjun", reply)
         self.assertIn("10:30", reply)
         call.say("yes")
@@ -247,6 +249,86 @@ class MoveAgainTests(ClinicCallCase):
         reply = call.say("Is 9 AM on Friday not possible at all?").text
         self.assertNotIn("nothing", reply)
         self.assertIn("at 9", reply)
+
+
+class ShortNoticeMoveTests(ClinicCallCase):
+    VERIFY = ["", "Can I move my appointment?", "98450 12345", "Yes", "Priya Sharma", "It's today at 10."]
+
+    def setUp(self):
+        super().setUp()
+        Call().run(*FamilyBookingTests.BOOK_PRIYA)                  # Monday the 5th at 10
+        import clock
+        clock.freeze(datetime(2026, 10, 5, 9, 0))                   # Monday, an hour before
+
+    def start(self):
+        rows = self.clinic.query("SELECT start_utc FROM appointments WHERE caller_phone_e164 = '+919845012345' "
+                                 "AND status = 'booked'")
+        return [r["start_utc"] for r in rows]
+
+    def test_later_the_same_day_with_the_same_doctor(self):
+        call = Call()
+        call.run(*self.VERIFY)
+        reply = call.say("Can I come at 12 instead?").text
+        self.assertNotIn("too close", reply)
+        call.say("Yes")
+        self.assertEqual(self.start(), ["2026-10-05T06:30:00Z"])
+
+    def test_later_today_offers_times_after_the_appointment(self):
+        call = Call()
+        call.run(*self.VERIFY)
+        reply = call.say("What's free later today?").text
+        self.assertIn("10:30", reply)
+        self.assertNotIn("9:30", reply)
+
+    def test_another_day_is_still_a_call_from_the_team(self):
+        call = Call()
+        call.run(*self.VERIFY)
+        reply = call.say("Can I move it to tomorrow?").text
+        self.assertIn("too close", reply)
+        self.assertEqual(self.start(), ["2026-10-05T04:30:00Z"])
+
+
+class ChildAgeTests(ClinicCallCase):
+    def test_a_cleaning_for_my_son_asks_his_age_once(self):
+        call = Call()
+        call.run("", "I'd like to book a cleaning for my son at Jayanagar.", "Priya Sharma", "9845012345", "yes")
+        self.assertIn("old", call.say("Arjun").text)
+        reply = call.say("He's eight.").text
+        self.assertNotIn("old", reply)
+        self.assertEqual(call.s.book.age, 8)
+
+    def test_no_age_given_is_let_go(self):
+        call = Call()
+        call.run("", "I'd like to book a cleaning for my son at Jayanagar.", "Priya Sharma", "9845012345", "yes")
+        self.assertIn("old", call.say("Arjun").text)
+        self.assertNotIn("old", call.say("Monday please.").text)
+
+
+class LandlineTests(ClinicCallCase):
+    def test_a_bengaluru_landline_is_read_back_as_one(self):
+        call = Call()
+        reply = call.run("", "I'd like a cleaning at Jayanagar.", "Priya Sharma", "080 2345 6789").text
+        self.assertIn("0 8 0, 2 3 4 5, 6 7 8 9", reply)
+        call2 = Call()
+        reply = call2.run("", "I'd like a cleaning at Jayanagar.", "Priya Sharma", "80234 56789").text
+        self.assertIn("8 0 2 3 4, 5 6 7 8 9", reply)                    # said as a mobile
+
+
+class MidnightTests(ClinicCallCase):
+    NOW = datetime(2026, 10, 1, 23, 58)            # Thursday, two minutes to midnight
+
+    def test_tomorrow_said_after_midnight_is_still_the_callers_tomorrow(self):
+        import clock
+        call = Call()
+        call.run("", "I'd like a cleaning at Jayanagar.", "Priya Sharma", "98450 12345", "Yes")
+        clock.freeze(datetime(2026, 10, 2, 0, 1))  # the call runs past midnight
+        call.say("Tomorrow at 10 am.")
+        call.say("Yes")
+        rows = self.clinic.query("SELECT start_utc FROM appointments WHERE caller_phone_e164 = '+919845012345'")
+        self.assertEqual([r["start_utc"] for r in rows], ["2026-10-02T04:30:00Z"])     # Friday, not Saturday
+        # A new call after midnight starts from the new day.
+        self.assertIsNone(clock._call_day.get())
+        self.assertEqual(clock.today().isoformat(), "2026-10-02")
 
 
 class SmallTalkTests(ClinicCallCase):

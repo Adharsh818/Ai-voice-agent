@@ -116,6 +116,26 @@ def norm_name(name: str) -> str:
     return " ".join("".join(ch for ch in (name or "").lower() if ch.isalnum() or ch.isspace()).split())
 
 
+def patient_norm(conn, phone_e164: str, name: str) -> str:
+    """
+    The name_norm a patient on this number is stored under: the one whose name
+    sounds the same (Adarsh / Adharsh, Priya / Preeya: one person spelled two
+    ways by speech recognition, never two patients), else norm_name(name).
+    Only identical sound-alike keys merge, so siblings like Arun and Arjun on
+    one family number stay apart.
+    """
+    from dialogue.match import _name_key
+    n = norm_name(name)
+    rows = [r[0] for r in conn.execute("SELECT name_norm FROM patients WHERE phone_e164 = ?", (phone_e164,))]
+    if n in rows or not n:
+        return n
+    def key(name: str) -> tuple:                     # the sound-alike key; digits must match exactly
+        return _name_key(name), "".join(ch for ch in name if ch.isdigit())
+
+    same = [r for r in rows if key(r) == key(n)]
+    return same[0] if len(same) == 1 else n
+
+
 def get_service(conn, service) -> Optional[sqlite3.Row]:
     """A service by id or by (case-insensitive) name."""
     if isinstance(service, int):
@@ -511,7 +531,8 @@ def _outbox(conn, appointment_id: str, now: datetime):
 def _patient_busy(conn, patient: tuple, first: date, last: date, exclude_id=None) -> list:
     """[(start, end, branch_id)] of the patient's booked appointments from `first` to `last` (local days)."""
     phone_e164, name_norm = patient
-    lo, hi = db.utc_str(_at(first, time(0, 0))), db.utc_str(_at(last + timedelta(days=1), time(0, 0)))
+    name_norm = patient_norm(conn, phone_e164, name_norm)
+    lo, hi =db.utc_str(_at(first, time(0, 0))), db.utc_str(_at(last + timedelta(days=1), time(0, 0)))
     rows = conn.execute(
         "SELECT a.start_utc, a.end_utc, a.branch_id FROM appointments a JOIN patients p ON p.id = a.patient_id "
         "WHERE p.phone_e164 = ? AND p.name_norm = ? AND a.status = 'booked' AND a.id IS NOT ? "
@@ -588,7 +609,7 @@ def book(conn, *, service, doctor_id: int, start: datetime, patient_name: str, p
             if why:
                 return Result(False, why[0])
             end = start + timedelta(minutes=svc["duration_min"])
-            name_n = norm_name(patient_name)
+            name_n = patient_norm(conn, e164, patient_name)
             if _patient_conflict(conn, e164, name_n, start, end, branch_id=doc["branch_id"]):
                 return Result(False, "PATIENT_CONFLICT")
             future = conn.execute("SELECT COUNT(*) FROM appointments WHERE caller_phone_e164 = ? AND status = 'booked' "
@@ -639,6 +660,21 @@ def _load_for_change(conn, appointment_id, expected_version, now, enforce_notice
     return appt, None
 
 
+def short_notice_move(before: Optional[dict], doctor_id: int, start: datetime, now) -> bool:
+    """
+    An appointment inside the 2-hour notice (not yet started) may still move
+    later the same day with the same doctor, who is expecting the patient
+    anyway ("running late, can I come at 12 instead?"), at least
+    EMERGENCY_LEAD_MIN away. Another day or doctor stays a call from the team.
+    """
+    if not before:
+        return False
+    old = db.local(before["start_utc"])
+    start = clock.localize(start)
+    return (now < old and doctor_id == before["doctor_id"] and start.date() == old.date()
+            and start >= now + timedelta(minutes=config.EMERGENCY_LEAD_MIN))
+
+
 def reschedule(conn, appointment_id: str, *, doctor_id: int, start: datetime, idem_key: str,
                expected_version: Optional[int] = None, call_id: Optional[str] = None, actor: str = "emma",
                enforce_notice: bool = True, now=None) -> Result:
@@ -655,12 +691,13 @@ def reschedule(conn, appointment_id: str, *, doctor_id: int, start: datetime, id
                 return replay
             _purge_expired(conn, now)
             before, error = _load_for_change(conn, appointment_id, expected_version, now, enforce_notice)
-            if error:
+            short = error == "TOO_LATE" and short_notice_move(before, doctor_id, start, now)
+            if error and not short:
                 return Result(False, error, appointment_id, before)
             if before["doctor_id"] == doctor_id and db.local(before["start_utc"]) == start:
                 return Result(False, "SAME_SLOT", appointment_id, before)
             why = validate(conn, service=before["service_id"], doctor_id=doctor_id, start=start, now=now,
-                           call_id=call_id, ignore_appointment=appointment_id)
+                           call_id=call_id, ignore_appointment=appointment_id, emergency=short)
             if why:
                 return Result(False, why[0], appointment_id, before)
             end = start + timedelta(minutes=before["duration_min"])

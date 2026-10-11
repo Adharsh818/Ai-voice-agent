@@ -113,7 +113,7 @@ def phone_plan(ctx: CallContext, first_line: str) -> Optional[GoalPlan]:
     if c.phone_misses >= 3:
         return plan(Goal.CLOSE, "phone.failed", critical=True, use_model_say=False, steer=False, closes_call=True)
     if c.phone_state == FieldState.PENDING and c.phone_e164:
-        return plan(Goal.CONFIRM_PHONE, "confirm.phone", {"phone": prompts.speak_phone(c.phone_e164)})
+        return plan(Goal.CONFIRM_PHONE, "confirm.phone", {"phone": prompts.speak_phone(c.phone_e164, c.phone_landline)})
     if c.phone_buffer:
         return plan(Goal.PHONE_MORE, "phone.more", use_model_say=False)
     if c.phone_misses and ctx.stats(Goal.ASK_PHONE).misses == 0:
@@ -327,6 +327,10 @@ def _absorb(ctx: CallContext, u: Understanding) -> _Heard:
             heard.new_when = True
         elif when.time is not None:
             m.new_time_c = _resolve_ampm(m.new_time_c, when.time)
+            if m.new_date_c is None and m.target is not None and short_notice(ctx, m.target):
+                # "Can I come at 12 instead?" an hour before: today is the only day it can move to.
+                day = m.target.start.date()
+                m.new_date_c = dateparse.DateConstraint(day, day)
             heard.new_when = m.new_date_c is not None
     if ctx.pending == Goal.NO_SLOTS and m.action == Intent.RESCHEDULE and not heard.new_when \
             and m.new_date_c is not None and m.target is not None \
@@ -392,11 +396,27 @@ async def _reload(ctx: CallContext, rt: Runtime, notices: list) -> bool:
 
 
 def too_late(ctx: CallContext, appt: VerifiedAppointment) -> bool:
-    """Already started, or (to move it) inside the booking lead time: scheduling would refuse."""
+    """
+    Already started, or (to move it) inside the booking lead time and no move
+    scheduling would allow: only later the same day with the same doctor
+    (scheduling.short_notice_move), so another day, or no such time, is too late.
+    """
     now = clock.now()
     if appt.start <= now:
         return True
-    return ctx.manage.action == Intent.RESCHEDULE and appt.start < now + timedelta(minutes=config.BOOKING_LEAD_MIN)
+    if not short_notice(ctx, appt):
+        return False
+    m = ctx.manage
+    if m.new_date_c is not None and not (m.new_date_c.start <= appt.start.date() <= m.new_date_c.end):
+        return True
+    return bool(m.__dict__.get("_short_notice_none"))
+
+
+def short_notice(ctx: CallContext, appt: VerifiedAppointment) -> bool:
+    """A move asked for inside the 2-hour notice (the appointment hasn't started)."""
+    now = clock.now()
+    return ctx.manage.action == Intent.RESCHEDULE and now < appt.start < now + timedelta(
+        minutes=config.BOOKING_LEAD_MIN)
 
 
 def _heard_yes(ctx: CallContext, goal: Goal, confirmation: Optional[str]) -> bool:
@@ -666,16 +686,30 @@ async def _search(ctx: CallContext, rt: Runtime, result: ActionResult) -> None:
         declined = {d for d in declined if d[1] != asked}
     common = dict(service=t.service_id, date_c=m.new_date_c, time_c=time_c, branch_ids=[t.branch_id],
                   call_id=rt.call_id, ignore_appointment=t.appointment_id, limit=6 if declined else 2)
+    short = short_notice(ctx, t)
+    if short:
+        # Inside the 2-hour notice: later the same day with the same doctor only
+        # (scheduling.short_notice_move), at least EMERGENCY_LEAD_MIN away.
+        day = t.start.date()
+        common.update(date_c=dateparse.DateConstraint(day, day), emergency=True)
+        if time_c is None:
+            # "Later today" an hour before: after the current time, not earlier (it's why they called).
+            after = (t.start + timedelta(minutes=30)).time()
+            common["time_c"] = dateparse.TimeConstraint("window", after, scheduling.CLOSE, label="later")
 
     def same(slot) -> bool:
         # The current time, or one the caller already said no to ("Wednesday" again after
         # turning down Wednesday at 7: sim, 11 Oct).
-        return (slot.doctor_id == t.doctor_id and slot.start == t.start) or (slot.doctor_id, slot.start) in declined
+        return (slot.doctor_id == t.doctor_id and slot.start == t.start) or (slot.doctor_id, slot.start) in declined \
+            or (short and slot.start.date() != t.start.date())
 
     sug = await rt.run(scheduling.suggest, doctor_id=t.doctor_id, **common)
     if sug.requested is not None and sug.requested == t.start:
         result.notices.append(Notice("same_slot"))
     slots = [s for s in sug.slots if not same(s)]
+    if short and not slots:
+        m.__dict__["_short_notice_none"] = True          # too_late() now holds: the team calls back
+        return
     if not slots:
         sug = await rt.run(scheduling.suggest, **common)
         slots = [s for s in sug.slots if not same(s)]
@@ -691,13 +725,15 @@ async def _search(ctx: CallContext, rt: Runtime, result: ActionResult) -> None:
                               if reason else
                               Notice("time.taken", {"time": prompts.speak_time(sug.requested.time())}))
     for slot in slots[:2]:
-        hold_id = await rt.run(scheduling.hold, slot, rt.call_id)
+        hold_id = await rt.run(scheduling.hold, slot, rt.call_id, emergency=short)
         if hold_id is None:
             continue
         m.offered.append(OfferedSlot(
             doctor_id=slot.doctor_id, doctor=slot.doctor, branch_id=slot.branch_id, branch=slot.branch,
             service_id=slot.service_id, service=slot.service, start=slot.start, end=slot.end,
             hold_id=hold_id, spoken=_slot_words(slot.start)))
+    if short and not m.offered:
+        m.__dict__["_short_notice_none"] = True
 
 
 async def _commit_reschedule(ctx, rt, result) -> ActionResult:
@@ -726,6 +762,7 @@ async def _commit_reschedule(ctx, rt, result) -> ActionResult:
         await _release(rt)
     elif res.code == "TOO_LATE":
         m.chosen = None
+        m.__dict__["_short_notice_none"] = True              # the too_late line (the team calls back)
         await _release(rt)
     elif res.code == "STALE":
         await _reload(ctx, rt, result.notices)
