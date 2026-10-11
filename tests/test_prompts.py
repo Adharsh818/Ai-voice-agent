@@ -93,7 +93,8 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual((config.CLINIC_START_HOUR, config.CLINIC_END_HOUR), (7, 21))
         self.assertEqual((config.LUNCH_START_HOUR, config.LUNCH_END_HOUR, config.LUNCH_END_MIN), (14, 14, 30))
         self.assertEqual(config.BOOKING_HORIZON_DAYS, 60)                  # "two months ahead"
-        self.assertEqual(config.MAX_FUTURE_APPOINTMENTS_PER_PHONE, 3)      # "already three appointments"
+        self.assertEqual(config.MAX_FUTURE_APPOINTMENTS_PER_PATIENT, 3)    # one patient's upcoming visits
+        self.assertEqual(config.MAX_FUTURE_APPOINTMENTS_PER_PHONE, 8)      # a family on one number
 
     def test_frequent_lines_have_several_wordings(self):
         for line_id, spec in prompts.LINES.items():

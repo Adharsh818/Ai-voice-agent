@@ -113,10 +113,21 @@ def apply(ctx: CallContext, u: Understanding, rt: Runtime) -> list:
     if u.intent in WORKFLOW_INTENTS and u.intent != ctx.intent and _asks_for(ctx, u):
         notices += switch_intent(ctx, u.intent, rt)
     elif u.intent == Intent.BOOK and ctx.book.appointment_id and (
-            u.carries_details or (ctx.pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and _ANOTHER_RE.search(text))):
-        notices += _fresh_booking(ctx, rt)              # "and one for my son too", "I want another one"
-        if _ANOTHER_RE.search(text):
+            u.carries_details or (ctx.pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and _another(text))):
+        notices += _fresh_booking(ctx, rt, text)        # "and one for my son too", "I want another one"
+        if _another(text):
             ctx.book.duplicate_ok = True                # they said it's another one: don't ask again
+        if Act.QUESTION.value in u.acts:                # "Can you also book my son?" asks for a booking
+            u.acts.remove(Act.QUESTION.value)
+        if ctx.book.date_c is not None and _SAME_DAY_RE.search(text):
+            u.date_phrase = u.time_phrase = None        # "same day, right after mine" is already set
+    elif ctx.intent == Intent.BOOK and ctx.book.appointment_id and (u.date_phrase or u.time_phrase) \
+            and u.intent in (None, Intent.NONE, Intent.BOOK) and not u.has(Act.QUESTION):
+        # A new day or time for the booking just made moves that booking (rescheduled, confirmed,
+        # committed): never just an edit to the booked draft followed by "Got it, today at 10 then"
+        # with nothing changed (11 Oct). As "Seven" after booking 8 does (8 Oct).
+        u.intent = Intent.RESCHEDULE
+        notices += switch_intent(ctx, Intent.RESCHEDULE, rt)
     elif u.intent == Intent.BOOK and ctx.intent == Intent.BOOK and ctx.tasks_created \
             and not ctx.book.appointment_id and ctx.book.offer_rounds >= 3 \
             and not ctx.book.__dict__.get("_retried_after_callback"):
@@ -953,9 +964,44 @@ def _drop(ctx: CallContext, rt: Runtime) -> list:
     return []
 
 
-def _fresh_booking(ctx: CallContext, rt: Runtime) -> list:
-    """Another booking after one was made: a new draft, the caller's name and number carried."""
-    ctx.book = BookingDraft(draft_id=ctx.book.draft_id + 1)
+_SAME_DAY_RE = re.compile(r"\b(?:same day|same time|right after|after (?:mine|me|hers|his|her|him|that)|"
+                          r"back to back|together|one after the other)\b", re.I)
+_RIGHT_AFTER_RE = re.compile(r"\b(?:right after|after (?:mine|me|hers|his|her|him|that)|back to back|"
+                             r"one after the other)\b", re.I)
+
+
+_FAMILY_WHO_RE = re.compile(
+    r"\b[Mm]y (son|daughter|kid|child|wife|husband|mother|mom|mum|father|dad|brother|sister|grandmother|grandfather|"
+    r"grandma|grandpa)\b(?:,?\s+([A-Z][a-z]+))?")
+
+
+def _another(text: str) -> bool:
+    import tier0
+    return bool(_ANOTHER_RE.search(text) or tier0.FAMILY_BOOKING_RE.search((text or "").lower()))
+
+
+def _fresh_booking(ctx: CallContext, rt: Runtime, text: str = "") -> list:
+    """
+    Another booking after one was made: a new draft, the caller's name and
+    number carried, and the branch (a family comes to one place). "Same day"
+    takes the day just booked; "right after mine" the time it ends (11 Oct:
+    "Same day, right after mine" became "today at 10").
+    """
+    done = ctx.book
+    ctx.book = BookingDraft(draft_id=done.draft_id + 1, branch=done.branch)
+    who = _FAMILY_WHO_RE.search(text or "")
+    if who:
+        # "Also book my son Arjun": his booking, never under the caller's name (11 Oct: it was).
+        ctx.book.for_someone_else, ctx.book.relation = True, who.group(1).lower()
+        name = who.group(2)
+        if name and not match.NON_NAME_WORDS.intersection({name.lower()}):
+            ctx.book.patient_name = _clean_name(name) or name.title()
+    chosen = done.chosen
+    if chosen is not None and getattr(chosen, "start", None) is not None and _SAME_DAY_RE.search(text or ""):
+        day = chosen.start.date()
+        ctx.book.date_c = DateConstraint(day, day)
+        if _RIGHT_AFTER_RE.search(text) and getattr(chosen, "end", None) is not None:
+            ctx.book.time_c = TimeConstraint("exact", chosen.end.time(), label="right after")
     return []
 
 

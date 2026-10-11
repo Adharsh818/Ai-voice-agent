@@ -886,6 +886,9 @@ def _offer_plan(b) -> GoalPlan:
         return _plan(Goal.OFFER_SLOTS, "offer.full_everywhere", day=prompts.speak_day(b.date_c.start),
                      a=first.spoken, b=second.spoken)
     if b.date_c is not None and b.date_c.exact and not any(s.start.date() in wanted for s in slots):
+        if notes.get("away_day") == b.date_c.start.isoformat():
+            # "Dr Rao isn't in on Monday" was just said: the day isn't "fully booked", nobody else does it.
+            return _plan(Goal.OFFER_SLOTS, "offer.next_days", a=first.spoken, b=second.spoken)
         return _plan(Goal.OFFER_SLOTS, "offer.later_days", day=prompts.speak_day(b.date_c.start),
                      a=first.spoken, b=second.spoken)
     _, b_spoken = _two_spoken(first, second)
@@ -1184,6 +1187,7 @@ async def _search(ctx: CallContext, rt: Runtime, notices: list):
         if away and doctor is not None:
             notices.append(Notice("doctor.away", {"doctor": doctor.spoken, "day": prompts.speak_day(b.date_c.start)},
                                   covered_by=("away",)))
+            notes["away_day"] = b.date_c.start.isoformat()
             b.doctor_id = None
     try:
         await rt.run(scheduling.release_holds, rt.call_id)

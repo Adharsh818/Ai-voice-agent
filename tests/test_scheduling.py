@@ -7,6 +7,8 @@ import unittest
 from datetime import date, datetime, time, timedelta
 from unittest.mock import patch
 
+import config
+
 import clock
 import db
 import scheduling as sch
@@ -282,10 +284,16 @@ class BookingTests(EngineTestCase):
         # A different family member on the same number can be seen at the same time.
         self.assertTrue(self.book(at(MON, 10), doctor=3, name="Ravi", phone="9876543210").ok)
 
-    def test_at_most_three_future_appointments_per_number(self):
+    def test_upcoming_appointments_are_capped_per_patient_and_per_number(self):
+        # One patient: three upcoming visits (a root canal's sittings fit); the fourth is refused.
         for hh in (10, 11, 12):
-            self.assertTrue(self.book(at(MON, hh), name=f"P{hh}", phone="9876543210").ok)
-        self.assertEqual(self.book(at(MON, 15), name="P15", phone="9876543210").code, "MAX_FUTURE")
+            self.assertTrue(self.book(at(MON, hh), name="Asha", phone="9876543210").ok)
+        self.assertEqual(self.book(at(MON, 15), name="Asha", phone="9876543210").code, "MAX_FUTURE")
+        # A family on one number: up to eight between them.
+        for i, hh in enumerate((15, 16)):
+            self.assertTrue(self.book(at(MON, hh), name=f"Family {i}", phone="9876543210").ok)
+        with patch.object(config, "MAX_FUTURE_APPOINTMENTS_PER_PHONE", 5):
+            self.assertEqual(self.book(at(MON, 17), name="Family 9", phone="9876543210").code, "MAX_FUTURE")
 
     def test_invalid_phone_and_rules_are_enforced_at_commit(self):
         self.assertEqual(self.book(at(MON, 10), phone="12345").code, "INVALID_PHONE")
