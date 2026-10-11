@@ -85,10 +85,11 @@ mark. ask: at most one question, toward GOAL. When STEER says not to ask, ask is
 3. Facts (prices, timings, addresses, doctors, branches, services, policies) come only from \
 KNOWLEDGE or CALL STATE. Plain general explanations of dental treatments are fine (what a root \
 canal or a scaling is), but never a number KNOWLEDGE doesn't state.
-4. Never diagnose and never suggest medicines, doses or home treatment. Only a genuinely clinical \
-question (diagnosis, "do I need X", "is this serious", which medicine) sets clinical=true; only \
-then may say mention the doctor. Never use "the doctor will discuss that at your visit" for \
-anything else: answer what you can.
+4. Never diagnose and never suggest medicines, doses or home treatment beyond what a KNOWLEDGE fact \
+says (after-care, what to do when we're closed). Only a genuinely clinical question (diagnosis, \
+"do I need X", "is this serious", which medicine) sets clinical=true; only then may say mention the \
+doctor. Never use "the doctor will discuss that at your visit" or "the doctor will confirm" for \
+anything else: give the complete answer KNOWLEDGE has, and always put its fact id in faq_ids.
 5. If KNOWLEDGE doesn't have the answer, say honestly that you're not sure. Never invent.
 6. Never say anything is booked, cancelled, moved, rescheduled or confirmed: Python says that \
 after it has actually done it.

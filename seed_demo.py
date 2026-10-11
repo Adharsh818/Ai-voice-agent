@@ -68,8 +68,9 @@ DOCTORS = [
     ("Dr. Ananya Reddy", "Dr Reddy", "female", "Whitefield",
      ["General Check-up", "Consultation", "Teeth Cleaning", "Tooth Filling", "Pediatric Dentistry"],
      {MON_SAT: [("08:00", "16:00")]}),
+    # Oral surgeon (11 Oct, owner): wisdom teeth and surgical extractions; braces stay with the orthodontist.
     ("Dr. Farhan Ali", "Dr Ali", "male", "Whitefield",
-     ["Tooth Extraction", "Braces", "Invisalign", "Consultation"],
+     ["Tooth Extraction", "Consultation"],
      {(0, 2, 4, 5): [("14:30", "21:00")]}),
 ]
 

@@ -221,7 +221,7 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
 
     allowed = _allowed(brief, ctx, result.action, u)
     say, dropped, streamed = [], [], []
-    use_say = plan.use_model_say and stream is not None and u.source == "llm"
+    use_say = plan.use_model_say and stream is not None and u.source == "llm" and not _fact_answers(u, rt)
     if use_say:
         say, dropped, streamed = await _stream_say(stream, allowed, on_sentence)
     if (u.has(Act.QUESTION) or u.clinical) and not say and plan.goal not in CLOSING_GOALS \
@@ -522,6 +522,23 @@ async def _release_if_requested(ctx: CallContext, rt: Runtime) -> None:
         await rt.run(scheduling.release_holds, rt.call_id, keep)
     except Exception as exc:                     # noqa: BLE001 - holds also expire on their own
         logger.info("releasing holds failed: %r", exc)
+
+
+# Facts the model may still answer in its own words (they fit the booking flow: "are you open Saturday?").
+_PARAPHRASED_FACTS = ("hours", "pricing_policy", "clinic.capability")
+
+
+def _fact_answers(u: Understanding, rt: Runtime) -> bool:
+    """
+    The caller asked something a verified fact answers: Emma says the whole
+    fact (what, who, how many visits, the price) rather than the model's
+    two-sentence paraphrase of it (owner, 11 Oct: "give complete
+    information about that doubt").
+    """
+    if not (u.has(Act.QUESTION) and u.faq_ids) or u.clinical:
+        return False
+    return any(rt.kb.get(i) is not None for i in u.faq_ids
+               if i not in _PARAPHRASED_FACTS and not str(i).startswith("branch."))
 
 
 def _fallback_answer(u: Understanding, rt: Runtime) -> Notice:

@@ -171,8 +171,8 @@ class Catalog(ApplyCase):
     def test_new_service_rechecks_the_branch(self):
         ctx = self.identified(Goal.ASK_SERVICE)
         ctx.book.branch = "Nagarbhavi"
-        notices = self.apply(ctx, "braces", service="Braces")
-        self.assertEqual(ctx.book.service, "Braces")
+        notices = self.apply(ctx, "a children's visit", service="Pediatric Dentistry")
+        self.assertEqual(ctx.book.service, "Pediatric Dentistry")
         self.assertIsNone(ctx.book.branch)
         self.assertIn("branch.no_service", self.lines(notices))
 
