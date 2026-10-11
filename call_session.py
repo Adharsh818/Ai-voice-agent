@@ -77,6 +77,7 @@ import phrases
 import turn_detector
 import vad
 from capture import CallCapture
+from caption_pacer import CaptionPacer
 from latency import AudioClock, LatencyLog, TurnTimer
 from speech import Speaker, PromptCache, drop_repeats, split_sentences, strip_opener
 
@@ -528,6 +529,10 @@ class CallSession:
         self._last_spoken_turn: Optional[int] = None  # Emma's latest reply (for last_reply_heard)
         self._emma_text = ""
         self._reply_text: dict[int, str] = {}
+        # The dashboard's Live tab gets Emma's words as the caller hears them (caption_pacer.py).
+        self._heard_text: dict[int, str] = {}
+        self.captions = CaptionPacer(self._publish_caption)
+        self.speaker.on_begin = self._caption_heard
         self._last_reply = ""                       # Emma's last full reply (for the silence ladder)
         self._playback_done: dict[int, asyncio.Event] = {}
         self._audible: dict[int, list] = {}         # turn -> [started wall, ended wall or None]
@@ -749,6 +754,7 @@ class CallSession:
             self._playback_reports = True
         timer = self._timers.get(tid)
         if event == "started":
+            self.captions.started(tid)
             self._audible[tid] = [now, None]
             for old in [k for k in self._audible if isinstance(k, int) and isinstance(tid, int) and k < tid - 10]:
                 self._audible.pop(old, None)
@@ -759,6 +765,7 @@ class CallSession:
             span = self._audible.get(tid)
             if span is not None and span[1] is None:
                 span[1] = now
+            self.captions.finish(tid, msg.get("played_ms") if event == "interrupted" else None)
             if event == "interrupted":
                 self._trim_history(tid, msg.get("played_ms"))
             if tid == self._last_spoken_turn:
@@ -1141,7 +1148,8 @@ class CallSession:
             self._last_spoken_turn = tid
             self._set_heard(False)
             await self._send({"type": "turn", "turn": tid, "phase": "start"})
-        await self._send({"type": "caption", "who": "emma", "text": self._reply_text[tid], "final": True})
+        await self._send({"type": "caption", "who": "emma", "text": self._reply_text[tid], "final": True,
+                          "turn": tid, "paced": True})
         if segments is not None:
             return await self.speaker.play(tid, segments, timer)
         return await self.speaker.speak(tid, text, timer)
@@ -1159,6 +1167,9 @@ class CallSession:
         sent_ms = self.speaker.sent_ms(tid)
         if sent_ms <= 0 and self._speaking_turn in (tid, None):
             # Nothing reached the caller (no TTS configured or it failed).
+            if spoken and tid not in self._heard_text:
+                self._caption_heard(tid, 0, spoken)
+            self.captions.finish(tid)
             self._speaking_turn = None
             self._playback_done.setdefault(tid, asyncio.Event()).set()
             self._set_heard(True)
@@ -1611,6 +1622,18 @@ class CallSession:
         if record is not None:
             self._spawn(self._send({"type": "metrics", **record}))
 
+    def _caption_heard(self, tid: int, at_ms: float, text: str):
+        """A piece of Emma's turn `tid` starting at_ms into its audio, for the Live tab."""
+        self._heard_text[tid] = f"{self._heard_text.get(tid, '')} {text}".strip()
+        for old in [k for k in self._heard_text if k < tid - 10]:
+            self._heard_text.pop(old, None)
+        self.captions.add(tid, at_ms, self._heard_text[tid])
+
+    def _publish_caption(self, tid: int, text: str):
+        import events
+        events.publish({"type": "caption", "who": "emma", "text": text, "final": True, "turn": tid,
+                        "call_id": self.call_id})
+
     async def _send(self, event: dict):
         if self.closed and event.get("type") not in ("bye",):
             return
@@ -1650,6 +1673,7 @@ class CallSession:
                 task.cancel()
         self.detector.cancel()
         self.speaker.cancel()
+        self.captions.close()
         if self.capture is not None:
             self.capture.close()
         if self.outcome in ("booked", "rescheduled", "cancelled") and committing:

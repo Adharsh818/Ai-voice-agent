@@ -241,12 +241,19 @@ function resetLive(callId = null) {
   });
 }
 
-function addCaption(who, text, final) {
+function addCaption(who, text, final, turn) {
   if (!text) return;
   if (who === "emma") {
+    // Each of Emma's turns is one line, growing sentence by sentence as the caller hears it.
+    const same = turn !== undefined && turn !== null
+      ? live.lines.find((line) => line.who === "emma" && line.turn === turn) : null;
+    if (same) {
+      same.text = text;
+      return;
+    }
     const last = live.lines[live.lines.length - 1];
     if (last) last.closed = true;
-    live.lines.push({ who: "emma", text, closed: true });
+    live.lines.push({ who: "emma", text, closed: true, turn });
     return;
   }
   if (!final) {
@@ -269,7 +276,7 @@ function handleEvent(event) {
       break;
     case "caption":
       if (!live.callId) resetLive(event.call_id);
-      addCaption(event.who === "emma" ? "emma" : "caller", event.text, event.final);
+      addCaption(event.who === "emma" ? "emma" : "caller", event.text, event.final, event.turn);
       break;
     case "state":
       if (!live.ended) live.state = event.state;
