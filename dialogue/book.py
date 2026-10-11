@@ -1176,6 +1176,15 @@ async def _search(ctx: CallContext, rt: Runtime, notices: list):
         notes["searched"] = True
         rt.emit("before_action", phrase=checking_phrase(ctx))
     time_c = b.time_c if b.time_c is not None and b.time_c.kind in ("exact", "window") else None
+    if b.date_c is not None and b.date_c.exact and notes.get("away_day") != b.date_c.start.isoformat():
+        # A holiday or a closure staff added: say so, then the next days (11 Oct: it came out as "full").
+        try:
+            closed = await rt.run(scheduling.closed_on, b.date_c.start, branch_ids)
+        except Exception:
+            closed = False
+        if closed:
+            notices.append(Notice("date.closure", {"day": prompts.speak_day(b.date_c.start)}, covered_by=("closed",)))
+            notes["away_day"] = b.date_c.start.isoformat()
     if b.doctor_id is not None and b.date_c is not None and b.date_c.exact:
         # "I want Dr Rao on Monday" with Dr Rao on leave: say so and look at her colleagues that day,
         # not "Monday's fully booked" (the audit, 11 Oct).

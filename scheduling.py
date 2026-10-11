@@ -661,6 +661,49 @@ def reschedule(conn, appointment_id: str, *, doctor_id: int, start: datetime, id
         return Result(False, "TAKEN", appointment_id)
 
 
+def closed_on(conn, day: date, branch_ids) -> bool:
+    """Every one of these branches is closed that day (a holiday or a closure staff added)."""
+    rows = {r["branch_id"] for r in conn.execute("SELECT branch_id FROM closures WHERE date = ?", (day.isoformat(),))}
+    return None in rows or bool(branch_ids) and all(b in rows for b in branch_ids)
+
+
+def list_closures(conn, since: date) -> list:
+    return [dict(r) for r in conn.execute(
+        "SELECT c.id, c.date, c.reason, b.name AS branch FROM closures c LEFT JOIN branches b ON b.id = c.branch_id "
+        "WHERE c.date >= ? ORDER BY c.date", (since.isoformat(),))]
+
+
+def add_closure(conn, day: date, branch_id, reason: str, actor: str = "staff") -> dict:
+    """Close a branch (or every branch) for a day; returns the closure and the bookings already on it."""
+    with db.transaction(conn):
+        cur = conn.execute("INSERT INTO closures (date, branch_id, reason) VALUES (?, ?, ?)",
+                           (day.isoformat(), branch_id, reason.strip() or "Closed"))
+        lo = db.utc_str(_at(day, time(0, 0)))
+        hi = db.utc_str(_at(day + timedelta(days=1), time(0, 0)))
+        affected = [dict(r) for r in conn.execute(
+            _APPOINTMENT_SQL + " WHERE a.status = 'booked' AND a.start_utc >= ? AND a.start_utc < ?"
+            + ("" if branch_id is None else " AND a.branch_id = ?"),
+            (lo, hi) if branch_id is None else (lo, hi, branch_id))]
+        conn.execute("INSERT INTO audit_events (ts, actor, action, entity, entity_id, after_json) "
+                     "VALUES (?, ?, 'closure_add', 'closure', ?, ?)",
+                     (db.now_str(), actor, str(cur.lastrowid), json.dumps({"date": day.isoformat(), "reason": reason})))
+    return {"id": cur.lastrowid, "affected": [_row_dict_safe(a) for a in affected]}
+
+
+def _row_dict_safe(a: dict) -> dict:
+    return {"id": a["id"], "patient": a.get("patient_name"), "start": db.local(a["start_utc"]).isoformat(),
+            "service": a.get("service"), "branch": a.get("branch"), "doctor": a.get("doctor")}
+
+
+def remove_closure(conn, closure_id: int, actor: str = "staff") -> bool:
+    with db.transaction(conn):
+        gone = conn.execute("DELETE FROM closures WHERE id = ?", (closure_id,)).rowcount
+        if gone:
+            conn.execute("INSERT INTO audit_events (ts, actor, action, entity, entity_id) "
+                         "VALUES (?, ?, 'closure_remove', 'closure', ?)", (db.now_str(), actor, str(closure_id)))
+    return bool(gone)
+
+
 def doctor_away(conn, doctor_id: int, day: date) -> bool:
     """The doctor works that weekday but is blocked (leave, illness, training) for all of their hours."""
     rules = conn.execute("SELECT start_time, end_time FROM availability_rules WHERE doctor_id = ? AND weekday = ?",

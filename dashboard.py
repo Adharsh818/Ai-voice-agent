@@ -728,6 +728,38 @@ def _performance(conn, days: int = 7) -> dict:
     return out
 
 
+@router.get("/dashboard/api/closures")
+async def closures(user: str = staff):
+    return {"closures": await _run(scheduling.list_closures, clock.today())}
+
+
+@router.post("/dashboard/api/closures")
+async def add_closure(request: Request, user: str = staff):
+    """{"date": "2026-11-08", "branch": "Nagarbhavi" | "" (all branches), "reason": "Diwali"}"""
+    data = await _body(request)
+    try:
+        day = date.fromisoformat(str(data.get("date") or ""))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date must be like 2026-11-08")
+    if day < clock.today():
+        raise HTTPException(status_code=400, detail="That date has passed.")
+    branch = str(data.get("branch") or "").strip()
+    branch_id = None
+    if branch:
+        row = await _run(lambda conn: conn.execute("SELECT id FROM branches WHERE name = ?", (branch,)).fetchone())
+        if row is None:
+            raise HTTPException(status_code=400, detail="No such branch.")
+        branch_id = row[0]
+    return await _run(scheduling.add_closure, day, branch_id, str(data.get("reason") or ""), user)
+
+
+@router.post("/dashboard/api/closures/{closure_id}/delete")
+async def remove_closure(closure_id: int, user: str = staff):
+    if not await _run(scheduling.remove_closure, closure_id, user):
+        raise HTTPException(status_code=404, detail="No such closure.")
+    return {"ok": True}
+
+
 @router.post("/dashboard/api/privacy/export")
 async def privacy_export(request: Request, user: str = staff):
     """Everything held about a phone number (a patient's request to see their data)."""
