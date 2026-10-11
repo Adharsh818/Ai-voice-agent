@@ -253,7 +253,8 @@ def render(h: dict, calls: dict, stt: dict | None, drills: dict, since: str | No
             continue
         r50, r95 = _pct(c["rules"], .5), _pct(c["rules"], .95)
         m50, m95 = _pct(c["model"], .5), _pct(c["model"], .95)
-        window = f"since {since}" if since else f"{c['first']} to {c['last']}"
+        window = (f"since {since}" if since else c["first"] if c["first"] == c["last"]
+                  else f"{c['first']} to {c['last']}")
         fb, fb_n = c["fallback"]
         fl, fl_n = c["filler"]
         bi, bi_n = c["barge_in"]
@@ -363,6 +364,8 @@ def render(h: dict, calls: dict, stt: dict | None, drills: dict, since: str | No
                 f"{'pass' if not crash['holds_remaining'] else 'FAIL'} |", ""]
 
     # Gaps
+    slow_model = [f"{labels[ch][1].split(' (')[0]}: {c['fallback'][0]}/{c['fallback'][1]}"
+                  for ch, c in calls.items() if c and c["fallback"][1] and c["fallback"][0] > .25 * c["fallback"][1]]
     t5_over = [f"seed {seed}" for _, seed, summary, _ in h["sims"]
                if (_metric(summary, "T5") or {}).get("status") not in (None, "PASS")]
     out += ["## 5. How this was measured", "",
@@ -376,6 +379,9 @@ def render(h: dict, calls: dict, stt: dict | None, drills: dict, since: str | No
             "- Simple-turn latency (T1) is above target: end-of-speech detection dominates; Deepgram's endpointing "
             "and the voice-gated end of turn were tuned on the owner's recordings to avoid cutting callers off, "
             "which costs time.",
+            *([f"- Model turns answered by the fallback because the model was slower than `NLU_HEAD_DEADLINE_S` "
+               f"({'; '.join(slow_model)}); the fallback path handles them, but replies are plainer. "
+               "`tools/preflight.py` suggests a deadline for the day's model speed."] if slow_model else []),
             *([f"- T5 (turns per simple booking) is above 9 on {', '.join(t5_over)}."] if t5_over else []),
             "- Deepgram mishears some Indian names; Emma confirms names implicitly and reads numbers back.", ""]
     return "\n".join(out)
