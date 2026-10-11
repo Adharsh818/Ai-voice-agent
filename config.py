@@ -277,6 +277,10 @@ AMI_USER = os.getenv("AMI_USER", "").strip()
 AMI_SECRET = os.getenv("AMI_SECRET", "").strip()
 # The demo patient's phone (a softphone extension) that recovery calls ring.
 TELEPHONY_PATIENT_PHONE = os.getenv("TELEPHONY_PATIENT_PHONE", "PJSIP/1001").strip()
+# With a real SIP trunk (docs/TRUNK.md): how to dial a patient, {number} = their number as the trunk wants it
+# ({e164} with +, {national} 10 digits, {zero} with a leading 0). Empty: recovery calls ring
+# TELEPHONY_PATIENT_PHONE (the lab softphone).
+TELEPHONY_TRUNK_DIAL = os.getenv("TELEPHONY_TRUNK_DIAL", "").strip()
 # The number recovery calls show as their caller ID.
 TELEPHONY_CLINIC_CID = os.getenv("TELEPHONY_CLINIC_CID", '"Pearl Dental" <08041234567>').strip()
 

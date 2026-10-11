@@ -574,5 +574,20 @@ class CallerIdAndTransferTests(unittest.TestCase):
         self.assertFalse(c.s.transfer_requested)
 
 
+class TrunkDialTests(unittest.TestCase):
+    """Recovery calls ring the patient's own number once a trunk is set up (docs/TRUNK.md, 11 Oct)."""
+
+    def test_softphone_without_a_trunk_and_the_patient_with_one(self):
+        from unittest import mock
+        import config
+        import server
+        with mock.patch.object(config, "TELEPHONY_TRUNK_DIAL", ""):
+            self.assertEqual(server.patient_channel("+919845012345"), config.TELEPHONY_PATIENT_PHONE)
+        with mock.patch.object(config, "TELEPHONY_TRUNK_DIAL", "PJSIP/{zero}@exotel"):
+            self.assertEqual(server.patient_channel("+919845012345"), "PJSIP/09845012345@exotel")
+        with mock.patch.object(config, "TELEPHONY_TRUNK_DIAL", "PJSIP/{e164}@twilio"):
+            self.assertEqual(server.patient_channel("+919845012345"), "PJSIP/+919845012345@twilio")
+
+
 if __name__ == "__main__":
     unittest.main()
