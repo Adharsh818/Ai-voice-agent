@@ -237,6 +237,10 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
             and any(isinstance(n, Notice) and n.line == "date.sunday" for n in notices)
         if not (answer.line == "unknown" and asks_about_booking) and not hours_again:
             notices.insert(0, answer)
+            if answer.line == "answer.fact" and ctx.intent != Intent.BOOK:
+                # "Do you do dentures?" is answered by the fact; "we'd start with a consultation" is only
+                # for someone booking it (11 Oct).
+                notices = [n for n in notices if not (isinstance(n, Notice) and n.line == "service.unknown")]
 
     ask = None
     # A re-ask (rung 2+) is always the pre-written rephrase or choices line:
