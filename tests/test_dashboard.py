@@ -285,7 +285,7 @@ class AppointmentApiTests(DashboardTestCase):
         appt = self.rows("SELECT * FROM appointments WHERE id = ?", appointment_id)[0]
         self.assertEqual((appt["source"], appt["patient_age"]), ("dashboard", 34))
         self.assertEqual(self.rows("SELECT actor FROM audit_events WHERE entity_id = ?", appointment_id)[0]["actor"],
-                         "staff")
+                         "owner")
         self.assertEqual(len(self.rows("SELECT * FROM sync_outbox WHERE appointment_id = ?", appointment_id)), 1)
 
         taken = self.client.post("/dashboard/api/appointments", json=dict(body, idem_key="k2", patient_name="Other",
@@ -347,7 +347,7 @@ class TaskCallSystemApiTests(DashboardTestCase):
         listed = self.client.get("/dashboard/api/tasks").json()["tasks"]
         self.assertEqual([(t["id"], t["priority"]) for t in listed], [(task_id, "urgent")])
         done = self.client.post(f"/dashboard/api/tasks/{task_id}", json={"done": True}).json()
-        self.assertEqual((done["changed"], done["task"]["status"], done["task"]["done_by"]), (True, "done", "staff"))
+        self.assertEqual((done["changed"], done["task"]["status"], done["task"]["done_by"]), (True, "done", "owner"))
         self.assertEqual(self.client.get("/dashboard/api/tasks").json()["tasks"], [])
         reopened = self.client.post(f"/dashboard/api/tasks/{task_id}", json={"done": False}).json()
         self.assertEqual(reopened["task"]["status"], "open")
@@ -636,6 +636,35 @@ class CallGateTests(DashboardTestCase):
             locked = self.client.get("/health").json()["dashboard"]
         self.assertEqual(locked["auth_configured"], False)
         self.assertIn("hash_password.py", locked["reason"])
+
+
+class StaffLoginTests(DashboardTestCase):
+    """S2 (11 Oct): named logins; the audit says who; switched-off accounts are out at once."""
+
+    def test_owner_adds_a_staff_login_who_is_audited_by_name(self):
+        import staff
+        self.login()                                                  # the shared password: owner, admin
+        self.assertEqual(self.client.get("/dashboard/api/auth").json()["user"], staff.OWNER)
+        r = self.client.post("/dashboard/api/staff", json={"username": "anita", "display_name": "Anita",
+                                                           "password": "a-long-password", "role": "staff"})
+        self.assertEqual(r.status_code, 200, r.text)
+        bad = self.client.post("/dashboard/api/staff", json={"username": "x", "password": "short"})
+        self.assertEqual(bad.status_code, 400)
+
+        anita = TestClient(server.app)
+        self.addCleanup(anita.close)
+        self.assertEqual(anita.post("/dashboard/api/login",
+                                    json={"username": "anita", "password": "wrong-password"}).status_code, 401)
+        self.assertEqual(anita.post("/dashboard/api/login",
+                                    json={"username": "Anita", "password": "a-long-password"}).status_code, 200)
+        self.assertEqual(anita.get("/dashboard/api/auth").json()["role"], "staff")
+        self.assertEqual(anita.get("/dashboard/api/staff").status_code, 403)          # not an admin
+        self.assertIn("anita", [r["actor"] for r in self.rows("SELECT actor FROM audit_events WHERE action = 'login'")])
+
+        self.client.post("/dashboard/api/staff/anita/active", json={"active": False})
+        self.assertEqual(anita.get("/dashboard/api/tasks").status_code, 401)          # out at once
+        self.assertEqual(anita.post("/dashboard/api/login",
+                                    json={"username": "anita", "password": "a-long-password"}).status_code, 401)
 
 
 if __name__ == "__main__":

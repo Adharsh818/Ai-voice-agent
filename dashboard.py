@@ -103,8 +103,44 @@ async def login_page(request: Request):
 @router.get("/dashboard/api/auth")
 async def auth_status(request: Request):
     state = auth.status()
-    return {"configured": state["configured"], "reason": state["reason"],
-            "logged_in": state["configured"] and auth.current_user(request) is not None}
+    user = auth.current_user(request) if state["configured"] else None
+    return {"configured": state["configured"], "reason": state["reason"], "logged_in": user is not None,
+            "user": user, "role": auth.current_role(request) if user else None}
+
+
+admin = Depends(auth.require_admin)
+
+
+@router.get("/dashboard/api/staff")
+async def staff_list(user: str = admin):
+    import staff
+    return {"staff": await _run(staff.list_users)}
+
+
+@router.post("/dashboard/api/staff")
+async def staff_add(request: Request, user: str = admin):
+    import staff
+    data = await _body(request)
+    out = await _run(staff.add_user, str(data.get("username") or ""), str(data.get("display_name") or ""),
+                     str(data.get("password") or ""), str(data.get("role") or "staff"), user)
+    return out if out["ok"] else JSONResponse({**out, "message": out["reason"]}, status_code=400)
+
+
+@router.post("/dashboard/api/staff/{username}/active")
+async def staff_active(username: str, request: Request, user: str = admin):
+    import staff
+    data = await _body(request)
+    if not await _run(staff.set_active, username, bool(data.get("active")), user):
+        raise HTTPException(status_code=404, detail="No such user.")
+    return {"ok": True}
+
+
+@router.post("/dashboard/api/staff/{username}/password")
+async def staff_password(username: str, request: Request, user: str = admin):
+    import staff
+    data = await _body(request)
+    out = await _run(staff.reset_password, username, str(data.get("password") or ""), user)
+    return out if out["ok"] else JSONResponse({**out, "message": out["reason"]}, status_code=400)
 
 
 @router.post("/dashboard/api/login")
@@ -119,17 +155,25 @@ async def login(request: Request):
     if wait:
         return JSONResponse({"detail": f"Too many attempts. Try again in {wait} seconds."}, status_code=429,
                             headers={"Retry-After": str(wait)})
-    password = str((await _body(request)).get("password") or "")
+    body = await _body(request)
+    password = str(body.get("password") or "")
+    username = str(body.get("username") or "").strip().lower()
+    import staff
     # scrypt takes tens of milliseconds: keep it off the event loop a live call uses.
-    ok = await asyncio.to_thread(auth.verify_password, password, config.DASHBOARD_PASSWORD_HASH)
-    if not ok:
+    if username and username not in ("staff", staff.OWNER):
+        account = await _run(staff.verify, username, password)        # a named account
+        user, role = (account["username"], account["role"]) if account else (None, None)
+    else:                                                               # the owner's shared password
+        ok = await asyncio.to_thread(auth.verify_password, password, config.DASHBOARD_PASSWORD_HASH)
+        user, role = (staff.OWNER, "admin") if ok else (None, None)
+    if user is None:
         auth.limiter.failure(key)
         await _run(_audit, "anonymous", "login_failed", "dashboard", key)
-        return JSONResponse({"detail": "That password isn't right."}, status_code=401)
+        return JSONResponse({"detail": "That user name or password isn't right."}, status_code=401)
     auth.limiter.success(key)
-    await _run(_audit, "staff", "login", "dashboard", key)
-    response = JSONResponse({"ok": True})
-    auth.set_session_cookie(response, auth.issue_session())
+    await _run(_audit, user, "login", "dashboard", key)
+    response = JSONResponse({"ok": True, "user": user, "role": role})
+    auth.set_session_cookie(response, auth.issue_session(user=user, role=role))
     return response
 
 

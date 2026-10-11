@@ -122,9 +122,9 @@ def _sign(payload: str) -> str:
     return _b64(hmac.new(_signing_key(), payload.encode("ascii"), hashlib.sha256).digest())
 
 
-def issue_session(now: Optional[float] = None, user: str = "staff") -> str:
+def issue_session(now: Optional[float] = None, user: str = "staff", role: str = "admin") -> str:
     now = time.time() if now is None else now
-    payload = _b64(json.dumps({"sub": user, "iat": int(now),
+    payload = _b64(json.dumps({"sub": user, "role": role, "iat": int(now),
                                "exp": int(now + config.DASHBOARD_SESSION_HOURS * 3600),
                                "sid": secrets.token_hex(8)}, separators=(",", ":")).encode("utf-8"))
     return f"{payload}.{_sign(payload)}"
@@ -237,7 +237,15 @@ def client_key(request: Request) -> str:
 
 def current_user(request: Request) -> Optional[str]:
     data = read_session(request.cookies.get(COOKIE_NAME))
-    return data.get("sub") if data else None
+    if not data:
+        return None
+    import staff
+    return data.get("sub") if staff.is_active(data.get("sub", "")) else None    # switched off: out at once
+
+
+def current_role(request: Request) -> Optional[str]:
+    data = read_session(request.cookies.get(COOKIE_NAME))
+    return (data.get("role") or "admin") if data else None
 
 
 def require_staff(request: Request) -> str:
@@ -250,6 +258,14 @@ def require_staff(request: Request) -> str:
         raise HTTPException(status_code=401, detail="Please log in.")
     if request.method not in _SAFE_METHODS and not same_origin(request.headers):
         raise HTTPException(status_code=403, detail="Cross-site request refused.")
+    return user
+
+
+def require_admin(request: Request) -> str:
+    """Dependency for staff management: an admin (the owner's shared login, or an admin account)."""
+    user = require_staff(request)
+    if current_role(request) != "admin":
+        raise HTTPException(status_code=403, detail="Only an admin can do that.")
     return user
 
 

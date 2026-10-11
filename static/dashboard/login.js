@@ -40,7 +40,7 @@ form.addEventListener("submit", async (event) => {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: form.password.value }),
+      body: JSON.stringify({ username: form.username.value.trim(), password: form.password.value }),
     });
     if (res.ok) {
       location.replace("/dashboard/");
