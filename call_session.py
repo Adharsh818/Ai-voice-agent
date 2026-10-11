@@ -1629,6 +1629,9 @@ class CallSession:
         for old in [k for k in self._heard_text if k < tid - 10]:
             self._heard_text.pop(old, None)
         self.captions.add(tid, at_ms, self._heard_text[tid])
+        if not self._playback_reports:
+            # A client that never reports playback: its audio starts about when it's sent.
+            self.captions.started(tid)
 
     def _publish_caption(self, tid: int, text: str):
         import events
