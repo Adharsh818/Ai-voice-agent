@@ -176,7 +176,7 @@ class PhoneTransport:
 
     async def send_event(self, event: dict):
         kind = event.get("type")
-        if kind in MIRRORED_EVENTS:
+        if kind in MIRRORED_EVENTS and not event.get("paced"):   # Emma's lines: caption_pacer.py
             events.publish({**event, "call_id": self.call_id})
         if kind == "turn" and event.get("phase") == "audio_done" and event.get("turn") == self._turn:
             self._end_marked = True

@@ -308,7 +308,7 @@ class BrowserTransport:
         await self._send({"type": "websocket.send", "bytes": frame})
 
     async def send_event(self, event: dict):
-        if event.get("type") in MIRRORED_EVENTS:
+        if event.get("type") in MIRRORED_EVENTS and not event.get("paced"):   # Emma's lines: caption_pacer.py
             events.publish({**event, "call_id": self.call_id})
         await self._send({"type": "websocket.send", "text": json.dumps(event)})
 

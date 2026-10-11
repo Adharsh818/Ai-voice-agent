@@ -28,7 +28,7 @@ import random
 import re
 import time
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 import config
 import logredact
@@ -228,6 +228,8 @@ class Speaker:
         # kind is reply | filler | checking | pause | breath | line
         self.timeline: dict[int, list] = {}
         self._turn_ms: dict[int, float] = {}
+        # on_begin(turn, offset_ms, text): each spoken piece as it starts, for the Live tab (caption_pacer.py)
+        self.on_begin: Optional[Callable] = None
 
     def _cached(self, text: str) -> Optional[bytes]:
         return self.cache.get(text) if self.cache else None
@@ -287,6 +289,8 @@ class Speaker:
     def _begin(self, turn_id: int, text: str, kind: str):
         entries = self.timeline.setdefault(turn_id, [])
         entries.append([self._turn_ms.get(turn_id, 0.0), 0.0, text, kind])
+        if text and kind not in ("pause", "breath") and self.on_begin is not None:
+            self.on_begin(turn_id, self._turn_ms.get(turn_id, 0.0), text)
         for old in [t for t in self.timeline if t < turn_id - self.TIMELINE_TURNS]:
             self.timeline.pop(old, None)
             self._turn_ms.pop(old, None)
