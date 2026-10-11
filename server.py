@@ -214,6 +214,11 @@ async def lifespan(app: FastAPI):
     calendar_task = calendar_sync.start_worker()
     if calendar_task is not None:
         background.append(calendar_task)
+    # WhatsApp/SMS confirmations and reminders (notify.py; log-only until a provider is set up).
+    import notify
+    message_task = notify.start_worker(app.state.db)
+    if message_task is not None:
+        background.append(message_task)
     # Doctor-unavailability recovery calls (outbound.py): one job at a time, through the call gate.
     app.state.runner = outbound.Runner(app.state.db, app.state.gate)
     outbound.set_runner(app.state.runner)

@@ -222,6 +222,15 @@ CALENDAR_SHARE_WITH = os.getenv("CALENDAR_SHARE_WITH", "").strip()
 # How often the worker looks for due outbox rows when nothing wakes it (seconds).
 CALENDAR_POLL_S = float(os.getenv("CALENDAR_POLL_S", "5"))
 
+# Messages to patients (notify.py, docs/NOTIFICATIONS.md): confirmations and a reminder.
+NOTIFY_ENABLED = os.getenv("NOTIFY_ENABLED", "true").lower() == "true"
+NOTIFY_SENDER = os.getenv("NOTIFY_SENDER", "log").strip().lower()      # log | twilio
+NOTIFY_CHANNEL = os.getenv("NOTIFY_CHANNEL", "whatsapp").strip().lower()  # whatsapp | sms
+REMINDER_HOURS_BEFORE = float(os.getenv("REMINDER_HOURS_BEFORE", "24"))
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "").strip()
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
+TWILIO_FROM = os.getenv("TWILIO_FROM", "").strip()                     # +1415... or the WhatsApp sender number
+
 # R2, the natural conversation engine (docs/R2_DESIGN.md). Integrated end to end
 # (Sprint 1b) but off by default: the 12-step machine keeps serving the owner's
 # voice tests until the owner sets R2_ENGINE=true in .env and restarts the server

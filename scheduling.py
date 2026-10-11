@@ -489,6 +489,14 @@ def _audit(conn, *, actor, action, entity_id, before, after, correlation_id, now
                   json.dumps(after) if after is not None else None, correlation_id))
 
 
+def _message(conn, appointment: Optional[dict], kind: str, actor: str, now: datetime) -> None:
+    """Queue the patient's WhatsApp/SMS for this change (notify.py), in the same transaction. Not for the seed."""
+    if actor == "seed":
+        return
+    import notify
+    notify.enqueue(conn, appointment, kind, now)
+
+
 def _outbox(conn, appointment_id: str, now: datetime):
     """Tell the Calendar worker this appointment changed (it mirrors the current state)."""
     conn.execute("INSERT INTO sync_outbox (appointment_id, due_at, attempts, status) VALUES (?, ?, 0, 'pending') "
@@ -582,6 +590,7 @@ def book(conn, *, service, doctor_id: int, start: datetime, patient_name: str, p
             _audit(conn, actor=actor, action="book", entity_id=appointment_id, before=None, after=after,
                    correlation_id=call_id, now=now)
             _outbox(conn, appointment_id, now)
+            _message(conn, after, "booked", actor, now)
             return _record(conn, idem_key, "book", Result(True, "OK", appointment_id, after), now)
     except sqlite3.IntegrityError:
         return Result(False, "TAKEN")
@@ -643,6 +652,7 @@ def reschedule(conn, appointment_id: str, *, doctor_id: int, start: datetime, id
             _audit(conn, actor=actor, action="reschedule", entity_id=appointment_id, before=before, after=after,
                    correlation_id=call_id, now=now)
             _outbox(conn, appointment_id, now)
+            _message(conn, after, "moved", actor, now)
             return _record(conn, idem_key, "reschedule", Result(True, "OK", appointment_id, after), now)
     except sqlite3.IntegrityError:
         return Result(False, "TAKEN", appointment_id)
@@ -707,4 +717,5 @@ def cancel(conn, appointment_id: str, *, idem_key: str, reason: Optional[str] = 
         _audit(conn, actor=actor, action="cancel", entity_id=appointment_id, before=before, after=after,
                correlation_id=call_id, now=now)
         _outbox(conn, appointment_id, now)
+        _message(conn, after, "cancelled", actor, now)
         return _record(conn, idem_key, "cancel", Result(True, "OK", appointment_id, after), now)
