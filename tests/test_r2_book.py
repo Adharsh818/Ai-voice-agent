@@ -468,7 +468,7 @@ class OfferTests(BookTestCase):
 
 class CheckTests(BookTestCase):
     def test_three_future_appointments_stop_the_booking_before_any_search(self):
-        for i, day in enumerate((5, 6, 7)):
+        for i, day in enumerate((5, 6, 7, 8, 9, 10, 12, 13)):                 # eight on this number
             self.book_existing(f"Someone {i}", datetime(2026, 10, day, 10, 0))
         call = self.call()
         call.turn(U(intent=Intent.BOOK, service="General Check-up", branch="Nagarbhavi", date_phrase="Monday",
@@ -482,7 +482,7 @@ class CheckTests(BookTestCase):
         self.assertFalse(call.checked())
         call.turn(confirmation="no")
         self.assertEqual(call.goal, Goal.ANYTHING_ELSE)
-        self.assertEqual(self.clinic.query("SELECT COUNT(*) AS n FROM appointments")[0]["n"], 3)
+        self.assertEqual(self.clinic.query("SELECT COUNT(*) AS n FROM appointments")[0]["n"], 8)
 
     def test_the_same_patient_already_booked_is_asked_about_without_details(self):
         self.book_existing("Priya Sharma", datetime(2026, 10, 6, 11, 30), doctor="Dr Rao")

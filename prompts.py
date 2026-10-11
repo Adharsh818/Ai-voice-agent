@@ -235,6 +235,8 @@ LINES: dict[str, LineSpec] = {
     "offer.one": _l("'The closest I have is {a}, with {doctor}. Would that work?'", "a", "doctor", critical=True),
     "window.full": _l("Notice: the part of the day asked for is full; other times follow. "
                       "'Tomorrow evening is all booked, I'm afraid.'", "when", critical=True),
+    "offer.next_days": _l("Nothing that day for this (the doctor asked for is away); the nearest times. "
+                          "'The nearest I have are Tuesday at 9 or 9:30. Would either work?'", "a", "b", critical=True),
     "offer.later_days": _l("'{day} is full, but I have {a} or {b}. Would either work?'", "day", "a", "b",
                            critical=True),
     "offer.other_branch.two": _l("As offer.other_branch, with two times. 'Nagarbhavi's full that day, but "
@@ -261,8 +263,8 @@ LINES: dict[str, LineSpec] = {
     "slot.gone": _l("Notice: 'Sorry, that one's just been taken.'", critical=True, cache=True),
     "no_slots": _l("'I've nothing at {branch} until after {until}. Shall I look at another branch, or a later "
                    "date?'", "branch", "until", critical=True),
-    "max_reached": _l("'There are already three appointments on this number. I can change or cancel one of "
-                      "those for you, if you like?'", critical=True),
+    "max_reached": _l("'There are already a few appointments coming up for this booking. I can change or cancel "
+                      "one of those for you, if you like?'", critical=True),
     "duplicate": _l("No details before verification (Z7). 'It looks like {patient} already has an "
                     "appointment with us. Did you want another one, or to change that one?'", "patient",
                     critical=True),
@@ -547,6 +549,8 @@ VARIANTS: dict[str, tuple] = {
     "offer.one": ("The closest I have is {a}, with {doctor}. Would that work?",
                   "The nearest I can do is {a} with {doctor}. Is that okay?"),
     "window.full": ("{when} is all booked, I'm afraid.", "Nothing's free {when}, sorry."),
+    "offer.next_days": ("The nearest I have are {a} or {b}. Would either work?",
+                        "I could do {a} or {b} instead. Which suits you?"),
     "offer.later_days": ("{day} is full, but I have {a} or {b}. Would either work?",
                          "{day}'s fully booked, sorry. I can do {a} or {b}. Would either suit you?"),
     "offer.other_branch.two": ("{branch} is full that day, but {other} has {times}. Which would you like?",
@@ -574,10 +578,10 @@ VARIANTS: dict[str, tuple] = {
     "slot.gone": ("Sorry, that one's just been taken.", "Oh, that slot's just gone, sorry."),
     "no_slots": ("I've nothing at {branch} until after {until}. Shall I look at another branch, or a later date?",
                  "{branch} is full until after {until}. Should I try another branch or a later date?"),
-    "max_reached": ("There are already three appointments on this number. I can change or cancel one of those "
-                    "for you, if you like?",
-                    "This number already has three upcoming appointments. Would you like to change or cancel "
-                    "one of them?"),
+    "max_reached": ("There are already a few appointments coming up for this booking. I can change or cancel one "
+                    "of those for you, if you like?",
+                    "That's already quite a few upcoming appointments. Would you like to change or cancel one of "
+                    "them?"),
     "duplicate": ("It looks like {patient} already has an appointment with us. Did you want another one, or to "
                   "change that one?",
                   "{patient} already has an appointment with us. Is this for another one, or did you want to "

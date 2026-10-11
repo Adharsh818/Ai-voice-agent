@@ -570,7 +570,10 @@ def book(conn, *, service, doctor_id: int, start: datetime, patient_name: str, p
                 return Result(False, "PATIENT_CONFLICT")
             future = conn.execute("SELECT COUNT(*) FROM appointments WHERE caller_phone_e164 = ? AND status = 'booked' "
                                   "AND start_utc > ?", (e164, db.utc_str(now))).fetchone()[0]
-            if future >= config.MAX_FUTURE_APPOINTMENTS_PER_PHONE:
+            mine = conn.execute("SELECT COUNT(*) FROM appointments a JOIN patients p ON p.id = a.patient_id "
+                                "WHERE p.phone_e164 = ? AND p.name_norm = ? AND a.status = 'booked' AND a.start_utc > ?",
+                                (e164, name_n, db.utc_str(now))).fetchone()[0]
+            if future >= config.MAX_FUTURE_APPOINTMENTS_PER_PHONE or mine >= config.MAX_FUTURE_APPOINTMENTS_PER_PATIENT:
                 return Result(False, "MAX_FUTURE")
 
             conn.execute("INSERT OR IGNORE INTO patients (name, name_norm, phone_e164, created_at) VALUES (?, ?, ?, ?)",

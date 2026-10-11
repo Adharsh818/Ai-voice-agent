@@ -134,5 +134,35 @@ class DoctorAwayTests(ClinicCallCase):
         self.assertNotIn("fully booked", reply)
 
 
+class FamilyBookingTests(ClinicCallCase):
+    """F1 (11 Oct): a second family member in the same call, under their own name."""
+
+    BOOK_PRIYA = ["", "I'd like to book a cleaning at Jayanagar.", "Priya Sharma", "9845012345", "yes", "Monday",
+                  "10 am", "yes"]
+
+    def people(self):
+        return self.clinic.query("SELECT a.start_utc, p.name FROM appointments a JOIN patients p ON p.id = a.patient_id "
+                                 "WHERE a.caller_phone_e164 = '+919845012345' ORDER BY a.start_utc")
+
+    def test_also_book_my_son_right_after_mine(self):
+        call = Call()
+        call.run(*self.BOOK_PRIYA)
+        reply = call.say("Can you also book my son Arjun for a check-up, same day, right after mine?").text
+        self.assertIn("for Arjun", reply)
+        self.assertIn("10:30", reply)
+        call.say("yes")
+        self.assertEqual([(r["start_utc"], r["name"]) for r in self.people()],
+                         [("2026-10-05T04:30:00Z", "Priya Sharma"), ("2026-10-05T05:00:00Z", "Arjun")])
+
+    def test_a_new_day_for_the_booking_just_made_moves_it_or_nothing(self):
+        call = Call()
+        call.run(*self.BOOK_PRIYA)
+        reply = call.say("Actually make it Tuesday.").text
+        self.assertNotIn("Got it", reply)
+        call.say("yes")
+        rows = self.people()
+        self.assertEqual(len(rows), 1)                     # moved or still Monday, never a silent second booking
+
+
 if __name__ == "__main__":
     unittest.main()

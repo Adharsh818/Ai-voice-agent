@@ -1061,6 +1061,14 @@ _PAST_TREATMENT = re.compile(
     r"\bafter (?:my|the) (?:extraction|filling|root canal|treatment|surgery|cleaning)\b")
 
 
+# A booking for someone else, or one more, said after a booking ("also book my son", "one for my wife too").
+FAMILY_BOOKING_RE = re.compile(
+    r"\b(?:also|too|as well|another|one more)\b.{0,40}\b(?:book|appointment|slot)\b|"
+    r"\b(?:book|appointment|slot)\b.{0,40}\b(?:also|too|as well)\b|"
+    r"\b(?:book|appointment|slot)\b.{0,25}\bfor (?:my|our) (?:son|daughter|kid|kids|child|children|wife|husband|"
+    r"mother|mom|mum|father|dad|brother|sister|parents?|grand\w+)\b")
+
+
 def past_treatment(text: str) -> bool:
     """A treatment already done, said with when it was ("had a filling on Monday", "taken out yesterday")."""
     t = (text or "").lower()
@@ -1256,6 +1264,12 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
     elif pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and u.intent in (None, Intent.NONE, Intent.BOOK) \
             and _DUP_ANOTHER_RE.search(t):
         u.intent, u.confirmation = Intent.BOOK, None         # "I want another one" after booking
+    elif pending in (Goal.BOOKED, Goal.ANYTHING_ELSE) and FAMILY_BOOKING_RE.search(t):
+        # "Can you also book my son Arjun for a check-up?" (11 Oct): a request, not a question.
+        u.intent, u.confirmation = Intent.BOOK, None
+        if Act.QUESTION.value in u.acts:
+            u.acts.remove(Act.QUESTION.value)
+            u.question = None
     elif pending == Goal.BOOKED and u.intent in (None, Intent.NONE) and _changes_just_booked(t, raw, words):
         u.intent = Intent.RESCHEDULE                  # "Can you move it to 7?", or just "Seven"
         if not (u.date_phrase or u.time_phrase):

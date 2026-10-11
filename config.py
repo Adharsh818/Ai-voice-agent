@@ -171,7 +171,10 @@ BOOKING_HORIZON_DAYS = int(os.getenv("BOOKING_HORIZON_DAYS", "60"))
 BOOKING_LEAD_MIN = int(os.getenv("BOOKING_LEAD_MIN", "120"))      # earliest start = now + 2 h
 EMERGENCY_LEAD_MIN = int(os.getenv("EMERGENCY_LEAD_MIN", "30"))   # urgent same-day slots
 HOLD_TTL_S = int(os.getenv("HOLD_TTL_S", "300"))                  # offered slots are held 5 min
-MAX_FUTURE_APPOINTMENTS_PER_PHONE = int(os.getenv("MAX_FUTURE_APPOINTMENTS_PER_PHONE", "3"))
+# Upcoming appointments per patient (name + number) and per number (a family shares one; 11 Oct audit:
+# a family of four, or a root canal's sittings, hit the old limit of 3 per number).
+MAX_FUTURE_APPOINTMENTS_PER_PATIENT = int(os.getenv("MAX_FUTURE_APPOINTMENTS_PER_PATIENT", "3"))
+MAX_FUTURE_APPOINTMENTS_PER_PHONE = int(os.getenv("MAX_FUTURE_APPOINTMENTS_PER_PHONE", "8"))
 # Doctor-unavailability recovery calls (outbound.py, plan 5.11): clinic-local
 # hours Emma may call patients, and how long the patient's phone rings.
 RECOVERY_CALL_WINDOW = os.getenv("RECOVERY_CALL_WINDOW", "09:00-20:00")
