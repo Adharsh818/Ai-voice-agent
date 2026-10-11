@@ -27,16 +27,15 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
 - **Phase 5 (partly):** TELEPHONY.md ("Every time: phone_up", what broke on 8 Oct), VIVA_NOTES (Asterisk/SIP/RTP/UDP, demo lessons), HANDOFF START HERE, FINISH_PLAN phases 0 and 2 marked done.
 - **Phase 6 (code done, one check open):**
   - Duplicate question only when the same service is already booked (owner chose this). Seed-7 faked-model sim afterwards: T5 = 9.0 (target met), M3 0%, M7 97.9%, M10 1%, all Z checks 0.
-  - 27 common Indian first names added as Deepgram keyterms after the clinic words (`config.DEEPGRAM_NAME_KEYTERMS`, cap 90; Deepgram allows 100). **Not yet measured.**
+  - 27 common Indian first names added as Deepgram keyterms after the clinic words (`config.DEEPGRAM_NAME_KEYTERMS`, cap 90; Deepgram allows 100). Measured 11 Oct: the owner's name now heard right (step 3).
 
 ## Work left, in order
 
 1. ~~Push~~ (done 9 Oct).
 2. ~~Re-run the four sims and the scenarios~~ (done 11 Oct, all on target).
-3. **Name test (Phase 6, paid, owner said yes):** replay the two recordings through Deepgram with the new name keyterms and compare with 6 Oct (17% / 18% word error; "Adharsh" heard as "Adesh"):
-   `.\.venv\Scripts\python.exe tools\replay.py --show captures\20261006-092434-fee33507.wav captures\20261006-092647-e2a713c4.wav` (in `A:\Voice-Agent`). About 2 minutes of audio. The owner interrupted this run on 8 Oct; on 11 Oct they asked whether it costs money (about 1 US cent, or free sign-up credit) and hadn't said go yet, so **confirm with the owner before running it**. If the names don't help (or hurt), set `DEEPGRAM_NAME_KEYTERMS=` empty in `.env` / the default.
+3. ~~Name test~~ (done 11 Oct, owner approved): with the 27 name hints, "Adharsh Kumar" is heard right in both recordings (6 Oct: "Adesh"); word error 31 and 32 of 179 went to 30 and 30 (17%). Hints stay on. Results in `logs/stt_eval.json` (main checkout) and EVALUATION.md section 3.
 4. ~~Phase 4, deploy check in WSL~~ (done 11 Oct; results in DEPLOY.md "Tested in WSL"; the test copy stays in `/opt/emma`, disabled).
-5. ~~Phase 5, rest~~ (done 11 Oct): EVALUATION.md regenerated with fresh runs and the crash drill; it now reports browser and phone calls apart (the turn log records the channel from 11 Oct; the 8 Oct phone calls are found by caller ID). DEMO_SCRIPT notes the demo happened. **Still to do:** after the name test, `tools\evaluate.py --stt` (run it in `A:\Voice-Agent`, it reads `logs/` and `captures/`).
+5. ~~Phase 5, rest~~ (done 11 Oct): EVALUATION.md regenerated with fresh runs and the crash drill; it now reports browser and phone calls apart (the turn log records the channel from 11 Oct; the 8 Oct phone calls are found by caller ID). DEMO_SCRIPT notes the demo happened. Recognition section refreshed after the name test.
 6. **Phase 3, with the owner holding the phone (next session, ~20 min):** run `tools\phone_up.ps1` first (and the firewall commands it prints, in an admin window). Then: interrupt Emma mid-sentence; key a number with `#` (do keypad frames reach Emma?); "I want to talk to a person" twice → MicroSIP 1002 rings; block Dr Rao on the dashboard → recovery call to the phone, answer once, reject once (which reason code does Reject send? adjust `ami.REASON_DECLINED`); does Asterisk send 16 kHz audio? Also watch for calls that end at the greeting with nothing heard (5 on 8 Oct). Results into TELEPHONY.md.
 7. **Phase 7:** full suite, scenarios, 4 sims, crash drill, preflight READY, one browser and one phone call; push; final HANDOFF "state at the end".
 
