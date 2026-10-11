@@ -46,11 +46,42 @@ def national(e164: str) -> str:
     return rest if is_mobile(e164) else "0" + rest
 
 
-def spoken(e164: str) -> str:
-    """Digit-by-digit read-back in two groups: '9 8 7 6 5, 4 3 2 1 0'."""
+# Two-digit STD codes (the metros: 8-digit local numbers). Elsewhere the code
+# is 3-4 digits after the 0 and the local number 6-7 digits.
+_METRO_STD = {"11", "20", "22", "33", "40", "44", "79", "80"}
+
+
+def said_as_landline(digits: str) -> bool:
+    """
+    "080 2345 6789": a leading 0 then a metro STD code (or one starting 1-5).
+    +91 80... could be a Bengaluru landline or a mobile starting 80, so how
+    the caller said it decides the read-back. "098765 43210" is a mobile.
+    """
+    d = re.sub(r"\D", "", digits or "")
+    return len(d) == 11 and d[0] == "0" and (d[1] in "12345" or d[1:3] in _METRO_STD)
+
+
+def spoken(e164: str, landline: bool = False) -> str:
+    """
+    Digit-by-digit read-back, grouped the way people check numbers. A mobile in
+    two groups: '9 8 7 6 5, 4 3 2 1 0'. A landline as STD code, then the
+    number in two: '0 8 0, 2 3 4 5, 6 7 8 9' (not eight digits in one breath).
+    landline: the caller said it as one (said_as_landline), for the +91 8...
+    numbers that could be either.
+    """
     digits = national(e164)
-    cut = 5 if len(digits) == 10 else 3 if digits.startswith("080") else len(digits) // 2
-    return " ".join(digits[:cut]) + ", " + " ".join(digits[cut:])
+    if landline and len(digits) == 10 and (e164 or "").startswith("+91"):
+        digits = "0" + digits
+    if len(digits) == 10:
+        groups = [digits[:5], digits[5:]]
+    elif len(digits) == 11 and digits.startswith("0"):
+        std = 3 if digits[1:3] in _METRO_STD else 4
+        local = digits[std:]
+        half = len(local) // 2
+        groups = [digits[:std], local[:half], local[half:]]
+    else:
+        groups = [digits[:len(digits) // 2], digits[len(digits) // 2:]]
+    return ", ".join(" ".join(g) for g in groups if g)
 
 
 def masked(e164: str) -> str:

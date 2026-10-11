@@ -327,7 +327,7 @@ def _params(ctx: CallContext, goal: Goal, catalog) -> dict:
     """Params for the pre-written lines this module builds itself."""
     b, c = ctx.book, ctx.caller
     if goal == Goal.CONFIRM_PHONE:
-        return {"phone": speak_phone(c.phone_e164)}
+        return {"phone": speak_phone(c.phone_e164, c.phone_landline)}
     if goal == Goal.CONFIRM_CHANGE:
         p = ctx.change_proposal
         return {"field": _FIELD_WORDS.get(p.get("field"), p.get("field", "details")),
@@ -360,7 +360,7 @@ def _params(ctx: CallContext, goal: Goal, catalog) -> dict:
     if goal == Goal.SUMMARY_AGAIN:
         return _summary_again_params(ctx)
     if goal == Goal.CALLBACK_DONE:
-        return {"phone": speak_phone(c.phone_e164)}
+        return {"phone": speak_phone(c.phone_e164, c.phone_landline)}
     return {}
 
 
@@ -376,11 +376,11 @@ def _summary_again_params(ctx: CallContext) -> dict:
     return {"when": when, "branch": slot.branch}
 
 
-def speak_phone(e164: Optional[str]) -> str:
+def speak_phone(e164: Optional[str], landline: bool = False) -> str:
     """Grouped digits for a read-back; plain digits if the speakable helper is unavailable."""
     if not e164:
         return ""
-    return safe_call(prompts.speak_phone, e164, default=" ".join(e164[-10:]))
+    return safe_call(prompts.speak_phone, e164, landline, default=" ".join(e164[-10:]))
 
 
 # ---------------------------------------------------------------- the checklist (M1, M2)

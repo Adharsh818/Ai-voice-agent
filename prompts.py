@@ -175,7 +175,8 @@ LINES: dict[str, LineSpec] = {
     # BOOK
     "ask.patient": _l("Booking for someone else. 'Sure. What's {relation_or_their} name?'", "relation_or_their"),
     "ask.patient.rephrase": _l("Rung 2. 'Sorry, what was {relation_or_their} name?'", "relation_or_their"),
-    "ask.age": _l("Pediatric only. 'And how old is {patient}?'", "patient"),
+    "ask.age": _l("Children's dentistry, or a booking for the caller's child. 'And how old is {patient}?'",
+                  "patient"),
     "ask.service": _l("'What would you like to come in for?'", cache=True),
     "ask.service.rephrase": _l("'Is it a check-up, or is something bothering you?'"),
     "ask.service.choices": _l("'We do check-ups, cleanings, fillings, root canals, extractions, braces and "
@@ -932,10 +933,10 @@ def speak_when(date_c, time_c, today=None) -> str:
     return f"{day}, {part}" if part == "any time" else f"{day} {part}"
 
 
-def speak_phone(e164: str) -> str:
-    """Grouped read-back (phones.spoken): "9 8 7 6 5, 4 3 2 1 0"."""
+def speak_phone(e164: str, landline: bool = False) -> str:
+    """Grouped read-back (phones.spoken): "9 8 7 6 5, 4 3 2 1 0", or "0 8 0, 2 3 4 5, 6 7 8 9" as said."""
     canonical = e164 if (e164 or "").startswith("+") else (phones.to_e164(e164) or e164)
-    return phones.spoken(canonical)
+    return phones.spoken(canonical, landline)
 
 
 # How Emma says each catalog service in a sentence ("a root canal"), and the

@@ -76,7 +76,7 @@ Tier 0 = Emma's own rules, 1 = the model (Gemini), 2 = fallback when the model i
 - Cost metering per call; alerting on degraded health, failed sync, stuck call slot; `/health` and `/metrics` are public behind Caddy.
 - `/ws/voice` public in production spends API credit: gate it.
 - `deploy/install.sh` should generate `DASHBOARD_SESSION_SECRET`.
-- Booking edge cases: two branches the same day without travel time; "Adesh"/"Adharsh" become two patients; guardians for minors; non-Indian numbers loop; landlines read in mobile grouping; "tomorrow" said at 23:59; same-day move within 2 h always refused.
+- [x] Booking edge cases (12 Oct): two branches without travel time (90-min buffer, also when offering times); one name spelled two ways is one patient (identical sound-alike key only: Adarsh/Adharsh merge, Arun/Arjun don't; a real mishearing like Adesh/Adharsh still makes two); a child's age asked once for "my son/daughter"; foreign numbers told plainly; landlines read back as STD code + number (080 numbers as the caller said them); "today" pinned to the call's start day; inside the 2-hour notice a move later the same day with the same doctor (30 min ahead at least), anything else a callback.
 - The honesty line "Yeah, you caught me…" implies hiding; NORTH_STAR's example is neutral.
 - Prune `actions`, old `slot_claims`, expired holds; retire the legacy 12-step engine.
 - Research flags: Dr Ali (extractions + braces + Invisalign) is unrealistic, make him an oral surgeon or move braces; OPG at every branch is unlikely; say "clear aligners, including Invisalign".

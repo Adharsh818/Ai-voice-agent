@@ -20,7 +20,7 @@ them, and listening_hint() reads the expect column.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
@@ -341,7 +341,8 @@ class Caller:
     phone_e164: Optional[str] = None
     phone_state: FieldState = FieldState.EMPTY
     phone_buffer: str = ""                             # digits accumulated across turns
-    phone_misses: int = 0                              # read-backs rejected
+    phone_landline: bool = False                       # said as "080 2345 6789": read back as a landline
+    phone_misses: int = 0                             # read-backs rejected
     # "caller_id": phone_e164 came from the phone network, so it's confirmed by asking
     # "Is the number you're calling from the best one?" rather than read back;
     # "declined": the caller said no to that question (not a mishearing).
@@ -465,6 +466,7 @@ class CallContext:
     facade contract (call_session and the harness read or set them).
     """
     call_id: Optional[str] = None
+    day: Optional[date] = None                         # the clinic day the call started (clock.call_day)
     turn: int = 0
     greeted: bool = False
     greeting_offer: Optional[str] = None         # the greeting asked "book an appointment?" / "know about the clinic?"

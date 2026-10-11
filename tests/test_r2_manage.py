@@ -501,6 +501,9 @@ class Reschedule(unittest.TestCase):
             call = Call(clinic, Intent.RESCHEDULE).given()
             call.verified("today")
             self.assertTrue(call.ctx.manage.verified)
+            # Inside the 2-hour notice only later the same day with the same doctor can move it
+            # (12 Oct); another day is still a callback.
+            call.turn(U(date_phrase="tomorrow", raw_text="tomorrow"))
             self.assertEqual(call.goal, Goal.TOO_LATE)
             self.assertIn("call you", call.text)
 
