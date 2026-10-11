@@ -164,5 +164,26 @@ class FamilyBookingTests(ClinicCallCase):
         self.assertEqual(len(rows), 1)                     # moved or still Monday, never a silent second booking
 
 
+class LanguageTests(ClinicCallCase):
+    """F2: asked for Kannada or Hindi, Emma offers a callback from someone who speaks it."""
+
+    def test_can_you_speak_kannada(self):
+        call = Call()
+        reply = call.run("", "Can you speak Kannada?").text
+        self.assertIn("Kannada", reply)
+        self.assertIn("call you", reply)
+        reply = call.run("yes", "9845012345", "yes").text
+        tasks = self.clinic.query("SELECT kind FROM tasks")
+        self.assertIn("language", [t["kind"] for t in tasks], reply)
+
+    def test_a_doctors_languages_are_still_a_question(self):
+        reply = Call().run("", "Does Dr Shetty speak Hindi?").text
+        self.assertIn("Dr Shetty speaks", reply)
+
+    def test_no_english(self):
+        reply = Call().run("", "Sorry, I don't speak English well.").text
+        self.assertIn("call you", reply)
+
+
 if __name__ == "__main__":
     unittest.main()

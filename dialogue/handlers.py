@@ -152,6 +152,12 @@ _SIGN_OFF = re.compile(r"\b(?:bye|good\s*bye|bye[- ]bye)\b[\s.!]*$", re.IGNORECA
 _PLAIN_NO = re.compile(r"\b(?:no|nope|nah|nothing|none|not really|that'?s (?:all|it|everything)|"
                        r"i'?m (?:good|fine|done|ok|okay)|all good|that will be all)\b", re.IGNORECASE)
 _LANGUAGE_NAMES = re.compile(r"\b(?:kannada|hindi|tamil|telugu|malayalam|marathi|bengali|urdu|gujarati)\b")
+# Asked of Emma herself, model or not ("can you speak Kannada?", 11 Oct): not "does Dr Shetty speak Hindi?".
+_SPEAK_TO_ME = re.compile(r"\b(?:can|could|do|will) you (?:please )?(?:speak|talk|understand|help)\b|"
+                          r"\b(?:speak|talk|tell me|explain)(?: to me)? in\b|\bin (?:kannada|hindi|tamil|telugu)"
+                          r"(?: please| only)?\s*\??$")
+_NO_ENGLISH = re.compile(r"\b(?:i )?(?:don'?t|do not|can'?t|cannot) (?:speak|understand|know) (?:much |good )?"
+                         r"english\b|\benglish (?:is not|isn'?t) (?:good|my language)\b")
 
 
 def _screen(patterns: list, text: str, negated_inside: bool = False) -> bool:
@@ -189,7 +195,9 @@ def wants_other_language(u: Understanding) -> bool:
     says other_language AND a language is named ("can you speak Kannada?").
     """
     text = u.raw_text or ""
-    return _non_latin(text) or (u.has(Act.OTHER_LANGUAGE) and bool(_LANGUAGE_NAMES.search(text.lower())))
+    low = text.lower()
+    return _non_latin(text) or (u.has(Act.OTHER_LANGUAGE) and bool(_LANGUAGE_NAMES.search(low))) \
+        or bool(_SPEAK_TO_ME.search(low) and _LANGUAGE_NAMES.search(low)) or bool(_NO_ENGLISH.search(low))
 
 
 # ---------------------------------------------------------------- tasks
