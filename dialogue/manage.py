@@ -74,6 +74,7 @@ _KEEP_IT = re.compile(r"\b(?:don'?t|do\s+not)\s+cancel\b|\bkeep\s+it\b|\bnever\s
 
 # Days suggest() looks past the requested ones before giving up (its later_days default).
 _LATER_DAYS = 7
+_LATER_RE = re.compile(r"\b(?:later|after that|the week after|next week)\b")
 
 
 # ---------------------------------------------------------------- plans
@@ -327,6 +328,15 @@ def _absorb(ctx: CallContext, u: Understanding) -> _Heard:
         elif when.time is not None:
             m.new_time_c = _resolve_ampm(m.new_time_c, when.time)
             heard.new_when = m.new_date_c is not None
+    if ctx.pending == Goal.NO_SLOTS and m.action == Intent.RESCHEDULE and not heard.new_when \
+            and m.new_date_c is not None and m.target is not None \
+            and ((u.branch and u.branch.lower() == m.target.branch.lower()) or _LATER_RE.search(u.raw_text or "")
+                 or u.confirmation == "yes"):
+        # "Another branch or a later date?" -> "Nagarbhavi, please" (its own branch) or "later":
+        # look at the week after, never the same question again (sim, 12 Oct: seven times).
+        start = m.new_date_c.end + timedelta(days=_LATER_DAYS + 1)
+        m.new_date_c = dateparse.DateConstraint(start, start + timedelta(days=6))
+        heard.new_when = True
     return heard
 
 
@@ -649,6 +659,11 @@ async def _search(ctx: CallContext, rt: Runtime, result: ActionResult) -> None:
     await _release(rt)
     time_c = m.new_time_c if m.new_time_c is not None and m.new_time_c.kind != "any" else None
     declined = _turned_down(m)
+    if time_c is not None and time_c.kind == "exact" and m.new_date_c.exact:
+        # Asked for by name after turning it down ("Is 9 AM not possible at all?", sim 12 Oct, after
+        # 9 had been offered): they've changed their mind, so it's on the table again.
+        asked = datetime.combine(m.new_date_c.start, time_c.start, tzinfo=clock.TZ)
+        declined = {d for d in declined if d[1] != asked}
     common = dict(service=t.service_id, date_c=m.new_date_c, time_c=time_c, branch_ids=[t.branch_id],
                   call_id=rt.call_id, ignore_appointment=t.appointment_id, limit=6 if declined else 2)
 

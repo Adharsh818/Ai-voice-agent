@@ -558,7 +558,26 @@ def _fallback_answer(u: Understanding, rt: Runtime) -> Notice:
     if u.clinical:
         return Notice("clinical")
     answer = safe_call(facts.lookup, u.raw_text, rt.kb, rt.catalog, tuple(u.faq_ids or ()), default=None)
-    return Notice("answer.fact", {"text": answer}) if answer else Notice("unknown")
+    if answer:
+        return Notice("answer.fact", {"text": answer})
+    # Small talk isn't a question to be "not sure" about (sim, 12 Oct: "How's your day going?" ->
+    # "Honestly, I don't know that one."). Short turns only, so a real question isn't brushed aside.
+    text = (u.raw_text or "").lower()
+    if len(text.split()) <= 12:
+        if _HOW_ARE_YOU.search(text):
+            return Notice("chitchat")
+        if _REMARK.search(text) and not _ABOUT_CLINIC.search(text):
+            return Notice("chitchat.remark")
+    return Notice("unknown")
+
+
+_HOW_ARE_YOU = re.compile(
+    r"\bhow(?:'s| is| are| r)\s+(?:you|u|your day|it going|things|everything|life)\b|\bhow do you do\b|"
+    r"\bhope you(?:'re| are)\s+(?:well|good|fine|doing well|keeping well)\b|\bhow have you been\b")
+_REMARK = re.compile(
+    r"\b(?:rain(?:s|ing|y|ed)?|weather|so hot|very hot|hot today|humid|traffic|busy day|long day|"
+    r"(?:too|so|very) busy|hectic)\b")
+_ABOUT_CLINIC = re.compile(r"\b(?:clinic|doctors?|dr|appointments?|open|wait(?:ing)?|parking|branch|reach|get there)\b")
 
 
 def _view(ctx: CallContext, rt: Runtime) -> Tier0View:

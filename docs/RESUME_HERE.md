@@ -15,8 +15,8 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
 
 ## START HERE (written 12 Oct): the next session continues from this list
 
-**First thing next session:** the last commit (12 Oct, "WIP: travel buffer, foreign numbers") was saved when the owner stopped the session, **before the full test suite ran on it**. Run the suite first:
-`.\.venv\Scripts\python.exe -m unittest discover -s tests` and fix anything red (only `dialogue/handlers.py` foreign-number handling and the `scheduling.py` travel buffer are new; `tests/test_scheduling.py` passed, `tests/test_real_clinic_calls.py` gained one untested test, `ForeignNumberTests`). Then run the 53 scenarios and the four 200-call sims (commands above; targets Z1-Z7 = 0, M3 < 1%, M7 >= 95%, M10 < 2%, T5 <= 9).
+**WIP commit verified (12 Oct, later session):** 1058 tests pass, 53/53 scenarios, all four 200-call sims on target (Z1-Z7 = 0; M3 0-0.5%; M7 99-100%; M10 0-1%; T5 = 9). Fixed on the way, each with a test: the travel buffer is now applied when *offering* times too (Emma said "that's free" and then refused it at booking, five times in one call); small talk without the model gets a friendly reply instead of "Honestly, I don't know that one", and "raining a lot today" is no longer taken as the day; "move my appointment" again right after a move reopens the move (it said "anything else?" and hung up); a turned-down time asked for by name is offered again; at "another branch or a later date?" the same branch or "later" searches the week after (it looped seven times).
+
 
 The to-do list with everything found by the 11 Oct audit is **docs/REAL_CLINIC_GAPS.md**. Done since 11 Oct (all committed, pushed up to 0a974ee):
 - Live transcript paced to the audio; 26 clinic facts and doctor profiles (complete answers, owner's rule); dashboard D1-D8 with a performance panel; up to 3 calls at once.
@@ -24,12 +24,12 @@ The to-do list with everything found by the 11 Oct audit is **docs/REAL_CLINIC_G
 - WhatsApp/SMS messages ready to plug in (notify.py, log-only; docs/NOTIFICATIONS.md); trunk dialling for recovery calls (TELEPHONY_TRUNK_DIAL; docs/TRUNK.md).
 - 17 more rule lines pre-rendered (latency L3); family bookings (second person in the same call, own name; caps 3 per patient / 8 per number); reschedule instead of a false "Got it" on a booked draft.
 - Kannada/Hindi callback offer without the model; DPDP retention + export/erase by phone (privacy.py); holidays and closures from the dashboard; named staff logins (staff.py, migration 005); deployed talk page needs a login; installer writes a session secret.
-- **In the WIP commit (untested in full):** 90-minute travel buffer between one patient's appointments at two branches (TRAVEL_BUFFER_MIN); a foreign number while Emma takes the number gets "I need an Indian number" (handlers `_FOREIGN_NUMBER`, line `phone.foreign`).
+- 90-minute travel buffer between one patient's appointments at two branches (TRAVEL_BUFFER_MIN); a foreign number while Emma takes the number gets "I need an Indian number" (handlers `_FOREIGN_NUMBER`, line `phone.foreign`).
 
 Owner-visible changes to mention: `LOG_CALLER_TEXT` now defaults to false (set it to true in `.env` for development logs); the shared dashboard password is audited as "owner" (staff accounts on System tab); the cache budget rose to 4,800 characters (about 1,900 ElevenLabs characters rendered once at the next start).
 
 **Left, in order:**
-1. Verify the WIP commit (above).
+1. ~~Verify the WIP commit~~ (done 12 Oct, see above).
 2. Remaining booking edge cases (P2): landlines read back in mobile grouping (`prompts.speak_phone`); "Adesh"/"Adharsh" becoming two patients (use `match._name_key` for the patient match); pin "today" at call start so "tomorrow" at 23:59 doesn't shift; allow a same-day move within 2 h when the same doctor has the slot; ask a child's age whenever booking for someone else's child.
 3. Latency L1/L2: Gemini hit its 2.2 s limit on 63/84 phone model turns and 36% of browser ones in the last week. Ask the owner (MCQ) whether to raise `NLU_HEAD_DEADLINE_S` or run `tools/preflight.py` (a few paid Gemini calls). Phone end-of-speech: the watchdog decides 51% of phone turns; measure before tuning.
 4. P2 SaaS items: "Pearl Dental" hard-coded in greetings/prompts/keyterms (make CLINIC_NAME/short name configurable per clinic); cost metering per call; alerting on degraded health / failed sync / stuck lines; prune expired holds and past slot_claims; retiring the legacy 12-step engine. Note: the honesty line "Yeah, you caught me..." is the owner's locked decision (R-list); the audit suggested a neutral one: ask before changing.

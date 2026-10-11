@@ -40,6 +40,7 @@ from dialogue.context import (
     Act, BookingDraft, CallContext, FieldState, Goal, Intent, MANAGE_INTENTS, ManageDraft, Notice,
     Understanding,
 )
+from dialogue.manage import _slot_words
 from dialogue.runtime import Runtime, safe_call
 
 logger = logging.getLogger(__name__)
@@ -146,6 +147,13 @@ def apply(ctx: CallContext, u: Understanding, rt: Runtime) -> list:
         # again from the verified appointment, never "anything else?" on a loop.
         ctx.manage.done = False
         ctx.manage.summary_heard = False
+    elif u.intent == Intent.RESCHEDULE and ctx.intent == Intent.RESCHEDULE and ctx.outcome == "rescheduled" \
+            and ctx.manage.done and ctx.manage.verified and ctx.manage.target is not None \
+            and ctx.manage.__dict__.get("_moved_again", 0) < 2:
+        # "I want to move my appointment" right after moving it (sim, 12 Oct: "anything else?"
+        # twice, then goodbye): move the same one again, saying where it stands now.
+        _move_again(ctx)
+        notices.append(Notice("reschedule.again", {"when": _slot_words(ctx.manage.target.start)}))
 
     proposal_before = dict(ctx.change_proposal)
     _apply_name(ctx, u, cued, notices, rt)
@@ -241,6 +249,16 @@ def _verification_given_up(ctx: CallContext) -> bool:
     m = ctx.manage
     return (m.done and not m.verified and not m.matches and m.verify_attempts > 0
             and ctx.stats(Goal.CALLBACK_OFFER).asked < 2)
+
+
+def _move_again(ctx: CallContext) -> None:
+    """The appointment just moved on this call is moved again: verified, so straight to the new day."""
+    m = ctx.manage
+    m.__dict__["_moved_again"] = m.__dict__.get("_moved_again", 0) + 1
+    m.done, m.summary_heard, m.chosen, m.offered, m.offer_rounds = False, False, None, [], 0
+    m.new_date_c = m.new_time_c = None
+    for goal in (Goal.ASK_NEW_WHEN, Goal.OFFER_NEW_SLOTS, Goal.CONFIRM_RESCHEDULE):
+        ctx.goal_stats.pop(goal.value, None)
 
 
 def _retry_verification(ctx: CallContext):

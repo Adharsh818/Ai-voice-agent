@@ -271,7 +271,7 @@ def find_slots(conn, *, service, dates: Iterable[date], branch_ids=None, doctor_
     lead = _lead(emergency)
     w_start, w_end = window or (OPEN, CLOSE)
     found: list[Slot] = []
-    busy = _patient_busy(conn, patient, dates[0], dates[-1]) if patient else []
+    busy = _patient_busy(conn, patient, dates[0], dates[-1], ignore_appointment) if patient else []
     length = timedelta(minutes=svc["duration_min"])
 
     def pick(candidates):
@@ -297,6 +297,8 @@ def find_slots(conn, *, service, dates: Iterable[date], branch_ids=None, doctor_
         while t < _at(day, CLOSE):
             if w_start <= t.time() < w_end and not _overlaps(busy, t, t + length):
                 for doc in doctors:
+                    if busy and _overlaps(busy, t, t + length, doc["branch_id"]):
+                        continue
                     if not ctx.reasons(doc["id"], svc["id"], svc["duration_min"], t, now, lead):
                         found.append(_slot(doc, svc, t))
             t += GRID
@@ -337,9 +339,11 @@ def suggest(conn, *, service, date_c: DateConstraint, time_c: Optional[TimeConst
         svc = get_service(conn, service)
         doctors = _doctors(conn, svc["id"], branch_ids, doctor_id, gender) if svc else []
         reason_sets = []
-        clash = bool(svc) and patient is not None and _overlaps(
-            _patient_busy(conn, patient, day, day), requested, requested + timedelta(minutes=svc["duration_min"]))
-        for doc in ([] if clash else doctors):
+        busy = _patient_busy(conn, patient, day, day, ignore_appointment) if svc and patient is not None else []
+        end = requested + timedelta(minutes=svc["duration_min"]) if svc else requested
+        for doc in doctors:
+            if busy and _overlaps(busy, requested, end, doc["branch_id"]):
+                continue                             # the patient is booked then, or across town just before/after
             why = validate(conn, service=svc["id"], doctor_id=doc["id"], start=requested, now=now,
                            emergency=emergency, call_id=call_id, ignore_appointment=ignore_appointment)
             if not why:
@@ -504,19 +508,29 @@ def _outbox(conn, appointment_id: str, now: datetime):
                  "status = 'pending', last_error = NULL", (appointment_id, db.utc_str(now)))
 
 
-def _patient_busy(conn, patient: tuple, first: date, last: date) -> list:
-    """[(start, end)] of the patient's booked appointments from `first` to `last` (local days)."""
+def _patient_busy(conn, patient: tuple, first: date, last: date, exclude_id=None) -> list:
+    """[(start, end, branch_id)] of the patient's booked appointments from `first` to `last` (local days)."""
     phone_e164, name_norm = patient
     lo, hi = db.utc_str(_at(first, time(0, 0))), db.utc_str(_at(last + timedelta(days=1), time(0, 0)))
     rows = conn.execute(
-        "SELECT a.start_utc, a.end_utc FROM appointments a JOIN patients p ON p.id = a.patient_id "
-        "WHERE p.phone_e164 = ? AND p.name_norm = ? AND a.status = 'booked' AND a.start_utc < ? AND a.end_utc > ?",
-        (phone_e164, name_norm, hi, lo)).fetchall()
-    return [(db.parse_utc(r["start_utc"]), db.parse_utc(r["end_utc"])) for r in rows]
+        "SELECT a.start_utc, a.end_utc, a.branch_id FROM appointments a JOIN patients p ON p.id = a.patient_id "
+        "WHERE p.phone_e164 = ? AND p.name_norm = ? AND a.status = 'booked' AND a.id IS NOT ? "
+        "AND a.start_utc < ? AND a.end_utc > ?",
+        (phone_e164, name_norm, exclude_id, db.utc_str(_at(last + timedelta(days=1), time(0, 0))
+                                                        + timedelta(minutes=config.TRAVEL_BUFFER_MIN)),
+         db.utc_str(_at(first, time(0, 0)) - timedelta(minutes=config.TRAVEL_BUFFER_MIN)))).fetchall()
+    return [(db.parse_utc(r["start_utc"]), db.parse_utc(r["end_utc"]), r["branch_id"]) for r in rows]
 
 
-def _overlaps(busy: list, start: datetime, end: datetime) -> bool:
-    return any(b_start < end and b_end > start for b_start, b_end in busy)
+def _overlaps(busy: list, start: datetime, end: datetime, branch_id=None) -> bool:
+    """Same rule as _patient_conflict: an overlap, or another branch within TRAVEL_BUFFER_MIN."""
+    buffer = timedelta(minutes=config.TRAVEL_BUFFER_MIN)
+    for b_start, b_end, b_branch in busy:
+        if b_start < end and b_end > start:
+            return True
+        if branch_id is not None and b_branch != branch_id and b_start < end + buffer and b_end > start - buffer:
+            return True
+    return False
 
 
 def _patient_conflict(conn, phone_e164, name_norm, start, end, exclude_id=None, branch_id=None) -> bool:
