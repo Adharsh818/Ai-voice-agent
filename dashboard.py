@@ -656,7 +656,10 @@ def _system(conn) -> dict:
     audit = _audit_rows(conn)
     dnc = [dict(r, phone_display=phones.national(r["phone_e164"])) for r in conn.execute(
         "SELECT phone_e164, updated_at FROM contact_prefs WHERE do_not_call = 1 ORDER BY updated_at DESC")]
+    import notify
     return {
+        "messages": notify.recent(conn),
+        "message_counts": notify.counts(conn),
         "outbox": calendar_sync.outbox_rows(conn),
         "outbox_counts": calendar_sync.outbox_counts(conn),
         "calendars": calendar_sync.calendars_configured(conn),
@@ -733,6 +736,8 @@ async def performance(days: int = 7, user: str = staff):
 @router.get("/dashboard/api/system")
 async def system(request: Request, user: str = staff):
     data = await _run(_system)
+    import notify
+    data.update(message_status=notify.status())
     data.update(calendar=calendar_sync.status(), retention=recording.status(), auth=auth.status(),
                 events=events.stats(), call=_gate_status(request))
     return data

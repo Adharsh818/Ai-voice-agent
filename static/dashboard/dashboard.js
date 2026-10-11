@@ -1033,6 +1033,21 @@ async function loadSystem() {
     }))));
   $("dnc-rows").replaceChildren(...(dnc.length ? dnc : [emptyRow(3, "Nobody on the list.")]));
 
+  const ms = data.message_status || {};
+  const mc = data.message_counts || {};
+  $("msg-state").className = `badge ${ms.sender === "twilio" ? "ok" : "warn"}`;
+  $("msg-state").textContent = ms.sender === "twilio" ? `Sending (${ms.channel})` : ms.sender === "off" ? "Off" : "Log only";
+  $("msg-detail").textContent = [ms.reason ? `${ms.reason}.` : null,
+    `${mc.pending || 0} waiting, ${mc.sent || 0} sent, ${mc.logged || 0} logged, ${mc.failed || 0} failed.`]
+    .filter(Boolean).join(" ");
+  const MSG_KIND = { booked: "Confirmation", moved: "Moved", cancelled: "Cancelled", reminder: "Reminder" };
+  $("msg-rows").replaceChildren(...((data.messages || []).length ? data.messages.map((m) => el("tr", {},
+    el("td", { text: MSG_KIND[m.kind] || m.kind }),
+    el("td", { class: "num nowrap", text: m.phone_display }),
+    el("td", { class: "small", text: m.body }),
+    el("td", {}, el("span", { class: `badge ${m.status}`, title: m.last_error || "", text: m.status })),
+    el("td", { class: "nowrap", text: fmtDateTime(m.sent_at || m.due_at) }))) : [emptyRow(5, "No messages yet.")]));
+
   $("audit-rows").replaceChildren(...data.audit.map((a) => el("tr", {},
     el("td", { class: "nowrap", text: fmtDateTime(a.ts) }),
     el("td", { text: a.actor }),

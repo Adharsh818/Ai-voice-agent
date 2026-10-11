@@ -13,6 +13,12 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Everything up to f5cd820 was pushed on 9 Oct.
 
+## 11 Oct, evening: real-clinic work (start here next)
+
+The owner asked for an audit plus clinic knowledge, dashboard, latency and live-transcript fixes. The full to-do list is **docs/REAL_CLINIC_GAPS.md** (ticked items are done). Done and pushed: live transcript paced to the audio; 26 clinic facts and doctor profiles (complete answers, owner's rule); dashboard D1-D8 with a performance panel; 3 calls at once; closed-hours emergencies, bleeding, names, late patients, wrong numbers, sales and staff calls, records requests, doctors on leave, urgent hang-ups; WhatsApp/SMS messages ready to plug in (notify.py, log-only sender, migration 004; a Twilio sender exists but is untested without an account). Tests: 1039 pass; scenarios 53/53 and four sims on target as of 3ef2bb4.
+
+**Left, in order:** docs/NOTIFICATIONS.md setup guide (T2); real trunk guide (T1); latency L1-L3 (Gemini deadline, phone end-of-speech, pre-render rule lines); F1 family bookings + per-phone cap; F2 Kannada/Hindi callback; S1 DPDP retention and erase-by-phone; S2 per-staff logins; S3 hours/closures from the dashboard (C9 spoken hours vs rota); P2 list. Then Phase 3 phone checks with the owner and Phase 7.
+
 ## Done on 11 Oct
 
 - **Step 2 (sims):** 992 tests, 53/53 scenarios, the four 200-call sims all on target: Z1-Z7 all 0; M3 0-0.5%; M7 97.9-100%; M10 0-1%; **T5 = 9 in all four** (was 10).
