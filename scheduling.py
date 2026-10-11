@@ -648,6 +648,18 @@ def reschedule(conn, appointment_id: str, *, doctor_id: int, start: datetime, id
         return Result(False, "TAKEN", appointment_id)
 
 
+def doctor_away(conn, doctor_id: int, day: date) -> bool:
+    """The doctor works that weekday but is blocked (leave, illness, training) for all of their hours."""
+    rules = conn.execute("SELECT start_time, end_time FROM availability_rules WHERE doctor_id = ? AND weekday = ?",
+                         (doctor_id, day.weekday())).fetchall()
+    if not rules:
+        return False
+    first = min(_at(day, _hm(r["start_time"])) for r in rules)
+    last = max(_at(day, _hm(r["end_time"])) for r in rules)
+    return conn.execute("SELECT 1 FROM blocked_times WHERE doctor_id = ? AND start_utc <= ? AND end_utc >= ?",
+                        (doctor_id, db.utc_str(first), db.utc_str(last))).fetchone() is not None
+
+
 def mark_attendance(conn, appointment_id: str, status: str, *, actor: str = "staff", now=None) -> Result:
     """
     After the visit: 'completed' (they came) or 'no_show'. Only a booked

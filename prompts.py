@@ -106,6 +106,18 @@ LINES: dict[str, LineSpec] = {
                            "out a time that works.'", critical=True),
     "english_only": _l("Gently English only. 'Sorry, I can only help in English on this line. Our clinic team "
                        "speaks Kannada and Hindi, shall I have them call you?'", critical=True),
+    "doctor.away": _l("Notice: the doctor asked for is on leave that day; colleagues are offered next. "
+                      "'Dr Rao's away on Monday, I'm afraid.'", "doctor", "day", critical=True),
+    "late.ack": _l("A patient running late. 'No problem, thanks for letting us know. I'll tell the front desk "
+                   "you're running late. Anything else?'", critical=True),
+    "wrong_number": _l("Not for this clinic. 'This is Pearl Dental, a dental clinic, so I think you may have the "
+                       "wrong number. Take care!'", critical=True),
+    "vendor.ack": _l("A sales or business call. 'Thanks for calling. I'll pass your details to our clinic manager, "
+                     "who'll get back to you if it's of interest. Have a good day!'", critical=True),
+    "staff.ack": _l("A doctor or staff member calling. 'Hi {who}, I'll pass that to the clinic manager right "
+                    "away. Anything else?'", "who", critical=True),
+    "records.ack": _l("A records request taken. 'Sure, I've asked the front desk to send that to you today.'",
+                      critical=True),
     "abuse.warn": _l("One calm warning. 'I do want to help, but let's keep it friendly, okay?'",
                      critical=True),
     "abuse.close": _l("Polite close. 'I'm going to end the call here. Take care.'", critical=True),
@@ -373,6 +385,20 @@ VARIANTS: dict[str, tuple] = {
                      "shall I have them call you?",
                      "I'm sorry, I can only do English on this line. Shall I ask someone who speaks Kannada or "
                      "Hindi to call you?"),
+    "doctor.away": ("{doctor}'s away on {day}, I'm afraid.", "{doctor} isn't in on {day}, I'm sorry."),
+    "late.ack": ("No problem, thanks for letting us know. I'll tell the front desk you're running late. "
+                 "Anything else?",
+                 "That's okay, I'll let the team know you're on your way. Is there anything else?"),
+    "wrong_number": ("This is Pearl Dental, a dental clinic, so I think you may have the wrong number. Take care!",
+                     "Ah, you've reached Pearl Dental, the dental clinic. I think it's a wrong number. Have a good day!"),
+    "vendor.ack": ("Thanks for calling. I'll pass your details to our clinic manager, who'll get back to you if it's "
+                   "of interest. Have a good day!",
+                   "Thank you. I'll let our clinic manager know you called, and they'll be in touch if it's a fit. "
+                   "Bye for now!"),
+    "staff.ack": ("Hi {who}, I'll pass that to the clinic manager right away. Anything else?",
+                  "Okay {who}, I'll let the clinic manager know straight away. Anything else?"),
+    "records.ack": ("Sure, I've asked the front desk to send that to you today.",
+                    "No problem, I've asked the front desk to share that with you today."),
     "abuse.warn": ("I do want to help, but let's keep it friendly, okay?",
                    "I'm happy to help, but please keep it polite."),
     "abuse.close": ("I'm going to end the call here. Take care.", "I'll end the call now. Take care."),

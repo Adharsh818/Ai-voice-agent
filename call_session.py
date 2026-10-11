@@ -1542,6 +1542,20 @@ class CallSession:
                 return e164
         return None
 
+    async def _urgent_without_booking(self):
+        """
+        A caller in pain, swollen or bleeding who ends the call without a
+        booking still reaches the front desk (the audit, 11 Oct: the
+        emergency task was only made with a booking).
+        """
+        emergency = getattr(getattr(self.s, "emergency", None), "value", None)
+        if emergency != "urgent" or (self.outcome or "").split("_")[0] in ("booked", "rescheduled"):
+            return
+        phone = self._caller_phone() or getattr(self.s, "line_e164", None)
+        await self._create_task("emergency", "urgent", phone,
+                                "Urgent caller (pain, swelling or bleeding) ended the call without a booking: "
+                                "please call them back.")
+
     async def _create_task(self, kind: str, priority: str, phone: Optional[str], note: str):
         """A staff task through tasks.py (backend track), if it and the database are available."""
         try:
@@ -1684,6 +1698,7 @@ class CallSession:
             self.outcome = f"{self.outcome}_hangup"          # done, but the caller never heard it
         if self.outcome is None:
             self.outcome = "completed" if self._ended_by_emma() else self._abandoned()
+        await self._urgent_without_booking()
         await self._release_holds()
         if self.recorder is not None and self._own_recorder:
             try:
