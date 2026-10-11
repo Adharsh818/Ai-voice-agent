@@ -5,7 +5,7 @@
   "demo": true,
   "hours": {
     "verified": true,
-    "text": "We're open Monday to Saturday, from 7 in the morning at Indiranagar and until 9 at night at Nagarbhavi, Jayanagar and Whitefield, with a short lunch break from 2 to 2:30. Each doctor has their own hours, and we're closed on Sundays.",
+    "text": "We're open Monday to Saturday, 7 in the morning to 9 at night depending on the branch, with lunch from 2 to 2:30, and we're closed on Sundays.",
     "keywords": [
       "hours",
       "timings",
@@ -803,6 +803,21 @@
         "walker",
         "walking difficulty",
         "can't climb"
+      ]
+    },
+    {
+      "id": "policy.why_number",
+      "topic": "why Emma asks for the phone number",
+      "verified": true,
+      "text": "Your number is how we find your appointment and reach you about it, like a reminder or a change of time; it stays with the clinic and is never shared.",
+      "keywords": [
+        "why do you need my number",
+        "why my number",
+        "why do you need my phone",
+        "why the number",
+        "why should i give",
+        "need my number",
+        "why phone number"
       ]
     }
   ],

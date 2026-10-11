@@ -166,7 +166,7 @@
       <div class="grid-2">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Started</th><th>Length</th><th>Outcome</th><th>Phone</th><th>Turns</th></tr></thead>
+            <thead><tr><th>Started</th><th>Length</th><th>Outcome</th><th>Via</th><th>Phone</th><th>Turns</th></tr></thead>
             <tbody id="call-rows"></tbody>
           </table>
         </div>
@@ -255,6 +255,10 @@
     <!-- System ------------------------------------------------------------>
     <section class="view" id="view-system" role="tabpanel" hidden>
       <div class="view-head"><h2>System</h2></div>
+      <div class="card">
+        <div class="card-head"><h3>How Emma is doing</h3><span class="muted small">real calls, last 7 days</span></div>
+        <div class="table-wrap" id="perf-body"><p class="muted">Loading…</p></div>
+      </div>
       <div class="card">
         <div class="card-head">
           <h3>Google Calendar sync</h3>

@@ -572,6 +572,15 @@ def _choose(offered: list, u: Understanding, confirmation: Optional[str]) -> Opt
     return None
 
 
+def _turned_down(m: ManageDraft) -> set:
+    """(doctor_id, start) of new times the caller already said no to on this call."""
+    return m.__dict__.setdefault("_turned_down", set())
+
+
+def _note_turned_down(m: ManageDraft, slots) -> None:
+    _turned_down(m).update((s.doctor_id, s.start) for s in slots or () if s is not None)
+
+
 async def _advance_reschedule(ctx, u, confirmation, rt, result, heard) -> ActionResult:
     m = ctx.manage
     search = heard.new_when
@@ -579,6 +588,7 @@ async def _advance_reschedule(ctx, u, confirmation, rt, result, heard) -> Action
         if _heard_yes(ctx, Goal.CONFIRM_RESCHEDULE, confirmation):
             return await _commit_reschedule(ctx, rt, result)
         if confirmation == "no" or u.reject_options:
+            _note_turned_down(m, [m.chosen])
             m.chosen = None
             m.new_date_c = m.new_time_c = None
             m.offer_rounds += 1
@@ -595,6 +605,7 @@ async def _advance_reschedule(ctx, u, confirmation, rt, result, heard) -> Action
         if u.reject_options or (confirmation == "no" and not u.choice_index):
             if m.offered:
                 m.offer_rounds += 1
+            _note_turned_down(m, m.offered)
             m.offered = []
             m.new_date_c = m.new_time_c = None
             await _release(rt)
@@ -618,6 +629,10 @@ def _ready_to_search(m: ManageDraft) -> bool:
     return m.new_date_c is not None and not (m.new_time_c is not None and m.new_time_c.kind == "ambiguous")
 
 
+# scheduling reasons for a refused exact time that are worth saying (as in book.py).
+REASON_LINES = {"OUTSIDE_HOURS": "time.outside_hours", "LUNCH": "time.lunch.at", "DOCTOR_OFF": "time.doctor_off"}
+
+
 async def _search(ctx: CallContext, rt: Runtime, result: ActionResult) -> None:
     """
     scheduling.suggest for the same service at the same branch, with the
@@ -633,11 +648,14 @@ async def _search(ctx: CallContext, rt: Runtime, result: ActionResult) -> None:
         _checking(ctx, rt)
     await _release(rt)
     time_c = m.new_time_c if m.new_time_c is not None and m.new_time_c.kind != "any" else None
+    declined = _turned_down(m)
     common = dict(service=t.service_id, date_c=m.new_date_c, time_c=time_c, branch_ids=[t.branch_id],
-                  call_id=rt.call_id, ignore_appointment=t.appointment_id)
+                  call_id=rt.call_id, ignore_appointment=t.appointment_id, limit=6 if declined else 2)
 
     def same(slot) -> bool:
-        return slot.doctor_id == t.doctor_id and slot.start == t.start
+        # The current time, or one the caller already said no to ("Wednesday" again after
+        # turning down Wednesday at 7: sim, 11 Oct).
+        return (slot.doctor_id == t.doctor_id and slot.start == t.start) or (slot.doctor_id, slot.start) in declined
 
     sug = await rt.run(scheduling.suggest, doctor_id=t.doctor_id, **common)
     if sug.requested is not None and sug.requested == t.start:
@@ -648,6 +666,14 @@ async def _search(ctx: CallContext, rt: Runtime, result: ActionResult) -> None:
         slots = [s for s in sug.slots if not same(s)]
     if len(slots) > 1 and slots[1].doctor_id != slots[0].doctor_id:
         slots = slots[:1]            # the offer lines name one doctor
+    if time_c is not None and time_c.kind == "exact" and sug.requested is not None and slots \
+            and not any(s.start == sug.requested for s in slots):
+        # "Is 1:30 not possible at all?" (sim, 11 Oct): say why before the nearest times, as booking does.
+        reason = next((r for r in sug.reasons if r in REASON_LINES), None)
+        result.notices.append(Notice(REASON_LINES[reason], {
+            "service": prompts.service_plural(t.service), "time": prompts.speak_time(sug.requested.time())})
+                              if reason else
+                              Notice("time.taken", {"time": prompts.speak_time(sug.requested.time())}))
     for slot in slots[:2]:
         hold_id = await rt.run(scheduling.hold, slot, rt.call_id)
         if hold_id is None:

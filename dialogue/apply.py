@@ -833,6 +833,9 @@ def _apply_choice(ctx: CallContext, u: Understanding, conf: Optional[str], rt: R
     if u.reject_options or (ctx.pending in OFFER_GOALS and conf == "no" and no_new_when and not u.choice_index):
         draft = ctx.manage if ctx.intent == Intent.RESCHEDULE else ctx.book
         draft.offer_rounds += 1
+        if ctx.intent == Intent.RESCHEDULE:
+            from dialogue import manage
+            manage._note_turned_down(draft, draft.offered)        # never offered again on this call
         draft.offered = []
         draft.chosen = None
         rt.release_requested = True

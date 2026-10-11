@@ -128,6 +128,29 @@ const KIND_LABEL = {
   escalation: "Escalation", language: "Language", abandoned: "Abandoned call",
 };
 const ROLE_LABEL = { caller: "Caller", emma: "Emma", operator: "Staff" };
+const TIER_LABEL = { "-1": "greeting", 0: "Emma's rules", 1: "language model", 2: "fallback (model slow)" };
+const CHANNEL_LABEL = { browser: "Browser", phone: "Phone" };
+// Where a caller hung up, by the step Emma was on.
+const STEP_LABEL = {
+  greet: "at the greeting", go_on: "after the greeting", ask_name: "while giving their name",
+  spell_name: "while spelling their name", confirm_phone: "while confirming their number",
+  ask_phone: "while giving their number", ask_service: "while saying what it's for", ask_branch: "choosing a branch",
+  ask_when: "choosing a day", ask_time: "choosing a time", offer_slots: "choosing a slot", summary: "at the summary",
+  duplicate_check: "about an existing appointment", callback_offer: "after a callback offer",
+};
+const CALL_OUTCOME = {
+  booked: "Booked", rescheduled: "Moved", cancelled: "Cancelled", completed: "Completed", transferred: "Transferred",
+  booked_hangup: "Booked, hung up before hearing it", rescheduled_hangup: "Moved, hung up before hearing it",
+  cancelled_hangup: "Cancelled, hung up before hearing it",
+};
+
+function callOutcome(outcome) {
+  if (!outcome) return "In progress";
+  if (CALL_OUTCOME[outcome]) return CALL_OUTCOME[outcome];
+  const [kind, step] = outcome.split("@");
+  if (kind === "abandoned") return `Hung up ${STEP_LABEL[step] || (step ? `at ${step.replace(/_/g, " ")}` : "")}`.trim();
+  return outcome.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
 
 // ------------------------------------------------------------------ dialogs
 document.querySelectorAll("dialog [data-close]").forEach((button) => {
@@ -354,7 +377,7 @@ function renderLive() {
   pill.textContent = label[live.state] || live.state;
   $("live-call").textContent = live.callId || "–";
   $("live-goal").textContent = live.goal || "–";
-  $("live-tier").textContent = live.tier === null ? "–" : { 0: "0 · fast path", 1: "1 · language model", "-1": "no NLU" }[live.tier] ?? String(live.tier);
+  $("live-tier").textContent = live.tier === null ? "–" : TIER_LABEL[live.tier] ?? String(live.tier);
   $("live-outcome").textContent = live.outcome || (hasCall && !live.ended ? "in progress" : "–");
   renderDuration();
   const active = hasCall && !live.ended;
@@ -496,7 +519,8 @@ function renderAppointments() {
   const where = appt.scope === "day" ? prettyDay(appt.day) : { upcoming: "Upcoming", past: "Past", all: "All" }[appt.scope];
   $("appt-summary").textContent = `${where} · ${rows.length} shown, ${active} active`;
   if (!rows.length) {
-    tbody.replaceChildren(emptyRow(9, "No appointments match."));
+    const sunday = appt.scope === "day" && new Date(`${appt.day}T12:00:00`).getDay() === 0;
+    tbody.replaceChildren(emptyRow(9, sunday ? "The clinic is closed on Sundays." : "No appointments match."));
     return;
   }
   const out = [];
@@ -523,6 +547,9 @@ function renderAppointments() {
       el("td", { class: "actions" }, changeable ? [
         el("button", { class: "btn small", type: "button", text: "Move", onclick: () => openBook("move", r) }),
         el("button", { class: "btn small danger", type: "button", text: "Cancel", onclick: () => openCancel(r) }),
+      ] : r.status === "booked" && new Date(r.start) <= now ? [
+        el("button", { class: "btn small", type: "button", text: "Attended", onclick: () => markAttendance(r, "completed") }),
+        el("button", { class: "btn small ghost", type: "button", text: "No-show", onclick: () => markAttendance(r, "no_show") }),
       ] : null)));
   }
   tbody.replaceChildren(...out);
@@ -546,6 +573,16 @@ $("appt-export").addEventListener("click", () => {
   location.href = `/dashboard/api/appointments.csv?${apptQuery()}`;
 });
 $("appt-new").addEventListener("click", () => openBook("book"));
+
+async function markAttendance(r, status) {
+  try {
+    await api(`/dashboard/api/appointments/${encodeURIComponent(r.id)}/attendance`, { method: "POST", body: { status } });
+    toast(`${r.patient_name}: ${STATUS_LABEL[status]}.`);
+    loadAppointments();
+  } catch (err) {
+    toast(err.message, "error");
+  }
+}
 
 function describe(r) {
   return `${r.patient_name}: ${r.service} with ${r.doctor}, ${fmtDateTime(r.start)} at ${r.branch}`;
@@ -788,18 +825,20 @@ async function loadCalls() {
   try {
     list = (await api("/dashboard/api/calls?limit=100")).calls;
   } catch (err) {
-    tbody.replaceChildren(emptyRow(5, err.message));
+    tbody.replaceChildren(emptyRow(6, err.message));
     return;
   }
   if (!list.length) {
-    tbody.replaceChildren(emptyRow(5, "No calls yet."));
+    tbody.replaceChildren(emptyRow(6, "No calls yet."));
     return;
   }
   tbody.replaceChildren(...list.map((c) => {
     const row = el("tr", { tabindex: "0", "data-call": c.id, class: c.id === selectedCall ? "selected" : "" },
       el("td", { class: "nowrap", text: fmtDateTime(c.started_at) }),
       el("td", { class: "nowrap num", text: c.ended_at ? length(c.started_at, c.ended_at) : "live" }),
-      el("td", {}, el("span", { class: "badge", text: c.outcome || "in progress" })),
+      el("td", {}, el("span", { class: `badge ${(c.outcome || "").split("@")[0]}`, title: c.outcome || "",
+        text: callOutcome(c.outcome) })),
+      el("td", { text: CHANNEL_LABEL[c.channel] || "–" }),
       el("td", { class: "nowrap num", text: c.phone_display || "–" }),
       el("td", { class: "num", text: c.turns === c.kept_turns ? String(c.turns) : `${c.kept_turns}/${c.turns} kept` }));
     row.addEventListener("click", () => openCall(c.id));
@@ -823,7 +862,7 @@ async function openCall(callId) {
   const turns = call.turns.map((t) => {
     const removed = t.text === null;
     const perceived = t.latency && t.latency.perceived_ms;
-    const meta = [t.tier !== null ? `tier ${t.tier}` : null, perceived ? `${ms(perceived)} ms` : null,
+    const meta = [t.tier !== null ? (TIER_LABEL[t.tier] || `tier ${t.tier}`) : null, perceived ? `${ms(perceived)} ms` : null,
       t.state_before || t.state_after ? `${t.state_before ?? "?"} → ${t.state_after ?? "?"}` : null].filter(Boolean).join(" · ");
     return el("div", { class: `line ${t.role}${removed ? " removed" : ""}` },
       el("span", { class: "who", text: ROLE_LABEL[t.role] || t.role }),
@@ -850,7 +889,8 @@ async function openCall(callId) {
       el("dt", { text: "Started" }), el("dd", { text: fmtDateTime(call.started_at) }),
       el("dt", { text: "Length" }), el("dd", { text: call.ended_at ? length(call.started_at, call.ended_at) : "still live" }),
       el("dt", { text: "Direction" }), el("dd", { text: call.direction }),
-      el("dt", { text: "Outcome" }), el("dd", { text: call.outcome || "–" }),
+      el("dt", { text: "Outcome" }), el("dd", { text: callOutcome(call.outcome), title: call.outcome || "" }),
+      el("dt", { text: "Came in by" }), el("dd", { text: CHANNEL_LABEL[call.channel] || "–" }),
       el("dt", { text: "Caller" }), el("dd", { class: "num", text: call.phone_display || "–" }),
       el("dt", { text: "Transcript" }), el("dd", { text: kept ? `kept until ${fmtDateTime(call.purge_after)}` : "not kept (caller's request or deleted)" }),
       call.appointments.length ? [el("dt", { text: "Appointments" }), el("dd", {},
@@ -863,7 +903,38 @@ async function openCall(callId) {
 }
 
 // ------------------------------------------------------------------ system
+async function loadPerformance() {
+  const box = $("perf-body");
+  let data;
+  try {
+    data = await api("/dashboard/api/performance?days=7");
+  } catch (err) {
+    box.textContent = err.message;
+    return;
+  }
+  const channels = Object.entries(data.channels);
+  if (!channels.length) {
+    box.replaceChildren(el("p", { class: "muted", text: "No calls in the last 7 days." }));
+    return;
+  }
+  const sec = (v) => (v === null || v === undefined ? "–" : `${(v / 1000).toFixed(1)} s`);
+  const pct = (n, d) => (d ? `${Math.round((100 * n) / d)}%` : "–");
+  const row = (label, f) => el("tr", {}, el("th", { text: label }), ...channels.map(([, c]) => el("td", { class: "num", text: f(c) })));
+  box.replaceChildren(el("table", { class: "kv-table" },
+    el("thead", {}, el("tr", {}, el("th", {}), ...channels.map(([name, c]) =>
+      el("th", { text: `${CHANNEL_LABEL[name] || name} (${c.calls} calls)` })))),
+    el("tbody", {},
+      row("Replies", (c) => String(c.replies)),
+      row("Answered by Emma's rules", (c) => `${c.rules} (${pct(c.rules, c.replies)})`),
+      row("Answered by the language model", (c) => `${c.model} (${pct(c.model, c.replies)})`),
+      row("Fallback, model too slow or down", (c) => `${c.fallback} (${pct(c.fallback, c.model + c.fallback)} of model turns)`),
+      row("Simple reply, typical / slowest 5%", (c) => `${sec(c.simple_p50_ms)} / ${sec(c.simple_p95_ms)}`),
+      row("Model reply, typical / slowest 5%", (c) => `${sec(c.model_p50_ms)} / ${sec(c.model_p95_ms)}`),
+      row("Of that, deciding the caller finished", (c) => sec(c.end_of_speech_p50_ms)))));
+}
+
 async function loadSystem() {
+  loadPerformance();
   let data;
   try {
     data = await api("/dashboard/api/system");
@@ -922,7 +993,7 @@ async function loadSystem() {
     el("td", { class: "nowrap", text: fmtDateTime(a.ts) }),
     el("td", { text: a.actor }),
     el("td", { text: a.action.replace(/_/g, " ") }),
-    el("td", { class: "small", text: `${a.entity} ${a.entity_id.length > 12 ? a.entity_id.slice(0, 8) + "…" : a.entity_id}` }))));
+    el("td", { class: "small", title: `${a.entity} ${a.entity_id}`, text: a.what || `${a.entity} ${a.entity_id}` }))));
 
   loadHealth(data);
 }

@@ -731,6 +731,8 @@ def _start_recording(session, call_id: str, direction: str = "inbound"):
     if recorder is None:
         recorder = recording.CallRecorder(call_id, direction=direction)
         session.recorder = recorder
+    if getattr(recorder, "channel", "") is None:
+        recorder.channel = getattr(getattr(session, "t", None), "channel", None)
     recorder.start()
 
 

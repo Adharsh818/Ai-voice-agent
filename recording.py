@@ -66,10 +66,10 @@ def _json(value) -> Optional[str]:
 
 
 # ---------------------------------------------------------------- database steps (db thread)
-def _insert_call(conn, call_id, direction, started_at, purge_after):
+def _insert_call(conn, call_id, direction, started_at, purge_after, channel=None):
     with _write(conn):
-        conn.execute("INSERT OR IGNORE INTO calls (id, direction, started_at, recording_consent, purge_after) "
-                     "VALUES (?, ?, ?, 1, ?)", (call_id, direction, started_at, purge_after))
+        conn.execute("INSERT OR IGNORE INTO calls (id, direction, started_at, recording_consent, purge_after, channel) "
+                     "VALUES (?, ?, ?, 1, ?, ?)", (call_id, direction, started_at, purge_after, channel))
 
 
 def _insert_turn(conn, call_id, turn, role, text, tier, before, after, entities, latency, ts):
@@ -101,9 +101,10 @@ def _guarded(conn, fn, call_id, *args):
 class CallRecorder:
     """Writes one call's record and transcript. Every method is safe to call from the live call."""
 
-    def __init__(self, call_id: str, direction: str = "inbound"):
+    def __init__(self, call_id: str, direction: str = "inbound", channel: Optional[str] = None):
         self.call_id = call_id
         self.direction = direction if direction in ("inbound", "outbound") else "inbound"
+        self.channel = channel                       # browser | phone (the transport's), for the Calls tab
         self.started = False
         self.ended = False
         self.keep_transcript = True
@@ -145,7 +146,7 @@ class CallRecorder:
         try:
             now = clock.now()
             purge_after = db.utc_str(now + timedelta(days=config.TRANSCRIPT_RETENTION_DAYS))
-            self._submit(_insert_call, self.direction, db.utc_str(now), purge_after)
+            self._submit(_insert_call, self.direction, db.utc_str(now), purge_after, self.channel)
             events.publish({"type": "call_started", "call_id": self.call_id, "direction": self.direction})
         except Exception as exc:
             logger.warning("[%s] call record not started (%s)", self.call_id, type(exc).__name__)

@@ -84,7 +84,7 @@ ISSUE_LINES = {
     "OUTSIDE_HOURS": "time.outside_hours",
 }
 # scheduling reasons for a refused exact request that are worth saying.
-REASON_LINES = {"OUTSIDE_HOURS": "time.outside_hours", "LUNCH": "time.lunch"}
+REASON_LINES = {"OUTSIDE_HOURS": "time.outside_hours", "LUNCH": "time.lunch.at", "DOCTOR_OFF": "time.doctor_off"}
 GENDER_WORDS = {"female": "lady", "male": "male"}
 MONTH_NAMES = ("January", "February", "March", "April", "May", "June", "July", "August", "September",
                "October", "November", "December")
@@ -1189,7 +1189,8 @@ async def _search(ctx: CallContext, rt: Runtime, notices: list):
     if found.requested is not None and found.kind != "exact":
         for reason in found.reasons:
             if reason in REASON_LINES:
-                notices.append(Notice(REASON_LINES[reason]))
+                notices.append(Notice(REASON_LINES[reason], {
+                    "service": _service_plural(b.service), "time": prompts.speak_time(found.requested.time())}))
                 break
     b.offered = held = _in_clock_order(held)
     if notes.get("same_time_later") == _search_key(b) and time_c is not None and time_c.kind == "exact" \
