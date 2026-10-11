@@ -112,6 +112,9 @@ LINES: dict[str, LineSpec] = {
     "dont_keep.ack": _l("'Sure, we won't keep a record of this call.'", critical=True),
     "red_flag": _l("108 / ER advice, calm and clear. 'That sounds serious. Please go to the nearest emergency "
                    "room or call 108 right away. I've let the clinic know too.'", critical=True),
+    "urgent.ack.closed": _l("Notice: empathy, the clinic is closed now, first slot when it opens. 'Oh no, I'm "
+                            "sorry. We're closed right now, but I'll get you in first thing tomorrow.'", "day",
+                            critical=True),
     "urgent.ack": _l("Notice: empathy + same-day promise. 'Oh no, I'm sorry. Let's get you seen today.'",
                      critical=True),
     "honesty": _l("Notice: exactly config.HONEST_LINE, then the conversation carries on.", critical=True),
@@ -379,6 +382,8 @@ VARIANTS: dict[str, tuple] = {
                  "I've let the clinic know too.",
                  "Please don't wait on this. Call 108 or go to the nearest emergency room now. "
                  "I've told the clinic as well."),
+    "urgent.ack.closed": ("Oh no, I'm sorry. We're closed right now, but I'll get you in first thing {day}.",
+                          "I'm sorry to hear that. We're closed at the moment, so let me get you the first slot {day}."),
     "urgent.ack": ("Oh no, I'm sorry. Let's get you seen today.",
                    "Oh, that sounds painful. Let's get you in today."),
     "honesty": (config.HONEST_LINE,),
