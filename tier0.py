@@ -1054,6 +1054,19 @@ def _doctor_only(raw: str, words: list, view: Tier0View, source: str):
     return _u(raw, source, [act], doctor=d.value, doctor_phrase=d.unknown_phrase, doctor_gender=gender)
 
 
+_PAST_DAY = re.compile(r"\b(?:yesterday|last|ago|this morning|earlier|day before|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b")
+_PAST_TREATMENT = re.compile(
+    r"\b(?:had|got|did|was|were|have had|i've had)\b.{0,40}\b(?:done|taken out|removed|pulled|extracted|filled|"
+    r"fitted|treated|cleaned|put in)\b|\b(?:taken out|pulled out|removed|extracted)\b|"
+    r"\bafter (?:my|the) (?:extraction|filling|root canal|treatment|surgery|cleaning)\b")
+
+
+def past_treatment(text: str) -> bool:
+    """A treatment already done, said with when it was ("had a filling on Monday", "taken out yesterday")."""
+    t = (text or "").lower()
+    return bool(_PAST_DAY.search(t) and _PAST_TREATMENT.search(t))
+
+
 def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understanding | None:
     """
     What the caller's turn meant, without the model, or None ("ask the model").
@@ -1397,6 +1410,10 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         u.cancel_reason = raw.strip(" ,.!")
         filled_expected = True
 
+    if u.date_phrase and _PAST_DAY.search(u.date_phrase.lower()) and _PAST_TREATMENT.search(t):
+        # "My tooth was taken out yesterday and it's bleeding": when the treatment was, not a day
+        # to book (the audit, 11 Oct: "That one's already gone by").
+        u.date_phrase = None
     m = _FOR_SOMEONE_RE.search(t)
     if m:
         u.for_someone_else, u.relation = True, m.group(1)

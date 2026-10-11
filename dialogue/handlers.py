@@ -52,8 +52,10 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import Optional
 
+import config
 import prompts
 import scheduling
 from dateparse import DateConstraint
@@ -117,7 +119,6 @@ _RED_FLAG = [re.compile(p) for p in (
     r"\b(?:won'?t|will not|doesn'?t|does not|not)\s+stop(?:ping)?\s+bleeding\b",
     r"\bbleeding\b.{0,25}\b(?:won'?t|will not|doesn'?t|does not|not)\s+stop\b",
     r"\b(?:can'?t|cannot)\s+stop\s+the\s+bleeding\b",
-    r"\b(?:bleeding\s+(?:heavily|a lot|badly|non-?stop)|heavy\s+bleeding|lot of blood|so much blood)\b",
     # jaw injury
     r"\b(?:broke|broken|fractured?|dislocated?|injured)\s+(?:my\s+|his\s+|her\s+)?jaw\b",
     r"\bjaw\b.{0,20}\b(?:broken|fractured|dislocated|injured)\b",
@@ -377,11 +378,19 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
         await _release_holds(rt)
         return _stop(out, _statement(Goal.RED_FLAG, "red_flag", closes_call=True))
 
-    # 2. urgent: same-day booking with the emergency lead time.
+    # 2. urgent: same-day booking with the emergency lead time; when the clinic is closed right now,
+    # say so and book the first slot it opens (the audit, 11 Oct: "Let's get you seen today" at 22:40).
     said_urgent = urgent_words(text) and not u.pure_question     # "is swelling normal?" is a question
     if (u.emergency == Emergency.URGENT or said_urgent) and ctx.emergency == Emergency.NONE:
-        if _route_urgent(ctx, u, rt):
+        routed = _route_urgent(ctx, u, rt)
+        if routed == "closed":
+            out.notices.append(Notice("urgent.ack.closed", {"day": prompts.speak_day(ctx.book.date_c.start)},
+                                      covered_by=("closed",)))
+            _add_fact(out, rt, "policy.after_hours")
+        elif routed:
             out.notices.append(Notice("urgent.ack", covered_by=("seen today",)))
+        if routed and _BLEEDING.search(text.lower()):
+            _add_fact(out, rt, "visit.bleeding_after")          # first aid before the slot (gauze, pressure)
 
     # 3. terminal and meta acts.
     if u.has(Act.ABUSE):
@@ -437,7 +446,27 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
     return out if (out.notices or out.plan) else None
 
 
-def _route_urgent(ctx: CallContext, u: Understanding, rt: Runtime) -> bool:
+_BLEEDING = re.compile(r"\bbleed(?:ing|s)?\b|\bblood\b")
+
+
+def _add_fact(out: GlobalOutcome, rt: Runtime, fact_id: str) -> None:
+    fact = rt.kb.get(fact_id) if getattr(rt, "kb", None) is not None else None
+    if fact is not None:
+        out.notices.append(Notice("answer.fact", {"text": fact.text}))
+
+
+def next_open_day(now) -> Optional[date]:
+    """None while the clinic is open now; otherwise the day it next opens (Sundays closed)."""
+    hour = now.hour + now.minute / 60
+    if now.weekday() != 6 and config.CLINIC_START_HOUR <= hour < config.CLINIC_END_HOUR:
+        return None
+    day = now.date() if now.weekday() != 6 and hour < config.CLINIC_START_HOUR else now.date() + timedelta(days=1)
+    while day.weekday() == 6:
+        day += timedelta(days=1)
+    return day
+
+
+def _route_urgent(ctx: CallContext, u: Understanding, rt: Runtime):
     """
     Pain, swelling, bleeding, a broken tooth: book them in today. A
     Consultation unless they named a service, today unless they named a day,
@@ -456,16 +485,17 @@ def _route_urgent(ctx: CallContext, u: Understanding, rt: Runtime) -> bool:
     if b.service is None and not u.service and not u.service_phrase:
         b.service = URGENT_SERVICE
         changed = True
+    closed = next_open_day(rt.now())
     if b.date_c is None and not u.date_phrase:
-        today = rt.now().date()
-        b.date_c = DateConstraint(today, today)
-        b.when_phrase = b.when_phrase or "today"
+        day = closed or rt.now().date()
+        b.date_c = DateConstraint(day, day)
+        b.when_phrase = b.when_phrase or prompts.speak_day(day)
         if b.time_c is None and not u.time_phrase:
             b.any_time = True
         changed = True
     if changed:
         b.touch()                    # a summary heard before this no longer covers the booking
-    return True
+    return "closed" if closed is not None and b.date_c is not None and b.date_c.start == closed else True
 
 
 async def _offer_answer(ctx: CallContext, u: Understanding, confirmation: Optional[str], rt: Runtime,

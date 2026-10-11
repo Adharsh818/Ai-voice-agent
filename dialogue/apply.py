@@ -644,6 +644,11 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
     phrase = " ".join(p for p in (u.date_phrase, u.time_phrase) if p).strip()
     if not phrase:
         return
+    import tier0
+    if tier0.past_treatment(u.raw_text or phrase):
+        # "My tooth was taken out yesterday and it's bleeding": when the treatment was, not a day
+        # to book (the audit, 11 Oct: "That one's already gone by"). Any reader, model or not.
+        return
     expecting = "time" if ctx.pending in (Goal.ASK_TIME, Goal.RESOLVE_AMPM) else \
         "date" if ctx.pending == Goal.ASK_WHEN else None
     when = _parse(phrase, expecting)

@@ -332,7 +332,14 @@ NON_NAME_WORDS = {
     "eleven", "twelve", "twenty", "thirty", "forty", "fifty", "hundred", "double", "triple",
     "another", "other", "same", "first", "second", "last", "both", "none", "all", "any",
     "i",                                    # "My name is Rahul, I want..." -> not "Rahul I"
+    # The audit (11 Oct): "I'm stuck in traffic" -> "Nice to meet you, Stuck"; "this is Dr Rao,
+    # I'm not coming in" -> "Dr Rao I'M". States after "I'm", and a doctor or staff member calling.
+    "i'm", "im", "i'll", "i've", "i'd", "dr", "stuck", "sick", "unwell", "running", "traffic", "coming",
+    "outside", "ready", "worried", "scared", "nervous", "pregnant", "diabetic", "available", "afraid",
+    "really", "very", "just", "also", "still", "already",
 }
+# Titles said before a name ("this is Mr Sharma"): dropped, the name kept.
+_TITLES = re.compile(r"^(?:mr|mrs|ms|miss|shri|sri|smt|master)\.?\s+")
 # "I'm talking", "I'm asking": what the caller is doing. A list, not every "-ing" word:
 # Fleming, Manning and Harding are surnames.
 _GERUNDS = {
@@ -365,6 +372,7 @@ def clean_name(text: str) -> Optional[str]:
     t = re.sub(r"\s+", " ", t).strip(" .,-")
     t = _NAME_LEADS.sub("", t)
     t = _NAME_TAILS.sub("", t).strip(" .,-")
+    t = _TITLES.sub("", t)
     t = re.sub(r"\s*,\s*", " ", t)
     words = [w.strip(".'") for w in t.split() if w.strip(".'")]
     if not words or len(words) > 6:
