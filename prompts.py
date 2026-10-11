@@ -110,6 +110,8 @@ LINES: dict[str, LineSpec] = {
                        "20th, I'm afraid.'", "day", critical=True),
     "doctor.away": _l("Notice: the doctor asked for is on leave that day; colleagues are offered next. "
                       "'Dr Rao's away on Monday, I'm afraid.'", "doctor", "day", critical=True),
+    "phone.foreign": _l("A non-Indian number. 'For the booking I need an Indian mobile or landline, since that's "
+                        "where we call and message you. Do you have one?'", critical=True),
     "late.ack": _l("A patient running late. 'No problem, thanks for letting us know. I'll tell the front desk "
                    "you're running late. Anything else?'", critical=True),
     "wrong_number": _l("Not for this clinic. 'This is Pearl Dental, a dental clinic, so I think you may have the "
@@ -401,6 +403,9 @@ VARIANTS: dict[str, tuple] = {
                      "Hindi to call you?"),
     "date.closure": ("We're closed on {day}, I'm afraid.", "The clinic's closed on {day}, I'm sorry."),
     "doctor.away": ("{doctor}'s away on {day}, I'm afraid.", "{doctor} isn't in on {day}, I'm sorry."),
+    "phone.foreign": ("For the booking I need an Indian mobile or landline, since that's where we call and message "
+                      "you. Do you have one?",
+                      "I can only take an Indian number for bookings, I'm afraid. Is there one we can reach you on?"),
     "late.ack": ("No problem, thanks for letting us know. I'll tell the front desk you're running late. "
                  "Anything else?",
                  "That's okay, I'll let the team know you're on your way. Is there anything else?"),

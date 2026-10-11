@@ -519,11 +519,20 @@ def _overlaps(busy: list, start: datetime, end: datetime) -> bool:
     return any(b_start < end and b_end > start for b_start, b_end in busy)
 
 
-def _patient_conflict(conn, phone_e164, name_norm, start, end, exclude_id=None) -> bool:
+def _patient_conflict(conn, phone_e164, name_norm, start, end, exclude_id=None, branch_id=None) -> bool:
+    """
+    The patient already has an appointment overlapping this one, or one at
+    another branch too close to get there in between (TRAVEL_BUFFER_MIN; the
+    audit, 11 Oct: 10:00 at Whitefield and 10:30 at Nagarbhavi both booked).
+    """
+    buffer = timedelta(minutes=config.TRAVEL_BUFFER_MIN)
     row = conn.execute(
         "SELECT 1 FROM appointments a JOIN patients p ON p.id = a.patient_id "
-        "WHERE p.phone_e164 = ? AND p.name_norm = ? AND a.status = 'booked' AND a.start_utc < ? AND a.end_utc > ? "
-        "AND a.id IS NOT ?", (phone_e164, name_norm, db.utc_str(end), db.utc_str(start), exclude_id)).fetchone()
+        "WHERE p.phone_e164 = ? AND p.name_norm = ? AND a.status = 'booked' AND a.id IS NOT ? AND ("
+        "(a.start_utc < ? AND a.end_utc > ?) OR "
+        "(? IS NOT NULL AND a.branch_id != ? AND a.start_utc < ? AND a.end_utc > ?))",
+        (phone_e164, name_norm, exclude_id, db.utc_str(end), db.utc_str(start),
+         branch_id, branch_id, db.utc_str(end + buffer), db.utc_str(start - buffer))).fetchone()
     return row is not None
 
 
@@ -566,7 +575,7 @@ def book(conn, *, service, doctor_id: int, start: datetime, patient_name: str, p
                 return Result(False, why[0])
             end = start + timedelta(minutes=svc["duration_min"])
             name_n = norm_name(patient_name)
-            if _patient_conflict(conn, e164, name_n, start, end):
+            if _patient_conflict(conn, e164, name_n, start, end, branch_id=doc["branch_id"]):
                 return Result(False, "PATIENT_CONFLICT")
             future = conn.execute("SELECT COUNT(*) FROM appointments WHERE caller_phone_e164 = ? AND status = 'booked' "
                                   "AND start_utc > ?", (e164, db.utc_str(now))).fetchone()[0]
@@ -642,7 +651,9 @@ def reschedule(conn, appointment_id: str, *, doctor_id: int, start: datetime, id
                 return Result(False, why[0], appointment_id, before)
             end = start + timedelta(minutes=before["duration_min"])
             name_n = norm_name(before["patient_name"])
-            if _patient_conflict(conn, before["caller_phone_e164"], name_n, start, end, exclude_id=appointment_id):
+            new_branch = conn.execute("SELECT branch_id FROM doctors WHERE id = ?", (doctor_id,)).fetchone()
+            if _patient_conflict(conn, before["caller_phone_e164"], name_n, start, end, exclude_id=appointment_id,
+                                 branch_id=new_branch[0] if new_branch else None):
                 return Result(False, "PATIENT_CONFLICT", appointment_id, before)
             branch_id = conn.execute("SELECT branch_id FROM doctors WHERE id = ?", (doctor_id,)).fetchone()[0]
             conn.execute("DELETE FROM slot_claims WHERE appointment_id = ?", (appointment_id,))
