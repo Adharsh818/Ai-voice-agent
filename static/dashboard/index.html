@@ -301,6 +301,15 @@
         </div>
       </div>
       <div class="card">
+        <div class="card-head"><h3>Patient data requests</h3><span class="muted small">DPDP: see or erase what we hold</span></div>
+        <form class="inline-form" id="privacy-form">
+          <input id="privacy-phone" type="tel" placeholder="Patient's phone number" autocomplete="off">
+          <button class="btn small" type="button" id="privacy-export">Download their data</button>
+          <button class="btn small danger" type="button" id="privacy-erase">Erase their data</button>
+        </form>
+        <p class="muted small" id="privacy-result"></p>
+      </div>
+      <div class="card">
         <div class="card-head"><h3>Audit log</h3><span class="muted small">latest 60</span></div>
         <div class="table-wrap">
           <table>

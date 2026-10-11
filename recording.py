@@ -234,6 +234,10 @@ async def purge_loop(interval_h: Optional[float] = None):
             if blanked:
                 logger.info("Transcript purge: blanked %d turns older than %d days",
                             blanked, config.TRANSCRIPT_RETENTION_DAYS)
+            import privacy
+            other = await db.get_db().run(privacy.purge_personal)
+            if any(other.values()):
+                logger.info("Personal data purge: %s", other)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
