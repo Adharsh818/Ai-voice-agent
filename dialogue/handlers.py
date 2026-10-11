@@ -400,6 +400,13 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
         if routed and _BLEEDING.search(text.lower()):
             _add_fact(out, rt, "visit.bleeding_after")          # first aid before the slot (gauze, pressure)
 
+    # A foreign number while Emma is taking the number (the audit, 11 Oct: "plus 1 415..." looped on
+    # "more digits than a phone number"): say plainly an Indian number is needed.
+    if ctx.pending in _PHONE_GOALS and _FOREIGN_NUMBER.search(text.lower()) and not ctx.caller.phone_buffer:
+        ctx.caller.phone_buffer = ""
+        return _stop(out, plan(ctx.pending if ctx.pending != Goal.CONFIRM_PHONE else Goal.ASK_PHONE,
+                               "phone.foreign", use_model_say=False))
+
     # 3. callers who aren't booking for themselves (the audit, 11 Oct; docs/REAL_CLINIC_GAPS.md C7, K4).
     other = await _other_caller(ctx, u, text, rt)
     if other is not None:
@@ -479,6 +486,9 @@ def next_open_day(now) -> Optional[date]:
     return day
 
 
+_FOREIGN_NUMBER = re.compile(
+    r"(?:\+|\bplus\s*)(?!\s*9\s*1\b)(?!\s*ninety[ -]one\b)\s*\d|\bplus (?:one|four four|six five|nine seven one)\b|"
+    r"\b(?:american|us|usa|uk|british|canadian|dubai|uae|singapore|international|foreign|overseas) (?:number|mobile)\b")
 _LATE = re.compile(
     r"\b(?:running|be|am|i'?m|we'?re|bit|little)\s+(?:a\s+)?(?:bit\s+|little\s+|few\s+|about\s+|around\s+)?"
     r"(?:\d+|five|ten|fifteen|twenty|thirty|few)?\s*(?:minutes?|mins?)?\s*late\b|\bstuck in traffic\b|"

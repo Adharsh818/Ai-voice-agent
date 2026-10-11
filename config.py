@@ -176,6 +176,8 @@ EMERGENCY_LEAD_MIN = int(os.getenv("EMERGENCY_LEAD_MIN", "30"))   # urgent same-
 HOLD_TTL_S = int(os.getenv("HOLD_TTL_S", "300"))                  # offered slots are held 5 min
 # Upcoming appointments per patient (name + number) and per number (a family shares one; 11 Oct audit:
 # a family of four, or a root canal's sittings, hit the old limit of 3 per number).
+# Minutes between one patient's appointments at two different branches (to get from one to the other).
+TRAVEL_BUFFER_MIN = int(os.getenv("TRAVEL_BUFFER_MIN", "90"))
 MAX_FUTURE_APPOINTMENTS_PER_PATIENT = int(os.getenv("MAX_FUTURE_APPOINTMENTS_PER_PATIENT", "3"))
 MAX_FUTURE_APPOINTMENTS_PER_PHONE = int(os.getenv("MAX_FUTURE_APPOINTMENTS_PER_PHONE", "8"))
 # Doctor-unavailability recovery calls (outbound.py, plan 5.11): clinic-local

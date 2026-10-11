@@ -1,4 +1,4 @@
-# Resume here (updated 11 Oct 2026)
+# Resume here (updated 12 Oct 2026)
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
@@ -6,18 +6,37 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 - **Code:** branch `day2-r2-engine` = `main` on GitHub up to f5cd820; later commits may be local (check `git status -sb`). The working copy Emma runs from is the main checkout **`A:\Voice-Agent`** (it has `.env`, `data/`, `logs/`, `captures/`). Sessions may work in a git worktree under `A:\Voice-Agent\.claude\worktrees\...`; fast-forward the main checkout with `git merge --ff-only <worktree branch>` before running Emma.
 - **PRs #1-#5:** all merged (8 Oct): `main` was fast-forwarded to `day2-r2-engine`; #5 merged into its base.
-- **Tests:** `.\.venv\Scripts\python.exe -m unittest discover -s tests` (999, all pass; `test_dashboard ... test_lists_filter_and_search` is flaky under load: real clock).
+- **Tests:** `.\.venv\Scripts\python.exe -m unittest discover -s tests` (about 1050, all passed before the WIP commit; `test_dashboard ... test_lists_filter_and_search` is flaky under load: real clock).
 - **Scenarios / sims:** `.\.venv\Scripts\python.exe -m harness run scenarios --engine r2 --offline`; sims `... run sim --engine r2 --offline|--nlu-down --n 200 --seed 7|11 --concurrency 2`.
 
 ## Pushing
 
-Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Everything up to f5cd820 was pushed on 9 Oct.
+Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Pushed up to the WIP commit of 12 Oct.
 
-## 11 Oct, evening: real-clinic work (start here next)
+## START HERE (written 12 Oct): the next session continues from this list
 
-The owner asked for an audit plus clinic knowledge, dashboard, latency and live-transcript fixes. The full to-do list is **docs/REAL_CLINIC_GAPS.md** (ticked items are done). Done and pushed: live transcript paced to the audio; 26 clinic facts and doctor profiles (complete answers, owner's rule); dashboard D1-D8 with a performance panel; 3 calls at once; closed-hours emergencies, bleeding, names, late patients, wrong numbers, sales and staff calls, records requests, doctors on leave, urgent hang-ups; WhatsApp/SMS messages ready to plug in (notify.py, log-only sender, migration 004; a Twilio sender exists but is untested without an account). Tests: 1039 pass; scenarios 53/53 and four sims on target as of 3ef2bb4.
+**First thing next session:** the last commit (12 Oct, "WIP: travel buffer, foreign numbers") was saved when the owner stopped the session, **before the full test suite ran on it**. Run the suite first:
+`.\.venv\Scripts\python.exe -m unittest discover -s tests` and fix anything red (only `dialogue/handlers.py` foreign-number handling and the `scheduling.py` travel buffer are new; `tests/test_scheduling.py` passed, `tests/test_real_clinic_calls.py` gained one untested test, `ForeignNumberTests`). Then run the 53 scenarios and the four 200-call sims (commands above; targets Z1-Z7 = 0, M3 < 1%, M7 >= 95%, M10 < 2%, T5 <= 9).
 
-**Left, in order:** docs/NOTIFICATIONS.md setup guide (T2); real trunk guide (T1); latency L1-L3 (Gemini deadline, phone end-of-speech, pre-render rule lines); F1 family bookings + per-phone cap; F2 Kannada/Hindi callback; S1 DPDP retention and erase-by-phone; S2 per-staff logins; S3 hours/closures from the dashboard (C9 spoken hours vs rota); P2 list. Then Phase 3 phone checks with the owner and Phase 7.
+The to-do list with everything found by the 11 Oct audit is **docs/REAL_CLINIC_GAPS.md**. Done since 11 Oct (all committed, pushed up to 0a974ee):
+- Live transcript paced to the audio; 26 clinic facts and doctor profiles (complete answers, owner's rule); dashboard D1-D8 with a performance panel; up to 3 calls at once.
+- Closed-hours emergencies, bleeding first aid, names, late patients, wrong numbers, sales and staff calls, records requests, doctors on leave, urgent hang-ups, past-treatment dates.
+- WhatsApp/SMS messages ready to plug in (notify.py, log-only; docs/NOTIFICATIONS.md); trunk dialling for recovery calls (TELEPHONY_TRUNK_DIAL; docs/TRUNK.md).
+- 17 more rule lines pre-rendered (latency L3); family bookings (second person in the same call, own name; caps 3 per patient / 8 per number); reschedule instead of a false "Got it" on a booked draft.
+- Kannada/Hindi callback offer without the model; DPDP retention + export/erase by phone (privacy.py); holidays and closures from the dashboard; named staff logins (staff.py, migration 005); deployed talk page needs a login; installer writes a session secret.
+- **In the WIP commit (untested in full):** 90-minute travel buffer between one patient's appointments at two branches (TRAVEL_BUFFER_MIN); a foreign number while Emma takes the number gets "I need an Indian number" (handlers `_FOREIGN_NUMBER`, line `phone.foreign`).
+
+Owner-visible changes to mention: `LOG_CALLER_TEXT` now defaults to false (set it to true in `.env` for development logs); the shared dashboard password is audited as "owner" (staff accounts on System tab); the cache budget rose to 4,800 characters (about 1,900 ElevenLabs characters rendered once at the next start).
+
+**Left, in order:**
+1. Verify the WIP commit (above).
+2. Remaining booking edge cases (P2): landlines read back in mobile grouping (`prompts.speak_phone`); "Adesh"/"Adharsh" becoming two patients (use `match._name_key` for the patient match); pin "today" at call start so "tomorrow" at 23:59 doesn't shift; allow a same-day move within 2 h when the same doctor has the slot; ask a child's age whenever booking for someone else's child.
+3. Latency L1/L2: Gemini hit its 2.2 s limit on 63/84 phone model turns and 36% of browser ones in the last week. Ask the owner (MCQ) whether to raise `NLU_HEAD_DEADLINE_S` or run `tools/preflight.py` (a few paid Gemini calls). Phone end-of-speech: the watchdog decides 51% of phone turns; measure before tuning.
+4. P2 SaaS items: "Pearl Dental" hard-coded in greetings/prompts/keyterms (make CLINIC_NAME/short name configurable per clinic); cost metering per call; alerting on degraded health / failed sync / stuck lines; prune expired holds and past slot_claims; retiring the legacy 12-step engine. Note: the honesty line "Yeah, you caught me..." is the owner's locked decision (R-list); the audit suggested a neutral one: ask before changing.
+5. Update EVALUATION.md (`tools\evaluate.py --fresh --crash` in `A:\Voice-Agent`) and HANDOFF.md; tick REAL_CLINIC_GAPS.md.
+6. Phase 3 live phone checks with the owner (below), then Phase 7 final checks.
+
+How to see the dashboard without the owner's password: a review copy on port 8001 with a copied database and a throwaway test password (see the 11 Oct session: `.claude/launch.json` entry `emma-review` running a scratch `review_server.py`, not committed).
 
 ## Done on 11 Oct
 

@@ -204,5 +204,15 @@ class ClosureTests(ClinicCallCase):
         self.assertTrue(self.clinic.db.run_sync(scheduling.remove_closure, out["id"], "staff"))
 
 
+class ForeignNumberTests(ClinicCallCase):
+    def test_a_foreign_number_is_told_plainly_then_an_indian_one_works(self):
+        call = Call()
+        call.run("", "I'd like a cleaning at Jayanagar.", "John Smith")
+        reply = call.say("plus 1 415 555 0123").text
+        self.assertIn("Indian", reply)
+        self.assertNotIn("digits", reply)
+        self.assertIn("9 8 4 5 0", call.say("Okay, 98450 12345").text)
+
+
 if __name__ == "__main__":
     unittest.main()

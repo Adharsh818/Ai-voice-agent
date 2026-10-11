@@ -284,6 +284,14 @@ class BookingTests(EngineTestCase):
         # A different family member on the same number can be seen at the same time.
         self.assertTrue(self.book(at(MON, 10), doctor=3, name="Ravi", phone="9876543210").ok)
 
+    def test_no_two_branches_too_close_together_for_one_patient(self):
+        # 10:00 at one branch and 10:45 at another: no time to get there (the audit, 11 Oct).
+        self.assertTrue(self.book(at(MON, 10), name="Asha", phone="9876543210", doctor=1).ok)          # branch A
+        self.assertEqual(self.book(at(MON, 10, 30), name="Asha", phone="9876543210", doctor=3).code,    # branch B
+                         "PATIENT_CONFLICT")
+        self.assertTrue(self.book(at(MON, 10, 30), name="Asha", phone="9876543210", doctor=2).ok)       # same branch
+        self.assertTrue(self.book(at(MON, 13), name="Asha", phone="9876543210", doctor=3).ok)
+
     def test_upcoming_appointments_are_capped_per_patient_and_per_number(self):
         # One patient: three upcoming visits (a root canal's sittings fit); the fourth is refused.
         for hh in (10, 11, 12):
