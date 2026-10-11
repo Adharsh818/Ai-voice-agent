@@ -383,7 +383,10 @@ def render(h: dict, calls: dict, stt: dict | None, drills: dict, since: str | No
                f"({'; '.join(slow_model)}); the fallback path handles them, but replies are plainer. "
                "`tools/preflight.py` suggests a deadline for the day's model speed."] if slow_model else []),
             *([f"- T5 (turns per simple booking) is above 9 on {', '.join(t5_over)}."] if t5_over else []),
-            "- Deepgram mishears some Indian names; Emma confirms names implicitly and reads numbers back.", ""]
+            "- Deepgram can mishear Indian names. Common first names are passed to it as hints "
+            "(`config.DEEPGRAM_NAME_KEYTERMS`): in the 11 Oct replay the owner's name, heard as \"Adesh\" on 6 Oct, "
+            "came out right in both recordings. A name outside the list can still be misheard, so Emma confirms "
+            "names implicitly and reads numbers back.", ""]
     return "\n".join(out)
 
 
