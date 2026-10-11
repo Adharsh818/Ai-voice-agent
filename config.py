@@ -150,6 +150,9 @@ SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
 MAX_CONCURRENT_CALLS = int(os.getenv("MAX_CONCURRENT_CALLS", "3"))
 # Extra browser origins allowed to open /ws/voice, comma-separated
 # (e.g. "https://emma.example.org"). The page's own origin is always allowed.
+# The browser talk page (/ws/voice) starts a real call that spends API credit. True for development;
+# deploy/install.sh sets false, so only a logged-in staff member can use it (THREAT_MODEL T5).
+TALK_PAGE_PUBLIC = os.getenv("TALK_PAGE_PUBLIC", "true").lower() == "true"
 ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
 # Development only: save each caller's raw audio (16 kHz mono WAV) plus the

@@ -667,5 +667,17 @@ class StaffLoginTests(DashboardTestCase):
                                     json={"username": "anita", "password": "a-long-password"}).status_code, 401)
 
 
+class TalkPageGateTests(DashboardTestCase):
+    def test_deployed_talk_page_needs_a_staff_login(self):
+        with patch.object(config, "TALK_PAGE_PUBLIC", False):
+            with self.assertRaises(WebSocketDisconnect):
+                with self.client.websocket_connect("/ws/voice") as ws:
+                    ws.receive_json()
+            self.login()
+            with patch.object(server, "CallSession", FakeSession), patch.object(server, "_services", lambda s: None):
+                with self.client.websocket_connect("/ws/voice") as ws:
+                    ws.send_json({"type": "end"})
+
+
 if __name__ == "__main__":
     unittest.main()
