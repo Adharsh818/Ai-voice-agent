@@ -68,24 +68,24 @@ class _Subscriber:
 
 _subscribers: set = set()
 _recent: deque = deque(maxlen=RECENT_SIZE)
-_current: dict = {"call_id": None, "events": deque(maxlen=CALL_REPLAY_SIZE)}
+_calls: dict = {}                      # call_id -> deque: every call in progress (up to MAX_CONCURRENT_CALLS)
+MAX_TRACKED_CALLS = 8
 _published = 0
 
 
 def _remember(event: dict):
-    """Keep the events of the call in progress (from call_started until call_ended)."""
+    """Keep the events of each call in progress (from call_started until call_ended)."""
     kind, call_id = event["type"], event.get("call_id")
     if kind == "call_started":
-        _current["call_id"] = call_id
-        _current["events"].clear()
-        _current["events"].append(event)
-    elif call_id is None or call_id != _current["call_id"]:
+        _calls[call_id] = deque([event], maxlen=CALL_REPLAY_SIZE)
+        while len(_calls) > MAX_TRACKED_CALLS:            # a call that never ended
+            _calls.pop(next(iter(_calls)))
+    elif call_id is None or call_id not in _calls:
         return
     elif kind == "call_ended":
-        _current["call_id"] = None
-        _current["events"].clear()
+        _calls.pop(call_id, None)
     elif not (kind == "caption" and not event.get("final")):
-        _current["events"].append(event)
+        _calls[call_id].append(event)
 
 
 def publish(event: dict) -> None:
@@ -160,8 +160,11 @@ def recent(call_id: Optional[str] = None) -> list[dict]:
 
 
 def current_call_events() -> list[dict]:
-    """The call in progress, from its start (no interim captions): what a newly opened live panel needs."""
-    return list(_current["events"]) if _current["call_id"] is not None else []
+    """
+    The calls in progress, each from its start (no interim captions), in the
+    order they happened: what a newly opened live panel needs.
+    """
+    return sorted((e for events in _calls.values() for e in events), key=lambda e: e.get("seq", 0))
 
 
 def stats() -> dict:
@@ -173,6 +176,5 @@ def reset():
     global _published
     _subscribers.clear()
     _recent.clear()
-    _current["call_id"] = None
-    _current["events"].clear()
+    _calls.clear()
     _published = 0

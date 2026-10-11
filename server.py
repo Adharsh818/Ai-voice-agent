@@ -93,44 +93,63 @@ logging.getLogger("google_genai").setLevel(logging.WARNING)
 logger = logging.getLogger("voice-server")
 
 AUDIO_FRAME = 0x01
-BUSY_MESSAGE = "Emma is on another call right now. Please try again in a minute."
+BUSY_MESSAGE = "All our lines are busy right now. Please try again in a minute."
 # Talk-page events the dashboard's live panel also shows (not audio, not sound effects).
 MIRRORED_EVENTS = {"caption", "state", "turn", "metrics", "error", "bye"}
 
 
 class CallGate:
     """
-    The one global call slot (plan 5.7): idle, inbound or outbound. The talk
-    page, dashboard test calls and (from Day 5) outbound recovery jobs all
-    acquire it, so Emma is never on two calls at once. Acquire and release are
-    synchronous: on one event loop there is no await between the check and the
-    claim, so two sockets can't both win.
+    The call lines (plan 5.7; owner, 11 Oct: up to 3 at once). The talk page,
+    phone calls and outbound recovery jobs all take a line; a recovery call
+    never takes the last free one, so a patient ringing in is never turned
+    away by Emma dialling out. Acquire and release are synchronous: on one
+    event loop there is no await between the check and the claim, so two
+    sockets can't both win the last line.
     """
 
-    def __init__(self):
-        self.kind: Optional[str] = None
-        self.call_id: Optional[str] = None
-        self.since: Optional[str] = None
+    def __init__(self, lines: Optional[int] = None):
+        self.lines = max(1, int(lines if lines is not None else config.MAX_CONCURRENT_CALLS))
+        self.calls: dict = {}                    # call_id -> (kind, since)
 
     @property
     def busy(self) -> bool:
-        return self.call_id is not None
+        """At least one call is on (idle work such as warming the model waits)."""
+        return bool(self.calls)
+
+    @property
+    def full(self) -> bool:
+        """No line free for a caller."""
+        return len(self.calls) >= self.lines
+
+    def can_take(self, kind: str) -> bool:
+        free = self.lines - len(self.calls)
+        return free > 1 or (free == 1 and (kind != "outbound" or self.lines == 1))
 
     def try_acquire(self, kind: str, call_id: str) -> bool:
-        if self.busy:
+        if call_id in self.calls or not self.can_take(kind):
             return False
-        self.kind, self.call_id, self.since = kind, call_id, db.utc_str(clock.now())
+        self.calls[call_id] = (kind, db.utc_str(clock.now()))
         return True
 
     def release(self, call_id: str) -> bool:
-        """Free the slot if `call_id` holds it (a stale release can't free someone else's call)."""
-        if self.call_id != call_id:
-            return False
-        self.kind = self.call_id = self.since = None
-        return True
+        """Free the line `call_id` holds (a stale release can't free someone else's call)."""
+        return self.calls.pop(call_id, None) is not None
+
+    # The first call on, for the logs and older readers.
+    @property
+    def call_id(self) -> Optional[str]:
+        return next(iter(self.calls), None)
+
+    @property
+    def kind(self) -> Optional[str]:
+        return self.calls[self.call_id][0] if self.calls else None
 
     def status(self) -> dict:
-        return {"busy": self.busy, "kind": self.kind, "call_id": self.call_id, "since": self.since}
+        first = self.call_id
+        return {"busy": self.busy, "full": self.full, "lines": self.lines, "kind": self.kind, "call_id": first,
+                "since": self.calls[first][1] if first else None,
+                "calls": [{"call_id": c, "kind": k, "since": s} for c, (k, s) in self.calls.items()]}
 
 
 @asynccontextmanager
@@ -586,7 +605,7 @@ async def telephony_register(request: Request):
     """A call is coming in: "busy", or the UUID to use with AudioSocket() (its caller ID kept against it)."""
     import audiosocket
     form = await _telephony_form(request)
-    if request.app.state.audiosocket is None or request.app.state.gate.busy:
+    if request.app.state.audiosocket is None or not request.app.state.gate.can_take("inbound"):
         return PlainTextResponse("busy")
     return PlainTextResponse(audiosocket.registry.register_inbound(form.get("from")))
 

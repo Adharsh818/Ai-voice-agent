@@ -312,6 +312,8 @@ def _exact_free(b) -> bool:
     first = b.offered[0]
     if notes.get("other_branch") and first.branch != notes["other_branch"]:
         return False
+    if b.branch and first.branch != b.branch:
+        return False                                 # that time at another branch: offered and asked, never assumed
     return first.start.date() == b.date_c.start and first.start.time() == b.time_c.start
 
 
@@ -857,7 +859,7 @@ def _offer_plan(b) -> GoalPlan:
     elsewhere = _notes(b).get("same_time_branch")
     if elsewhere and elsewhere[1] == _offer_key(b):
         return _plan(Goal.OFFER_SLOTS, "offer.same_time_elsewhere", branch=elsewhere[0], other=first.branch,
-                     time=speak_hour(first.start.time()), doctor=first.doctor)
+                     time=prompts.speak_time(first.start.time()), doctor=first.doctor)
     if len(slots) > 1 and _notes(b).get("which") == _offer_key(b):
         # "Yes" to two times: ask which, the way a receptionist would.
         a, b_spoken = _two_spoken(first, slots[1])
@@ -1190,14 +1192,21 @@ async def _search(ctx: CallContext, rt: Runtime, notices: list):
         for reason in found.reasons:
             if reason in REASON_LINES:
                 notices.append(Notice(REASON_LINES[reason], {
-                    "service": _service_plural(b.service), "time": prompts.speak_time(found.requested.time())}))
+                    "service": _service_plural(b.service), "time": prompts.speak_time(found.requested.time()),
+                    "branch": b.branch or "that branch"}))
                 break
     b.offered = held = _in_clock_order(held)
-    if notes.get("same_time_later") == _search_key(b) and time_c is not None and time_c.kind == "exact" \
-            and not any(s.start.time() == time_c.start for s in held):
+    # Nobody at their branch does it at that hour (6:30 pm extractions at Nagarbhavi), but another branch
+    # may: offer it straight away, as a receptionist would (sim, 11 Oct), not after several turns.
+    doctor_off = found.requested is not None and found.kind != "exact" and "DOCTOR_OFF" in found.reasons
+    if (notes.get("same_time_later") == _search_key(b) or doctor_off) and time_c is not None \
+            and time_c.kind == "exact" and not any(s.start.time() == time_c.start for s in held):
         # Not at their branch on the following days either: that time at another branch that day.
         await _search_same_time_elsewhere(ctx, rt)
         held = b.offered
+        if doctor_off and notes.get("same_time_branch", (None, None))[1] == _offer_key(b):
+            # The offer line says "{branch} has nothing at {time}, but {other} does": not twice.
+            notices[:] = [n for n in notices if not (isinstance(n, Notice) and n.line == "time.doctor_off")]
     if found.requested is not None and found.kind != "exact" and held \
             and not any(r in REASON_LINES for r in found.reasons) \
             and not any(s.start.time() == found.requested.time() for s in held) \

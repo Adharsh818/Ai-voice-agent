@@ -247,6 +247,10 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         if rule:
             dropped.append(rule)
 
+    if any(isinstance(n, Notice) and n.line == "exact.free" for n in notices):
+        # "Good news, that time's free" right after "6:30's already taken" (sim, 11 Oct): the earlier
+        # refusal was about another branch or search; the free time is what stands.
+        notices = [n for n in notices if not (isinstance(n, Notice) and n.line in _REFUSED_TIME_LINES)]
     sentences = compose(ctx, plan, notices, say, ask)
     if not sentences:
         sentences = _split(_render(ctx, plan.line, plan.params) or phrases.ERROR_REPLY)
@@ -664,6 +668,7 @@ def _caller_id_line(ctx: CallContext, plan) -> None:
 
 # Notices that already say something about the request itself ("Our Nagarbhavi
 # branch doesn't do braces"): saying it back first would contradict them.
+_REFUSED_TIME_LINES = {"time.taken", "time.doctor_off", "time.lunch.at", "time.outside_hours"}
 _REQUEST_CONFLICTS = {"service.unknown", "branch.no_service", "branch.only", "doctor.unknown",
                       "doctor.other_branch", "doctor.gender_none", "correction.ack", "confirm_change",
                       "urgent.ack", "answer.fact", "unknown", "clinical"}

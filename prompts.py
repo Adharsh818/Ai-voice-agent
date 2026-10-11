@@ -196,7 +196,8 @@ LINES: dict[str, LineSpec] = {
     "time.lunch.at": _l("Notice: the asked time runs into lunch. '1:30 would run into our lunch break from 2 to "
                         "2:30, I'm afraid.'", "time", critical=True),
     "time.doctor_off": _l("Notice: no doctor who does it works at the asked time. "
-                          "'Our doctors don't do Invisalign at 7:30, I'm afraid.'", "service", "time", critical=True),
+                          "'At Indiranagar, nobody does Invisalign at 7:30, I'm afraid.'", "service", "time",
+                          "branch", critical=True),
     "time.taken": _l("Notice: the exact time the caller asked for again isn't free. '4:30 isn't free, I'm afraid.'",
                      "time", critical=True),
     "exact.free": _l("Notice: the exact time asked for is free, so the summary follows at once (owner, 7 Oct). "
@@ -477,8 +478,8 @@ VARIANTS: dict[str, tuple] = {
     "time.lunch": ("We break for lunch from 2 to 2:30.", "We're closed for lunch between 2 and 2:30."),
     "time.lunch.at": ("{time} would run into our lunch break from 2 to 2:30, I'm afraid.",
                       "At {time} it would run into lunch, which is 2 to 2:30."),
-    "time.doctor_off": ("Our doctors don't do {service} at {time}, I'm afraid.",
-                        "{time}'s outside the hours for {service}, I'm afraid."),
+    "time.doctor_off": ("At {branch}, nobody does {service} at {time}, I'm afraid.",
+                        "At {branch}, {time}'s outside the hours for {service}, I'm afraid."),
     "time.taken": ("{time} isn't free, I'm afraid.", "Sorry, {time}'s already taken."),
     "exact.free": ("Good news, that time's free.", "Yes, that one's free.", "Lovely, that's free."),
     "offer.exact.rephrase": ("So {slot} with {doctor}, shall I take it?",
@@ -519,7 +520,9 @@ VARIANTS: dict[str, tuple] = {
     "offer.same_time_elsewhere": ("{branch} has nothing at {time}, but {other} does, with {doctor}. "
                                   "Would that work?",
                                   "We can't do {time} at {branch}, but {other} has {time} with {doctor}. "
-                                  "Shall I take that?"),
+                                  "Shall I take that?",
+                                  "{time} works at {other}, with {doctor}, though not at {branch}. "
+                                  "Would you like that one?"),
     "offer.other_branch": ("{branch} is full that day, but {other} has {times}. Would that work?",
                            "There's nothing left at {branch} that day, but I've got {times} at {other}. Does that suit you?"),
     "offer.full_everywhere": ("I'm sorry, {day} is full at all our branches. The nearest I have is {a} or {b}. "

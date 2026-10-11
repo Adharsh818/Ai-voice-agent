@@ -671,7 +671,8 @@ async def _search(ctx: CallContext, rt: Runtime, result: ActionResult) -> None:
         # "Is 1:30 not possible at all?" (sim, 11 Oct): say why before the nearest times, as booking does.
         reason = next((r for r in sug.reasons if r in REASON_LINES), None)
         result.notices.append(Notice(REASON_LINES[reason], {
-            "service": prompts.service_plural(t.service), "time": prompts.speak_time(sug.requested.time())})
+            "service": prompts.service_plural(t.service), "time": prompts.speak_time(sug.requested.time()),
+            "branch": t.branch})
                               if reason else
                               Notice("time.taken", {"time": prompts.speak_time(sug.requested.time())}))
     for slot in slots[:2]:
