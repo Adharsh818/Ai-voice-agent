@@ -212,6 +212,10 @@ DASHBOARD_LOGIN_WINDOW_S = int(os.getenv("DASHBOARD_LOGIN_WINDOW_S", "300"))
 # Call transcripts (no audio is recorded, decision R3): text older than this is
 # blanked by a purge that runs at startup and every TRANSCRIPT_PURGE_HOURS.
 TRANSCRIPT_RETENTION_DAYS = int(os.getenv("TRANSCRIPT_RETENTION_DAYS", "30"))
+# The rest of the personal data (privacy.py): idempotency records, sent message text, recovery snapshots,
+# and (after longer) the before/after copies in the audit log.
+PERSONAL_DATA_RETENTION_DAYS = int(os.getenv("PERSONAL_DATA_RETENTION_DAYS", "30"))
+AUDIT_DETAIL_RETENTION_DAYS = int(os.getenv("AUDIT_DETAIL_RETENTION_DAYS", "180"))
 TRANSCRIPT_PURGE_HOURS = float(os.getenv("TRANSCRIPT_PURGE_HOURS", "6"))
 
 # Google Calendar one-way mirror (calendar_sync.py). A service account owns one
@@ -249,10 +253,10 @@ NLU_KEEP_WARM_S = float(os.getenv("NLU_KEEP_WARM_S", "240"))
 # The model's head start when the no-model reading already understands the turn
 # clearly (a name, a number, a yes, a plain request); NLU_HEAD_DEADLINE_S is for the rest.
 NLU_FAST_DEADLINE_S = float(os.getenv("NLU_FAST_DEADLINE_S", "0.8"))
-# Caller words in the console log ("caller: ...", listen-only "heard ..."). On for
-# development; set LOG_CALLER_TEXT=false before real patient calls (plan 5.8:
+# Caller words in the console log ("caller: ...", listen-only "heard ..."). Off by default;
+# LOG_CALLER_TEXT=true only while developing, never with real patients (plan 5.8:
 # transcripts never go to log files; they live in the database for 30 days).
-LOG_CALLER_TEXT = os.getenv("LOG_CALLER_TEXT", "true").lower() == "true"
+LOG_CALLER_TEXT = os.getenv("LOG_CALLER_TEXT", "false").lower() == "true"     # off by default since 11 Oct
 
 # Backup voice (plan 5.7): Piper runs locally (models/piper/<name>.onnx) and
 # takes over when ElevenLabs fails or returns no audio (its quota ran out on

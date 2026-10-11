@@ -39,6 +39,11 @@ if [ ! -f "$DEST/.env" ]; then
         echo "!! $DEST/.env was created from .env.example: add the API keys and DASHBOARD_PASSWORD_HASH, then rerun."
     fi
 fi
+# A fixed session secret, so a restart doesn't log staff out (an empty one is random per start).
+if ! grep -q '^DASHBOARD_SESSION_SECRET=..' "$DEST/.env"; then
+    sed -i '/^DASHBOARD_SESSION_SECRET=/d' "$DEST/.env"
+    echo "DASHBOARD_SESSION_SECRET=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" >> "$DEST/.env"
+fi
 # Behind HTTPS the dashboard cookie must be Secure; Emma itself stays on loopback.
 grep -q '^DASHBOARD_COOKIE_SECURE=' "$DEST/.env" || echo 'DASHBOARD_COOKIE_SECURE=true' >> "$DEST/.env"
 grep -q '^SERVER_HOST=' "$DEST/.env" && sed -i 's/^SERVER_HOST=.*/SERVER_HOST=127.0.0.1/' "$DEST/.env"

@@ -947,6 +947,29 @@ async function openCall(callId) {
 }
 
 // ------------------------------------------------------------------ system
+$("privacy-export").addEventListener("click", async () => {
+  const phone = $("privacy-phone").value.trim();
+  try {
+    const data = await api("/dashboard/api/privacy/export", { method: "POST", body: { phone } });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = el("a", { href: URL.createObjectURL(blob), download: `patient-data-${data.phone.slice(-4)}.json` });
+    document.body.append(a); a.click(); a.remove();
+    $("privacy-result").textContent = `Downloaded: ${data.appointments.length} appointments, ${data.calls.length} calls.`;
+  } catch (err) { $("privacy-result").textContent = err.message; }
+});
+$("privacy-erase").addEventListener("click", async () => {
+  const phone = $("privacy-phone").value.trim();
+  const ok = await confirmAction("Erase this patient's data?",
+    "Names, the number, call transcripts and messages for this number are removed. Past appointments stay as records without the name. This can't be undone.",
+    "Erase");
+  if (!ok) return;
+  try {
+    const out = await api("/dashboard/api/privacy/erase", { method: "POST", body: { phone } });
+    $("privacy-result").textContent = `Erased: ${out.appointments} appointments and ${out.calls} calls de-identified.`;
+    loadSystem();
+  } catch (err) { $("privacy-result").textContent = err.message; }
+});
+
 async function loadPerformance() {
   const box = $("perf-body");
   let data;

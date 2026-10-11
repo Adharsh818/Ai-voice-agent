@@ -728,6 +728,30 @@ def _performance(conn, days: int = 7) -> dict:
     return out
 
 
+@router.post("/dashboard/api/privacy/export")
+async def privacy_export(request: Request, user: str = staff):
+    """Everything held about a phone number (a patient's request to see their data)."""
+    import privacy
+    data = await _body(request)
+    out = await _run(privacy.export_phone, str(data.get("phone") or ""))
+    if out is None:
+        raise HTTPException(status_code=400, detail="That isn't a valid phone number.")
+    await _run(_audit, user, "privacy_export", "contact", "request")
+    return out
+
+
+@router.post("/dashboard/api/privacy/erase")
+async def privacy_erase(request: Request, user: str = staff):
+    """A patient's request to be forgotten (DPDP): names, numbers, transcripts and messages for this number."""
+    import privacy
+    data = await _body(request)
+    out = await _run(privacy.erase_phone, str(data.get("phone") or ""), user)
+    if not out.get("ok"):
+        return JSONResponse({**out, "message": out.get("reason")}, status_code=409)
+    calendar_sync.notify()
+    return out
+
+
 @router.get("/dashboard/api/performance")
 async def performance(days: int = 7, user: str = staff):
     return await _run(_performance, max(1, min(days, 90)))
