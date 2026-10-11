@@ -85,6 +85,7 @@ LINES: dict[str, LineSpec] = {
     "silence.3": _l("Goodbye after silence. 'I'll let you go for now. Call us any time. Bye!'",
                     critical=True),
     "chitchat": _l("Fallback for small talk. 'I'm good, thanks for asking!'"),
+    "chitchat.remark": _l("Fallback for a passing remark (rain, traffic, a busy day). 'Ha, I know what you mean!'"),
     "thanks": _l("Reply to thanks. 'You're welcome!'", cache=True),
     # knowledge
     "answer.fact": _l("A verified fact, spoken as-is: '{text}'", "text", critical=True),
@@ -306,6 +307,8 @@ LINES: dict[str, LineSpec] = {
     "confirm.reschedule": _l("'So that's moving it from {old} to {new}. Shall I go ahead?'", "old", "new",
                              critical=True),
     "rescheduled": _l("Committed only. 'Done, you're now booked for {new}.'", "new", critical=True),
+    "reschedule.again": _l("Moving the appointment just moved again. 'We can move it again. Right now it's {when}.'",
+                           "when"),
     "same_slot": _l("Notice: 'That's already your time.'", critical=True),
     "too_late": _l("'That one's too close to change over the phone now. I can ask the team to call you about "
                    "it, would that help?'", critical=True),
@@ -367,6 +370,7 @@ VARIANTS: dict[str, tuple] = {
     "silence.3": ("I'll let you go for now. Call us any time. Bye!",
                   "I think we've lost the line, so I'll let you go. Do call back any time. Bye!"),
     "chitchat": ("I'm good, thanks for asking!", "Doing well, thank you!", "All good here, thanks!"),
+    "chitchat.remark": ("Ha, I know what you mean!", "Oh, I know, right?"),
     "thanks": ("You're welcome!", "No problem at all!", "My pleasure!"),
     # knowledge
     "answer.fact": ("{text}",),
@@ -635,6 +639,8 @@ VARIANTS: dict[str, tuple] = {
     "confirm.reschedule": ("So that's moving it from {old} to {new}. Shall I go ahead?",
                            "That's {old} moving to {new}. Shall I move it?"),
     "rescheduled": ("Done, you're now booked for {new}.", "All done, it's moved to {new}."),
+    "reschedule.again": ("We can move it again. Right now it's {when}.",
+                         "Right now it's down for {when}."),
     "same_slot": ("That's already your time.", "That's the time you already have."),
     "too_late": ("That one's too close to change over the phone now. I can ask the team to call you about it, "
                  "would that help?",

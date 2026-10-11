@@ -214,5 +214,58 @@ class ForeignNumberTests(ClinicCallCase):
         self.assertIn("9 8 4 5 0", call.say("Okay, 98450 12345").text)
 
 
+class MoveAgainTests(ClinicCallCase):
+    def test_moving_again_right_after_a_move_is_not_anything_else(self):
+        # Sim, 12 Oct: moved, then "I want to move my appointment to another day" twice got
+        # "anything else?" and a goodbye.
+        Call().run(*FamilyBookingTests.BOOK_PRIYA)
+        call = Call()
+        reply = call.run("", "Can I move my appointment to another day?", "98450 12345", "Yes", "Priya Sharma",
+                         "It's on Monday, and I'd like to move it to Friday.", "10 am", "Yes, go ahead.").text
+        self.assertIn("tomorrow at 10", reply)
+        reply = call.say("I want to move my appointment to another day.").text
+        self.assertIn("tomorrow at 10", reply)                          # where it stands now
+        self.assertNotIn("anything else", reply.lower())
+        call.say("Tuesday")
+        call.say("11 am")
+        call.say("Yes")
+        rows = self.clinic.query("SELECT start_utc FROM appointments WHERE status = 'booked' "
+                                 "AND caller_phone_e164 = '+919845012345'")
+        self.assertEqual([r["start_utc"] for r in rows], ["2026-10-06T05:30:00Z"])
+        self.assertFalse(call.s.closed_conversation)
+
+
+    def test_a_turned_down_time_asked_for_by_name_is_offered_again(self):
+        # Sim, 12 Oct: 9 offered, turned down, then "Is 9 AM not possible at all?" -> "I've nothing
+        # until after Saturday the 10th", which was false.
+        Call().run(*FamilyBookingTests.BOOK_PRIYA)
+        call = Call()
+        reply = call.run("", "Can I move my appointment to another day?", "98450 12345", "Yes", "Priya Sharma",
+                         "It's on Monday, and I'd like to move it to Friday.").text
+        self.assertIn("9", reply)
+        call.say("Neither of those works.")
+        reply = call.say("Is 9 AM on Friday not possible at all?").text
+        self.assertNotIn("nothing", reply)
+        self.assertIn("at 9", reply)
+
+
+class SmallTalkTests(ClinicCallCase):
+    def test_small_talk_gets_a_friendly_reply_not_i_dont_know(self):
+        # Sim, 12 Oct: "How's your day going?" -> "Honestly, I don't know that one."
+        for remark in ("How's your day going?", "It's been raining a lot today, no?", "How are you?"):
+            call = Call()
+            call.run("", "I'd like a cleaning at Jayanagar.")
+            reply = call.say(remark).text
+            self.assertNotIn("know that", reply, remark)
+            self.assertNotIn("not sure", reply, remark)
+            self.assertNotIn("Today", reply, remark)                       # "raining a lot today" isn't a day
+            self.assertIn("name", reply, remark)                          # and back to the booking
+
+    def test_a_question_about_the_clinic_is_not_small_talk(self):
+        call = Call()
+        reply = call.run("", "Is the clinic very busy today? What's the waiting like?").text
+        self.assertNotIn("know what you mean", reply)
+
+
 if __name__ == "__main__":
     unittest.main()

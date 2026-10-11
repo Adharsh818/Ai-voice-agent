@@ -1169,8 +1169,9 @@ _MOVE_APPT_RE = re.compile(
 # Pleasantries that mention a day without asking for it.
 _SMALL_TALK_RE = re.compile(
     r"\b(hope you'?re|hope you are|you must be|how are you|how'?s your|how is your|have a (good|nice|great)|"
-    r"nice weather|lovely weather|hot|rainy|busy) [^.?!]{0,25}\b(today|tonight|this morning|this evening)\b|"
-    r"\b(today|this morning)\b [^.?!]{0,15}\b(so busy|very busy|busy day|hot|rainy)\b")
+    r"nice weather|lovely weather|weather|hot|humid|rainy|rain(?:s|ing|ed)?|traffic|hectic|busy) "
+    r"[^.?!]{0,25}\b(today|tonight|this morning|this evening)\b|"
+    r"\b(today|this morning)\b [^.?!]{0,15}\b(so busy|very busy|busy day|hot|humid|rainy|raining|traffic|hectic)\b")
 # A booking asked for before that question ("Can I get a check-up on Saturday, and where...").
 _ASKS_TO_BOOK = re.compile(r"\b(book|appointment|come in|(can|could|may) (i|we) (get|have|come)|"
                            r"i'?d like|i want|i need)\b")

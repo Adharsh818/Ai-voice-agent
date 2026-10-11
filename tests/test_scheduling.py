@@ -173,6 +173,25 @@ class SuggestTests(EngineTestCase):
         s = self.suggest(DateConstraint(MON, MON), TimeConstraint("exact", time(17)))
         self.assertEqual((s.kind, [x.start for x in s.slots]), ("exact", [at(MON, 17)]))
 
+    def test_never_offers_a_time_the_patient_cant_reach_from_another_branch(self):
+        # Sim 12 Oct: "that's free" at Jayanagar 5:30, then refused at booking because the patient was
+        # at Nagarbhavi just before (travel buffer), five times in one call. The offer must use the same rule.
+        self.book(at(MON, 17), doctor=1, name="Asha", phone="9876543210")                 # branch 1
+        patient = (sch.phones.to_e164("9876543210"), sch.norm_name("Asha"))
+        s = self.suggest(DateConstraint(MON, MON), TimeConstraint("exact", time(17, 30)), branch_ids=[2],
+                         patient=patient)
+        self.assertNotEqual(s.kind, "exact")
+        self.assertTrue(s.slots)
+        for slot in s.slots:
+            self.assertTrue(abs((slot.start - at(MON, 17)).total_seconds()) >= 90 * 60, slot.start)
+        # The same branch is fine straight after; the caller's other family members aren't held up.
+        self.assertEqual(self.suggest(DateConstraint(MON, MON), TimeConstraint("exact", time(17, 30)),
+                                      branch_ids=[1], patient=patient).kind, "exact")
+        self.assertEqual(self.suggest(DateConstraint(MON, MON), TimeConstraint("exact", time(17, 30)), branch_ids=[2],
+                                      patient=(patient[0], "ravi")).kind, "exact")
+        # And what was offered really books.
+        self.assertTrue(self.book(s.slots[0].start, doctor=s.slots[0].doctor_id, name="Asha", phone="9876543210").ok)
+
     def test_exact_request_that_is_taken_offers_nearest_that_day(self):
         self.book(at(MON, 17), doctor=1)
         s = self.suggest(DateConstraint(MON, MON), TimeConstraint("exact", time(17)))
