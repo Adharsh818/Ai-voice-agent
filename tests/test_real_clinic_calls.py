@@ -331,6 +331,32 @@ class MidnightTests(ClinicCallCase):
         self.assertEqual(clock.today().isoformat(), "2026-10-02")
 
 
+class HelloBackTests(ClinicCallCase):
+    def test_a_bare_hi_after_the_greeting_is_answered_at_once(self):
+        # Phone check, 12 Oct: "Hi." went to the model: "Okay..." then "Hello there. How can I help you today?"
+        import phrases
+        import speech
+        from dialogue import engine
+        for said, expected in (("Hi.", engine.HELLO_LINES), ("hello emma", engine.HELLO_LINES),
+                               ("Good morning!", engine.HELLO_LINES),
+                               ("Hi, how are you?", (engine.HOW_ARE_YOU_LINE,))):
+            call = Call()
+            call.run("")
+            out = call.say(said)
+            self.assertIn(out.text, expected, said)
+            self.assertEqual(out.tier, 0, said)                           # no model wait, no filler
+            for sentence in speech.split_sentences(out.text):
+                self.assertIn(sentence, phrases.all_phrases(), said)      # pre-recorded: plays at once
+            self.assertEqual(call.s.pending.value, "ask_intent")
+
+    def test_hi_with_a_request_is_the_request(self):
+        call = Call()
+        call.run("")
+        reply = call.say("Hi, I'd like to book a cleaning at Jayanagar.").text
+        self.assertNotIn(reply, ("Hi! What can I do for you?", "Hello! How can I help?"))
+        self.assertIn("name", reply)
+
+
 class SmallTalkTests(ClinicCallCase):
     def test_small_talk_gets_a_friendly_reply_not_i_dont_know(self):
         # Sim, 12 Oct: "How's your day going?" -> "Honestly, I don't know that one."
