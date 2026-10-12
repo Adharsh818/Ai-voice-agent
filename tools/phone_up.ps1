@@ -88,7 +88,9 @@ Step "Firewall"
 $subnet = EnvValue "TELEPHONY_SIP_SUBNET"
 if ($subnet) {
     $prefix = [int]($subnet.Split("/")[1])
-    $mask = ([ipaddress]([uint32]::MaxValue -shl (32 - $prefix) -band [uint32]::MaxValue)).IPAddressToString
+    # Octet by octet: [ipaddress] on a number reads it in reversed byte order (/24 came out as
+    # 0.255.255.255, so the firewall check always said TODO; 12 Oct).
+    $mask = (0..3 | ForEach-Object { $bits = [Math]::Max(0, [Math]::Min(8, $prefix - 8 * $_)); 256 - [Math]::Pow(2, 8 - $bits) }) -join "."
     $want = "$($subnet.Split('/')[0])/$mask"
     $rule = Get-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue
     $have = if ($rule) { ($rule | Get-NetFirewallAddressFilter).RemoteAddress } else { $null }
