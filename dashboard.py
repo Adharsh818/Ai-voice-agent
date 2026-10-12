@@ -34,6 +34,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response, Streamin
 import alerts
 import auth
 import calendar_sync
+import clinic_admin
 import clock
 import config
 import db
@@ -684,17 +685,21 @@ def _audit_rows(conn, limit: int = 60) -> list:
     """The latest audit events, each with a plain description of what it was about."""
     rows = [dict(r) for r in conn.execute(
         "SELECT e.id, e.ts, e.actor, e.action, e.entity, e.entity_id, p.name AS patient, a.start_utc, "
-        "b.name AS branch, s.name AS service FROM audit_events e "
+        "b.name AS branch, s.name AS service, d.spoken_name AS doctor, dbr.name AS doctor_branch FROM audit_events e "
         "LEFT JOIN appointments a ON e.entity = 'appointment' AND a.id = e.entity_id "
+        "LEFT JOIN doctors d ON e.entity = 'doctor' AND d.id = CAST(e.entity_id AS INTEGER) "
+        "LEFT JOIN branches dbr ON dbr.id = d.branch_id "
         "LEFT JOIN patients p ON p.id = a.patient_id LEFT JOIN branches b ON b.id = a.branch_id "
         "LEFT JOIN services s ON s.id = a.service_id ORDER BY e.id DESC LIMIT ?", (limit,))]
     for r in rows:
         if r["entity"] == "appointment" and r["start_utc"]:
             when = db.local(r["start_utc"]).strftime("%a %d %b, %H:%M")
             r["what"] = f"{r['patient'] or 'patient'}, {r['service']}, {when}, {r['branch']}"
+        elif r["entity"] == "doctor" and r["doctor"]:
+            r["what"] = f"{r['doctor']}, {r['doctor_branch']}"
         else:
             r["what"] = f"{r['entity']} {r['entity_id']}"
-        for key in ("patient", "start_utc", "branch", "service"):
+        for key in ("patient", "start_utc", "branch", "service", "doctor", "doctor_branch"):
             r.pop(key, None)
     return rows
 
@@ -788,6 +793,48 @@ def _performance(conn, days: int = 7) -> dict:
         if c.get("metered_calls"):
             c["cost_per_call_usd"] = round(c["cost_total_usd"] / c["metered_calls"], 4)
     return out
+
+
+# ---------------------------------------------------------------- doctors and hours (clinic_admin.py, S3)
+async def _admin(fn, *args, **kwargs):
+    try:
+        return await _run(fn, *args, **kwargs)
+    except clinic_admin.AdminError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/dashboard/api/doctors")
+async def doctors(user: str = staff):
+    return await _run(clinic_admin.list_doctors)
+
+
+@router.post("/dashboard/api/doctors")
+async def doctor_add(request: Request, user: str = admin):
+    """{"name", "spoken_name"?, "gender"?, "branch", "services": [...], "rota": {"Mon": "09:00-13:00", ...}}"""
+    data = await _body(request)
+    return await _admin(clinic_admin.add_doctor, name=str(data.get("name") or ""),
+                        spoken_name=str(data.get("spoken_name") or ""), gender=data.get("gender") or None,
+                        branch=str(data.get("branch") or ""), services=list(data.get("services") or []),
+                        days=dict(data.get("rota") or {}), actor=user)
+
+
+@router.post("/dashboard/api/doctors/{doctor_id}/rota")
+async def doctor_rota(doctor_id: int, request: Request, user: str = admin):
+    """{"rota": {"Mon": "09:00-13:00, 16:00-20:00", "Sun": "off"}}: the days given are replaced."""
+    data = await _body(request)
+    return await _admin(clinic_admin.set_rota, doctor_id, dict(data.get("rota") or {}), user)
+
+
+@router.post("/dashboard/api/doctors/{doctor_id}/services")
+async def doctor_services(doctor_id: int, request: Request, user: str = admin):
+    data = await _body(request)
+    return await _admin(clinic_admin.set_services, doctor_id, list(data.get("services") or []), user)
+
+
+@router.post("/dashboard/api/doctors/{doctor_id}/active")
+async def doctor_active(doctor_id: int, request: Request, user: str = admin):
+    data = await _body(request)
+    return await _admin(clinic_admin.set_active, doctor_id, bool(data.get("active")), user)
 
 
 @router.get("/dashboard/api/closures")

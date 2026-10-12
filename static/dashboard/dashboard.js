@@ -1013,6 +1013,88 @@ $("staff-form").addEventListener("submit", async (e) => {
   } catch (err) { $("staff-result").textContent = err.message; }
 });
 
+// Doctors and their weekly hours (clinic_admin.py). Admins edit; everyone can see.
+async function loadDoctors() {
+  let data, me;
+  try {
+    [data, me] = await Promise.all([api("/dashboard/api/doctors"), api("/dashboard/api/auth")]);
+  } catch (err) { $("doctor-result").textContent = err.message; return; }
+  const isAdmin = me.role === "admin";
+  const form = $("doctor-form");
+  form.hidden = !isAdmin;
+  $("doctors-note").textContent = `Emma offers only these hours (clinic day ${data.day_hours.join("–")})`;
+  if (isAdmin && !$("doctor-branch").options.length) {
+    for (const b of data.branches) $("doctor-branch").append(el("option", { value: b, text: b }));
+    $("doctor-services").replaceChildren(...data.services.map((s) => el("label", { class: "check" },
+      el("input", { type: "checkbox", value: s }), ` ${s}`)));
+  }
+  const hours = (rota) => data.days.filter((d) => rota[d] !== "off").map((d) => `${d} ${rota[d]}`).join("; ") || "no hours";
+  const rows = [];
+  for (const d of data.doctors) {
+    const row = el("tr", { class: d.active ? "" : "muted-row" },
+      el("td", { text: d.spoken_name + (d.active ? "" : " (off)"), title: d.name }),
+      el("td", { text: d.branch }),
+      el("td", { class: "small", text: d.services.join(", ") }),
+      el("td", { class: "small", text: hours(d.rota) }),
+      el("td", { class: "actions" }, ...(isAdmin ? [
+        el("button", { class: "btn small", type: "button", text: "Edit", onclick: () => editDoctor(d, row, data) }),
+        el("button", { class: "btn small ghost", type: "button", text: d.active ? "Switch off" : "Switch on",
+          onclick: async () => {
+            try {
+              await api(`/dashboard/api/doctors/${d.id}/active`, { method: "POST", body: { active: !d.active } });
+              loadDoctors();
+            } catch (err) { toast(err.message, "error"); }
+          } })] : [])));
+    rows.push(row);
+  }
+  $("doctor-rows").replaceChildren(...(rows.length ? rows : [emptyRow(5, "No doctors yet.")]));
+}
+
+function editDoctor(d, row, data) {
+  if (row.nextSibling && row.nextSibling.classList && row.nextSibling.classList.contains("editor-row")) return;
+  const inputs = Object.fromEntries(data.days.map((day) => [day, el("input", { type: "text", value: d.rota[day],
+    "aria-label": `${d.spoken_name}, ${day}` })]));
+  const services = data.services.map((s) => el("label", { class: "check" },
+    el("input", { type: "checkbox", value: s, ...(d.services.includes(s) ? { checked: "" } : {}) }), ` ${s}`));
+  const note = el("p", { class: "muted small", text: "Shifts like 09:00-13:00, 16:00-20:00, or off." });
+  const editor = el("tr", { class: "editor-row" }, el("td", { colspan: "5" },
+    el("div", { class: "rota-grid" }, ...data.days.map((day) => el("label", {}, el("span", { text: day }), inputs[day]))),
+    el("div", { class: "checks" }, ...services),
+    note,
+    el("div", { class: "actions" },
+      el("button", { class: "btn small", type: "button", text: "Save", onclick: async () => {
+        try {
+          const rota = Object.fromEntries(data.days.map((day) => [day, inputs[day].value]));
+          const chosen = services.map((l) => l.querySelector("input")).filter((i) => i.checked).map((i) => i.value);
+          const out = await api(`/dashboard/api/doctors/${d.id}/rota`, { method: "POST", body: { rota } });
+          if (chosen.join("|") !== d.services.join("|")) {
+            await api(`/dashboard/api/doctors/${d.id}/services`, { method: "POST", body: { services: chosen } });
+          }
+          $("doctor-result").textContent = out.affected.length
+            ? `Saved. ${out.affected.length} upcoming booking(s) with ${d.spoken_name} are now outside these hours: block the doctor for those days on the Recovery tab to have Emma move them.`
+            : `Saved. Emma offers ${d.spoken_name}'s new hours from the next call.`;
+          loadDoctors();
+        } catch (err) { note.textContent = err.message; }
+      } }),
+      el("button", { class: "btn small ghost", type: "button", text: "Cancel", onclick: () => editor.remove() }))));
+  row.after(editor);
+}
+
+$("doctor-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const week = $("doctor-hours").value.trim() || "off";
+  const rota = { Mon: week, Tue: week, Wed: week, Thu: week, Fri: week, Sat: week, Sun: "off" };
+  const services = [...$("doctor-services").querySelectorAll("input:checked")].map((i) => i.value);
+  try {
+    const out = await api("/dashboard/api/doctors", { method: "POST", body: {
+      name: $("doctor-name").value, branch: $("doctor-branch").value, gender: $("doctor-gender").value,
+      services, rota } });
+    $("doctor-result").textContent = `Added ${out.spoken_name}. Emma can book them from the next call; adjust single days with Edit.`;
+    $("doctor-form").reset();
+    loadDoctors();
+  } catch (err) { $("doctor-result").textContent = err.message; }
+});
+
 async function loadClosures() {
   let data;
   try { data = await api("/dashboard/api/closures"); } catch (err) { $("closure-result").textContent = err.message; return; }
@@ -1078,6 +1160,7 @@ async function loadPerformance() {
 async function loadSystem() {
   loadPerformance();
   loadClosures();
+  loadDoctors();
   loadStaff();
   let data;
   try {

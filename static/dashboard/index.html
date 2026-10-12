@@ -331,6 +331,22 @@
         </div>
       </div>
       <div class="card">
+        <div class="card-head"><h3>Doctors and hours</h3><span class="muted small" id="doctors-note">Emma offers only these hours</span></div>
+        <form class="inline-form" id="doctor-form" hidden>
+          <input id="doctor-name" type="text" placeholder="Full name (e.g. Dr Kavya Shetty)" autocomplete="off" required>
+          <select id="doctor-branch"></select>
+          <select id="doctor-gender"><option value="">Gender</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select>
+          <input id="doctor-hours" type="text" placeholder="Mon-Sat hours (e.g. 09:00-13:00, 16:00-20:00)" autocomplete="off">
+          <span class="checks" id="doctor-services"></span>
+          <button class="btn small" type="submit">Add doctor</button>
+        </form>
+        <p class="muted small" id="doctor-result"></p>
+        <div class="table-wrap">
+          <table><thead><tr><th>Doctor</th><th>Branch</th><th>Does</th><th>Weekly hours</th><th></th></tr></thead>
+            <tbody id="doctor-rows"></tbody></table>
+        </div>
+      </div>
+      <div class="card">
         <div class="card-head"><h3>Patient data requests</h3><span class="muted small">DPDP: see or erase what we hold</span></div>
         <form class="inline-form" id="privacy-form">
           <input id="privacy-phone" type="tel" placeholder="Patient's phone number" autocomplete="off">

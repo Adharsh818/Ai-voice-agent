@@ -14,10 +14,10 @@
 - Real-clinic calls: closed hours, bleeding first aid, late patients, wrong numbers, vendors, staff and records calls, doctors on leave, urgent hang-ups make a task, families in one call, Kannada/Hindi callback, foreign numbers, landlines read as STD code + number, one name spelled two ways is one patient, a child's age, "today" pinned per call, short-notice moves the same day with the same doctor, travel time between branches.
 - Fixes the sims found: "that's free" then refused at booking; small talk without the model; moving again right after a move; a turned-down time asked for again; the "another branch or a later date?" loop.
 - Clinic knowledge and doctor profiles (26 facts), dashboard D1-D8 with a performance panel, up to 3 calls at once, holidays and closures, named staff logins, DPDP retention and export/erase, WhatsApp/SMS ready (log-only).
-- For more clinics: name/city from `.env` (CLINIC_NAME, CLINIC_SHORT_NAME, CLINIC_CITY), cost per call on the dashboard (usage.py; set COST_* rates), alerts banner (alerts.py), housekeeping of holds and old slot claims, `/health` and `/metrics` refused from outside by Caddy.
+- For more clinics: name/city from `.env` (CLINIC_NAME, CLINIC_SHORT_NAME, CLINIC_CITY), cost per call on the dashboard (usage.py; set COST_* rates), alerts banner (alerts.py), housekeeping of holds and old slot claims, `/health` and `/metrics` refused from outside by Caddy; doctors, services and weekly hours edited on the dashboard (admins).
 - Latency measured 12 Oct (owner chose "measure first"): Gemini 1.3-1.9 s, inside the 2.2 s limit; the phone watchdog ends turns no later than Deepgram would. No change made.
 
-**Left:** retiring the legacy 12-step engine (proposed as its own session; live calls already use R2 via `R2_ENGINE=true` in `.env`); hours, doctors and rotas from the dashboard (S3 rest); a real number (T1) and a message provider (T2) need the owner's accounts; the honesty line is the owner's call. Then Phase 3 live phone checks with the owner and Phase 7 final checks ([RESUME_HERE.md](RESUME_HERE.md)).
+**Left:** retiring the legacy 12-step engine (proposed as its own session; live calls already use R2 via `R2_ENGINE=true` in `.env`); a real number (T1) and a message provider (T2) need the owner's accounts; the honesty line is the owner's call. Then Phase 3 live phone checks with the owner and Phase 7 final checks ([RESUME_HERE.md](RESUME_HERE.md)).
 
 ## ▶ Earlier: START HERE (8 Oct, after the demo)
 
