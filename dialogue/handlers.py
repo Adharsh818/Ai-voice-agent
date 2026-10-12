@@ -363,6 +363,27 @@ def _stop(out: GlobalOutcome, goal_plan: GoalPlan) -> GlobalOutcome:
     return out
 
 
+BAD_LINE_RUN = 3                     # unusable turns in a row before Emma says the line is breaking up
+
+
+def _bad_line(ctx: CallContext, u: Understanding, confirmation: Optional[str]) -> bool:
+    """
+    Count turns in a row that gave Emma nothing to use (a cut-off fragment, or
+    words that answer nothing: "a", "And that's"); True once, on the third.
+    """
+    usable = (u.carries_details or confirmation is not None or u.intent not in (None, Intent.NONE)
+              or any(u.has(a) for a in (Act.QUESTION, Act.END, Act.REPEAT, Act.WAIT, Act.ROBOT_QUESTION,
+                                        Act.WANTS_HUMAN, Act.CAPABILITY, Act.CHITCHAT)))
+    run = 0 if usable else ctx.__dict__.get("_unusable_run", 0) + 1
+    cut = 0 if usable else ctx.__dict__.get("_cut_in_run", 0) + int(u.has(Act.FRAGMENT))
+    ctx.__dict__["_unusable_run"], ctx.__dict__["_cut_in_run"] = run, cut
+    # Two of them cut off mid-sentence: a breaking line, not a caller thinking ("hmm", "not sure").
+    if run >= BAD_LINE_RUN and cut >= 2 and not ctx.__dict__.get("_told_bad_line"):
+        ctx.__dict__["_told_bad_line"] = True
+        return True
+    return False
+
+
 def _statement(goal: Goal, line: str, **overrides) -> GoalPlan:
     """A handler's own line, said as it is (no model acknowledgement before it)."""
     return plan(goal, line, use_model_say=False, **overrides)
@@ -374,6 +395,7 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
     if text.strip():
         ctx.silence_level = 0
     out = GlobalOutcome()
+    bad_line = _bad_line(ctx, u, confirmation)
 
     # 1. red flag: advice, task, end. No questions.
     if u.emergency == Emergency.RED_FLAG or red_flag_words(text):
@@ -432,6 +454,12 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
         return _stop(out, _statement(Goal.REPEAT, "repeat.hear" if hearing else "repeat.prefix"))
     if u.has(Act.WAIT) and not u.carries_details:
         return _stop(out, _statement(Goal.HOLD_ON, "hold_on"))
+    if bad_line:
+        # Phone check, 12 Oct: on a breaking-up line Emma said "go on" / "you were saying?" five times.
+        # A person says what's wrong, once, and asks again; the open question stays open.
+        if u.has(Act.FRAGMENT) and len(text.split()) <= FRAGMENT_MAX_WORDS:
+            ctx.fragment = text.strip()
+        return _stop(out, _statement(Goal.GO_ON, "line.breaking"))
     if u.has(Act.FRAGMENT) and len(text.split()) <= FRAGMENT_MAX_WORDS:
         ctx.fragment = text.strip()  # the engine puts it in front of the next turn; nothing is applied
         return _stop(out, _statement(Goal.GO_ON, "go_on"))

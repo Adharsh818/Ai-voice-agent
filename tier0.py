@@ -923,6 +923,10 @@ _MOVE_APPT_RE = re.compile(
     r"\b(change|move|shift)\s+(?:my|the|our|her|his)\s+(?:(?:existing|current|old|booked|upcoming|next|dental|"
     r"cleaning|check-?up)\s+)*(appointment|booking)\b")
 # Pleasantries that mention a day without asking for it.
+# Joining words a cut-off fragment leaves in front of an answer ("and", "a", "and that's"); stripped
+# only when the whole thing isn't already a name.
+_LEADING_GLUE = re.compile(r"^(?:(?:and|a|an|the|so|but|um+|uh+|er+|ok|okay|that'?s|it'?s|it is|yes|yeah)[\s,.]+)+",
+                           re.I)
 _SMALL_TALK_RE = re.compile(
     r"\b(hope you'?re|hope you are|you must be|how are you|how'?s your|how is your|have a (good|nice|great)|"
     r"nice weather|lovely weather|weather|hot|humid|rainy|rain(?:s|ing|ed)?|traffic|hectic|busy) "
@@ -1062,6 +1066,11 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
             filled_expected = True
         else:
             name = match.clean_name(raw)
+            if name is None:
+                # A cut-off fragment glued in front ("and" + "Priya Sharma": phone check, 12 Oct).
+                bare = _LEADING_GLUE.sub("", raw).strip()
+                only_glue = not _LEADING_GLUE.sub("", bare.rstrip(".,!?") + " ").strip()
+                name = match.clean_name(bare) if bare and bare != raw.strip() and not only_glue else None
             if name and len(name.split()) <= 4:
                 for k, v in _name_fields(name, view).items():
                     setattr(u, k, v)

@@ -80,6 +80,8 @@ LINES: dict[str, LineSpec] = {
     "repeat.hear": _l("'Can you hear me?' Before re-speaking the last line. 'Yes, I can hear you.'", critical=True,
                       cache=True),
     "go_on": _l("After a cut-off fragment. 'Sorry, go on.' / 'Go ahead.'", critical=True, cache=True),
+    "line.breaking": _l("Third unusable turn in a row (a bad line). 'Sorry, the line's breaking up a bit. Could you "
+                        "say that once more, slowly?'", critical=True, cache=True),
     "silence.1": _l("First silence nudge. 'Are you still there?'", critical=True, cache=True),
     "silence.2": _l("'I can't hear you. If you're there, just say something.'", critical=True),
     "silence.3": _l("Goodbye after silence. 'I'll let you go for now. Call us any time. Bye!'",
@@ -365,6 +367,8 @@ VARIANTS: dict[str, tuple] = {
     "repeat.prefix": ("Sure.", "Of course.", "No problem."),
     "repeat.hear": ("Yes, I can hear you.", "Yes, I'm here.", "I can hear you, yes."),
     "go_on": ("Sorry, go on.", "Go ahead.", "Sorry, you were saying?"),
+    "line.breaking": ("Sorry, the line's breaking up a bit. Could you say that once more, slowly?",
+                      "Sorry, you're breaking up a little. Could you say that again, slowly?"),
     "silence.1": ("Are you still there?", "Hello, can you hear me?"),
     "silence.2": ("I can't hear you. If you're there, just say something.",
                   "I think the line's gone quiet. Are you there?"),
