@@ -219,7 +219,7 @@ def resolve_confirmation(u: Understanding, text: str, pending=None) -> Optional[
     """
     "yes" / "no" / None. The NLU reading wins when it has one, except when
     the deterministic parser (match.parse_yes_no) disagrees: then None, and
-    Emma re-asks. Same rule as ai_engine._resolve_confirmation.
+    Emma re-asks (the rule the 12-step machine used too).
 
     The parser reads "cancel" as a no (at a booking summary it is one), but
     when Emma has just asked "Shall I cancel it?" (`pending` CONFIRM_CANCEL),

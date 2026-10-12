@@ -2,8 +2,8 @@
 The per-call context: everything Emma knows about this call, in one picklable
 object (docs/R2_DESIGN.md, section 3).
 
-Replaces the 12 fixed steps of ai_engine.SessionState with a checklist plus a
-priority order. Details can arrive in any order and are never asked twice;
+A checklist plus a priority order (it replaced the retired 12-step machine's
+fixed steps). Details can arrive in any order and are never asked twice;
 Python works out the next goal from what is still missing (policy.next_goal).
 
 Only plain data lives here: builtins, str enums, dataclasses, dates and the

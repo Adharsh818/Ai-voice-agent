@@ -322,13 +322,3 @@ class SpeakerEchoTests(unittest.TestCase):
         self.assertFalse(looks_like_echo("yes, Monday at 5", emma))
         self.assertFalse(looks_like_echo("no, Tuesday instead", emma))
         self.assertFalse(looks_like_echo("how can you help me", "Hello, Pearl Dental. How can I help you?"))
-
-
-class HelloReplyTests(unittest.TestCase):
-    def test_a_plain_hello_gets_a_greeting_not_a_booking_push(self):
-        import ai_engine
-        for text in ("Hi.", "Hello?", "Good morning"):
-            s = ai_engine.SessionState()
-            s.greeting_spoken = True
-            self.assertEqual(ai_engine._handle_conversation_step(text, {}, s),
-                             "Hi there! How can I help you today?")

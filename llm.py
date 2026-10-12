@@ -7,12 +7,12 @@ budget is left), and a circuit breaker so a key that is rate-limited or erroring
 is skipped instead of retried on every turn. A failed startup check is retried
 in the background (keep_verified) instead of disabling Gemini for good.
 
-generate_json serves the old 12-step engine; generate_json_stream is the R2
-engine's one streamed request per turn (nlu.py reads it as it arrives).
+generate_json_stream is the engine's one streamed request per turn (nlu.py
+reads it as it arrives); generate_json is a plain one-shot request.
 
-The model only extracts and phrases. It never decides a state transition — see
-ai_engine._handle_conversation_step — so any failure here degrades to the
-deterministic fallback rather than to a wrong action.
+The model only extracts and phrases. It never decides a state transition (Python
+does, in dialogue/), so any failure here degrades to the deterministic fallback
+rather than to a wrong action.
 """
 
 import asyncio

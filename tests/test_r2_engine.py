@@ -19,7 +19,6 @@ import unittest
 from datetime import datetime
 
 import ai_engine
-import config
 import facts
 import nlu
 import speech
@@ -100,27 +99,28 @@ class EngineCase(unittest.TestCase):
 
 class FacadeContract(EngineCase):
 
-    def test_flag_off_keeps_the_old_engine(self):
-        saved = config.R2_ENGINE
-        config.R2_ENGINE = False                    # the default (.env.example); the suite also runs with it on
-        try:
-            self.assertIsInstance(ai_engine.new_session("x"), ai_engine.SessionState)
-        finally:
-            config.R2_ENGINE = saved
-        self.assertIsNone(ai_engine.listening_hint(ai_engine.SessionState()))
+    def test_turn_result_defaults(self):
+        self.assertIsNone(ai_engine.listening_hint(object()))
+        self.assertFalse(ai_engine.expects_information(object(), "my name is Priya"))
         r = ai_engine.TurnResult("Hi.", tier=0)
         self.assertEqual((r.action, r.goal_before, r.goal_after, r.spoken_count), (None, None, None, 0))
+        with self.assertRaises(TypeError):
+            asyncio.run(ai_engine.async_process_turn("hello", object()))
 
-    def test_flag_on_hands_out_a_call_context(self):
-        saved = config.R2_ENGINE
-        config.R2_ENGINE = True
-        try:
-            s = ai_engine.new_session("abc")
-        finally:
-            config.R2_ENGINE = saved
+    def test_new_session_hands_out_a_call_context(self):
+        s = ai_engine.new_session("abc")
         self.assertIsInstance(s, CallContext)
         self.assertEqual(s.call_id, "abc")
         self.assertTrue(s.keep_transcript)          # call_session reads it at hang-up
+
+    def test_a_plain_hello_gets_a_greeting_not_a_booking_push(self):
+        for text in ("Hi.", "Hello?", "Good morning"):
+            call = Call()
+            call.run("", text)
+            with self.subTest(text=text):
+                self.assertNotIn("book", call.lines[-1].lower())
+                self.assertIn("?", call.lines[-1])
+                self.assertEqual(call.s.pending, Goal.ASK_INTENT)
 
     def test_install_test_nlu_reads_the_expect_line(self):
         heard = []
