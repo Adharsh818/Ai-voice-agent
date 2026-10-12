@@ -78,8 +78,9 @@ class BackupTests(unittest.TestCase):
     def test_check_finds_a_booking_without_its_slot_claims(self):
         copy = backup.backup(config.DB_PATH, self.dest)
         conn = sqlite3.connect(copy)
+        # The latest booking: claims for cells over a day old are pruned on purpose (scheduling.prune).
         conn.execute("DELETE FROM slot_claims WHERE appointment_id = (SELECT id FROM appointments "
-                     "WHERE status = 'booked' LIMIT 1)")
+                     "WHERE status = 'booked' ORDER BY start_utc DESC LIMIT 1)")
         conn.commit()
         conn.close()
         self.assertTrue(any("slot claims" in p for p in backup.check(str(copy))))

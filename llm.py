@@ -25,6 +25,7 @@ from datetime import date
 
 import clock
 import config
+import usage
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +164,8 @@ class GeminiNLU:
                 break
             tried.append(key)
             model = self.model if attempt == 0 else (self.fallback_model or self.model)
+            usage.add("gemini_requests")
+            usage.add("gemini_in_tokens", usage.tokens(system) + usage.tokens(contents))
             try:
                 response = await asyncio.wait_for(
                     self._client(key).aio.models.generate_content(
@@ -173,6 +176,7 @@ class GeminiNLU:
                     timeout=remaining,
                 )
                 key.count()
+                usage.add("gemini_out_tokens", usage.tokens(response.text or ""))
                 return parse_json_object(response.text or "")
             except asyncio.TimeoutError:
                 key.count(failed=True)
@@ -219,6 +223,8 @@ class GeminiNLU:
             model = self.model if attempt == 0 else (self.fallback_model or self.model)
             yielded = False
             iterator = None
+            usage.add("gemini_requests")
+            usage.add("gemini_in_tokens", usage.tokens(system) + usage.tokens(contents))
             try:
                 stream = await asyncio.wait_for(
                     self._client(key).aio.models.generate_content_stream(
@@ -239,6 +245,7 @@ class GeminiNLU:
                         break
                     text = _chunk_text(chunk)
                     if text:
+                        usage.add("gemini_out_tokens", usage.tokens(text))
                         yielded = True
                         yield text
                 key.count()

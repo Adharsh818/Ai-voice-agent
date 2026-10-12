@@ -437,9 +437,9 @@ def process_turn(ctx: RecoveryContext, text: str, run=None, progress=None) -> Re
         ctx.greeted = True
         ctx.state = "identity"
         first = ctx.contact_first
-        line = _pick(ctx, [f"Hi, is this {first}? It's Emma from Pearl Dental.",
-                           f"Hello, am I speaking with {first}? This is Emma calling from Pearl Dental."]) \
-            if first else "Hi, it's Emma from Pearl Dental. Who am I speaking with?"
+        line = _pick(ctx, [f"Hi, is this {first}? It's Emma from {config.CLINIC_SHORT_NAME}.",
+                           f"Hello, am I speaking with {first}? This is Emma calling from {config.CLINIC_SHORT_NAME}."]) \
+            if first else f"Hi, it's Emma from {config.CLINIC_SHORT_NAME}. Who am I speaking with?"
         return _say(ctx, line, "yes_no")
     if not text:
         return _say(ctx, ctx.last_line or "Hello?", "open")
@@ -456,9 +456,9 @@ def process_turn(ctx: RecoveryContext, text: str, run=None, progress=None) -> Re
                                           "Sorry to have bothered you. Take care, bye.")
     if _has(t, *_SCAM):
         ctx.note = "Wasn't sure the call was genuine; invited to call the clinic directly."
-        return _close(ctx, "suspicious", "That's a fair question. You're very welcome to hang up and call Pearl "
-                                         "Dental directly on the number on our website, and the front desk will "
-                                         "help you. Take care, bye.")
+        return _close(ctx, "suspicious", "That's a fair question. You're very welcome to hang up and call "
+                                         f"{config.CLINIC_SHORT_NAME} directly on the number on our website, "
+                                         "and the front desk will help you. Take care, bye.")
     if _has(t, *_REPEAT) and len(t.split()) <= 6:
         return _say(ctx, ctx.last_line, _expect(ctx))
     if _has(t, *_WAIT) and len(t.split()) <= 6:
@@ -574,8 +574,8 @@ def _identity(ctx, text, t, run, emit) -> Reply:
     if _has(t, *_WHO):
         if _tick(ctx) > 2:
             return _wrong_person(ctx)
-        return _say(ctx, f"It's Emma, from Pearl Dental. Am I speaking with {first}?" if first
-                    else "It's Emma, from Pearl Dental.", "yes_no")
+        return _say(ctx, f"It's Emma, from {config.CLINIC_SHORT_NAME}. Am I speaking with {first}?" if first
+                    else f"It's Emma, from {config.CLINIC_SHORT_NAME}.", "yes_no")
     yn = _yes_no(text)
     named_other = re.search(r"\b(this is|it's|i'm|im|my name is) (his|her|their|the) ", t) or \
         re.search(r"\b(wrong number|not here|isn't here|is not here|not available|she's out|he's out|"
@@ -594,7 +594,7 @@ def _identity(ctx, text, t, run, emit) -> Reply:
 def _wrong_person(ctx: RecoveryContext) -> Reply:
     first = ctx.contact_first
     ctx.note = "Someone else answered; no details shared. Please call the patient."
-    line = (f"Oh, sorry to bother you. Could you ask {first} to give Pearl Dental a call when they get a chance? "
+    line = (f"Oh, sorry to bother you. Could you ask {first} to give {config.CLINIC_SHORT_NAME} a call when they get a chance? "
             f"Thanks so much, bye." if first else "Sorry to bother you. Thanks, bye.")
     return _close(ctx, "wrong_person", line)
 

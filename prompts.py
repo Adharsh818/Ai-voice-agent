@@ -68,7 +68,7 @@ LINES: dict[str, LineSpec] = {
     "capability": _l("What Emma can help with, casual, then an open question. 'I can tell you about the "
                      "clinic, our services, doctors, prices and timings, and book, change or cancel "
                      "appointments. What would you like to know?'", cache=True),
-    "capability.who": _l("'Who are you?' 'This is Emma at Pearl Dental.' + the capability sentence. Never "
+    "capability.who": _l(f"'Who are you?' 'This is Emma at {config.CLINIC_SHORT_NAME}.' + the capability sentence. Never "
                          "claims to be human and never raises what she is unprompted."),
     "offer.help": _l("Occasional soft steer after answering. 'If you'd like, I can book that for you too.' "
                      "No question mark needed.", cache=True),
@@ -115,7 +115,7 @@ LINES: dict[str, LineSpec] = {
                         "where we call and message you. Do you have one?'", critical=True),
     "late.ack": _l("A patient running late. 'No problem, thanks for letting us know. I'll tell the front desk "
                    "you're running late. Anything else?'", critical=True),
-    "wrong_number": _l("Not for this clinic. 'This is Pearl Dental, a dental clinic, so I think you may have the "
+    "wrong_number": _l(f"Not for this clinic. 'This is {config.CLINIC_SHORT_NAME}, a dental clinic, so I think you may have the "
                        "wrong number. Take care!'", critical=True),
     "vendor.ack": _l("A sales or business call. 'Thanks for calling. I'll pass your details to our clinic manager, "
                      "who'll get back to you if it's of interest. Have a good day!'", critical=True),
@@ -350,9 +350,9 @@ VARIANTS: dict[str, tuple] = {
                    "and book, change or cancel appointments. What would you like to know?",
                    "I can help with anything about the clinic, like our services, doctors, prices and "
                    "timings, and I can book, change or cancel appointments. What would you like to do?"),
-    "capability.who": ("This is Emma at Pearl Dental. I can tell you about the clinic, our services, doctors, "
+    "capability.who": (f"This is Emma at {config.CLINIC_SHORT_NAME}. I can tell you about the clinic, our services, doctors, "
                        "prices and timings, and book, change or cancel appointments.",
-                       "I'm Emma from Pearl Dental. I can answer questions about the clinic, and book, change "
+                       f"I'm Emma from {config.CLINIC_SHORT_NAME}. I can answer questions about the clinic, and book, change "
                        "or cancel appointments for you. What can I do for you?"),
     "offer.help": ("If you'd like, I can book that for you too.", "I can book you in as well, if you like.",
                    "Happy to set up an appointment too, whenever you're ready."),
@@ -414,8 +414,8 @@ VARIANTS: dict[str, tuple] = {
     "late.ack": ("No problem, thanks for letting us know. I'll tell the front desk you're running late. "
                  "Anything else?",
                  "That's okay, I'll let the team know you're on your way. Is there anything else?"),
-    "wrong_number": ("This is Pearl Dental, a dental clinic, so I think you may have the wrong number. Take care!",
-                     "Ah, you've reached Pearl Dental, the dental clinic. I think it's a wrong number. Have a good day!"),
+    "wrong_number": (f"This is {config.CLINIC_SHORT_NAME}, a dental clinic, so I think you may have the wrong number. Take care!",
+                     f"Ah, you've reached {config.CLINIC_SHORT_NAME}, the dental clinic. I think it's a wrong number. Have a good day!"),
     "vendor.ack": ("Thanks for calling. I'll pass your details to our clinic manager, who'll get back to you if it's "
                    "of interest. Have a good day!",
                    "Thank you. I'll let our clinic manager know you called, and they'll be in touch if it's a fit. "

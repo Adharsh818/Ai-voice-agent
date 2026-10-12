@@ -27,6 +27,7 @@ import httpx
 import websockets
 
 import logredact
+import usage
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,7 @@ class ElevenLabsTTS:
         url = f"{ELEVENLABS_API_URL}/{self.voice_id}/stream"
         headers = {"xi-api-key": self.api_key, "Content-Type": "application/json"}
         payload = {"text": text, "model_id": self.model_id, "voice_settings": self.voice_settings}
+        usage.add("tts_chars", len(text.strip()))
         params = {"output_format": self.output_format}
         try:
             async with client.stream("POST", url, headers=headers, json=payload, params=params) as response:
@@ -240,6 +242,7 @@ class ElevenLabsStreamTTS:
         try:
             await self._send({"text": " ", "context_id": cid, "voice_settings": self.voice_settings})
             await self._send({"text": text.strip() + " ", "context_id": cid})
+            usage.add("tts_chars", len(text.strip()))
             await self._send({"context_id": cid, "flush": True})
             # Closing right after the flush lets the server finish this audio and
             # then report isFinal, which ends the stream.

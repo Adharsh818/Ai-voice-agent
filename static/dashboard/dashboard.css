@@ -389,3 +389,9 @@ dialog::backdrop { background: rgba(10, 14, 20, 0.45); }
 .call-switcher .chip { border: 1px solid var(--border); background: transparent; color: inherit; border-radius: 999px;
   padding: 3px 10px; font: inherit; font-size: 12px; cursor: pointer; }
 .call-switcher .chip.active { border-color: var(--accent, #2dd4bf); }
+
+/* Alerts banner (alerts.py), under the tabs on every page. */
+.alerts { padding: 0 16px 8px; }
+.alert-line { margin: 6px 0 0; padding: 8px 12px; border-radius: 8px; font-size: 14px; }
+.alert-line.error { background: var(--danger-soft); color: var(--danger); }
+.alert-line.warn { background: var(--warn-soft); color: var(--warn); }

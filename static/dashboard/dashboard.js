@@ -218,6 +218,15 @@ async function refreshOverview() {
   chipSync.classList.toggle("alert", failed > 0);
   chipSync.replaceChildren("Calendar ", el("strong", { text: `${failed} failed` }));
   updateCallChip(data.call);
+  renderAlerts(data.alerts || []);
+}
+
+// Problems the server found (alerts.py): a speech service down, calendar sync stuck, a call line stuck.
+function renderAlerts(alerts) {
+  const box = $("alerts");
+  box.hidden = alerts.length === 0;
+  box.replaceChildren(...alerts.map((a) => el("p", { class: `alert-line ${a.level}`,
+    text: `${a.text} (since ${fmtDateTime(a.since)})` })));
 }
 
 function updateCallChip(call) {
@@ -1060,7 +1069,10 @@ async function loadPerformance() {
       row("Fallback, model too slow or down", (c) => `${c.fallback} (${pct(c.fallback, c.model + c.fallback)} of model turns)`),
       row("Simple reply, typical / slowest 5%", (c) => `${sec(c.simple_p50_ms)} / ${sec(c.simple_p95_ms)}`),
       row("Model reply, typical / slowest 5%", (c) => `${sec(c.model_p50_ms)} / ${sec(c.model_p95_ms)}`),
-      row("Of that, deciding the caller finished", (c) => sec(c.end_of_speech_p50_ms)))));
+      row("Of that, deciding the caller finished", (c) => sec(c.end_of_speech_p50_ms)),
+      row("Estimated cost per call (7-day total)", (c) => (c.metered_calls
+        ? `$${c.cost_per_call_usd.toFixed(3)} ($${c.cost_total_usd.toFixed(2)}, ${c.metered_calls} calls)`
+        : "–")))));
 }
 
 async function loadSystem() {

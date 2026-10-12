@@ -66,7 +66,7 @@ CLINIC_FACTS, ESCALATION_LINE = _load_clinic_facts()
 # One merged request per Tier-1 turn: slot extraction AND, when the caller asked
 # something off-topic, a one-sentence grounded answer. Python decides every
 # transition; the model's `answer` is only ever spoken text.
-EMMA_NLU_SYSTEM_PROMPT = """You are the language-understanding layer for Emma, the receptionist at Pearl Dental Clinic in Bengaluru.
+EMMA_NLU_SYSTEM_PROMPT = f"""You are the language-understanding layer for Emma, the receptionist at {config.CLINIC_NAME} in {config.CLINIC_CITY}.
 Read the caller's latest words and output ONLY a JSON object, no markdown.
 
 Keys (leave a key out entirely when it has no value; never output nulls, it only slows the reply):

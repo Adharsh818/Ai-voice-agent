@@ -418,6 +418,19 @@ class RescheduleCancelTests(EngineTestCase):
             r = sch.reschedule(self.conn, self.id, doctor_id=1, start=at(MON, 12), idem_key="c")
             self.assertTrue(r.ok, r.code)
 
+    def test_prune_drops_expired_holds_and_past_claims_only(self):
+        count = lambda sql: self.conn.execute(sql).fetchone()[0]
+        with clock.frozen(datetime(2026, 10, 5, 9, 0)):             # before Monday's 10:00: nothing to prune
+            slot = sch.find_slots(self.conn, service="Consultation", dates=[TUE], branch_ids=[1], limit=1)[0]
+            self.assertIsNotNone(sch.hold(self.conn, slot, "call-x"))
+            self.assertEqual(sch.prune(self.conn), {"expired_holds": 0, "past_claims": 0})
+        with clock.frozen(datetime(2026, 10, 7, 9, 0)):             # Wednesday: Monday's cells are old, the hold expired
+            out = sch.prune(self.conn)
+        self.assertEqual(out["expired_holds"], 1)
+        self.assertGreater(out["past_claims"], 0)
+        self.assertEqual(count("SELECT COUNT(*) FROM slot_holds"), 0)
+        self.assertEqual(count("SELECT COUNT(*) FROM appointments WHERE id = '%s'" % self.id), 1)
+
     def test_reschedule_retry_is_harmless(self):
         first = sch.reschedule(self.conn, self.id, doctor_id=1, start=at(TUE, 10), idem_key="mv1")
         again = sch.reschedule(self.conn, self.id, doctor_id=1, start=at(TUE, 10), idem_key="mv1")
@@ -450,7 +463,8 @@ class DatabaseAndSeedTests(unittest.TestCase):
     def test_migrations_are_idempotent_and_pragmas_set(self):
         with tempfile.TemporaryDirectory() as tmp:
             conn = db.connect(os.path.join(tmp, "x.db"))
-            self.assertEqual(db.migrate(conn), ["001_init", "002_recovery_full", "003_call_channel", "004_patient_messages", "005_staff_users"])
+            self.assertEqual(db.migrate(conn), ["001_init", "002_recovery_full", "003_call_channel", "004_patient_messages", "005_staff_users",
+                                                 "006_call_usage"])
             self.assertEqual(db.migrate(conn), [])
             self.assertEqual(conn.execute("PRAGMA journal_mode").fetchone()[0], "wal")
             self.assertEqual(conn.execute("PRAGMA foreign_keys").fetchone()[0], 1)

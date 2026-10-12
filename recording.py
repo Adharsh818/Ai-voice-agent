@@ -238,6 +238,10 @@ async def purge_loop(interval_h: Optional[float] = None):
             other = await db.get_db().run(privacy.purge_personal)
             if any(other.values()):
                 logger.info("Personal data purge: %s", other)
+            import scheduling
+            pruned = await db.get_db().run(scheduling.prune)
+            if any(pruned.values()):
+                logger.info("Scheduling housekeeping: %s", pruned)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
