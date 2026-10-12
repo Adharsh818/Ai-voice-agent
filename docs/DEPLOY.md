@@ -6,7 +6,7 @@ Emma runs on Windows for development. For a server (a cloud VM, a clinic PC runn
 |---|---|
 | `deploy/install.sh` | Installs or updates Emma in `/opt/emma`: packages, a system user, the Python environment, the services, Caddy |
 | `deploy/emma.service` | systemd unit: restarts on failure, hardened (no new privileges, read-only system, write access only to Emma's own folders), loopback only |
-| `deploy/Caddyfile` | HTTPS front door: automatic certificates, WebSockets and the dashboard's live events passed through unbuffered, `/telephony/*` refused from outside |
+| `deploy/Caddyfile` | HTTPS front door: automatic certificates, WebSockets and the dashboard's live events passed through unbuffered, `/telephony/*`, `/health` and `/metrics` refused from outside (12 Oct; check them on the machine at `http://127.0.0.1:8000/health`) |
 | `deploy/emma-backup.service` + `.timer` | Daily database backup at 02:30 (`tools/backup.py`), a missed run catches up at boot |
 
 ## Install

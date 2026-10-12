@@ -33,50 +33,50 @@ Tier 0 = Emma's own rules, 1 = the model (Gemini), 2 = fallback when the model i
 
 ## Dashboard
 
-- **D1** Calls tab shows internal outcome codes (`abandoned@ask_name`); show plain words ("Hung up while giving name").
-- **D2** No browser/phone column on calls (the turn log has it from 11 Oct).
-- **D3** Nothing on the dashboard shows latency or tiers; add a "How Emma is doing" panel (last 7 days: reply time, share answered by rules / model / fallback, by channel).
-- **D4** Transcript turns show "tier -1" etc.; label them (greeting, rules, model, fallback).
-- **D5** Audit log shows appointment hashes (`appointment 753b50db…`); show patient, time, branch.
-- **D6** `needs_reschedule` count has no date filter (`dashboard.py:159`): past ones count forever.
-- **D7** Appointments never become `completed` / `no_show`; add buttons (and a nightly "past and still booked" list).
-- **D8** A closed day (Sunday) shows an empty list with no "closed" note.
+- [x] **D1** Calls tab shows internal outcome codes (`abandoned@ask_name`); show plain words ("Hung up while giving name"). *Done: e3b9a94.*
+- [x] **D2** No browser/phone column on calls (the turn log has it from 11 Oct). *Done: e3b9a94.*
+- [x] **D3** Nothing on the dashboard shows latency or tiers; add a "How Emma is doing" panel (last 7 days: reply time, share answered by rules / model / fallback, by channel). *Done: e3b9a94.*
+- [x] **D4** Transcript turns show "tier -1" etc.; label them (greeting, rules, model, fallback). *Done: e3b9a94.*
+- [x] **D5** Audit log shows appointment hashes (`appointment 753b50db…`); show patient, time, branch. *Done: e3b9a94.*
+- [x] **D6** `needs_reschedule` count has no date filter (`dashboard.py:159`): past ones count forever. *Done: e3b9a94.*
+- [x] **D7** Appointments never become `completed` / `no_show`; add buttons (and a nightly "past and still booked" list). *Done: e3b9a94.*
+- [x] **D8** A closed day (Sunday) shows an empty list with no "closed" note. *Done: e3b9a94.*
 
 ## P0: would break or embarrass in a real clinic
 
-- **C1 One call at a time** (`server.py` `CallGate`): a second caller gets "busy"; a recovery campaign blocks inbound calls.
-- **C2 Recovery calls ring one fixed phone** (`TELEPHONY_PATIENT_PHONE`), not the patient's number (needs a trunk, P1-13).
-- **C3 Closed hours**: urgent callers hear "let's get you seen today" at 22:40; no "we're closed now"; no after-hours advice; "are you open now?" recites weekly hours.
-- **C4 Bleeding ends the call with "call 108"**: post-extraction bleeding is the commonest post-op call; it should be first aid + urgent slot, with 108 only for red flags.
-- **C5 Post-treatment complaints become new bookings** ("I had an extraction yesterday…" → "that date's passed"). Needs a follow-up intent.
-- **C6 Names captured from sentences**: "I'm stuck in traffic" → "Nice to meet you, Stuck"; "this is Dr Rao, I'm not coming" → "Dr Rao I'M".
-- **C7 "Running late"** starts a new booking.
-- **C8 Bookings made outside Emma** (walk-ins, paper diary) are invisible; the dashboard's "New appointment" must be the diary.
-- **C9 Spoken hours vs rota**: "our timings are 7 to 9" while 8:30 pm can't be booked; hours live in three places (config, clinic_facts.json, rota).
+- [x] **C1 One call at a time** (`server.py` `CallGate`): a second caller gets "busy"; a recovery campaign blocks inbound calls. *Done: 9a5dd4b, up to 3 lines.*
+- [ ] **C2 Recovery calls ring one fixed phone** (`TELEPHONY_PATIENT_PHONE`), not the patient's number (needs a trunk, P1-13). *Open: code ready (TELEPHONY_TRUNK_DIAL, docs/TRUNK.md); needs a SIP trunk account (T1).*
+- [x] **C3 Closed hours**: urgent callers hear "let's get you seen today" at 22:40; no "we're closed now"; no after-hours advice; "are you open now?" recites weekly hours. *Done: closed-now line, after-hours advice, first open day.*
+- [x] **C4 Bleeding ends the call with "call 108"**: post-extraction bleeding is the commonest post-op call; it should be first aid + urgent slot, with 108 only for red flags. *Done: first aid + urgent slot; 108 only for red flags.*
+- [x] **C5 Post-treatment complaints become new bookings** ("I had an extraction yesterday…" → "that date's passed"). Needs a follow-up intent. *Done: past treatment dates aren't booking days.*
+- [x] **C6 Names captured from sentences**: "I'm stuck in traffic" → "Nice to meet you, Stuck"; "this is Dr Rao, I'm not coming" → "Dr Rao I'M". *Done: names only from name-shaped answers.*
+- [x] **C7 "Running late"** starts a new booking. *Done: late patients told it's fine, no new booking.*
+- [x] **C8 Bookings made outside Emma** (walk-ins, paper diary) are invisible; the dashboard's "New appointment" must be the diary. *Done: dashboard "New appointment" is the diary for walk-ins and phone bookings.*
+- [x] **C9 Spoken hours vs rota**: "our timings are 7 to 9" while 8:30 pm can't be booked; hours live in three places (config, clinic_facts.json, rota). *Done: hours say "depending on the branch"; closures from the dashboard (S3).*
 
 ## P1: needed to sell this
 
-- **K1 Clinic knowledge** (research): crowns, dentures, gum treatment, X-ray and kids' preventive prices; after-care; medical conditions (diabetes, BP, blood thinners, pregnancy: "tell the doctor, don't stop medicines"); child's first visit; elderly patients; second opinions; records copies; written estimates; warranties; EMI over ~10,000; insurance detail (OPD/reimbursement only); wheelchair access per branch; red-flag emergencies. Price corrections: extraction, implant lower bound, aligners. All need the owner's sign-off (decision R8: Emma speaks only verified facts).
-- **K2 Doctor profiles**: degrees (BDS / MDS specialty), years, languages, memberships; "who's best for my kid" → the pediatric dentists. Never "best" (DCI ethics 8.2.7); "specialist" only for MDS holders.
-- **K3 "Can you do X?"** misses treat/remove/fix verbs (`facts._DO_YOU_DO`).
-- **K4 Other callers**: wrong number, sales/vendor, staff or doctor calling, records/bill/prescription requests: polite handling + a task.
-- **F1 Family bookings**: second person in the same call loops; the per-phone cap of 3 blocks families and multi-sitting treatment.
-- **F2 Kannada/Hindi callers** get no next step; always offer a callback and create a language task.
-- **F3 Urgent callers who don't book leave no task.**
-- **F4 Doctor on leave** is described as "fully booked"; say she's away and offer a colleague.
-- **T1 Real phone number** (Exotel / Twilio India / Plivo SIP trunk); today it's a laptop's Asterisk with softphones.
-- **T2 WhatsApp/SMS confirmations and reminders** (DLT-registered templates for SMS).
-- **S1 DPDP Act 2023**: notice, retention beyond transcripts (audit JSON, actions, patients), erase-by-phone, breach runbook, `LOG_CALLER_TEXT=false` default.
-- **S2 Per-staff logins and roles**; audit says "staff" for everyone.
-- **S3 Config without code**: clinic hours, closures/holidays (Diwali etc. unknown today), doctors, rotas from the dashboard.
+- [x] **K1 Clinic knowledge** (research): crowns, dentures, gum treatment, X-ray and kids' preventive prices; after-care; medical conditions (diabetes, BP, blood thinners, pregnancy: "tell the doctor, don't stop medicines"); child's first visit; elderly patients; second opinions; records copies; written estimates; warranties; EMI over ~10,000; insurance detail (OPD/reimbursement only); wheelchair access per branch; red-flag emergencies. Price corrections: extraction, implant lower bound, aligners. All need the owner's sign-off (decision R8: Emma speaks only verified facts). *Done: 746cbf3; prices marked demo until the owner signs off.*
+- [x] **K2 Doctor profiles**: degrees (BDS / MDS specialty), years, languages, memberships; "who's best for my kid" → the pediatric dentists. Never "best" (DCI ethics 8.2.7); "specialist" only for MDS holders. *Done: 746cbf3.*
+- [x] **K3 "Can you do X?"** misses treat/remove/fix verbs (`facts._DO_YOU_DO`). *Done: 746cbf3.*
+- [x] **K4 Other callers**: wrong number, sales/vendor, staff or doctor calling, records/bill/prescription requests: polite handling + a task. *Done: wrong numbers, vendors, staff, records requests.*
+- [x] **F1 Family bookings**: second person in the same call loops; the per-phone cap of 3 blocks families and multi-sitting treatment. *Done: 7dfed64.*
+- [x] **F2 Kannada/Hindi callers** get no next step; always offer a callback and create a language task. *Done: 29880be.*
+- [x] **F3 Urgent callers who don't book leave no task.** *Done: urgent hang-ups make a task.*
+- [x] **F4 Doctor on leave** is described as "fully booked"; say she's away and offer a colleague. *Done: doctor on leave said, colleague offered.*
+- [ ] **T1 Real phone number** (Exotel / Twilio India / Plivo SIP trunk); today it's a laptop's Asterisk with softphones. *Open: guide in docs/TRUNK.md; needs the owner to open an account.*
+- [x] **T2 WhatsApp/SMS confirmations and reminders** (DLT-registered templates for SMS). *Done: notify.py ready, log-only until a provider is set up (docs/NOTIFICATIONS.md).*
+- [x] **S1 DPDP Act 2023**: notice, retention beyond transcripts (audit JSON, actions, patients), erase-by-phone, breach runbook, `LOG_CALLER_TEXT=false` default. *Done: 8d26bdf.*
+- [x] **S2 Per-staff logins and roles**; audit says "staff" for everyone. *Done: 4a28406.*
+- [ ] **S3 Config without code**: clinic hours, closures/holidays (Diwali etc. unknown today), doctors, rotas from the dashboard. *Open: closures and holidays done (bc1c322); hours, doctors and rotas still come from config and the seed.*
 
 ## P2: SaaS readiness and polish
 
-- Multi-tenancy (one process + DB + config per clinic first; `clinic_id` later); "Pearl Dental" is hard-coded in greetings, prompts, keyterms.
-- Cost metering per call; alerting on degraded health, failed sync, stuck call slot; `/health` and `/metrics` are public behind Caddy.
-- `/ws/voice` public in production spends API credit: gate it.
-- `deploy/install.sh` should generate `DASHBOARD_SESSION_SECRET`.
+- [ ] Multi-tenancy (one process + DB + config per clinic first; `clinic_id` later); "Pearl Dental" is hard-coded in greetings, prompts, keyterms. *Open: one deployment per clinic: name from .env (c2c37f3); a shared `clinic_id` database is later.*
+- [x] Cost metering per call; alerting on degraded health, failed sync, stuck call slot; `/health` and `/metrics` are public behind Caddy. *Done: c2c37f3: cost per call, alerts (alerts.py); /health and /metrics refused by Caddy.*
+- [x] `/ws/voice` public in production spends API credit: gate it. *Done: 0a974ee, the talk page needs a staff login.*
+- [x] `deploy/install.sh` should generate `DASHBOARD_SESSION_SECRET`. *Done: installer writes it.*
 - [x] Booking edge cases (12 Oct): two branches without travel time (90-min buffer, also when offering times); one name spelled two ways is one patient (identical sound-alike key only: Adarsh/Adharsh merge, Arun/Arjun don't; a real mishearing like Adesh/Adharsh still makes two); a child's age asked once for "my son/daughter"; foreign numbers told plainly; landlines read back as STD code + number (080 numbers as the caller said them); "today" pinned to the call's start day; inside the 2-hour notice a move later the same day with the same doctor (30 min ahead at least), anything else a callback.
-- The honesty line "Yeah, you caught me…" implies hiding; NORTH_STAR's example is neutral.
-- Prune `actions`, old `slot_claims`, expired holds; retire the legacy 12-step engine.
-- Research flags: Dr Ali (extractions + braces + Invisalign) is unrealistic, make him an oral surgeon or move braces; OPG at every branch is unlikely; say "clear aligners, including Invisalign".
+- [ ] The honesty line "Yeah, you caught me…" implies hiding; NORTH_STAR's example is neutral. *Open: the owner's locked decision (R-list); waits for the owner.*
+- [ ] Prune `actions`, old `slot_claims`, expired holds; retire the legacy 12-step engine. *Open: pruning done (c2c37f3); retiring the legacy engine proposed as its own session.*
+- [x] Research flags: Dr Ali (extractions + braces + Invisalign) is unrealistic, make him an oral surgeon or move braces; OPG at every branch is unlikely; say "clear aligners, including Invisalign". *Done: 746cbf3 (Dr Ali an oral surgeon; OPG at two branches; clear aligners wording).*
