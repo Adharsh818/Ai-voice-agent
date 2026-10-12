@@ -229,7 +229,7 @@ async def lifespan(app: FastAPI):
     background.append(asyncio.create_task(app.state.runner.run()))
     # Alerts for staff: a speech service down, calendar sync stalled, a call line stuck (alerts.py).
     background.append(asyncio.create_task(alerts.loop(
-        _services, app.state.db, app.state.gate, lambda: bool(calendar_sync.status().get("enabled")))))
+        _service_health, app.state.db, app.state.gate, lambda: bool(calendar_sync.status().get("enabled")))))
     # Phone calls through Asterisk (audiosocket.py), when switched on in .env.
     app.state.audiosocket = None
     if config.TELEPHONY_ENABLED:
@@ -826,7 +826,7 @@ def _db_summary(conn) -> dict:
     }
 
 
-async def _services() -> dict:
+async def _service_health() -> dict:
     """Each speech service usable (keys set; the model not reported unavailable)."""
     return {
         "gemini": bool(config.GEMINI_API_KEY) and llm.get_nlu().available is not False,
@@ -838,7 +838,7 @@ async def _services() -> dict:
 @app.get("/health")
 async def health():
     nlu = llm.get_nlu()
-    services = await _services()
+    services = await _service_health()
     return {
         "status": "ok" if all(services.values()) else "degraded",
         **services,
