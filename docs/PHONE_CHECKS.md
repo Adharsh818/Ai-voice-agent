@@ -2,6 +2,8 @@
 
 What only a real call can show. Claude runs the PC side and reads the logs; the owner holds the phone. Fill in the **Result** column as you go; Claude copies the results into [TELEPHONY.md](TELEPHONY.md).
 
+**Results so far (12 Oct, evening):** 1 greeting and "Hi": pass after fixes (an instant hello; a crash at call start fixed first). 2 interrupting: pass. 3 keypad: digits don't reach Emma (Asterisk 20.6); callers say the number. Line quality on a phone hotspot: broke up; network measured and mitigated (TELEPHONY.md). 4, 5, 8: still to do; 6, 7: between 9 am and 8 pm.
+
 Already answered without a call (12 Oct): Asterisk 20.6 sends 8 kHz audio only (its AudioSocket module is fixed to `SLINEAR`), so there is no 16 kHz check to do.
 
 ## Before you start (5 minutes)
