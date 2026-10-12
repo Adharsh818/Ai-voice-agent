@@ -27,6 +27,8 @@ FIXED_SENTENCES = [
     # greeting / step 1
     "Sure, I can help with that.", "May I have your full name, please?",
     "Sure.", "Would you like to book a visit?", "Hi there!", "How can I help you today?",
+    # a bare "Hi" after the greeting (dialogue/engine.py _hello_back): instant, from the cache
+    "Hi!", "Hello!", "What can I do for you?", "How can I help?", "I'm good, thanks!",
     "No problem at all.", "Just give us a call whenever you're ready.", "Take care!",
     # name / purpose
     "Thanks!", "And what can I do for you today?", "What can I do for you today?", "Sorry about that.",

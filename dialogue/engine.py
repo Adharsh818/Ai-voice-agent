@@ -131,6 +131,9 @@ async def _process_turn(ctx: CallContext, text: str, progress: Optional[Callable
     if not text and not ctx.greeted:
         return _greet(ctx, goal_before)
 
+    hello = _hello_back(ctx, text)
+    if hello is not None:
+        return hello
     text = _answer_to_greeting(ctx, text)
     if text == _ASK_WHAT_TO_KNOW:
         return _say_line(ctx, goal_before, Goal.ASK_INTENT,
@@ -473,6 +476,39 @@ def _answer_to_greeting(ctx: CallContext, text: str) -> str:
     if len(text.split()) <= 4 and safe_call(match.parse_yes_no, text, default=None) == "yes":
         return _GREETING_YES[offer]
     return text
+
+
+_HELLO_ONLY = re.compile(
+    r"^(?:(?:hi|hello|hey|hai|hallo|namaste|good (?:morning|afternoon|evening))(?:\s+there)?"
+    r"(?:\s+(?:emma|ma'?am|madam))?[\s,.!]*)+$")
+_HOW_ARE_YOU_ONLY = re.compile(
+    r"^(?:(?:hi|hello|hey|hai|namaste|good (?:morning|afternoon|evening))(?:\s+(?:there|emma|ma'?am|madam))?[\s,.!]*)*"
+    r"how (?:are|r) (?:you|u)(?: doing)?(?: today)?[\s,.!?]*$")
+HELLO_LINES = ("Hi! What can I do for you?", "Hello! How can I help?")
+HOW_ARE_YOU_LINE = "I'm good, thanks! What can I do for you?"
+
+
+def _hello_back(ctx: CallContext, text: str) -> Optional[TurnOutput]:
+    """
+    "Hi." straight after Emma's greeting (phone check, 12 Oct): a warm hello at
+    once from the prompt cache, never "Okay" while the model is asked and then
+    "Hello there. How can I help you today?" 1.5-3.6 s later.
+    """
+    if ctx.pending != Goal.GREET or not text:
+        return None
+    t = text.strip().lower()
+    if _HOW_ARE_YOU_ONLY.match(t):
+        line = HOW_ARE_YOU_LINE
+    elif _HELLO_ONLY.match(t):
+        line = random.choice(HELLO_LINES)
+    else:
+        return None
+    goal_before = _value(ctx.pending)
+    ctx.greeting_offer = None
+    out = _say_line(ctx, goal_before, Goal.ASK_INTENT, line)
+    if len(ctx.history) >= 2 and ctx.history[-2] == {"role": "user", "content": "yes"}:
+        ctx.history[-2]["content"] = text                # the caller's own words, not _say_line's "yes"
+    return out
 
 
 def _say_line(ctx: CallContext, goal_before: Optional[str], goal: Goal, line: str) -> TurnOutput:
