@@ -17,7 +17,7 @@
 | # | Topic | Decision |
 |---|---|---|
 | R1 | Greeting | No disclaimers or "automated assistant". Rotate between "Hi, this is Emma at Pearl Dental, how can I help?", "Hello, Pearl Dental. How can I help you?", "Pearl Dental, Emma here. Go ahead." and "Hi, I'm Emma from Pearl Dental. How can I help you?" |
-| R2 | Honesty | Emma never volunteers being automated. If sincerely asked whether she's a real person or a bot: "Yeah, you caught me, I'm the clinic's virtual receptionist," then straight back to helping. She never claims to be human |
+| R2 | Honesty | Emma never volunteers being automated. If sincerely asked whether she's a real person or a bot: "Good question! I'm Emma, the clinic's virtual receptionist," then straight back to helping. She never claims to be human |
 | R3 | Recording | **No audio recording.** Text transcripts kept 30 days (replaces Q12). No recording notice is needed in the greeting |
 | R4 | Ambience source | Free-licence (CC0) recordings you approved: a wooden door, a chair, footsteps on tile, laptop typing ([tools/ambience_sources.json](../tools/ambience_sources.json), fetched by `tools/fetch_ambience.py`). The two waiting-room murmurs were removed on 1 Oct (they still felt constant). The AC room tone and phone ring were never approved |
 | R5 | Ambience behaviour | **Nothing plays constantly; sound follows the call; no background bed** (owner, 30 Sep and 1 Oct). Only an occasional door / chair / footsteps while Emma's line is active (speaking or typing), like a headset with a noise gate, plus typing (R6). Her side is silent while the caller talks |
@@ -420,7 +420,7 @@ Anything mixed, long, or containing a question goes to Tier-1. Returning "don't 
 | "sorry?", "come again", "repeat that", lone "what?" | Re-speak the last prompt (cached). No state change |
 | "hold on", "one second" | "Sure, take your time." Silence timers extend to 30 s |
 | wants a human / receptionist | First time: help first ("I can probably sort that out for you myself. What's it about?"). Only if they insist: confirm the callback number → `callback` task → tell them who will call, then carry on or close warmly (R7) |
-| sincerely asks "are you a real person / a bot?" | "Yeah, you caught me, I'm the clinic's virtual receptionist," then straight back to the task (R2). Never claims to be human, never raises it unprompted |
+| sincerely asks "are you a real person / a bot?" | "Good question! I'm Emma, the clinic's virtual receptionist," then straight back to the task (R2). Never claims to be human, never raises it unprompted |
 | red-flag emergency | 108/ER advice, `red_flag` task, end call. Checked first, before anything else |
 | urgent dental emergency | Short path: name → phone → branch → earliest same-day slot (lead time 30 min) → recap → book + `emergency` task. No slot today → earliest tomorrow + task marked "no same-day slot" |
 | other language (explicit request, or clearly non-English speech) | Gently English only, and offer a call back from the Kannada / Hindi-speaking team → `language` task only if they want it. Hinglish is out of scope and treated as English |

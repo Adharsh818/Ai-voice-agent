@@ -30,7 +30,8 @@ TIME_GREETINGS = {
     "afternoon": f"Good afternoon, Emma at {CLINIC_SHORT_NAME} here. How can I help?",
     "evening": f"Good evening, this is Emma at {CLINIC_SHORT_NAME}. How can I help?",
 }
-HONEST_LINE = "Yeah, you caught me, I'm the clinic's virtual receptionist."
+# Owner, 12 Oct: warm, slightly playful, never sounding as if she was hiding it (was "Yeah, you caught me").
+HONEST_LINE = "Good question! I'm Emma, the clinic's virtual receptionist."
 
 # Browser demo realism (R1, R5, R6). No background bed: only an occasional door,
 # chair or footsteps while Emma's line is active, and typing (static/ambience.js).

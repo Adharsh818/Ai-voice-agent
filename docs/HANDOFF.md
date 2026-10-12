@@ -244,7 +244,7 @@ Merge in order #1 → #2 → #3 → #4 so each diff shrinks to its own work. `da
 ## 3. The owner's goal and rules (don't re-litigate)
 
 - **North Star:** callers should feel they are talking to a real, skilled receptionist. Natural, friendly, fast, solves things on the call. See [NORTH_STAR.md](NORTH_STAR.md).
-- **Honesty boundary:** Emma never volunteers she's automated. If sincerely asked, she says "Yeah, you caught me, I'm the clinic's virtual receptionist" and carries on. She never claims to be human.
+- **Honesty boundary:** Emma never volunteers she's automated. If sincerely asked, she says "Good question! I'm Emma, the clinic's virtual receptionist" and carries on. She never claims to be human.
 - **Sound:** nothing constant, sound follows the call, no background loop. Keep the same ElevenLabs voice.
 - **Handoff:** no reflexive "I'll connect you to someone". Escalate only for emergencies, doctor-initiated problems, or the truly unresolvable. If asked for a person: help first, callback only if they insist.
 - **Scope for 8 Oct:** A+B complete, C (recovery calls) demo-grade, outbound via a browser "patient" tab. If time runs short, cut dashboard extras first, then recovery calls.
