@@ -19,6 +19,11 @@
 	@telephony path /telephony/*
 	respond @telephony 404
 
+	# Service status, call ids and timings are for the machine itself (tools/preflight.py and
+	# monitoring use http://127.0.0.1:8000/health directly); staff see them on the dashboard.
+	@internal path /health /metrics
+	respond @internal 404
+
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		-Server
