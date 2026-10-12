@@ -166,6 +166,8 @@ class PhoneTransport:
         self._reports: asyncio.Queue = asyncio.Queue()
         self._tasks: list = []
         self.frames_sent = 0
+        self.late_frames = 0                     # sent over 40 ms after their slot (Emma's clock fell behind)
+        self.max_late_ms = 0.0
 
     def attach(self, session):
         """Start the playout clock for `session` (its on_control receives the playback reports)."""
@@ -296,6 +298,10 @@ class PhoneTransport:
                     await self.writer.drain()
                 due += FRAME_S
                 now = loop.time()
+                late = (now - due) * 1000
+                if late > 40:
+                    self.late_frames += 1
+                    self.max_late_ms = max(self.max_late_ms, late)
                 if now - due > LATE_RESET_S:
                     due = now                    # the loop stalled: carry on from now, no burst
                 await asyncio.sleep(max(0.0, due - now))
@@ -318,10 +324,30 @@ class PhoneCall:
         self._digits = ""
         self._digit_timer: Optional[asyncio.Task] = None
         self.rate: Optional[int] = None
+        self.frames_in = 0
+        self.gaps_in = 0                         # caller audio that arrived over 60 ms after the previous frame
+        self.max_gap_ms = 0.0
 
     async def run(self, session):
+        try:
+            await self._run(session, asyncio.get_running_loop())
+        finally:
+            # Where a breaking-up line comes from (phone check, 12 Oct): Emma's clock or the network.
+            logger.info("[%s] line timing: sent %d frames, %d late (worst %.0f ms); received %d, %d gaps "
+                        "(worst %.0f ms)", self.t.call_id, self.t.frames_sent, self.t.late_frames,
+                        self.t.max_late_ms, self.frames_in, self.gaps_in, self.max_gap_ms)
+
+    async def _run(self, session, loop):
+        last = None
         while not session.closed:
             kind, payload = await read_frame(self.reader)
+            now = loop.time()
+            if kind in (KIND_SLIN, KIND_SLIN16):
+                self.frames_in += 1
+                if last is not None and (now - last) * 1000 > 60:
+                    self.gaps_in += 1
+                    self.max_gap_ms = max(self.max_gap_ms, (now - last) * 1000)
+                last = now
             if kind == KIND_SLIN:
                 self.rate = self.rate or 8000
                 await session.on_audio(self._up.process(payload))
