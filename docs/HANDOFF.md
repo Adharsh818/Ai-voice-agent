@@ -17,7 +17,7 @@
 - For more clinics: name/city from `.env` (CLINIC_NAME, CLINIC_SHORT_NAME, CLINIC_CITY), cost per call on the dashboard (usage.py; set COST_* rates), alerts banner (alerts.py), housekeeping of holds and old slot claims, `/health` and `/metrics` refused from outside by Caddy; doctors, services and weekly hours edited on the dashboard (admins).
 - Latency measured 12 Oct (owner chose "measure first"): Gemini 1.3-1.9 s, inside the 2.2 s limit; the phone watchdog ends turns no later than Deepgram would. No change made.
 
-**Left:** retiring the legacy 12-step engine (proposed as its own session; live calls already use R2 via `R2_ENGINE=true` in `.env`); a real number (T1) and a message provider (T2) need the owner's accounts; the honesty line is the owner's call. Then Phase 3 live phone checks with the owner and Phase 7 final checks ([RESUME_HERE.md](RESUME_HERE.md)).
+**Left:** a real number (T1) and a message provider (T2) need the owner's accounts; the honesty line is the owner's call. Then Phase 3 live phone checks with the owner and Phase 7 final checks ([RESUME_HERE.md](RESUME_HERE.md)).
 
 ## ▶ Earlier: START HERE (8 Oct, after the demo)
 
