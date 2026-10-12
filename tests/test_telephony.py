@@ -208,6 +208,34 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await wait_until(lambda: any(r["turn"] == 2 and r["event"] == "ended"
                                                      for r in self.session.reports), 1))
 
+    async def test_a_live_line_waits_for_enough_audio_and_pauses_once_when_the_stream_is_behind(self):
+        # Phone check, 12 Oct: live lines over a mobile hotspot broke up with a 60 ms prebuffer.
+        t = PhoneTransport(_Writer(), "pb", "key", phone_audio.LineSounds(enabled=False))
+        await t.send_audio(1, tone(100))
+        for _ in range(3):
+            t.next_frame()
+        self.assertFalse(t._started)                          # 100 ms in hand: not yet (250 ms)
+        await t.send_audio(1, tone(300))
+        t.next_frame()
+        self.assertTrue(t._started)
+        while t._buf:
+            t.next_frame()
+        t.next_frame()                                        # ran dry mid-line (no audio_done yet)
+        self.assertEqual((t._starved, t._stalls), (True, 1))
+        await t.send_audio(1, tone(60))
+        before = len(t._buf)
+        t.next_frame()
+        self.assertEqual(len(t._buf), before)                 # 60 ms isn't enough to resume (150 ms)
+        await t.send_audio(1, tone(200))
+        t.next_frame()
+        self.assertFalse(t._starved)
+        self.assertEqual(len(t._buf), before + int(200 / 1000 * phone_audio.RATE) * 2 - 640)
+        await t.send_event({"type": "turn", "turn": 1, "phase": "audio_done"})
+        with self.assertLogs("audiosocket", "INFO") as logs:
+            while t._started:
+                t.next_frame()
+        self.assertIn("ran dry 1 time", logs.output[-1])
+
     async def test_transfer_route_is_set_before_the_socket_closes(self):
         self.session.s = type("S", (), {"transfer_requested": True})()
         await self.t.close()
