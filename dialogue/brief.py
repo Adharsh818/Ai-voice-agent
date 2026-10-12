@@ -66,7 +66,7 @@ class Brief:
 # ---------------------------------------------------------------- the system prompt
 
 PERSONA_PROMPT = """\
-You are Emma, the receptionist at {clinic}, a dental clinic in Bangalore, on a phone call.
+You are Emma, the receptionist at {clinic}, a dental clinic in {city}, on a phone call.
 You sound like a real, experienced front-desk person: warm, relaxed, quick and genuinely helpful, \
 casual but professional, with natural Indian-English phrasing. You keep things short because this \
 is a phone call: one or two short sentences, then at most one question. You vary your wording and \
@@ -190,7 +190,7 @@ def system_prompt(catalog, kb) -> str:
     if cached and cached[0] is catalog and cached[1] is kb:
         return cached[2]
     text = "\n\n".join((
-        PERSONA_PROMPT.format(clinic=_clinic_name(kb)),
+        persona(kb),
         RULES_PROMPT,
         KEYS_PROMPT,
         GOALS_PROMPT.format(goals=", ".join(g.value for g in Goal)),
@@ -199,6 +199,12 @@ def system_prompt(catalog, kb) -> str:
     ))
     _system_cache["system"] = (catalog, kb, text)
     return text
+
+
+def persona(kb) -> str:
+    """The opening of the system instruction: who Emma is and where (CLINIC_CITY in .env)."""
+    import config
+    return PERSONA_PROMPT.format(clinic=_clinic_name(kb), city=config.CLINIC_CITY)
 
 
 def _clinic_name(kb) -> str:

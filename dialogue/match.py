@@ -7,9 +7,8 @@ name matching, services / branches / doctors against the DB catalog, and the
 cut-off fragment detector. Returning None ("don't know") is always safe; a
 wrong answer is not, so every rule stays conservative (plan 5.5).
 
-Owner in Sprint 1b: E4 (with tier0.py). The yes/no parser moves here from
-ai_engine._parse_confirmation, unchanged in behaviour, so the new engine does
-not import the old one.
+Owner in Sprint 1b: E4 (with tier0.py). The yes/no parser came from the
+retired 12-step machine, unchanged in behaviour.
 """
 
 from __future__ import annotations
@@ -68,8 +67,7 @@ def _words(text: str) -> list:
 
 
 # ---------------------------------------------------------------- yes / no
-# Copied from ai_engine (not imported: the new engine never imports the old
-# one). tests/test_match.py pins parity with ai_engine._parse_confirmation.
+# From the retired 12-step machine's parser; tests/test_match.py pins its answers.
 
 # A few idioms are affirmative even though they contain a negative word. They are
 # matched first and win outright, so "no problem" is never heard as a refusal.
@@ -97,8 +95,8 @@ def parse_yes_no(text: str) -> Optional[str]:
     """
     "yes", "no" or None. Negation is tested before affirmation ("that's not
     right" is a no), affirmative idioms containing "no" are handled first
-    ("no problem"), and matching is word-bounded. Same behaviour as
-    ai_engine._parse_confirmation, which tests/test_booking_flow.py pins.
+    ("no problem"), and matching is word-bounded. tests/test_match.py
+    (YES_NO_CASES) pins the answers.
     """
     text = (text or "").lower().strip().replace("’", "'")
     if not text:

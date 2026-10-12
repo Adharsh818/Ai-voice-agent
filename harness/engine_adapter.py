@@ -3,24 +3,21 @@ The one place the harness touches the dialogue engine.
 
 Everything else in harness/ sees a conversation as caller words in, Emma's
 words out, plus the database. This module turns that into engine calls and
-back, so when the 12-step engine is replaced only this file changes.
+back, so an engine change touches only this file.
 
-It codes against the engine facade agreed for the rebuild and falls back to
-today's engine wherever a new name is missing:
+It codes against the engine facade (docs/R2_DESIGN.md, section 15):
 
-    ai_engine.new_session(call_id)        else ai_engine.SessionState()
-    async_process_turn(..., on_sentence)  passed only if the engine accepts it
+    ai_engine.new_session(call_id)        a dialogue CallContext per call
+    async_process_turn(..., on_sentence)  streamed sentences are checked against the reply
     TurnResult.action                     else inferred from the database diff
-    TurnResult.goal_before / goal_after   else None (step_before / step_after today)
+    TurnResult.goal_before / goal_after   the goal before and after the turn
     ai_engine.listening_hint(s)           else what Emma's last line asked (harness/lines.py)
-    ai_engine.expects_information(s, t)   recorded as the typing beat when present
+    ai_engine.expects_information(s, t)   recorded as the typing beat
     s.last_reply_heard                    set before every turn (False after a simulated barge-in)
 
-Engines (`engine=`):
-    None       whatever ai_engine.new_session() hands out (config.R2_ENGINE; off by default)
-    "legacy"   today's 12-step machine (ai_engine.SessionState), whatever the flag says
-    "r2"       the R2 engine (a dialogue CallContext), whatever the flag says; ai_engine
-               routes a turn by the session's type, so both run side by side
+Engines (`engine=`): None or "r2", the same thing. R2 is the only engine since
+the 12-step machine was retired (12 Oct 2026); "r2" is still accepted because
+the docs and old run ids use it.
 
 Modes:
     offline    the fake NLU (harness/fake_nlu.py) replaces the Gemini request and
@@ -29,15 +26,12 @@ Modes:
     live       real Gemini with the .env key; each model call is recorded so a
                quota or timeout failure is never blamed on the dialogue
 
-Offline mode plugs the fake NLU into both engines at once, so a run never
-depends on which one ai_engine routes to: today's through a patched
-ai_engine.async_extract_entities_with_llm, and the R2 one through
-ai_engine.install_test_nlu(reader) when it exists (reader(text, expect) ->
-fake_nlu reading dict; returns an uninstall callable or a context manager),
+Offline mode plugs the fake NLU in through ai_engine.install_test_nlu(reader)
+(reader(text, expect) -> fake_nlu reading dict; returns a context manager),
 else through nlu.use_backend with a backend that streams the fake reading in
 the R2 schema (docs/R2_DESIGN.md section 15).
 
-Each turn record also carries the R2 engine's own view when there is one:
+Each turn record also carries the engine's own view:
 TurnResult.entities, and the newest TurnTrace from s.trace (tier, acts,
 dropped validators, fallback). In live mode a turn whose trace says the model
 fell back counts as a failed model call (llm_ok False), like a 429.
@@ -78,7 +72,7 @@ MODES = ("offline", "live", "nlu_down")
 # so the report shows the real latency.
 LIVE_HEAD_DEADLINE_S = 4.0
 LIVE_REPLY_TIMEOUT_S = 6.0
-ENGINES = (None, "legacy", "r2")
+ENGINES = (None, "r2")
 # A free-tier key allows only a handful of requests a minute, and the R2
 # engine's one streamed request per turn has no time to wait out a 429 (its
 # head deadline is seconds). So a live run can pace itself: each worker
@@ -181,7 +175,7 @@ class EngineAdapter:
             raise ValueError(f"engine must be one of {ENGINES}")
         self.mode = mode
         self.engine = engine
-        self.engine_used: Optional[str] = None       # "r2" | "legacy", set by the runner from the session
+        self.engine_used: Optional[str] = None       # "r2", set by the runner from the session
         self.call_id = call_id
         self.last_emma = ""
         self.quota_retries = quota_retries
@@ -207,30 +201,18 @@ class EngineAdapter:
         }
 
     def new_session(self):
-        """A per-call context: ai_engine.new_session() when present, else today's SessionState."""
+        """A per-call context (ai_engine.new_session)."""
         # The greeting rotation remembers the last greeting process-wide; forget
         # it so a seeded conversation greets the same way in any process.
         if hasattr(phrases, "_last_greeting"):
             phrases._last_greeting = None
-        if self.engine == "r2":
-            from dialogue.context import new_context
-            return new_context(self.call_id)
-        if self.engine == "legacy":
-            return ai_engine.SessionState()
-        factory = getattr(ai_engine, "new_session", None)
-        if callable(factory):
-            try:
-                return factory(call_id=self.call_id)
-            except TypeError:
-                return factory()
-        return ai_engine.SessionState()
+        return ai_engine.new_session(call_id=self.call_id)
 
     # -- installing the NLU for this mode -----------------------------------
     @contextmanager
     def installed(self):
         """Put the mode's NLU in place for the duration (and take it out again)."""
         saved_nlu = llm._nlu
-        saved_extract = ai_engine.async_extract_entities_with_llm
         saved_ikp = llm._is_key_problem
         uninstall = None
         llm_logger = logging.getLogger("llm")
@@ -241,11 +223,7 @@ class EngineAdapter:
                 llm._nlu = OfflineLLM()
             r2 = _r2_nlu_module()
             if self.mode == "offline":
-                # Both engines get the fake NLU, today's through its extract
-                # function and the R2 one through install_test_nlu (or nlu's
-                # backend switch), so a run never depends on which engine
-                # ai_engine routes to (config.R2_ENGINE).
-                ai_engine.async_extract_entities_with_llm = self._legacy_extract
+                # The fake NLU, through install_test_nlu (or nlu's backend switch).
                 hook = getattr(ai_engine, "install_test_nlu", None)
                 if callable(hook) and (r2 is None or _reader_mapping_ready(r2)):
                     uninstall = hook(self._generic_reader)
@@ -281,7 +259,6 @@ class EngineAdapter:
                     uninstall.__exit__(None, None, None)
                 elif callable(uninstall):
                     uninstall()
-            ai_engine.async_extract_entities_with_llm = saved_extract
             llm._is_key_problem = saved_ikp
             llm._nlu = saved_nlu
             llm_logger.setLevel(saved_level)
@@ -290,7 +267,7 @@ class EngineAdapter:
                 self._catcher = None
 
     def _generic_reader(self, text, expect=None):
-        """For a new engine's install_test_nlu: the fake reading plus a grounded answer."""
+        """For install_test_nlu: the fake reading plus a grounded answer."""
         reading = fake_nlu.read(text, expect=expect or self._expect_now)
         self._note_fake_call()
         out = reading.as_dict()
@@ -303,43 +280,14 @@ class EngineAdapter:
     @staticmethod
     def _answer_for(question: str) -> Optional[str]:
         """
-        The grounded answer, or None when the facts don't cover it: the R2
-        engine then says a verified fact or its honest "not sure" line, and
-        today's engine falls back to its own escalation line, exactly as each
-        does when the real model has no answer.
+        The grounded answer, or None when the facts don't cover it: the
+        engine then says a verified fact or its honest "not sure" line, exactly
+        as it does when the real model has no answer.
         """
         text, _fact_id = fake_nlu.answer(question)
         if text == "@HONEST@":
             return config.HONEST_LINE
         return text or None
-
-    async def _legacy_extract(self, user_text, s=None):
-        """Today's engine: the fake reading in the dict shape of the Gemini NLU request."""
-        if not user_text or not user_text.strip():
-            return {}
-        reading = fake_nlu.read(user_text, expect=self._expect_now)
-        self._note_fake_call()
-        conf = reading.yes_no
-        if conf is None and reading.expect == "yes_no" and reading.intent == "cancel":
-            conf = "no"      # what the model does with "I'd like to cancel" after "Shall I book it?"
-        question = reading.question
-        # A question that only names a service or a day ("How much is a root
-        # canal?", "What time do you open on Saturday?") is a pure question to
-        # the model too: user_query set, no booking details.
-        pure = reading.intent == "question"
-        return {
-            "patient_name": reading.name,
-            "phone_number": reading.phone,
-            "dental_service": None if pure else (reading.service or reading.service_phrase),
-            "appointment_date": None if pure else reading.date_phrase,
-            "appointment_time": None if pure else reading.time_phrase,
-            "confirmation": conf,
-            "user_query": question,
-            # Today's NLU prompt has the model answer with the escalation line when
-            # the facts don't cover a question; the fake does the same for it.
-            "answer": (self._answer_for(question) or getattr(ai_engine, "ESCALATION_LINE", None))
-            if question else None,
-        }
 
     def _wrap_live(self, nlu):
         """Record every Gemini request; wait and retry on a 429 instead of failing the turn."""
@@ -597,7 +545,7 @@ class EngineAdapter:
 
 
 def is_r2_session(s) -> bool:
-    """An R2 CallContext (it streams through on_sentence even while config.R2_ENGINE is off)."""
+    """A dialogue CallContext (it streams through on_sentence)."""
     try:
         from dialogue.context import CallContext
     except Exception:
@@ -606,12 +554,12 @@ def is_r2_session(s) -> bool:
 
 
 def engine_label(s) -> str:
-    """ "r2" or "legacy": which engine a session runs on (records and reports)."""
-    return "r2" if is_r2_session(s) else "legacy"
+    """Which engine a session runs on (records and reports): always "r2" now."""
+    return "r2"
 
 
 def _last_trace(s):
-    """The newest TurnTrace on an R2 context (s.trace), or None (today's SessionState has none)."""
+    """The newest TurnTrace on a call context (s.trace), or None."""
     trace = getattr(s, "trace", None)
     if isinstance(trace, list) and trace:
         return trace[-1]
@@ -668,9 +616,7 @@ _CHITCHAT = ("how's your day", "how is your day", "how are you", "raining", "wea
 
 def _r2_nlu_module():
     """
-    nlu.py with its backend switch, or None. Installing a backend is harmless
-    while today's engine runs (it never asks nlu), so it is installed whenever
-    the switch exists, and the R2 engine finds it the moment the flag flips.
+    nlu.py with its backend switch, or None.
     """
     try:
         import nlu

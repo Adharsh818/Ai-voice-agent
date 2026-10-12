@@ -3,8 +3,7 @@ tier0.understand: Tier-0 v2 for the R2 engine (docs/R2_DESIGN.md, section 6).
 
 Strict mode must answer the short, unambiguous turns without the model and
 return None for anything mixed, long or questioning; lenient mode is the
-no-model fallback and always returns something. The old fast_entities is
-covered by tests/test_booking_flow.py and stays untouched until integration.
+no-model fallback and always returns something.
 """
 
 import time

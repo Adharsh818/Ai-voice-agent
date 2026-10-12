@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 
 import phones
-import tier0
+from dialogue import match
 from dateparse import parse_when
 
 SCRIPT = json.loads((Path(__file__).parent / "data" / "stt_script.json").read_text(encoding="utf-8"))
@@ -38,7 +38,7 @@ class ScriptConsistencyTests(unittest.TestCase):
                 if "time_ambiguous" in exp:
                     self.assertEqual([hm(c) for c in w.time.candidates], exp["time_ambiguous"])
                 if "phone" in exp:
-                    digits = tier0.normalize_spoken_digits(line["say"])
+                    digits = match.extract_digits(line["say"]).digits
                     self.assertEqual(phones.to_e164(digits), exp["phone"])
 
 
