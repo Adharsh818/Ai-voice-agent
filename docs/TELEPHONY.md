@@ -133,5 +133,5 @@ On a OnePlus phone's hotspot (PC 10.49.155.171, phone 10.49.155.12), Linphone as
 ## Still to check on the real Asterisk
 
 - Whether Ubuntu's Asterisk 20 sends keypad frames (`0x03`) through AudioSocket. If not, keyed numbers need `dtmf_mode=inband` or Asterisk 22.
-- Whether it offers 16 kHz AudioSocket audio. Emma accepts `0x12` inbound, but 8 kHz is the safe default.
+- ~~Whether it offers 16 kHz AudioSocket audio~~ Answered 12 Oct from the installed module (no call needed): Ubuntu's Asterisk 20.6 `app_audiosocket` sets the channel to `SLINEAR` (8 kHz) only and rejects non-audio messages from Emma, so phone audio is 8 kHz both ways. Emma already handles that; 16 kHz would need a newer Asterisk.
 - The OriginateResponse reason MicroSIP's Reject produces (expected 5 or 8).
