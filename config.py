@@ -4,8 +4,10 @@ from dotenv import load_dotenv
 # Load environment variables from .env file if present
 load_dotenv()
 
-# Clinic Information
-CLINIC_NAME = "Pearl Dental Clinic"
+# Clinic Information. One deployment per clinic: set these in .env for another clinic.
+CLINIC_NAME = os.getenv("CLINIC_NAME", "Pearl Dental Clinic").strip()          # written: dashboard, calendars, SMS
+CLINIC_SHORT_NAME = os.getenv("CLINIC_SHORT_NAME", "Pearl Dental").strip()     # what Emma says on the phone
+CLINIC_CITY = os.getenv("CLINIC_CITY", "Bengaluru").strip()
 CLINIC_LOCATION = "Nagarbhavi"
 CLINIC_TIMEZONE = os.getenv("CLINIC_TIMEZONE", "Asia/Kolkata")
 
@@ -17,16 +19,16 @@ CLINIC_TIMEZONE = os.getenv("CLINIC_TIMEZONE", "Asia/Kolkata")
 # "it should always mention its name Emma"); at most 12 words (R1). A yes to the
 # appointment or clinic question is understood as that request (dialogue/engine.py).
 GREETINGS = [
-    "Hi, this is Emma at Pearl Dental. How can I help?",
-    "Hello, Emma at Pearl Dental. What can I do for you?",
-    "Hi, Emma at Pearl Dental. Would you like to book an appointment?",
-    "Hi, Emma at Pearl Dental. Any questions about the clinic?",
+    f"Hi, this is Emma at {CLINIC_SHORT_NAME}. How can I help?",
+    f"Hello, Emma at {CLINIC_SHORT_NAME}. What can I do for you?",
+    f"Hi, Emma at {CLINIC_SHORT_NAME}. Would you like to book an appointment?",
+    f"Hi, Emma at {CLINIC_SHORT_NAME}. Any questions about the clinic?",
 ]
 # Said instead when it suits the clinic clock (before 12, before 4, after 4).
 TIME_GREETINGS = {
-    "morning": "Good morning, this is Emma at Pearl Dental. How can I help?",
-    "afternoon": "Good afternoon, Emma at Pearl Dental here. How can I help?",
-    "evening": "Good evening, this is Emma at Pearl Dental. How can I help?",
+    "morning": f"Good morning, this is Emma at {CLINIC_SHORT_NAME}. How can I help?",
+    "afternoon": f"Good afternoon, Emma at {CLINIC_SHORT_NAME} here. How can I help?",
+    "evening": f"Good evening, this is Emma at {CLINIC_SHORT_NAME}. How can I help?",
 }
 HONEST_LINE = "Yeah, you caught me, I'm the clinic's virtual receptionist."
 
@@ -110,7 +112,7 @@ DEEPGRAM_UTTERANCE_END_MS = int(os.getenv("DEEPGRAM_UTTERANCE_END_MS", "1000")) 
 DEEPGRAM_KEYTERMS = [
     t.strip() for t in os.getenv(
         "DEEPGRAM_KEYTERMS",
-        "Pearl Dental,Nagarbhavi,Indiranagar,Jayanagar,Whitefield,root canal,"
+        f"{CLINIC_SHORT_NAME},Nagarbhavi,Indiranagar,Jayanagar,Whitefield,root canal,"
         "Invisalign,braces,extraction,consultation,check-up,cleaning,filling",
     ).split(",") if t.strip()
 ]
@@ -221,6 +223,14 @@ TRANSCRIPT_RETENTION_DAYS = int(os.getenv("TRANSCRIPT_RETENTION_DAYS", "30"))
 # and (after longer) the before/after copies in the audit log.
 PERSONAL_DATA_RETENTION_DAYS = int(os.getenv("PERSONAL_DATA_RETENTION_DAYS", "30"))
 AUDIT_DETAIL_RETENTION_DAYS = int(os.getenv("AUDIT_DETAIL_RETENTION_DAYS", "180"))
+
+# Cost per call (usage.py; dashboard "How Emma is doing"). Estimates in US dollars: set your plans' rates.
+# Defaults: Deepgram Nova-3 streaming pay-as-you-go; ElevenLabs Flash v2.5 at 0.5 credit a character on
+# the Creator plan; Gemini Flash-Lite list prices per million tokens.
+COST_DEEPGRAM_USD_PER_MIN = float(os.getenv("COST_DEEPGRAM_USD_PER_MIN", "0.0077"))
+COST_ELEVENLABS_USD_PER_1K_CHARS = float(os.getenv("COST_ELEVENLABS_USD_PER_1K_CHARS", "0.11"))
+COST_GEMINI_USD_PER_M_IN = float(os.getenv("COST_GEMINI_USD_PER_M_IN", "0.10"))
+COST_GEMINI_USD_PER_M_OUT = float(os.getenv("COST_GEMINI_USD_PER_M_OUT", "0.40"))
 TRANSCRIPT_PURGE_HOURS = float(os.getenv("TRANSCRIPT_PURGE_HOURS", "6"))
 
 # Google Calendar one-way mirror (calendar_sync.py). A service account owns one
@@ -294,7 +304,7 @@ TELEPHONY_PATIENT_PHONE = os.getenv("TELEPHONY_PATIENT_PHONE", "PJSIP/1001").str
 # TELEPHONY_PATIENT_PHONE (the lab softphone).
 TELEPHONY_TRUNK_DIAL = os.getenv("TELEPHONY_TRUNK_DIAL", "").strip()
 # The number recovery calls show as their caller ID.
-TELEPHONY_CLINIC_CID = os.getenv("TELEPHONY_CLINIC_CID", '"Pearl Dental" <08041234567>').strip()
+TELEPHONY_CLINIC_CID = os.getenv("TELEPHONY_CLINIC_CID", f'"{CLINIC_SHORT_NAME}" <08041234567>').strip()
 
 # Log rotation (plan section 13, phase E). logs/turns.jsonl (per-turn timings)
 # rolls over at LOG_ROTATE_MB, keeping LOG_KEEP old files. LOG_FILE (empty: off)

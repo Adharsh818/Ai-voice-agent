@@ -652,7 +652,7 @@ class Ringing:
         appts = self.claimed.appointments
         first = appts[0] if appts else {}
         return {"job_id": self.claimed.job_id, "call_id": self.call_id, "token": self.token,
-                "from": config.CLINIC_NAME.replace(" Clinic", ""),
+                "from": config.CLINIC_SHORT_NAME,
                 "to_name": (first.get("caller_name") or first.get("patient_name") or "").split(" ")[0],
                 "to_masked": phones.masked(self.claimed.phone_e164)}
 

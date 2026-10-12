@@ -195,7 +195,7 @@ def check_demo_data():
 
 def main() -> int:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    print("Pearl Dental demo preflight\n")
+    print(f"{config.CLINIC_SHORT_NAME} preflight\n")
     check_server()
     check_settings()
     check_credit()

@@ -25,7 +25,7 @@ import shutil
 import socket
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -79,9 +79,11 @@ def check(path: str) -> list:
             "AND a.start_utc < b.end_utc AND b.start_utc < a.end_utc").fetchall()
         if doubled:
             problems.append(f"{len(doubled)} pairs of bookings overlap for the same doctor")
+        # Claims for cells over a day old are pruned (scheduling.prune): only newer bookings need them.
+        recent = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
         unclaimed = conn.execute(
-            "SELECT COUNT(*) FROM appointments a WHERE a.status = 'booked' "
-            "AND NOT EXISTS (SELECT 1 FROM slot_claims c WHERE c.appointment_id = a.id)").fetchone()[0]
+            "SELECT COUNT(*) FROM appointments a WHERE a.status = 'booked' AND a.start_utc >= ? "
+            "AND NOT EXISTS (SELECT 1 FROM slot_claims c WHERE c.appointment_id = a.id)", (recent,)).fetchone()[0]
         if unclaimed:
             problems.append(f"{unclaimed} bookings hold no slot claims")
     except sqlite3.DatabaseError as exc:

@@ -53,13 +53,15 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import auth
 import calendar_sync
 import clock
+import alerts
 import config
+import pages
 import dashboard
 import db
 import events
@@ -225,6 +227,9 @@ async def lifespan(app: FastAPI):
     app.state.runner = outbound.Runner(app.state.db, app.state.gate)
     outbound.set_runner(app.state.runner)
     background.append(asyncio.create_task(app.state.runner.run()))
+    # Alerts for staff: a speech service down, calendar sync stalled, a call line stuck (alerts.py).
+    background.append(asyncio.create_task(alerts.loop(
+        _services, app.state.db, app.state.gate, lambda: bool(calendar_sync.status().get("enabled")))))
     # Phone calls through Asterisk (audiosocket.py), when switched on in .env.
     app.state.audiosocket = None
     if config.TELEPHONY_ENABLED:
@@ -271,7 +276,7 @@ async def warm_nlu():
         logger.debug("Gemini warm-up skipped: %s", exc)
 
 
-app = FastAPI(title="Pearl Dental Clinic — Emma Voice Agent", lifespan=lifespan)
+app = FastAPI(title=f"{config.CLINIC_NAME} — Emma Voice Agent", lifespan=lifespan)
 app.state.gate = CallGate()
 app.state.sessions = {}          # call_id -> CallSession, for the dashboard's takeover controls
 STATIC_DIR = Path(__file__).parent / "static"
@@ -301,7 +306,7 @@ async def revalidate_page_assets(request, call_next):
 
 @app.get("/")
 async def index():
-    return FileResponse(STATIC_DIR / "index.html")
+    return pages.html(STATIC_DIR / "index.html")
 
 
 app.mount("/dashboard/static", StaticFiles(directory=str(STATIC_DIR / "dashboard")), name="dashboard-static")
@@ -472,7 +477,7 @@ async def voice_websocket(ws: WebSocket):
 async def patient_page(request: Request):
     if not auth.configured() or auth.current_user(request) is None:
         return RedirectResponse("/dashboard/login", status_code=303)
-    return FileResponse(STATIC_DIR / "patient.html")
+    return pages.html(STATIC_DIR / "patient.html")
 
 
 @app.get("/patient/api/ring")
@@ -821,14 +826,19 @@ def _db_summary(conn) -> dict:
     }
 
 
-@app.get("/health")
-async def health():
-    nlu = llm.get_nlu()
-    services = {
-        "gemini": bool(config.GEMINI_API_KEY) and nlu.available is not False,
+async def _services() -> dict:
+    """Each speech service usable (keys set; the model not reported unavailable)."""
+    return {
+        "gemini": bool(config.GEMINI_API_KEY) and llm.get_nlu().available is not False,
         "deepgram": bool(config.DEEPGRAM_API_KEY),
         "elevenlabs": bool(config.ELEVENLABS_API_KEY),
     }
+
+
+@app.get("/health")
+async def health():
+    nlu = llm.get_nlu()
+    services = await _services()
     return {
         "status": "ok" if all(services.values()) else "degraded",
         **services,
@@ -838,6 +848,7 @@ async def health():
         "tts_transport": config.TTS_TRANSPORT,
         "database": await app.state.db.run(_db_summary),
         "call": app.state.gate.status(),
+        "alerts": alerts.current(),
         "calendar": {**calendar_sync.status(), **await app.state.db.run(_calendar_summary)},
         "dashboard": _dashboard_summary(),
         "retention": recording.status(),

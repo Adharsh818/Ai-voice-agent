@@ -416,6 +416,20 @@ def _purge_expired(conn, now: datetime):
     conn.execute("DELETE FROM slot_holds WHERE expires_at <= ?", (db.utc_str(now),))
 
 
+def prune(conn, now=None) -> dict:
+    """
+    Housekeeping (recording.purge_loop): expired holds, and slot claims for
+    cells that ended over a day ago. Claims only stop double booking, and a
+    past cell can be neither booked nor moved; the appointment keeps its times.
+    """
+    now = _now(now)
+    with db.transaction(conn):
+        holds = conn.execute("DELETE FROM slot_holds WHERE expires_at <= ?", (db.utc_str(now),)).rowcount
+        claims = conn.execute("DELETE FROM slot_claims WHERE cell_start_utc < ?",
+                              (db.utc_str(now - timedelta(days=1)),)).rowcount
+    return {"expired_holds": holds, "past_claims": claims}
+
+
 def hold(conn, slot: Slot, call_id: str, *, now=None, emergency=False, ttl_s: Optional[int] = None) -> Optional[str]:
     """Hold an offered slot for this call; None if it is no longer free."""
     now = _now(now)

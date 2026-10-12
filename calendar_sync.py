@@ -51,10 +51,10 @@ MAX_ATTEMPTS = 12
 NO_CALENDAR_RETRY_S = 60
 REQUEST_TIMEOUT_S = 15
 NEEDS_RESCHEDULE_PREFIX = "NEEDS RESCHEDULE: "
-CALENDAR_NAME = "Pearl Dental — {branch}"
+CALENDAR_NAME = config.CLINIC_SHORT_NAME + " — {branch}"
 # What the branch calendars were called until 6 Oct; tools/setup_calendars.py renames them.
-LEGACY_CALENDAR_NAME = "Pearl Dental — {branch} (DEMO)"
-CALENDAR_DESCRIPTION = ("Appointments mirrored one way from the Pearl Dental dashboard; "
+LEGACY_CALENDAR_NAME = config.CLINIC_SHORT_NAME + " — {branch} (DEMO)"
+CALENDAR_DESCRIPTION = (f"Appointments mirrored one way from the {config.CLINIC_SHORT_NAME} dashboard; "
                         "change them there, not here.")
 
 
@@ -301,9 +301,9 @@ def event_body(appt: dict) -> dict:
             f"Phone: ends {last4}",
             f"Appointment: {appt['id']}",
             "",
-            "Mirrored from the Pearl Dental dashboard. Change it there; edits here are overwritten.",
+            f"Mirrored from the {config.CLINIC_SHORT_NAME} dashboard. Change it there; edits here are overwritten.",
         ]),
-        "location": f"Pearl Dental, {appt['branch']}",
+        "location": f"{config.CLINIC_SHORT_NAME}, {appt['branch']}",
         "start": {"dateTime": start.isoformat(), "timeZone": config.CLINIC_TIMEZONE},
         "end": {"dateTime": end.isoformat(), "timeZone": config.CLINIC_TIMEZONE},
         "status": "confirmed",          # also restores an event deleted earlier (patch after 409)

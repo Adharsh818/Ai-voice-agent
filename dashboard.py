@@ -29,13 +29,15 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response, StreamingResponse
 
+import alerts
 import auth
 import calendar_sync
 import clock
 import config
 import db
+import pages
 import events
 import outbound
 import phones
@@ -89,14 +91,14 @@ async def dashboard_root():
 async def dashboard_page(request: Request):
     if not auth.configured() or auth.current_user(request) is None:
         return RedirectResponse("/dashboard/login", status_code=303)
-    return FileResponse(STATIC_DIR / "index.html")
+    return pages.html(STATIC_DIR / "index.html")
 
 
 @router.get("/dashboard/login", include_in_schema=False)
 async def login_page(request: Request):
     if auth.configured() and auth.current_user(request) is not None:
         return RedirectResponse("/dashboard/", status_code=303)
-    return FileResponse(STATIC_DIR / "login.html")
+    return pages.html(STATIC_DIR / "login.html")
 
 
 # ---------------------------------------------------------------- login / logout
@@ -220,6 +222,7 @@ async def overview(request: Request, user: str = staff):
     data = await _run(_overview)
     data["call"] = _gate_status(request)
     data["calendar"] = calendar_sync.status()
+    data["alerts"] = alerts.current()
     return data
 
 
@@ -769,6 +772,21 @@ def _performance(conn, days: int = 7) -> dict:
             "fallback_share": round(sum(1 for r in model_turns if r["tier"] == 2) / len(model_turns), 2)
             if model_turns else None,
         }
+    # Estimated cost per call (usage.py; calls metered from 12 Oct).
+    since = db.utc_str(clock.now() - timedelta(days=days))
+    for row in conn.execute("SELECT channel, usage_json FROM calls WHERE started_at >= ? AND usage_json IS NOT NULL",
+                            (since,)):
+        try:
+            total = float(json.loads(row["usage_json"]).get("total_usd") or 0)
+        except (ValueError, TypeError, AttributeError):
+            continue
+        c = out["channels"].setdefault(row["channel"] or "browser", {"calls": 0, "replies": 0, "rules": 0,
+                                                                       "model": 0, "fallback": 0})
+        c["metered_calls"] = c.get("metered_calls", 0) + 1
+        c["cost_total_usd"] = round(c.get("cost_total_usd", 0) + total, 4)
+    for c in out["channels"].values():
+        if c.get("metered_calls"):
+            c["cost_per_call_usd"] = round(c["cost_total_usd"] / c["metered_calls"], 4)
     return out
 
 

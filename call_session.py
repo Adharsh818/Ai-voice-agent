@@ -75,6 +75,7 @@ import config
 import phones
 import phrases
 import turn_detector
+import usage
 import vad
 from capture import CallCapture
 from caption_pacer import CaptionPacer
@@ -631,6 +632,8 @@ class CallSession:
 
     async def start(self):
         self._started_at = self._idle_since = time.perf_counter()
+        # Cost meter: the tasks this call creates from here on add to it (usage.py).
+        self._usage = usage.begin(self.call_id)
         self.stt = self.sv.stt_factory(
             on_transcript=self._on_transcript,
             on_utterance_end=self._on_utterance_end,
@@ -1673,6 +1676,22 @@ class CallSession:
         except Exception as exc:
             logger.debug("[%s] hold release failed: %s", self.call_id, exc)
 
+    async def _save_usage(self):
+        """This call's usage and estimated cost on its record (usage.py), for the dashboard."""
+        meter = getattr(self, "_usage", None)
+        if meter is None:
+            return
+        try:
+            import db
+            summary = usage.price(meter, time.perf_counter() - self._started_at)
+            logger.info("[%s] usage: %d s, %d live TTS chars, %d model requests, ~$%.4f", self.call_id,
+                        summary["seconds"], summary["tts_chars"], summary["gemini_requests"], summary["total_usd"])
+            database = getattr(db, "_db", None)
+            if database is not None:
+                await asyncio.wait_for(database.run(usage.save, self.call_id, summary), timeout=2)
+        except Exception as exc:
+            logger.debug("[%s] usage not saved: %s", self.call_id, exc)
+
     async def close(self):
         if self.closed:
             return
@@ -1700,6 +1719,7 @@ class CallSession:
             self.outcome = "completed" if self._ended_by_emma() else self._abandoned()
         await self._urgent_without_booking()
         await self._release_holds()
+        await self._save_usage()
         if self.recorder is not None and self._own_recorder:
             try:
                 await _maybe_await(self.recorder.end(self.outcome, keep_transcript=self.keep_transcript,
