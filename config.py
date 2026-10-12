@@ -281,6 +281,10 @@ PIPER_VOICE = os.getenv("PIPER_VOICE", "en_GB-cori-medium").strip()
 # Off by default: the browser talk page needs none of it. Asterisk (WSL2 Ubuntu)
 # runs AudioSocket() to AUDIOSOCKET_HOST:AUDIOSOCKET_PORT, which stays on loopback.
 TELEPHONY_ENABLED = os.getenv("TELEPHONY_ENABLED", "false").lower() == "true"
+# Phone playout (audiosocket.py): hold this much of a live line before it starts, and refill this much if
+# the stream runs dry mid-line (bursty mobile data). Cached lines arrive whole and don't wait.
+PHONE_PREBUFFER_MS = int(os.getenv("PHONE_PREBUFFER_MS", "250"))
+PHONE_REBUFFER_MS = int(os.getenv("PHONE_REBUFFER_MS", "150"))
 AUDIOSOCKET_HOST = os.getenv("AUDIOSOCKET_HOST", "127.0.0.1")
 AUDIOSOCKET_PORT = int(os.getenv("AUDIOSOCKET_PORT", "9092"))
 # Shared with the Asterisk dialplan (/telephony/register and /telephony/next); empty refuses them.

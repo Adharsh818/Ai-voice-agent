@@ -60,7 +60,11 @@ KIND_ERROR = 0xFF
 
 FRAME_S = 0.02
 VOICE_FRAME_BYTES = phone_audio.FRAME * 2          # 20 ms at 16 kHz
-PREBUFFER_BYTES = int(0.06 * phone_audio.RATE) * 2
+# Emma's voice is held this long before a line starts, and refilled this much after the stream ran dry
+# mid-line: live speech streamed over a mobile hotspot arrives in bursts (phone check, 12 Oct: 60 ms
+# made live lines break up; cached lines are all there at once and are unaffected).
+PREBUFFER_BYTES = int(config.PHONE_PREBUFFER_MS / 1000 * phone_audio.RATE) * 2
+REBUFFER_BYTES = int(config.PHONE_REBUFFER_MS / 1000 * phone_audio.RATE) * 2
 LATE_RESET_S = 0.1                                  # the clock fell this far behind: don't burst to catch up
 HANGUP_TAIL_S = 0.3                                 # let the last syllable reach the caller before hanging up
 MIRRORED_EVENTS = {"caption", "state", "turn", "metrics", "error", "bye"}
@@ -156,6 +160,8 @@ class PhoneTransport:
         self._started = False
         self._end_marked = False
         self._played = 0                         # samples of the current turn sent
+        self._starved = False                    # ran dry mid-line: wait for REBUFFER_BYTES
+        self._stalls = 0                         # times that happened this turn (logged)
         self._min_turn = 0
         self._reports: asyncio.Queue = asyncio.Queue()
         self._tasks: list = []
@@ -189,7 +195,8 @@ class PhoneTransport:
         had_audio = self._started or bool(self._buf)
         turn, played = self._turn, self._played_ms()
         self._buf.clear()
-        self._started = self._end_marked = False
+        self._started = self._end_marked = self._starved = False
+        self._stalls = 0
         self.sounds.stop_typing()
         self.sounds.speaking(False)
         if had_audio:
@@ -224,8 +231,9 @@ class PhoneTransport:
     def _reset(self, turn_id: int):
         self._turn = turn_id
         self._buf.clear()
-        self._started = self._end_marked = False
+        self._started = self._end_marked = self._starved = False
         self._played = 0
+        self._stalls = 0
 
     def _played_ms(self) -> int:
         return round(self._played / phone_audio.RATE * 1000)
@@ -248,7 +256,16 @@ class PhoneTransport:
     def next_frame(self) -> bytes:
         """One 20 ms frame of Emma's side at 16 kHz (voice + line sounds), advancing playback."""
         voice = None
-        ready = self._started or self._end_marked or len(self._buf) >= PREBUFFER_BYTES
+        if not self._started:
+            ready = self._end_marked or len(self._buf) >= PREBUFFER_BYTES
+        elif self._starved:
+            ready = self._end_marked or len(self._buf) >= REBUFFER_BYTES
+            self._starved = not ready
+        else:
+            ready = True
+        if self._started and not self._end_marked and not self._buf and not self._starved:
+            self._starved = True                 # the stream is behind: one short pause, not a stutter
+            self._stalls += 1
         if ready and self._buf:
             voice = bytes(self._buf[:VOICE_FRAME_BYTES])
             del self._buf[:VOICE_FRAME_BYTES]
@@ -258,6 +275,10 @@ class PhoneTransport:
                 self._report(self._turn, "started")
             self._played += len(voice) // 2
         if self._started and self._end_marked and not self._buf:
+            if self._stalls:
+                logger.info("[%s] turn %d: Emma's live audio ran dry %d time(s) mid-line", self.call_id,
+                            self._turn, self._stalls)
+            self._stalls, self._starved = 0, False
             self._report(self._turn, "ended", self._played_ms())
             self._started = self._end_marked = False
             self.sounds.speaking(False)
