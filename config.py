@@ -254,11 +254,9 @@ TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "").strip()
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
 TWILIO_FROM = os.getenv("TWILIO_FROM", "").strip()                     # +1415... or the WhatsApp sender number
 
-# R2, the natural conversation engine (docs/R2_DESIGN.md). Integrated end to end
-# (Sprint 1b) but off by default: the 12-step machine keeps serving the owner's
-# voice tests until the owner sets R2_ENGINE=true in .env and restarts the server
-# (ai_engine.new_session reads it per call; the streaming signature at import).
-R2_ENGINE = os.getenv("R2_ENGINE", "false").lower() == "true"
+# The conversation engine is R2 (dialogue/, docs/R2_DESIGN.md), the only one
+# since the 12-step machine was retired on 12 Oct 2026; an old R2_ENGINE line in
+# .env is ignored.
 # R2: how long the streamed model reply may take to deliver its understanding
 # (the "head") before the turn falls back to Tier-0 lenient (nlu.HEAD_DEADLINE_S).
 NLU_HEAD_DEADLINE_S = float(os.getenv("NLU_HEAD_DEADLINE_S", "1.6"))

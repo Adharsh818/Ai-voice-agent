@@ -341,13 +341,9 @@ def outcome_text(outcome: dict) -> str:
     return "; ".join(parts) or "no change"
 
 
-def scenario_status(scn: sc.Scenario, passed: bool, error: bool = False, engine: Optional[str] = None) -> str:
-    """
-    pass | known-bug (fails, bug named) | fixed? (bug named but passes) | REGRESSION (an invariant fails).
-    A scenario's `bug` names a defect of the 12-step machine; on the R2 engine
-    every scenario is an invariant.
-    """
-    bug = None if engine == "r2" else scn.bug
+def scenario_status(scn: sc.Scenario, passed: bool, error: bool = False) -> str:
+    """pass | known-bug (fails, bug named) | fixed? (bug named but passes) | REGRESSION (an invariant fails)."""
+    bug = scn.bug
     if error:
         return "error"
     if passed:
@@ -392,7 +388,7 @@ async def play_scenario(scn: sc.Scenario, w: world_mod.World, mode: str = "offli
     passed = all(c["ok"] for c in checks)
     record["checks"] = checks
     record["passed"] = passed
-    record["status"] = scenario_status(scn, passed, engine=adapter.engine_used)
+    record["status"] = scenario_status(scn, passed)
     return record
 
 
@@ -412,7 +408,7 @@ def _step_dict(step) -> dict:
 
 def run_scenario(scenario, mode: str = "offline", now=None, seed: int = 0, suite: str = "scenarios",
                  engine: Optional[str] = None) -> dict:
-    """One scenario (a Scenario or its id) in a fresh world. Synchronous. `engine`: None, "legacy" or "r2"."""
+    """One scenario (a Scenario or its id) in a fresh world. Synchronous. `engine`: None or "r2" (the same)."""
     scn = sc.get(scenario) if isinstance(scenario, str) else scenario
     with world_mod.World(scn.now or now) as w:
         return asyncio.run(play_scenario(scn, w, mode=mode, seed=seed, suite=suite, engine=engine))

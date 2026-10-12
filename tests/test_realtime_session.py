@@ -17,6 +17,7 @@ import config
 import phrases
 import turn_detector
 from call_session import clinic_keyterms, is_backchannel, looks_like_echo
+from dialogue.context import Goal
 
 from test_realtime_support import (FakeTTS, PlayingTransport, engine, make_session, patched, result,
                                    settle, wait_until)
@@ -188,7 +189,7 @@ class DuplicateAndMergeTests(unittest.TestCase):
 
         async def run():
             s, t = make_session()
-            s.s.step = 9                            # "Shall I book it?": a yes commits at once
+            s.s.pending = Goal.SUMMARY              # "Shall I book it?": a yes commits at once
             await s._on_utterance_end("Yes please.", 1.4, "speech_final")
             await s._on_utterance_end("Yes please.", 1.4, "utterance_end")
             await settle(0.1)
@@ -513,7 +514,7 @@ class SilenceAndLengthTests(unittest.TestCase):
 
         async def run():
             s, t = make_session()
-            s.s.temp_phone = "9876543210"
+            s.s.caller.phone_e164 = "+919876543210"
 
             async def create_task(kind, priority, phone, note):
                 tasks.append((kind, priority, phone))
@@ -542,7 +543,7 @@ class SilenceAndLengthTests(unittest.TestCase):
 
             s._create_task = create_task
             if phone:
-                s.s.temp_phone = phone
+                s.s.caller.phone_e164 = phone
             await s._on_stt_lost()
             await wait_until(lambda: s.closed, timeout=2)
             return t.emma_captions(), s.outcome, made
@@ -550,7 +551,7 @@ class SilenceAndLengthTests(unittest.TestCase):
         captions, outcome, made = asyncio.run(run(None))
         self.assertIn(captions[-1], call_session.CANT_HEAR_GOODBYE_LINES)
         self.assertEqual((outcome, made), ("stt_failure", []))
-        captions, outcome, made = asyncio.run(run("9876543210"))
+        captions, outcome, made = asyncio.run(run("+919876543210"))
         self.assertIn(captions[-1], call_session.CANT_HEAR_CALLBACK_LINES)
         self.assertEqual(made, ["callback"])
 
@@ -581,17 +582,18 @@ class EngineContractTests(unittest.TestCase):
             self.assertTrue(s.s.last_reply_heard)
             self.assertEqual(s._listening_hint(), {"expect": "phone", "digits_so_far": 5})
 
-    def test_todays_engine_still_works_without_the_new_functions(self):
+    def test_a_real_session_is_a_call_context_and_a_broken_hint_falls_back(self):
+        from dialogue.context import CallContext
         s, t = make_session()
-        self.assertIsInstance(s.s, ai_engine.SessionState)
-        s.s.step, s.s.temp_phone = 4, ""
+        self.assertIsInstance(s.s, CallContext)
+        s.s.pending = Goal.ASK_PHONE
         self.assertEqual(s._listening_hint()["expect"], "phone")
 
         def broken(_s):
-            raise RuntimeError("engine mid-rewrite")
+            raise RuntimeError("engine bug")
 
         with patched(ai_engine, listening_hint=broken):
-            self.assertEqual(s._listening_hint()["expect"], "phone")
+            self.assertEqual(s._listening_hint()["expect"], "open")
 
         async def streaming(text, s, progress=None, on_sentence=None):
             return result("ok")
@@ -607,17 +609,15 @@ class EngineContractTests(unittest.TestCase):
 
 class R2CallTests(unittest.TestCase):
     """
-    A whole call on the R2 engine through the call session (Sprint 1b
-    integration): the real facade on a DEMO clinic with the model down, as
-    R2_ENGINE=true runs it. The facade's import-time switch is reproduced by
-    patching new_session and a streaming async_process_turn.
+    A whole call on the engine through the call session: the real facade on a
+    DEMO clinic with the model down.
     """
 
     def test_a_booking_reaches_the_transcript_with_entities_and_action(self):
         import facts
         import nlu
         from datetime import datetime
-        from dialogue.context import CallContext, new_context
+        from dialogue.context import CallContext
         from dialogue.testing import DemoClinic
 
         real = ai_engine.async_process_turn
@@ -652,8 +652,7 @@ class R2CallTests(unittest.TestCase):
         with DemoClinic(now=datetime(2026, 10, 1, 10, 0)) as clinic:
             facts.clear_cache()
             try:
-                with nlu.use_backend(nlu.FakeNLU(usable=False)), no_beat(), \
-                        patched(ai_engine, new_session=lambda call_id=None: new_context(call_id)), engine(r2):
+                with nlu.use_backend(nlu.FakeNLU(usable=False)), no_beat(), engine(r2):
                     s, t, hints, phone = asyncio.run(run())
             finally:
                 facts.clear_cache()

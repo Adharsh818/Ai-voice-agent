@@ -40,7 +40,7 @@ def cmd_run(args) -> int:
         args.suite, mode=_mode(args), n=args.n, seed=args.seed, concurrency=args.concurrency, now=args.now,
         only=only, goal=args.goal, intensity=args.intensity, label=args.label, publish=args.publish,
         progress=None if args.quiet else print, log_level=logging.INFO if args.verbose else logging.ERROR,
-        engine=None if args.engine == "default" else args.engine,
+        engine=args.engine,
     )
     print()
     _print_summary(summary)
@@ -108,9 +108,8 @@ def main(argv=None) -> int:
     where.add_argument("--offline", action="store_true", help="fake NLU, no network (the default)")
     where.add_argument("--nlu-down", action="store_true",
                        help="no NLU at all: the engine's own model-is-down path (no network)")
-    run.add_argument("--engine", choices=["default", "legacy", "r2"], default="default",
-                     help="default: whatever config.R2_ENGINE picks (off: the 12-step machine); "
-                          "legacy or r2 force one")
+    run.add_argument("--engine", choices=["r2"], default="r2",
+                     help="the conversation engine: r2, the only one (kept so older commands still work)")
     run.add_argument("--n", type=int, default=20, help="sim: number of calls (default 20)")
     run.add_argument("--seed", type=int, default=1, help="sim: seed (same seed, same calls)")
     run.add_argument("--goal", choices=["book", "cancel", "reschedule", "questions", "emergency"],

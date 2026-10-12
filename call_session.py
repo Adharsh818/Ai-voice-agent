@@ -30,10 +30,9 @@ synthesis starts at once (up to two sentences ahead), so TTS runs during the
 typing beat and while the previous sentence plays. The note-taking typing
 beat overlaps the engine's work (the reply waits max(engine time, a short
 beat)). "Let me just check that for you." (or the engine's varied line) plays
-with typing before a slow action: at once with today's engine, after the
-model's streamed sentences with a streaming one. A filler plays only if an
-LLM turn is still thinking after FILLER_AFTER_MS, and the reply then drops an
-opener that would repeat it ("Okay." ... "Okay, ...").
+with typing before a slow action, after the model's streamed sentences. A
+filler plays only if an LLM turn is still thinking after FILLER_AFTER_MS, and
+the reply then drops an opener that would repeat it ("Okay." ... "Okay, ...").
 
 Barge-in and echo: while Emma's audio is audible (the browser's playback
 started/ended reports), caller speech that is not an echo of what she was
@@ -578,13 +577,7 @@ class CallSession:
 
     # ------------------------------------------------------------------ engine contract
     def _new_session(self):
-        factory = getattr(ai_engine, "new_session", None)
-        if factory is None:
-            return ai_engine.SessionState()
-        try:
-            return factory(call_id=self.call_id)
-        except TypeError:
-            return factory()
+        return ai_engine.new_session(call_id=self.call_id)
 
     def _listening_hint(self) -> dict:
         hint_fn = getattr(ai_engine, "listening_hint", None)
@@ -595,7 +588,7 @@ class CallSession:
                     return hint
             except Exception as exc:
                 logger.debug("[%s] listening_hint failed: %s", self.call_id, exc)
-        return turn_detector.hint_from_state(self.s)
+        return dict(turn_detector.OPEN_HINT)
 
     def _expects_information(self, text: str) -> bool:
         check = getattr(ai_engine, "expects_information", None)
@@ -1532,13 +1525,9 @@ class CallSession:
 
     def _caller_phone(self) -> Optional[str]:
         """The caller's number in E.164 if the conversation has one."""
-        candidates = [getattr(self.s, attr, None) for attr in ("phone_e164", "phone", "temp_phone")]
-        caller = getattr(self.s, "caller", None)              # an R2 CallContext keeps it on ctx.caller
-        if caller is not None:
-            candidates.insert(0, getattr(caller, "phone_e164", None))
-        slots = getattr(self.s, "slots", None)
-        if isinstance(slots, dict):
-            candidates += [slots.get("phone_e164"), slots.get("phone")]
+        caller = getattr(self.s, "caller", None)              # a CallContext keeps it on ctx.caller
+        candidates = [getattr(caller, "phone_e164", None),
+                      getattr(self.s, "phone_e164", None)]   # a recovery call: the number dialled
         for value in candidates:
             e164 = phones.to_e164(str(value)) if value else None
             if e164:
@@ -1578,8 +1567,8 @@ class CallSession:
         return bool(getattr(self.s, "closed_conversation", False)) or self._ending
 
     def _abandoned(self) -> str:
-        where = getattr(self.s, "goal", None) or getattr(self.s, "step", None) or getattr(self.s, "pending", None)
-        where = getattr(where, "value", where)                 # an R2 Goal is a str enum
+        where = getattr(self.s, "pending", None)
+        where = getattr(where, "value", where)                 # a Goal is a str enum
         return f"abandoned@{where}" if where is not None else "abandoned"
 
     # ------------------------------------------------------------------ transcript

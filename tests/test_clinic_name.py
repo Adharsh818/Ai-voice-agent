@@ -14,12 +14,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CHECK = r"""
 import json, pathlib
-import config, prompts, ai_engine, pages
+import config, prompts, pages
+from dialogue import brief
 spoken = list(config.GREETINGS) + list(config.TIME_GREETINGS.values()) + list(config.DEEPGRAM_KEYTERMS[:1])
 for line in ("capability.who", "wrong_number"):
     spoken += list(prompts.VARIANTS[line])
 page = pages.html(pathlib.Path("static/dashboard/index.html")).body.decode("utf-8")
-print(json.dumps({"spoken": spoken, "nlu": ai_engine.EMMA_NLU_SYSTEM_PROMPT[:200], "page": page[:2000],
+print(json.dumps({"spoken": spoken, "nlu": brief.persona(None)[:200], "page": page[:2000],
                   "cid": config.TELEPHONY_CLINIC_CID}))
 """
 
@@ -41,14 +42,14 @@ class ClinicNameTests(unittest.TestCase):
         for line in got["spoken"]:
             self.assertNotIn("Pearl", line)
         self.assertTrue(all("Smile Care" in g for g in got["spoken"][:7]))
-        self.assertIn("Smile Care Dental Clinic in Mysuru", got["nlu"])
+        self.assertIn("Smile Care Dental Clinic, a dental clinic in Mysuru", got["nlu"])
         self.assertIn("Smile Care", got["page"])
         self.assertNotIn("Pearl", got["page"])
 
     def test_default_is_unchanged(self):
         got = run({})
         self.assertIn("Emma at Pearl Dental", got["spoken"][0])
-        self.assertIn("Pearl Dental Clinic in Bengaluru", got["nlu"])
+        self.assertIn("Pearl Dental Clinic, a dental clinic in Bengaluru", got["nlu"])
 
 
 if __name__ == "__main__":

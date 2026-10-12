@@ -80,7 +80,6 @@ def check_server():
 
 def check_settings():
     print("Settings")
-    report("OK" if config.R2_ENGINE else "WARN", "R2 conversation engine", "on" if config.R2_ENGINE else "off")
     report("OK" if not config.DEV_CAPTURE_AUDIO else "WARN", "audio capture",
            "off" if not config.DEV_CAPTURE_AUDIO else "ON: callers are being recorded to captures/")
     local = config.SERVER_HOST in ("127.0.0.1", "localhost", "::1")

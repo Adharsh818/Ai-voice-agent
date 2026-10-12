@@ -2,8 +2,9 @@
 R2, the natural conversation engine (docs/R2_DESIGN.md).
 
 The LLM carries the conversation; Python decides every action and every fact
-that is spoken (docs/NORTH_STAR.md, principle 4). The package replaces the
-12-step state machine in ai_engine.py, which stays the public facade.
+that is spoken (docs/NORTH_STAR.md, principle 4). It is the only engine (the
+12-step state machine it replaced was retired on 12 Oct 2026); ai_engine.py is
+its public facade.
 
     context.py   the per-call context (picklable), goals, understanding, plans
     match.py     deterministic matchers: yes/no, digits, names, services,

@@ -12,12 +12,13 @@ from datetime import date, datetime
 from unittest.mock import patch
 
 import ai_engine
-import backend_actions
 import clock
 import config
+import dateparse
 import llm
 import logredact
 from capture import CallCapture
+from dialogue.context import Goal
 from latency import LatencyLog, TurnTimer
 
 
@@ -31,7 +32,7 @@ class ClinicClockTests(unittest.TestCase):
         # 00:30 IST on 1 Oct is still 30 Sep in UTC; callers mean 1 Oct.
         with clock.frozen(datetime(2026, 10, 1, 0, 30)):
             self.assertEqual(clock.today(), date(2026, 10, 1))
-            self.assertEqual(backend_actions.resolve_date("tomorrow")[1], "2026-10-02")
+            self.assertEqual(dateparse.parse_when("tomorrow").date.start, date(2026, 10, 2))
 
     def test_frozen_restores_previous_value_when_nested(self):
         with clock.frozen(datetime(2026, 1, 1, 9, 0)):
@@ -189,8 +190,8 @@ class CallSessionEndpointTests(unittest.TestCase):
                 return None
 
             session._run_turn = no_turn
-            session.s = ai_engine.SessionState()     # the 12-step machine, whichever engine is on
-            session.s.step = 9      # Emma asked "Shall I book it?": a plain yes commits at once
+            session.s = ai_engine.new_session("endpoint")
+            session.s.pending = Goal.SUMMARY      # Emma asked "Shall I book it?": a plain yes commits at once
             await session._on_utterance_end("Yes please.", None, "utterance_end")
             await asyncio.sleep(0)
             return session._timers[session.turn_id]

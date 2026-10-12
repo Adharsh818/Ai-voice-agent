@@ -4,9 +4,8 @@ import asyncio
 import time
 import unittest
 
-import ai_engine
 import turn_detector
-from turn_detector import TurnDetector, classify, hint_from_state
+from turn_detector import TurnDetector, classify
 
 from test_realtime_support import fast_holds
 
@@ -73,19 +72,6 @@ class ClassifyTests(unittest.TestCase):
         class Expect(str):
             value = "phone"
         self.assertEqual(classify("98450", {"expect": Expect("phone")}).kind, "digits")
-
-    def test_hint_from_the_old_step_engine(self):
-        s = ai_engine.SessionState()
-        self.assertEqual(hint_from_state(s)["expect"], "open")
-        s.step, s.temp_phone = 4, ""
-        self.assertEqual(hint_from_state(s)["expect"], "phone")
-        s.temp_phone = "9876543210"
-        self.assertEqual(hint_from_state(s)["expect"], "yes_no")
-        s.step = 9
-        self.assertEqual(hint_from_state(s)["expect"], "yes_no")
-        s.step, s.temp_date = 7, ""
-        self.assertEqual(hint_from_state(s)["expect"], "date")
-        self.assertEqual(hint_from_state(object())["expect"], "open")
 
 
 class DetectorTests(unittest.TestCase):

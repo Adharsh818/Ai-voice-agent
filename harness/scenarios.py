@@ -22,9 +22,10 @@ wording, so it survives the engine rewrite:
 
 Expect(...) holds the call-level properties: the database outcome, details of
 the booking, phrases that must never be said, topics that must be covered, and
-the metrics that must have no findings. `bug` names the known defect that
-makes a scenario fail on today's engine; tests/test_conversations.py marks
-those as expected failures until the fix sprint flips them.
+the metrics that must have no findings. `bug` names a known defect that
+makes a scenario fail (none do today: the 40 that named defects of the retired
+12-step machine were dropped with it); tests/test_conversations.py marks those
+as expected failures until a fix flips them.
 
 Placeholders in caller lines: {card_patient} {card_phone} {card_date}
 {card_time} {card_service} {card_branch} (a real seeded appointment) and
@@ -114,7 +115,6 @@ SCENARIOS: list[Scenario] = [
          Say("No."), Say("No."), Say("No."), Say("No.")],
         profile={"service": "General Check-up", "service_phrase": "a check-up"},
         expect=Expect(zero=DEFAULT_ZERO),
-        bug="step 6 location refusal has no exit (audit problem 2): the same branch line repeats",
     ),
     Scenario(
         "reg_cancel_at_recap", "'I'd like to cancel' at the recap, then 'Bye', ends in a booking", "regression",
@@ -123,7 +123,6 @@ SCENARIOS: list[Scenario] = [
          Say("So I would like to cancel."), Say("Cancel the complete"), Say("Cancel it."), Say("Nothing."),
          Say("Nothing."), Say("Bye."), Say("Yeah.")],
         expect=Expect(outcome="none"),
-        bug="no intent switch at the recap: 'cancel' is taken as a field correction and a later 'Yeah' books it",
     ),
     Scenario(
         "reg_braces_nagarbhavi", "Braces can never be booked (Nagarbhavi has no braces doctor)", "regression",
@@ -131,7 +130,6 @@ SCENARIOS: list[Scenario] = [
         [Say("Hello, I want to get braces."), Auto(max_turns=22)],
         profile={"service": "Braces", "service_phrase": "braces", "time": time(8, 0)},
         expect=_book(booked={"service": "Braces", "branch_in": BRACES_BRANCHES}),
-        bug="bookings go to DEFAULT_BRANCH Nagarbhavi, which has no braces doctor, so step 10 loops on 'What other time'",
     ),
     Scenario(
         "reg_time_fragment_at_date", "A time-only fragment at the date step is read back as today", "regression",
@@ -139,7 +137,6 @@ SCENARIOS: list[Scenario] = [
         [Say("Hi, I'd like to book a check-up."), Auto(until=("date",)), Say("November 22, at"),
          Say("5PM.", forbid=[r"\b0?1(st)? october\b", r"\btoday\b", r"\bthursday\b"])],
         profile={"service": "General Check-up", "service_phrase": "a check-up"},
-        bug="backend_actions.resolve_date('5PM') falls through to today's date",
     ),
     Scenario(
         "reg_meta_how_can_you_help", "'How can you help me?' gets a booking push, not an answer", "regression",
@@ -148,7 +145,6 @@ SCENARIOS: list[Scenario] = [
              forbid=[DEFLECT, r"^would you like to book a visit\?$"]),
          Say("Okay, I'd like to book a cleaning then."), Auto()],
         expect=_book(),
-        bug="no capability answer: meta questions get the escalation line plus 'Would you like to book a visit?'",
     ),
     Scenario(
         "reg_meta_who_are_you", "'Who are you?' gets the doctor line", "regression",
@@ -156,7 +152,6 @@ SCENARIOS: list[Scenario] = [
         [Say("Who are you?", expect=[r"\bemma\b"], forbid=[DEFLECT, HUMAN_CLAIM]),
          Say("Okay. I want to book a check-up."), Auto()],
         expect=_book(zero=DEFAULT_ZERO + ("Z3",)),
-        bug="meta questions fall through to the escalation line (no 'who I am' answer)",
     ),
     Scenario(
         "reg_meta_about_clinic", "'Tell me about the clinic' gets the doctor line", "regression",
@@ -165,21 +160,18 @@ SCENARIOS: list[Scenario] = [
              expect_any=[r"nagarbhavi|indiranagar|jayanagar|whitefield|branches", r"check-?ups?|cleanings?|services|treatments",
                          r"\bopen\b|monday|hours"])],
         expect=Expect(outcome="none"),
-        bug="no clinic overview answer: the escalation line is spoken instead",
     ),
     Scenario(
         "reg_meta_what_can_you_help_with", "'Tell me what you can help me with' dead-ends", "regression",
         "HANDOFF 5: 'Tell me what can you help me with'",
         [Say("Tell me what you can help me with.", expect=[BOOK_WORDS, INFO_WORDS], forbid=[DEFLECT])],
         expect=Expect(outcome="none"),
-        bug="no capability answer for meta questions",
     ),
     Scenario(
         "reg_price_model_down", "A price question while the model is down gets the doctor line", "regression",
         "HANDOFF 5: ESCALATION_LINE is the fallback whenever the model is down",
         [Say("How much does a cleaning cost?", expect_any=[r"\d", r"rupees", r"range", r"depends"], forbid=[DEFLECT])],
         nlu_down=True, expect=Expect(outcome="none"),
-        bug="with the NLU down every question gets ESCALATION_LINE instead of a knowledge-base answer",
     ),
     Scenario(
         "reg_price_root_canal", "A price question gets the price (invariant)", "regression",
@@ -192,7 +184,6 @@ SCENARIOS: list[Scenario] = [
         "HANDOFF 5: price/visit questions answered with 'The doctor can go through that with you at your visit'",
         [Say("What happens during a cleaning?", forbid=[DEFLECT])],
         expect=Expect(outcome="none"),
-        bug="no general (non-medical) dental knowledge: anything outside clinic_facts gets the doctor line",
     ),
     Scenario(
         "reg_fragment_whats_the_best", "A cut-off fragment is answered with the doctor line", "regression",
@@ -200,7 +191,6 @@ SCENARIOS: list[Scenario] = [
         [Say("What's the best", forbid=[DEFLECT]),
          Say("What's the best time to come in?", forbid=[DEFLECT])],
         expect=Expect(outcome="none"),
-        bug="a fragment is treated as a complete question and gets the escalation line",
     ),
     Scenario(
         "reg_fragment_tell_me", "'Tell me what can you' fragment, then the full question", "regression",
@@ -208,7 +198,6 @@ SCENARIOS: list[Scenario] = [
         [Say("Tell me what can you", forbid=[DEFLECT]),
          Say("Tell me what you can do for me.", expect=[BOOK_WORDS], forbid=[DEFLECT])],
         expect=Expect(outcome="none"),
-        bug="fragments and meta questions get the escalation line",
     ),
     Scenario(
         "reg_fragment_cancel_at_recap", "'Cancel the com' fragment at the recap", "regression",
@@ -217,14 +206,12 @@ SCENARIOS: list[Scenario] = [
          Say("Cancel the com"), Say("Cancel the complete booking."), Say("Yes."), Say("Bye.")],
         profile={"service": "Tooth Filling", "service_phrase": "a filling"},
         expect=Expect(outcome="none"),
-        bug="no intent switch at the recap: cancelling the booking in progress is impossible",
     ),
     Scenario(
         "reg_repeated_steer", "Three questions in a row: 'Would you like to book a visit?' three times", "regression",
         "HANDOFF feedback item 4 / SUCCESS_CRITERIA 3: the same question repeated",
         [Say("What are your timings?"), Say("Do you take insurance?"), Say("Is there parking at Nagarbhavi?")],
         expect=Expect(outcome="none"),
-        bug="every off-topic answer re-asks the pending question, so the same question repeats (criterion 3)",
     ),
     Scenario(
         "reg_deepgram_phone_format", "Deepgram's US-style number '(789) 937-7462' is understood (invariant)",
@@ -263,12 +250,12 @@ SCENARIOS: list[Scenario] = [
         [Say("Hi, I want to book a check-up."), Auto(until=("date",)),
          Say("Wait, what all can you help me with?", expect=[BOOK_WORDS, INFO_WORDS], forbid=[DEFLECT]), Auto()],
         profile={"service": "General Check-up", "service_phrase": "a check-up"},
-        expect=_book(), bug="no capability answer for meta questions",
+        expect=_book(),
     ),
     Scenario(
         "cat_chitchat_then_book", "Chit-chat before booking", "catalogue", "SUCCESS_CRITERIA 1: off-topic comments",
         [Say("Hi, how's your day going?", forbid=[DEFLECT]), Say("I'd like to book a cleaning."), Auto()],
-        expect=_book(), bug="chit-chat gets the escalation (doctor) line",
+        expect=_book(),
     ),
     Scenario(
         "cat_offtopic_mid_booking", "An off-topic comment at the date question", "catalogue",
@@ -276,14 +263,14 @@ SCENARIOS: list[Scenario] = [
         [Say("Hi, I want to book a filling."), Auto(until=("date",)),
          Say("It's been raining so much here, no?", forbid=[DEFLECT]), Auto()],
         profile={"service": "Tooth Filling", "service_phrase": "a filling"},
-        expect=_book(), bug="an off-topic comment gets the doctor line and is consumed as a failed date answer",
+        expect=_book(),
     ),
     Scenario(
         "cat_refuse_phone", "The caller won't give a number at first", "catalogue", "SUCCESS_CRITERIA 6: refusing to answer",
         [Say("Hi, I'd like to book a check-up."), Auto(until=("phone",)),
          Say("I'd rather not give my number.", forbid=[r"missed a digit"]), Auto()],
         profile={"service": "General Check-up", "service_phrase": "a check-up"},
-        expect=_book(), bug="a refusal is treated as a misheard number ('I think I missed a digit')",
+        expect=_book(),
     ),
     Scenario(
         "cat_nonanswer_date", "'I've been really busy lately' at the date question", "catalogue",
@@ -292,7 +279,7 @@ SCENARIOS: list[Scenario] = [
          Say("I've been really busy lately.",
              expect_any=[r"this week|next week|weekend|morning|evening|suggest|how about|earliest|fits|find something"]),
          Auto()],
-        expect=_book(), bug="non-answers get a canned re-ask instead of help choosing",
+        expect=_book(),
     ),
     Scenario(
         "cat_change_mind_date", "Changing the day after it was confirmed", "catalogue", "SUCCESS_CRITERIA 11: changes of mind",
@@ -302,7 +289,6 @@ SCENARIOS: list[Scenario] = [
          Auto()],
         profile={"day": MONDAY, "time": time(11, 30)},
         expect=_book(booked={"date": SATURDAY.isoformat()}),
-        bug="a change to an already-confirmed date is ignored (only the current step's slot is read)",
     ),
     Scenario(
         "cat_intent_switch_book_to_cancel", "Starts booking, then asks to cancel an existing appointment", "catalogue",
@@ -311,7 +297,6 @@ SCENARIOS: list[Scenario] = [
             Say("Actually, I already have an appointment. Can you cancel that one instead?"), Auto(max_turns=18)],
         goal="cancel", card=True, profile={"goal": "book"},
         expect=Expect(outcome="cancelled"),
-        bug="no intent switching and no cancel flow in the 12-step engine",
     ),
     Scenario(
         "cat_out_of_order", "'On 2nd October I want an appointment for a cleaning'", "catalogue",
@@ -350,7 +335,6 @@ SCENARIOS: list[Scenario] = [
         profile={"service": None, "service_phrase": "teeth whitening"},
         expect=Expect(outcome="booked", must_not_say=[r"we don'?t (do|offer) (teeth )?whitening"],
                       zero=DEFAULT_ZERO + ("M2", "M4")),
-        bug="unknown services get a fixed treatment list instead of the whitening fact and a consultation offer",
     ),
     Scenario(
         "cat_unknown_service_implant", "A dental implant", "catalogue", "HANDOFF step 1: unknown services",
@@ -359,7 +343,6 @@ SCENARIOS: list[Scenario] = [
          Say("A dental implant, like I said.", forbid=[r"what'?s the visit for|which treatment|what is it for"]), Auto()],
         profile={"service": None, "service_phrase": "a dental implant"},
         expect=Expect(outcome="booked", zero=DEFAULT_ZERO + ("M2", "M4")),
-        bug="unknown services get a fixed treatment list instead of the implant fact and a consultation offer",
     ),
     Scenario(
         "cat_branch_mismatch_braces", "Braces asked for at Nagarbhavi, which doesn't do braces", "catalogue",
@@ -368,7 +351,6 @@ SCENARIOS: list[Scenario] = [
         profile={"service": "Braces", "service_phrase": "braces", "branch": "Nagarbhavi"},
         expect=Expect(outcome="booked", booked={"branch_in": BRACES_BRANCHES},
                       should_cover=[r"indiranagar|whitefield"]),
-        bug="no branch awareness: braces can't be booked, and Emma never mentions the branches that do them",
     ),
     Scenario(
         "cat_family_pediatric", "Booking for a child", "catalogue", "HANDOFF step 1: family bookings",
@@ -376,13 +358,12 @@ SCENARIOS: list[Scenario] = [
         profile={"service": "Pediatric Dentistry", "service_phrase": "pediatric dentistry", "patient": "Aarav Sharma",
                  "relation": "son"},
         expect=_book(booked={"service": "Pediatric Dentistry", "branch_in": PEDIATRIC_BRANCHES, "patient": "Aarav"}),
-        bug="Nagarbhavi has no pediatric doctor and the patient-vs-caller name isn't handled",
     ),
     Scenario(
         "cat_silence", "Silence in the middle of the call", "catalogue", "SUCCESS_CRITERIA 2: pauses",
         [Say("Hi, I'd like to book a check-up."), Auto(until=("name",)), Say(""), Say(""), Auto()],
         profile={"service": "General Check-up", "service_phrase": "a check-up"},
-        expect=_book(), bug="after the silence ladder the same name question comes a third time, word for word",
+        expect=_book(),
     ),
     Scenario(
         "cat_bot_question_mid_flow", "'Is this a bot?' in the middle of a booking", "catalogue", "NORTH_STAR 5",
@@ -396,14 +377,13 @@ SCENARIOS: list[Scenario] = [
         [Say("Can I talk to a real person?", forbid=[DEFLECT, r"connect you|transfer you|put you through"],
              expect_any=[r"\bhelp\b", BOOK_WORDS]),
          Say("Okay, I want to book a check-up."), Auto()],
-        expect=_book(), bug="a person request gets the doctor line instead of an offer to help",
+        expect=_book(),
     ),
     Scenario(
         "cat_person_insist", "Insists on a person: a callback is taken", "catalogue", "NORTH_STAR 3: callback only if they insist",
         [Say("Can I talk to a real person?"), Say("No, I really want to speak to a human."),
          Say("Please just have someone call me back."), Auto(max_turns=8)],
         goal="questions", expect=Expect(outcome="task", should_cover=[r"call (you )?back|callback"]),
-        bug="a person request gets the doctor line, the second 'no, a human' closes the call, and no callback task is made",
     ),
     Scenario(
         "cat_emergency_red_flag", "Red-flag symptoms", "catalogue", "NORTH_STAR 3: genuine emergencies",
@@ -412,39 +392,33 @@ SCENARIOS: list[Scenario] = [
          Auto(max_turns=16)],
         goal="emergency", profile={"goal": "emergency"},
         expect=Expect(outcome="booked_or_task", booked={"date": TODAY.isoformat()}),
-        bug="no emergency path, and the 'can't' in 'I can't open my mouth' reads as a no at the greeting, which closes the call",
     ),
     Scenario(
         "cat_emergency_pain", "Severe pain, wants to come today", "catalogue", "clinic fact policy.emergency",
         [Say("I have severe tooth pain, can I come in today?"), Auto(max_turns=16)],
         goal="emergency", profile={"goal": "emergency"},
         expect=Expect(outcome="booked_or_task"),
-        bug="no same-day urgent booking: 'as soon as possible' can't be turned into a slot",
     ),
     Scenario(
         "cat_cancel_verified", "Cancel an existing appointment, with verification", "catalogue",
         "SUCCESS_CRITERIA 2: verification by phone + name + date",
         [Say("Hi, I need to cancel my appointment."), Auto(max_turns=18)],
         goal="cancel", card=True, profile={"goal": "cancel"}, expect=Expect(outcome="cancelled"),
-        bug="no cancel flow, and 'cancel' at the greeting reads as a no, which closes the call",
     ),
     Scenario(
         "cat_reschedule_verified", "Reschedule an existing appointment, with verification", "catalogue",
         "SUCCESS_CRITERIA 2", [Say("Hi, I need to reschedule my appointment."), Auto(max_turns=20)],
         goal="reschedule", card=True, profile={"goal": "reschedule"}, expect=Expect(outcome="rescheduled"),
-        bug="no reschedule flow in the 12-step engine",
     ),
     Scenario(
         "cat_prepone", "'I want to prepone my appointment'", "catalogue", "Indian English: prepone = bring forward",
         [Say("I want to prepone my appointment."), Auto(max_turns=20)],
         goal="reschedule", card=True, profile={"goal": "reschedule", "earlier": True}, expect=Expect(outcome="rescheduled"),
-        bug="no reschedule flow; 'prepone' isn't understood",
     ),
     Scenario(
         "cat_check_appointment", "'When is my appointment?' (verify before revealing)", "catalogue",
         "SUCCESS_CRITERIA Z7", [Say("Hi, can you tell me when my appointment is?"), Auto(max_turns=12)],
         goal="check", card=True, profile={"goal": "check"}, expect=Expect(outcome="none", states_card=True),
-        bug="no check flow: the question gets the doctor line and the call closes on 'No'",
     ),
     Scenario(
         "cat_dr_sharma", "'Tomorrow evening around 6 with Dr Sharma' (no such doctor)", "catalogue",
@@ -454,7 +428,6 @@ SCENARIOS: list[Scenario] = [
                  "name": "Rahul Verma"},
         expect=_book(booked={"date": TOMORROW.isoformat(), "time": "18:00"},
                      must_not_say=[r"\b(with|see|booked with) dr\.? sharma\b"], zero=DEFAULT_ZERO + ("M2",)),
-        bug="doctor names are ignored: no 'there's no Dr Sharma' and no offer of the doctors who are there",
     ),
     Scenario(
         "cat_indian_phrasing", "'Kindly book one check-up for tomorrow morning itself, do the needful'", "catalogue",
@@ -462,8 +435,6 @@ SCENARIOS: list[Scenario] = [
         [Say("Hello, kindly book one check-up for tomorrow morning itself, do the needful."), Auto()],
         profile={"service": "General Check-up", "service_phrase": "a check-up", "day": TOMORROW, "time": time(10, 0)},
         expect=_book(booked={"date": TOMORROW.isoformat()}),
-        bug="'morning' is read as 7 AM, which no Nagarbhavi doctor works, and the offered slot is booked without a "
-            "summary (Z1)",
     ),
     Scenario(
         "cat_sunday_request", "Asks for a Sunday", "catalogue", "clinic hours: closed Sundays",
@@ -488,15 +459,12 @@ SCENARIOS: list[Scenario] = [
         [Say("How much is a root canal?"), Say("And how much is a filling?"), Say("What about a cleaning, how much is that?"),
          Say("Okay, I'll book a cleaning."), Auto()],
         expect=_book(zero=DEFAULT_ZERO + ("M4",)),
-        bug="every answer re-asks 'Would you like to book a visit?', so it repeats three times",
     ),
     Scenario(
         "cat_hours_then_book", "Asks the Saturday hours, then books Saturday", "catalogue", "SUCCESS_CRITERIA 4",
         [Say("What time do you open on Saturday?"), Say("Okay, can I book a check-up for Saturday morning?"), Auto()],
         profile={"service": "General Check-up", "service_phrase": "a check-up", "day": SATURDAY, "time": time(10, 0)},
         expect=_book(booked={"date": SATURDAY.isoformat()}),
-        bug="'Saturday morning' becomes 7 AM (no doctor then), and '9 in the morning' isn't understood when picking an "
-            "offered slot (step 10 only matches '9 am')",
     ),
     Scenario(
         "cat_taken_slot", "The slot asked for is taken; the caller picks an offered one", "catalogue",
@@ -504,7 +472,6 @@ SCENARIOS: list[Scenario] = [
         [Say("Hi, I'd like to book a cleaning for Monday at 11 am."), Auto()],
         profile={"service": "Teeth Cleaning", "service_phrase": "a cleaning", "day": MONDAY, "time": time(11, 0)},
         expect=_book(booked={"date": MONDAY.isoformat()}),
-        bug="an offered alternative is booked the moment it's picked, with no summary and no yes (Z1)",
     ),
     Scenario(
         "cat_barge_in_summary", "A 'yes' over an interrupted summary must not book", "catalogue",
@@ -513,7 +480,6 @@ SCENARIOS: list[Scenario] = [
          Say("Yes, yes, go ahead.", heard_previous=False), Auto()],
         profile={"service": "General Check-up", "service_phrase": "a check-up"},
         expect=Expect(outcome=None, zero=("Z1", "Z2", "CRASH")),
-        bug="s.last_reply_heard is ignored: a yes over an interrupted summary books",
     ),
 ]
 

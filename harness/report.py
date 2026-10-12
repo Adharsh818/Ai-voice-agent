@@ -328,7 +328,7 @@ def markdown(summary: dict) -> str:
     meta = summary["meta"]
     small = summary["indicative_only"]
     engine = meta.get("engine") or {}
-    engine_text = "R2 facade" if engine.get("new_session") else "12-step engine (no new facade yet)"
+    engine_text = "R2" if engine.get("new_session") else "unknown (no engine facade)"
     out = [f"# Harness run {meta['run_id']}", ""]
     out.append(f"Suite **{meta['suite']}**, mode **{meta['mode']}**, {summary['calls']} call(s) "
                f"({summary['scored_calls']} scored), seed {meta['seed']}, clinic clock {meta['now'][:16]}, "
@@ -377,7 +377,7 @@ def markdown(summary: dict) -> str:
     if summary.get("scenarios"):
         counts = summary["scenario_counts"]
         out += ["## Scenarios", "",
-                "Statuses: **pass**; **known-bug** fails for the bug named (expected on today's engine); "
+                "Statuses: **pass**; **known-bug** fails for the bug named (an expected failure); "
                 "**fixed?** names a bug but now passes (flip its expectedFailure); **REGRESSION** is an invariant "
                 "that fails.", "",
                 "  ".join(f"{k}: {v}" for k, v in sorted(counts.items())), "",
