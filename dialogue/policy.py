@@ -632,6 +632,15 @@ def note_turn(ctx: CallContext, plan: GoalPlan, u: Optional[Understanding]) -> N
     elif plan.goal == Goal.ANSWER_ONLY and not ctx.workflow_active():
         ctx.answers_since_offer += 1                    # a plain answer (the capability menu isn't one)
 
+    # "Sorry, go on." / "Take your time." leave Emma's question open: remember which, so the
+    # caller's next words are still read as its answer (phone check, 12 Oct: "Priya Sharma" after
+    # "go on" wasn't taken as the name the open question asked for).
+    if plan.goal in (Goal.GO_ON, Goal.HOLD_ON):
+        if ctx.pending not in (None, Goal.GO_ON, Goal.HOLD_ON):
+            ctx.__dict__["_open_question"] = (ctx.pending, dict(ctx.pending_params))
+    else:
+        ctx.__dict__.pop("_open_question", None)
+
     if plan.steer:
         stats = ctx.stats(plan.goal)
         stats.asked += 1
@@ -673,10 +682,12 @@ def listening_hint(ctx: CallContext) -> dict:
         return {"expect": Expect.OPEN.value, "digits_so_far": 0}
     if digits:
         return {"expect": Expect.PHONE.value, "digits_so_far": digits}
-    goal = ctx.pending
+    goal, params = ctx.pending, ctx.pending_params
+    if goal in (Goal.GO_ON, Goal.HOLD_ON) and ctx.__dict__.get("_open_question"):
+        goal, params = ctx.__dict__["_open_question"]       # still listening for that answer
     if goal is None:
         return {"expect": Expect.OPEN.value, "digits_so_far": 0}
-    line = str(ctx.pending_params.get("_line", ""))
+    line = str(params.get("_line", ""))
     if line.endswith(".spell"):
         expect = Expect.SPELLING
     elif line == "ask.phone.choices":

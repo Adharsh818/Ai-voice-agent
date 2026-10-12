@@ -529,7 +529,7 @@ class AsteriskConfigTests(unittest.TestCase):
         modules = self.render()["modules.conf"]
         self.assertIn("autoload = no", modules)                             # loading everything hung in WSL
         for needed in ("pbx_config.so", "chan_pjsip.so", "res_pjsip_acl.so", "app_audiosocket.so",
-                       "func_curl.so", "app_dial.so", "res_timing_timerfd.so"):
+                       "func_curl.so", "app_dial.so", "res_timing_timerfd.so", "func_jitterbuffer.so"):
             self.assertIn(f"load => {needed}", modules)
         self.assertNotIn("load => app_voicemail", modules)
 

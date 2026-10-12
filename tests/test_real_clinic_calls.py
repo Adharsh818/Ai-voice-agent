@@ -357,6 +357,23 @@ class HelloBackTests(ClinicCallCase):
         self.assertIn("name", reply)
 
 
+class BadLineTests(ClinicCallCase):
+    def test_a_breaking_up_line_is_said_once_not_go_on_five_times(self):
+        # Phone check, 12 Oct: "a" / "And that's" / "Hello" -> "Sorry, go on." "Go ahead." "You were saying?"...
+        call = Call()
+        call.run("", "I'd like to book a cleaning at Jayanagar.")
+        replies = [call.say(t).text for t in ("a", "and that's", "um", "so", "and")]
+        breaking = [r for r in replies if "breaking up" in r]
+        self.assertEqual(len(breaking), 1, replies)                      # once, after cut-offs keep coming
+        self.assertIn("Priya", call.say("Priya Sharma").text)            # the open question still works
+
+    def test_one_fragment_is_just_go_on(self):
+        call = Call()
+        call.run("", "I'd like to book a cleaning at Jayanagar.")
+        self.assertNotIn("breaking up", call.say("a").text)
+        self.assertIn("Priya", call.say("Priya Sharma").text)
+
+
 class SmallTalkTests(ClinicCallCase):
     def test_small_talk_gets_a_friendly_reply_not_i_dont_know(self):
         # Sim, 12 Oct: "How's your day going?" -> "Honestly, I don't know that one."
