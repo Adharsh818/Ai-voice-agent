@@ -15,9 +15,9 @@ receptionist listens to *what* was said as well as to the pause:
 
 classify(text, hint) -> Verdict
     how much silence after the caller's last word makes `text` a complete turn
-hint_from_state(s) -> {"expect": ..., "digits_so_far": ...}
-    what Emma is waiting for, derived from today's step engine; the redesigned
-    engine provides ai_engine.listening_hint(s) instead
+OPEN_HINT
+    what the detector assumes when the engine gives no hint (Emma's listening
+    hint comes from ai_engine.listening_hint(s))
 TurnDetector
     holds an utterance until that silence has passed, merges more speech into
     it, and hands the finished turn to the call session
@@ -390,34 +390,8 @@ def classify(text: str, hint: Optional[dict] = None) -> Verdict:
     return _verdict("default", "short")
 
 
-def hint_from_state(s) -> dict:
-    """
-    What Emma is listening for, from today's 12-step engine (ai_engine.SessionState).
-    The redesigned engine exposes ai_engine.listening_hint(s); this is its fallback.
-    """
-    step = getattr(s, "step", None)
-    if step is None:
-        return {"expect": "open", "digits_so_far": 0}
-
-    def pending(attr):
-        return not getattr(s, attr, "")
-
-    expect = "open"
-    if step == 2:
-        expect = "name" if pending("temp_name") else "yes_no"
-    elif step == 4:
-        expect = "phone" if pending("temp_phone") else "yes_no"
-    elif step == 5:
-        expect = "choice" if pending("temp_service") else "yes_no"
-    elif step in (6, 9, 11):
-        expect = "yes_no"          # branch check, recap, "anything else?"
-    elif step == 7:
-        expect = "date" if pending("temp_date") else "yes_no"
-    elif step == 8:
-        expect = "time" if pending("temp_time") else "yes_no"
-    elif step == 10:
-        expect = "choice" if getattr(s, "alternative_slots", None) else "time"
-    return {"expect": expect, "digits_so_far": 0}
+# What the detector assumes when the engine gives no hint (ai_engine.listening_hint).
+OPEN_HINT = {"expect": "open", "digits_so_far": 0}
 
 
 # ------------------------------------------------------------------ the detector

@@ -4,7 +4,7 @@ Reading Emma's lines without knowing the engine.
 The simulated caller has to answer what Emma actually asked, and the metrics
 have to know which question she asked, which values she read back and whether
 she claimed an action. Both work from her words alone, so they keep working
-when the 12-step engine is replaced: nothing here imports ai_engine.
+whatever the engine does inside: nothing here imports ai_engine.
 
 Everything is heuristic and deliberately forgiving about wording ("What day
 suits you?", "Which day works?", "When would you like to come in?" are all a

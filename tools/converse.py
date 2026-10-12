@@ -9,7 +9,7 @@ clinic clock is frozen at the conversation's moment again on every command,
 so "tomorrow" means the same day all the way through.
 
     python tools/converse.py new [--goal book] [--card existing_appointment] [--live | --offline | --nlu-down]
-                                 [--r2 | --legacy] [--now ISO] [--seed N]
+                                 [--r2] [--now ISO] [--seed N]
         prints the conversation id, Emma's greeting and, with --card (or a
         cancel / reschedule / check goal), a private caller card: a real seeded
         appointment (patient, phone, date and time, service, branch) to cancel,
@@ -29,10 +29,8 @@ harness's fake NLU and --nlu-down no model at all, and neither touches the
 network. Model failures (quota, timeouts) go to stderr, so stdout is only
 ever Emma's words.
 
-The engine is whatever config.R2_ENGINE picks (off: the 12-step machine);
---r2 or --legacy at `new` pins one for the whole conversation. The pickled
-session carries it from command to command, since ai_engine routes each turn
-by the session's type.
+The engine is R2 (dialogue/), the only one; --r2 at `new` is still accepted.
+The pickled session carries the call from command to command.
 """
 
 import argparse
@@ -108,7 +106,7 @@ def _warn_llm(turn: dict):
 
 def cmd_new(args) -> int:
     mode = "offline" if args.offline else ("nlu_down" if args.nlu_down else "live")
-    engine = "r2" if args.r2 else ("legacy" if args.legacy else None)
+    engine = "r2"
     conv_id = _new_id()
     d = _dir(conv_id)
     d.mkdir(parents=True)
@@ -278,9 +276,7 @@ def main(argv=None) -> int:
     where.add_argument("--live", action="store_true", help="real Gemini with the .env key (the default)")
     where.add_argument("--offline", action="store_true", help="the harness's fake NLU, no network")
     where.add_argument("--nlu-down", action="store_true", help="no model at all: Emma's fallback path, no network")
-    which = new.add_mutually_exclusive_group()
-    which.add_argument("--r2", action="store_true", help="the R2 engine, whatever config.R2_ENGINE says")
-    which.add_argument("--legacy", action="store_true", help="the 12-step engine, whatever config.R2_ENGINE says")
+    new.add_argument("--r2", action="store_true", help="the R2 engine (the only one; kept for older commands)")
     new.add_argument("--now", help="clinic clock, ISO local time (default 2026-10-01T10:00)")
     new.add_argument("--seed", type=int, help="choose the card deterministically")
     new.set_defaults(fn=cmd_new)

@@ -255,15 +255,7 @@ def make_session(transport=None, cache=(), tts=None, keyterms=None, cache_ms=400
     services = Services(stt_factory=lambda **cb: FakeSTT(**cb), tts=tts,
                         cache=FakeCache(cache, ms=cache_ms) if cache else None,
                         keyterms=keyterms if keyterms is not None else (lambda: []))
-    # These tests drive the call session on fakes of the engine and set the
-    # 12-step machine's state (s.step) directly, so the session starts on it
-    # even when the suite runs with R2_ENGINE on (a patched new_session wins).
-    import config
-    saved, config.R2_ENGINE = config.R2_ENGINE, False
-    try:
-        session = CallSession(transport, services, call_id="test")
-    finally:
-        config.R2_ENGINE = saved
+    session = CallSession(transport, services, call_id="test")
     session.recorder = FakeRecorder()
     if isinstance(transport, PlayingTransport):
         transport.session = session

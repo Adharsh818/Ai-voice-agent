@@ -1,10 +1,9 @@
 """
-tests/test_booking_flow.py's behaviour, ported to the R2 engine (Sprint 1b
-integration). The old file keeps testing the 12-step machine, which stays
-the default engine; this one drives the same promises through the ai_engine
-facade on an R2 CallContext, on the DEMO clinic, with the model down
-(Tier-0 and the lenient fallback) or faked (nlu.FakeNLU) where a turn needs
-the model's reading.
+The old tests/test_booking_flow.py's behaviour, ported from the retired
+12-step machine (deleted with it on 12 Oct 2026). These drive the same
+promises through the ai_engine facade on a CallContext, on the DEMO clinic,
+with the model down (Tier-0 and the lenient fallback) or faked (nlu.FakeNLU)
+where a turn needs the model's reading.
 
 What carries over, as behaviour rather than step numbers:
 - nothing is booked before a summary the caller heard gets a clear yes;
@@ -36,7 +35,7 @@ Dropped with the 12-step machine (their R2 replacements):
   back and confirmed already).
 - test_short_service_fragments_do_not_match (_match_service): tests/test_match.py.
 - ConfirmationParsingTests' parser cases: tests/test_match.py
-  (test_parity_with_the_old_parser runs the same phrases through match.parse_yes_no).
+  (YES_NO_CASES pins the old parser's answers for match.parse_yes_no).
 - test_purpose_question_skipped_when_intent_already_clear: there is no purpose
   step; test_volunteered_details_are_never_asked_again covers it.
 """

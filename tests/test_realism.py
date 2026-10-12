@@ -58,9 +58,9 @@ class NoRoboticSpeechTests(unittest.TestCase):
                 self.check(text, "phrases")
 
     def test_every_spoken_string_in_the_dialogue(self):
-        for module in ("ai_engine.py", "phrases.py"):
-            for text in _spoken_strings(ROOT / module):
-                self.check(text, module)
+        # The engine's own lines are prompts.VARIANTS, scanned below (R2_BANNED).
+        for text in _spoken_strings(ROOT / "phrases.py"):
+            self.check(text, "phrases.py")
 
     def test_the_scanner_would_catch_a_regression(self):
         with self.assertRaises(AssertionError):
@@ -203,14 +203,7 @@ class GreetingTests(unittest.TestCase):
     def test_first_turn_is_a_rotated_natural_greeting(self):
         import asyncio
         import ai_engine
-        result = asyncio.run(ai_engine.async_process_turn("", ai_engine.SessionState()))
-        self.assertIn(result.text, phrases.all_greetings())
-
-    def test_first_turn_on_the_r2_engine_is_the_same_rotated_greeting(self):
-        import asyncio
-        import ai_engine
-        from dialogue.context import new_context
-        result = asyncio.run(ai_engine.async_process_turn("", new_context("greet")))
+        result = asyncio.run(ai_engine.async_process_turn("", ai_engine.new_session("greet")))
         self.assertIn(result.text, phrases.all_greetings())
         self.assertEqual(result.tier, -1)
 
@@ -264,21 +257,22 @@ class SoundRealismTests(unittest.TestCase):
 
     def test_typing_follows_information_not_yes_no_or_questions(self):
         import ai_engine
-        s = ai_engine.SessionState()
+        from dialogue.context import Goal
+        s = ai_engine.new_session("typing")
         self.assertTrue(ai_engine.expects_information(s, "I'd like to book a cleaning next Monday"))
         self.assertFalse(ai_engine.expects_information(s, "hello"))
-        s.step = 2
+        s.pending = Goal.ASK_NAME
         self.assertTrue(ai_engine.expects_information(s, "my name is Priya Sharma"))
-        s.temp_name = "Priya Sharma"                       # now Emma asked "did I get that right?"
+        s.pending = Goal.CONFIRM_PHONE                     # "did I get that right?"
         self.assertFalse(ai_engine.expects_information(s, "yes"))
-        s.step, s.temp_phone = 4, ""
+        s.pending = Goal.ASK_PHONE
         self.assertTrue(ai_engine.expects_information(s, "nine eight seven six five, four three two one zero"))
         self.assertFalse(ai_engine.expects_information(s, "what are your timings?"))
-        s.step = 9
+        s.pending = Goal.SUMMARY
         self.assertFalse(ai_engine.expects_information(s, "yes please"))
         self.assertTrue(ai_engine.expects_information(s, "no, the number is 9123456789"))
 
-    def _run_turn(self, step, text, **state):
+    def _run_turn(self, goal, text):
         """Run one CallSession turn with an instant engine; return (sfx events, seconds until Emma spoke)."""
         import asyncio
         import time
@@ -293,16 +287,14 @@ class SoundRealismTests(unittest.TestCase):
             async def flush(self, *_): pass
             async def close(self): pass
 
-        async def instant(_text, s, progress=None):
+        async def instant(_text, s, progress=None, on_sentence=None):
             return ai_engine.TurnResult("Okay.", tier=0)
 
         async def run():
             t = Transport()
             session = CallSession(t, Services(stt_factory=lambda **_: None))
-            session.s = ai_engine.SessionState()     # the 12-step machine's steps, whichever engine is on
-            session.s.step = step
-            for key, value in state.items():
-                setattr(session.s, key, value)
+            session.s = ai_engine.new_session("beat")
+            session.s.pending = goal                  # the question Emma just asked
             spoke = []
 
             async def fake_speak(tid, reply, timer):
@@ -322,7 +314,8 @@ class SoundRealismTests(unittest.TestCase):
         return asyncio.run(run())
 
     def test_a_given_phone_number_gets_a_typing_beat_before_the_reply(self):
-        sfx, waited = self._run_turn(4, "9876543210", temp_phone="")
+        from dialogue.context import Goal
+        sfx, waited = self._run_turn(Goal.ASK_PHONE, "9876543210")
         self.assertEqual(len(sfx), 1)
         self.assertEqual((sfx[0]["name"], sfx[0]["until_speech"], sfx[0]["turn"]), ("typing", True, 1))
         # The beat overlaps the engine's work: an instant engine waits out the
@@ -332,7 +325,8 @@ class SoundRealismTests(unittest.TestCase):
         self.assertLess(waited, high / 1000 + 0.2)
 
     def test_a_plain_yes_is_answered_straight_away(self):
-        sfx, waited = self._run_turn(6, "yes")
+        from dialogue.context import Goal
+        sfx, waited = self._run_turn(Goal.SUMMARY, "yes")
         self.assertEqual(sfx, [])
         self.assertLess(waited, 0.3)
 

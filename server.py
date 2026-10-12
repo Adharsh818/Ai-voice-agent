@@ -258,7 +258,7 @@ async def warm_nlu():
     line), read to the end and thrown away, so a caller's first turn finds the
     connection and the model warm. Never raises.
     """
-    if not (config.R2_ENGINE and config.GEMINI_API_KEY):
+    if not config.GEMINI_API_KEY:
         return
     try:
         from dialogue import brief as brief_mod, context as context_mod, engine as engine_mod

@@ -5,7 +5,6 @@ dialogue/match.py: the deterministic matchers Tier-0 and apply.py share
 
 import unittest
 
-import ai_engine
 from dialogue import match
 from facts import Branch, Catalog, Doctor, Service
 
@@ -53,37 +52,81 @@ def demo_catalog() -> Catalog:
 
 CATALOG = demo_catalog()
 
-# Every case tests/test_booking_flow.py pins on the old parser, plus more.
-BOOKING_FLOW_CASES = [
-    "No, that is not right", "no, that's not correct", "that is incorrect", "definitely not",
-    "not right now", "nope, change it", "that's the wrong number", "no problem", "no worries",
-    "not a problem", "why not", "no problem, that is all correct",
-    "no problem with the name but the date is wrong", "alright", "I want to book",
-    "Root Canal Treatment", "Next Monday", "my name is Adharsh", "", None,
-]
-MORE_CASES = [
-    "yes", "Yes.", "yeah", "yep", "yup", "sure", "okay", "ok", "correct", "that's right",
-    "absolutely", "of course", "go ahead", "sounds good", "perfect", "fine", "that works",
-    "please do", "no", "No.", "nope", "nah", "not really", "wrong", "that's not it",
-    "cancel it", "change the date", "I don't think so", "never mind", "it isn't",
-    "yes, but change the date", "can't wait", "no doubt", "No issue at all", "haan",
-    "mm-hmm", "right, right", "book it", "Yeah sure, go ahead", "thats it",
-    "That’s not correct", "all right then", "no, it's Priya", "nothing else",
+# The yes/no answers the retired 12-step machine's parser gave (match.parse_yes_no
+# was copied from it unchanged); pinned so the behaviour can't drift.
+YES_NO_CASES = [
+    ('No, that is not right', 'no'),
+    ("no, that's not correct", 'no'),
+    ('that is incorrect', 'no'),
+    ('definitely not', 'no'),
+    ('not right now', 'no'),
+    ('nope, change it', 'no'),
+    ("that's the wrong number", 'no'),
+    ('no problem', 'yes'),
+    ('no worries', 'yes'),
+    ('not a problem', 'yes'),
+    ('why not', 'yes'),
+    ('no problem, that is all correct', 'yes'),
+    ('no problem with the name but the date is wrong', None),
+    ('alright', 'yes'),
+    ('I want to book', None),
+    ('Root Canal Treatment', None),
+    ('Next Monday', None),
+    ('my name is Adharsh', None),
+    ('', None),
+    (None, None),
+    ('yes', 'yes'),
+    ('Yes.', 'yes'),
+    ('yeah', 'yes'),
+    ('yep', 'yes'),
+    ('yup', 'yes'),
+    ('sure', 'yes'),
+    ('okay', 'yes'),
+    ('ok', 'yes'),
+    ('correct', 'yes'),
+    ("that's right", 'yes'),
+    ('absolutely', 'yes'),
+    ('of course', 'yes'),
+    ('go ahead', 'yes'),
+    ('sounds good', 'yes'),
+    ('perfect', 'yes'),
+    ('fine', 'yes'),
+    ('that works', 'yes'),
+    ('please do', 'yes'),
+    ('no', 'no'),
+    ('No.', 'no'),
+    ('nope', 'no'),
+    ('nah', 'no'),
+    ('not really', 'no'),
+    ('wrong', 'no'),
+    ("that's not it", 'no'),
+    ('cancel it', 'no'),
+    ('change the date', 'no'),
+    ("I don't think so", 'no'),
+    ('never mind', 'no'),
+    ("it isn't", 'no'),
+    ('yes, but change the date', 'no'),
+    ("can't wait", 'yes'),
+    ('no doubt', 'yes'),
+    ('No issue at all', 'yes'),
+    ('haan', None),
+    ('mm-hmm', None),
+    ('right, right', 'yes'),
+    ('book it', None),
+    ('Yeah sure, go ahead', 'yes'),
+    ('thats it', 'yes'),
+    ('That’s not correct', 'no'),
+    ('all right then', 'yes'),
+    ("no, it's Priya", 'no'),
+    ('nothing else', 'no'),
 ]
 
 
 class YesNoTests(unittest.TestCase):
-    def test_parity_with_the_old_parser(self):
-        cases = BOOKING_FLOW_CASES + MORE_CASES
-        self.assertGreaterEqual(len(MORE_CASES), 30)
-        for text in cases:
-            self.assertEqual(match.parse_yes_no(text), ai_engine._parse_confirmation(text), repr(text))
-
     def test_pinned_answers(self):
-        self.assertEqual(match.parse_yes_no("No, that is not right"), "no")
-        self.assertEqual(match.parse_yes_no("no problem"), "yes")
-        self.assertIsNone(match.parse_yes_no("no problem with the name but the date is wrong"))
-        self.assertIsNone(match.parse_yes_no("I want to book"))
+        self.assertGreaterEqual(len(YES_NO_CASES), 60)
+        for text, expected in YES_NO_CASES:
+            self.assertEqual(match.parse_yes_no(text), expected, repr(text))
 
 
 class DigitTests(unittest.TestCase):
