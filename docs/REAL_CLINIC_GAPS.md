@@ -68,7 +68,7 @@ Tier 0 = Emma's own rules, 1 = the model (Gemini), 2 = fallback when the model i
 - [x] **T2 WhatsApp/SMS confirmations and reminders** (DLT-registered templates for SMS). *Done: notify.py ready, log-only until a provider is set up (docs/NOTIFICATIONS.md).*
 - [x] **S1 DPDP Act 2023**: notice, retention beyond transcripts (audit JSON, actions, patients), erase-by-phone, breach runbook, `LOG_CALLER_TEXT=false` default. *Done: 8d26bdf.*
 - [x] **S2 Per-staff logins and roles**; audit says "staff" for everyone. *Done: 4a28406.*
-- [ ] **S3 Config without code**: clinic hours, closures/holidays (Diwali etc. unknown today), doctors, rotas from the dashboard. *Open: closures and holidays done (bc1c322); hours, doctors and rotas still come from config and the seed.*
+- [x] **S3 Config without code**: clinic hours, closures/holidays (Diwali etc. unknown today), doctors, rotas from the dashboard. *Done: closures and holidays (bc1c322); doctors, their services and weekly hours on the System tab, admins only (clinic_admin.py, 12 Oct). The clinic's outer day (7:00-21:00) and lunch stay in config.*
 
 ## P2: SaaS readiness and polish
 

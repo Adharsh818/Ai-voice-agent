@@ -395,3 +395,11 @@ dialog::backdrop { background: rgba(10, 14, 20, 0.45); }
 .alert-line { margin: 6px 0 0; padding: 8px 12px; border-radius: 8px; font-size: 14px; }
 .alert-line.error { background: var(--danger-soft); color: var(--danger); }
 .alert-line.warn { background: var(--warn-soft); color: var(--warn); }
+
+/* Doctors and hours editor (System tab). */
+.rota-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 4px 0 8px; }
+.rota-grid label { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.rota-grid input { width: 100%; box-sizing: border-box; }
+.checks { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; }
+.check { white-space: nowrap; }
+.editor-row td { background: var(--accent-soft); }
