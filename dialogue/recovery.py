@@ -704,14 +704,37 @@ def _find_and_offer(ctx: RecoveryContext, run, emit, lead: str = "") -> Reply:
     ctx.tries.pop("offer", None)
     if not slots:
         if ctx.when is not None:
+            closed = _closed_that_day(ctx, run)
             ctx.state = "preference"
             ctx.when = None
+            if closed:
+                # Phone check, 14 Oct: "I want it on Thursday" -> "I don't have anything then", while
+                # Nagarbhavi was closed that day for staff training. Say why, as booking calls do.
+                return _say(ctx, f"{lead} {closed} Is there another day that would work, or shall I just "
+                                 f"find the earliest?".strip(), "open")
             return _say(ctx, f"{lead} I'm sorry, I don't have anything then. Is there another day that would "
                              f"work, or shall I just find the earliest?".strip(), "open")
         return _no_slots(ctx, run, lead)
     ctx.state = "offer"
     ctx.offered = 1
     return _say(ctx, f"{lead} {_offer_line(ctx, slots[0], first=True)}", "choice")
+
+
+def _closed_that_day(ctx: RecoveryContext, run) -> Optional[str]:
+    """ "Nagarbhavi's closed on Thursday the 15th for staff training." when the one day asked for is a closure."""
+    when, a = ctx.when, ctx.current
+    if when is None or when.date is None or a is None:
+        return None
+    days = list(when.date.dates())
+    if len(days) != 1:
+        return None
+    reason = run(lambda conn: scheduling.closure_reason(conn, days[0], a.branch_id))
+    if not reason:
+        return None
+    day = prompts.speak_day(days[0], today=clock.today())
+    why = f" for {reason[0].lower()}{reason[1:]}" if reason.strip().lower() not in ("closed", "") else ""
+    on = "" if day in ("today", "tomorrow") else "on "
+    return f"I'm sorry, {a.branch} is closed {on}{day}{why}."
 
 
 def _no_slots(ctx: RecoveryContext, run, lead: str = "") -> Reply:

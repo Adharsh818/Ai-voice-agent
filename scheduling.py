@@ -743,6 +743,13 @@ def closed_on(conn, day: date, branch_ids) -> bool:
     return None in rows or bool(branch_ids) and all(b in rows for b in branch_ids)
 
 
+def closure_reason(conn, day: date, branch_id) -> Optional[str]:
+    """Why that branch is closed that day ("Staff training"), or None when it's open."""
+    row = conn.execute("SELECT reason FROM closures WHERE date = ? AND (branch_id IS NULL OR branch_id = ?) "
+                       "ORDER BY branch_id IS NULL LIMIT 1", (day.isoformat(), branch_id)).fetchone()
+    return (row["reason"] or "Closed") if row else None
+
+
 def list_closures(conn, since: date) -> list:
     return [dict(r) for r in conn.execute(
         "SELECT c.id, c.date, c.reason, b.name AS branch FROM closures c LEFT JOIN branches b ON b.id = c.branch_id "
