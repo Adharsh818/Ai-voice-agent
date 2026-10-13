@@ -154,7 +154,9 @@ _ROBOT_RE = re.compile(
     r"\b(?:are you|is this|is that|am i (?:talking|speaking) (?:to|with)|i'?m (?:talking|speaking) (?:to|with))"
     r"\s+(?:a |an )?(?:real |actual |live )?(?:bot|robot|machine|computer|ai|a i|artificial intelligence|"
     r"human|human being|person|recording|recorded message|automated|program|chatbot|real person)\b|"
-    r"\bare you (?:real|human|automated)\b"
+    r"\bare you (?:real|human|automated)\b|"
+    # "Am I talking to a bot?" heard as "...talking to about?" (phone check, 14 Oct)
+    r"\bam i (?:talking|speaking) (?:to|with) about\s*[?.!]*$"
 )
 _ROBOT_FILLER = {
     "hello", "hi", "sorry", "wait", "excuse", "me", "just", "so", "ok", "okay", "tell", "or", "a",

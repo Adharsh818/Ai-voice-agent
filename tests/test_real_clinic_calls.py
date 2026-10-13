@@ -405,6 +405,31 @@ class OfferPickTests(ClinicCallCase):
         self.assertEqual(call.s.book.chosen.start, first)
 
 
+class PhoneCheck14OctTests(ClinicCallCase):
+    """Turns from the 14 Oct phone check (a breaking-up hotspot line)."""
+
+    def test_not_sure_at_the_start_steers_back(self):
+        call = Call()
+        call.run("")
+        reply = call.say("How may I help you out?").text
+        self.assertTrue(reply.rstrip().endswith("?"), reply)                # not "not sure" and nothing more
+        self.assertEqual(call.s.pending.value, "ask_intent")
+
+    def test_a_common_word_is_not_a_name(self):
+        call = Call()
+        call.run("", "I have to book an appointment.")
+        reply = call.say("Others.").text
+        self.assertNotIn("Others", reply)
+        self.assertIsNone(call.s.caller.name)
+
+    def test_a_bot_heard_as_about_is_still_the_bot_question(self):
+        call = Call()
+        call.run("", "I'd like a cleaning at Jayanagar.")
+        reply = call.say("Am I talking to about?").text
+        self.assertIn("virtual receptionist", reply)
+        self.assertIn("name", reply)                                        # and straight back to the booking
+
+
 class SmallTalkTests(ClinicCallCase):
     def test_small_talk_gets_a_friendly_reply_not_i_dont_know(self):
         # Sim, 12 Oct: "How's your day going?" -> "Honestly, I don't know that one."

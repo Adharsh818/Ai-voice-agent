@@ -320,6 +320,7 @@ NON_NAME_WORDS = {
     "wait", "hold", "repeat", "again", "pardon", "nothing", "just", "actually", "also",
     "spell", "spelling", "price", "cost", "fee", "much", "time", "date", "branch",
     "address", "about", "like", "know", "think", "um", "uh", "hmm", "mm", "ah", "oh",
+    "others", "other", "otherwise", "anything", "everything", "someone",  # "Adharsh" heard as "Others" (14 Oct)
     # "I'm in a lot of pain", "I'm still here", "I'm calling about...": states, not names
     "in", "on", "at", "still", "fine", "good", "well", "calling", "looking", "available", "free",
     "busy", "afraid", "glad", "happy", "ready", "done", "back", "really", "very", "too", "lot",
