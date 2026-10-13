@@ -32,6 +32,9 @@ logger = logging.getLogger("ami")
 REASON_NO_ANSWER = {"0", "1", "3"}       # failed / hung up before answer / rang out
 REASON_ANSWERED = "4"
 REASON_DECLINED = {"5", "8"}             # busy (a softphone's Reject sends 486) / congestion (603 Decline)
+# Linphone's Reject comes back as reason "0" about 2 s into the ring (phone check 7, 14 Oct), the same code
+# as a failure; a phone left ringing ends at the full timeout. A "0" / "1" this early is a decline.
+DECLINE_WITHIN_S = 12
 
 
 class AMIError(Exception):
@@ -142,6 +145,7 @@ async def originate(*, channel: str, context: str, exten: str, variables: Option
             lines += f"Variable: {key}={value}\r\n".encode()
         writer.write(lines + b"\r\n")
         await writer.drain()
+        started = asyncio.get_running_loop().time()
         queued = await asyncio.wait_for(_wait_for(reader, action_id), timeout=5)
         if queued.get("Response") != "Success":
             return OriginateResult(False, False, f"refused: {queued.get('Message', '')}")
@@ -149,7 +153,10 @@ async def originate(*, channel: str, context: str, exten: str, variables: Option
                                       timeout=timeout_s + 10)
         reason = done.get("Reason", "")
         answered = done.get("Response") == "Success" or reason == REASON_ANSWERED
-        return OriginateResult(answered, not answered and reason in REASON_DECLINED, reason)
+        rang_s = asyncio.get_running_loop().time() - started
+        declined = not answered and (reason in REASON_DECLINED
+                                     or (reason in ("0", "1") and rang_s < min(DECLINE_WITHIN_S, timeout_s * 0.6)))
+        return OriginateResult(answered, declined, reason)
     finally:
         try:
             writer.write(_message({"Action": "Logoff"}))
