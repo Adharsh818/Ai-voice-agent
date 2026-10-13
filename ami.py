@@ -76,6 +76,42 @@ async def _wait_for(reader: asyncio.StreamReader, action_id: str, *, event: Opti
             return msg
 
 
+async def redirect(*, channel: str, context: str, exten: str = "s", priority: int = 1,
+                   host: Optional[str] = None, port: Optional[int] = None,
+                   user: Optional[str] = None, secret: Optional[str] = None) -> bool:
+    """
+    Move a live channel to context/exten (Emma's transfer to the front desk: Asterisk 20.6 hangs
+    up when AudioSocket closes, so the call is moved first). True when Asterisk accepted it.
+    """
+    host, port = host or config.AMI_HOST, port or config.AMI_PORT
+    user, secret = user or config.AMI_USER, secret or config.AMI_SECRET
+    if not user:
+        raise AMIError("AMI_USER is not set")
+    reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=5)
+    try:
+        await asyncio.wait_for(reader.readline(), timeout=5)            # "Asterisk Call Manager/x.y"
+        login_id = uuid.uuid4().hex
+        writer.write(_message({"Action": "Login", "Username": user, "Secret": secret,
+                               "Events": "off", "ActionID": login_id}))
+        await writer.drain()
+        reply = await asyncio.wait_for(_wait_for(reader, login_id), timeout=5)
+        if reply.get("Response") != "Success":
+            raise AMIError(f"login refused: {reply.get('Message', '')}")
+        action_id = uuid.uuid4().hex
+        writer.write(_message({"Action": "Redirect", "Channel": channel, "Context": context, "Exten": exten,
+                               "Priority": str(priority), "ActionID": action_id}))
+        await writer.drain()
+        done = await asyncio.wait_for(_wait_for(reader, action_id), timeout=5)
+        return done.get("Response") == "Success"
+    finally:
+        try:
+            writer.write(_message({"Action": "Logoff"}))
+            await writer.drain()
+        except Exception:
+            pass
+        writer.close()
+
+
 async def originate(*, channel: str, context: str, exten: str, variables: Optional[dict] = None,
                     timeout_s: float = 28, caller_id: Optional[str] = None,
                     host: Optional[str] = None, port: Optional[int] = None,

@@ -624,7 +624,7 @@ async def telephony_register(request: Request):
     form = await _telephony_form(request)
     if request.app.state.audiosocket is None or not request.app.state.gate.can_take("inbound"):
         return PlainTextResponse("busy")
-    return PlainTextResponse(audiosocket.registry.register_inbound(form.get("from")))
+    return PlainTextResponse(audiosocket.registry.register_inbound(form.get("from"), form.get("chan")))
 
 
 @app.post("/telephony/next", include_in_schema=False)

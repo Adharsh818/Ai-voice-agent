@@ -99,10 +99,12 @@ class Registry:
     """UUIDs the dialplan and Originate hand to AudioSocket, and where each call goes after Emma."""
 
     TTL_S = 120
+    CHANNEL_TTL_S = 4 * 3600                     # longer than any call
 
     def __init__(self):
         self.pending: dict = {}
         self.next_route: dict = {}
+        self.channels: dict = {}                 # key -> (Asterisk channel name, when): for the transfer
 
     def _sweep(self):
         now = time.monotonic()
@@ -110,12 +112,23 @@ class Registry:
             self.pending.pop(key, None)
         for key in [k for k, (_, at) in self.next_route.items() if now - at > self.TTL_S]:
             self.next_route.pop(key, None)
+        for key in [k for k, (_, at) in self.channels.items() if now - at > self.CHANNEL_TTL_S]:
+            self.channels.pop(key, None)
 
-    def register_inbound(self, caller_id: Optional[str]) -> str:
+    def register_inbound(self, caller_id: Optional[str], channel: Optional[str] = None) -> str:
         self._sweep()
         key = str(uuid_mod.uuid4())
         self.pending[key] = PendingCall("inbound", caller_id=(caller_id or "").strip() or None)
+        if channel and channel.strip():
+            self.channels[key] = (channel.strip(), time.monotonic())
         return key
+
+    def channel(self, key: str) -> Optional[str]:
+        found = self.channels.get(key)
+        return found[0] if found else None
+
+    def forget_channel(self, key: str):
+        self.channels.pop(key, None)
 
     def register_outbound(self, ring) -> str:
         self._sweep()
@@ -220,14 +233,35 @@ class PhoneTransport:
                 for _ in range(int(HANGUP_TAIL_S / FRAME_S)):
                     self.writer.write(silence)
                     await asyncio.sleep(FRAME_S)
-                self.writer.write(frame(KIND_HANGUP))
+                moved = await self._transfer() if getattr(state, "transfer_requested", False) else False
+                if not moved:
+                    self.writer.write(frame(KIND_HANGUP))
                 await self.writer.drain()
             except (ConnectionError, RuntimeError):
                 pass
+        registry.forget_channel(self.key)
         try:
             self.writer.close()
         except Exception:
             pass
+
+    async def _transfer(self) -> bool:
+        """
+        Put the caller through to the front desk: move the live channel to [emma-transfer] with AMI
+        Redirect while it is still in AudioSocket (Asterisk 20.6 hangs up when the socket closes, so
+        the dialplan's own "transfer" step never ran: phone check 5, 14 Oct). False: not moved.
+        """
+        channel = registry.channel(self.key)
+        if not channel or not config.AMI_USER:
+            return False
+        try:
+            import ami
+            moved = await ami.redirect(channel=channel, context="emma-transfer")
+        except Exception as exc:
+            logger.warning("[%s] transfer to the front desk failed (%s)", self.call_id, type(exc).__name__)
+            return False
+        logger.info("[%s] %s to the front desk", self.call_id, "put through" if moved else "transfer refused")
+        return moved
 
     # ---- playout
     def _reset(self, turn_id: int):
