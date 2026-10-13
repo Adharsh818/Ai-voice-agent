@@ -578,7 +578,7 @@ VARIANTS: dict[str, tuple] = {
                                         "What would you prefer?",
                                         "I could do {times} at {other}, or find you another day at {branch}. "
                                         "Which is better?"),
-    "offer.which": ("Sure, which one: {a} or {b}?", "Lovely. {a} or {b}?"),
+    "offer.which": ("Sure, which one: {a} or {b}?", "Okay, which would you like, {a} or {b}?"),
     "offer.same_time_elsewhere": ("{branch} has nothing at {time}, but {other} does, with {doctor}. "
                                   "Would that work?",
                                   "We can't do {time} at {branch}, but {other} has {time} with {doctor}. "

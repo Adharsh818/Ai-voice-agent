@@ -272,10 +272,18 @@ _NUMBER_PICK_RE = re.compile(r"^(?:the\s+|option\s+|number\s+)*(one|two|three|1|
 # matched on dateparse.normalize output (number words are digits there). parse_when
 # only reads a bare number when it is the whole reply, so the number is cut out first.
 _BARE_TIME_PICK_RE = re.compile(
-    r"^(?:the |at |around |about )?(\d{1,2}(?:[:.]\d{2}|\s+[0-5]\d)?)"
+    # "Do ten." / "I want ten." / "Uh-huh, 10." (phone check, 13 Oct: three tries, then a callback offer)
+    r"^(?:(?:uh[- ]?huh|mm[- ]?hmm|yes|yeah|yep|ok|okay|so|um+|uh+|do|i want|i'?ll take|i will take|i'?d like|"
+    r"let'?s do|lets do|make it|go with|book|take)\s+)*"
+    r"(?:the |at |around |about )?(\d{1,2}(?:[:.]\d{2}|\s+[0-5]\d)?)"
     r"(?:\s+(?:1|slot|oclock|please|then|works|is fine|is good|is ok|is okay|is perfect|sounds good|"
     r"would be (?:good|great|fine|perfect)))*$"
 )
+# The lead-in words _BARE_TIME_PICK_RE allows, as left over around the time ("i want", "do").
+_PICK_LEAD_WORDS = frozenset({"uh", "huh", "uhhuh", "mm", "hmm", "mmhmm", "yes", "yeah", "yep", "ok", "okay", "so",
+                              "um", "do", "i", "want", "ll", "i'll", "will", "take", "d", "i'd", "like", "let",
+                              "s", "let's", "lets", "make", "it", "go", "with", "book", "at", "around", "about",
+                              "ten", "o'clock", "oclock", "then"})
 _EITHER_RE = re.compile(r"\b(either|any of them|any one|anyone|whichever|both are fine|both work|anything is fine)\b")
 _REJECT_RE = re.compile(
     r"\b(none|neither|nothing)\b|\b(?:something|anything|some) else\b|"
@@ -613,7 +621,8 @@ def _offer_pick(t: str, raw: str, view: Tier0View, source: str):
     bare = _BARE_TIME_PICK_RE.match(dateparse.normalize(raw)) if when.empty else None
     if bare:
         when = _parse_when(bare.group(1), expecting="time")
-    if not when.empty and _when_residue_ok(t, frozenset({"one", "slot", "works", "please", "the"})):
+    allowed = frozenset({"one", "slot", "works", "please", "the"}) | (_PICK_LEAD_WORDS if bare else frozenset())
+    if not when.empty and _when_residue_ok(t, allowed):
         hits = []
         for i, slot in enumerate(offered, 1):
             start = getattr(slot, "start", None)
