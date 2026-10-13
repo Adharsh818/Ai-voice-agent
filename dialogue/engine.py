@@ -156,6 +156,12 @@ async def _process_turn(ctx: CallContext, text: str, progress: Optional[Callable
         else:
             view = _view(ctx, rt)
             u = _tier0(merged, view) if config.TIER0_ENABLED else None
+            if u is None and merged != text and config.TIER0_ENABLED:
+                # The cut-off words glued in front hide a clear answer ("I only can." + "Ten.":
+                # phone check, 13 Oct): the new words alone answer what Emma asked.
+                alone = _tier0(text, view)
+                if alone is not None and alone.has(Act.ANSWER):
+                    u, merged = alone, text
             if u is not None and _dangles(merged, view, u):
                 u = Understanding(acts=[Act.FRAGMENT.value], source="tier0")
             if u is None:

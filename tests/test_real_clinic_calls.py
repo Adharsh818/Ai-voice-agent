@@ -374,6 +374,37 @@ class BadLineTests(ClinicCallCase):
         self.assertIn("Priya", call.say("Priya Sharma").text)
 
 
+class OfferPickTests(ClinicCallCase):
+    def test_ten_said_any_way_picks_the_ten_oclock_offer(self):
+        # Phone check, 13 Oct: offered 10 or 10:30; "Do ten." / "Ten." / "I want ten." -> asked again, then a callback.
+        from datetime import datetime as dt
+        from types import SimpleNamespace
+        import clock
+        import tier0
+        from dialogue.context import Expect, Goal, Intent
+        offered = (SimpleNamespace(start=clock.localize(dt(2026, 10, 14, 10, 0))),
+                   SimpleNamespace(start=clock.localize(dt(2026, 10, 14, 10, 30))))
+        view = tier0.Tier0View(expect=Expect.CHOICE, pending=Goal.OFFER_SLOTS, intent=Intent.BOOK, offered=offered)
+        for said, index in (("Ten.", 1), ("Do ten.", 1), ("I want ten.", 1), ("Uh-huh. Do ten.", 1),
+                            ("let's do 10", 1), ("I'll take ten thirty", 2), ("make it 10:30", 2)):
+            u = tier0.understand(said, view)
+            self.assertIsNotNone(u, said)
+            self.assertEqual(u.choice_index, index, said)
+        self.assertIsNone(tier0.understand("I want to cancel at ten", view).choice_index if
+                          tier0.understand("I want to cancel at ten", view) else None)
+
+    def test_a_cut_off_before_the_pick_does_not_hide_it(self):
+        # "I only can." (cut off) then "Ten." was heard as "I only can. Ten." and missed.
+        call = Call()
+        call.run("", "I'd like a cleaning at Jayanagar.", "Priya Sharma", "9845012345", "yes", "Monday morning")
+        first = call.s.book.offered[0].start
+        hour = first.strftime("%I").lstrip("0") + ("" if first.minute == 0 else f":{first.minute:02d}")
+        self.assertIn("go", call.say("I only can").text.lower() + " go")      # a fragment: "Sorry, go on."
+        reply = call.say(f"{hour}.").text
+        self.assertIn("book", reply.lower())                                  # the summary for that slot
+        self.assertEqual(call.s.book.chosen.start, first)
+
+
 class SmallTalkTests(ClinicCallCase):
     def test_small_talk_gets_a_friendly_reply_not_i_dont_know(self):
         # Sim, 12 Oct: "How's your day going?" -> "Honestly, I don't know that one."
