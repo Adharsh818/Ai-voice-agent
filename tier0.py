@@ -169,6 +169,11 @@ _HUMAN_RE = re.compile(
     r"\b(?:person|human|someone|somebody|receptionist|staff|manager|operator|doctor|dentist|team|real person)\b|"
     r"\b(?:i want|i need|get me|give me)\s+(?:a |the )?(?:real |live )?(?:person|human|receptionist|manager|operator)\b"
 )
+_HUMAN_SHORT_RE = re.compile(
+    r"^(?:(?:no|nope|nah|please|i said|just)[\s,.!]+)*(?:a |an |the )?(?:real |actual |live )?"
+    r"(?:person|human|human being|someone|somebody|receptionist|staff|staff member)"
+    r"(?:[\s,.!]+(?:please|pls|thanks|thank you))*[\s.!]*$")
+_NO_WORDS = frozenset({"no", "nope", "nah", "no thanks", "thanks", "please", "not", "really"})
 _CAP_LEAD_RE = re.compile(
     r"^(?:(?:hi|hello|hey|ok|okay|so|um+|uh+|yes|yeah|emma|ma'?am|madam|please|actually|and|first|"
     r"sorry|wait|one second|tell me|can you tell me|could you tell me|just tell me|first tell me|but)\s+)*"
@@ -571,6 +576,12 @@ def _globals(t: str, raw: str, words: list, view: Tier0View, source: str):
             return _u(raw, source, [Act.ROBOT_QUESTION])
     if len(words) <= 10 and _HUMAN_RE.search(t):
         return _u(raw, source, [Act.WANTS_HUMAN])
+    # "No. A real person, please." (phone check, 14 Oct: three tries, never put through), or a plain
+    # "No" to Emma's offer to help instead: the caller is insisting on a person.
+    if len(words) <= 8 and _HUMAN_SHORT_RE.match(t):
+        return _u(raw, source, [Act.WANTS_HUMAN])
+    if view.pending == Goal.HELP_FIRST and words and all(w in _NO_WORDS for w in words):
+        return _u(raw, source, [Act.WANTS_HUMAN], confirmation="no")
     cap = _CAP_LEAD_RE.sub("", t).strip()
     if cap and _CAPABILITY_RE.match(cap):
         return _u(raw, source, [Act.CAPABILITY])

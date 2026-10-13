@@ -422,6 +422,16 @@ class PhoneCheck14OctTests(ClinicCallCase):
         self.assertNotIn("Others", reply)
         self.assertIsNone(call.s.caller.name)
 
+    def test_insisting_on_a_real_person_is_heard(self):
+        # "I want to talk to a person." -> help first; "No. A real person, please." -> "what can I do for you?"
+        for second in ("No. A real person, please.", "No.", "A human please"):
+            call = Call()
+            call.run("", "I want to talk to a person.")
+            call.say(second)
+            self.assertNotEqual(call.s.pending.value, "ask_intent", second)
+            self.assertTrue(call.s.pending.value in ("ask_phone", "confirm_phone", "callback_done")
+                            or getattr(call.s, "transfer_requested", False), (second, call.s.pending))
+
     def test_a_bot_heard_as_about_is_still_the_bot_question(self):
         call = Call()
         call.run("", "I'd like a cleaning at Jayanagar.")
