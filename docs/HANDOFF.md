@@ -1,23 +1,20 @@
 # Project memory and next steps
 
-**Last updated:** 12 Oct 2026, evening (real-clinic work; see START HERE and [RESUME_HERE.md](RESUME_HERE.md)) · **Demo:** done Thursday 8 Oct 2026, with a real phone call · **Owner:** Adharsh (GitHub `Adharsh818`)
+**Last updated:** 14 Oct 2026 (phone checks done; see START HERE) · **Demo:** done Thursday 8 Oct 2026, with a real phone call · **Owner:** Adharsh (GitHub `Adharsh818`)
 
 **Resuming? Read [RESUME_HERE.md](RESUME_HERE.md) first.** Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
 
 ---
 
-## ▶ START HERE (12 Oct)
+## ▶ START HERE (14 Oct, state at the end)
 
-**Where the code is.** Branch `day2-r2-engine` = `main` on GitHub, pushed after every step on 11-12 Oct. 1076 tests pass (one dashboard test is flaky under load: real clock), 53/53 scenarios, the four 200-call sims on target (Z1-Z7 = 0, M3 <= 0.5%, M7 99-100%, M10 <= 1%, T5 = 9). [EVALUATION.md](EVALUATION.md) regenerated 12 Oct with fresh runs and the crash drill; its latency rows still FAIL their targets (end-of-speech detection alone is ~1.2 s), and only new phone calls can move them.
+**Code:** branch `day2-r2-engine` = `main` on GitHub, everything pushed. 1013 tests pass, 53/53 scenarios, the four 200-call sims on target (Z1-Z7 = 0, M3 <= 0.5%, M7 99-100%, M10 <= 1%, T5 = 9), crash drill passes (EVALUATION.md, 13 Oct). R2 is the only engine (the 12-step engine was retired 12 Oct).
 
-**Done 11-12 Oct** (every audit item and its status: [REAL_CLINIC_GAPS.md](REAL_CLINIC_GAPS.md)):
-- Real-clinic calls: closed hours, bleeding first aid, late patients, wrong numbers, vendors, staff and records calls, doctors on leave, urgent hang-ups make a task, families in one call, Kannada/Hindi callback, foreign numbers, landlines read as STD code + number, one name spelled two ways is one patient, a child's age, "today" pinned per call, short-notice moves the same day with the same doctor, travel time between branches.
-- Fixes the sims found: "that's free" then refused at booking; small talk without the model; moving again right after a move; a turned-down time asked for again; the "another branch or a later date?" loop.
-- Clinic knowledge and doctor profiles (26 facts), dashboard D1-D8 with a performance panel, up to 3 calls at once, holidays and closures, named staff logins, DPDP retention and export/erase, WhatsApp/SMS ready (log-only).
-- For more clinics: name/city from `.env` (CLINIC_NAME, CLINIC_SHORT_NAME, CLINIC_CITY), cost per call on the dashboard (usage.py; set COST_* rates), alerts banner (alerts.py), housekeeping of holds and old slot claims, `/health` and `/metrics` refused from outside by Caddy; doctors, services and weekly hours edited on the dashboard (admins).
-- Latency measured 12 Oct (owner chose "measure first"): Gemini 1.3-1.9 s, inside the 2.2 s limit; the phone watchdog ends turns no later than Deepgram would. No change made.
+**Phone checks with the owner (12-14 Oct, docs/PHONE_CHECKS.md):** greeting and "Hi", interrupting, booking by voice, "am I a bot?", asking for a person (MicroSIP rings, audio both ways) all pass after fixes; the keypad doesn't reach Emma on Asterisk 20.6 (callers say the number); a recovery call rings, verifies and offers new times; a Reject is now counted as declined (fixed, not yet re-tried live). Every problem those calls showed was fixed with a test: a crash at call start, the instant hello, live-line buffering, bad-line handling, names and picks surviving cut-offs, "ten" picking 10:00, insisting on a person, the transfer (AMI Redirect, because Asterisk 20.6 hangs up when AudioSocket closes), closed days on recovery calls, Reject = declined.
 
-**Left:** a real number (T1) and a message provider (T2) need the owner's accounts; the honesty line is the owner's call. Then Phase 3 live phone checks with the owner and Phase 7 final checks ([RESUME_HERE.md](RESUME_HERE.md)).
+**What the calls taught:** a phone hotspot loses 10-50% of the caller's audio (measured per call: `line timing` in the log); Emma's own audio always left on time. Use a Wi-Fi router for real calls. Gemini was intermittently slow late at night (Emma falls back to her own lines). The C: drive filled up on 14 Oct: WSL (Asterisk) keeps its disk there, so keep a few GB free.
+
+**Left:** one browser call on the talk page; re-try the Reject live after 9 am; a real Indian number (T1, docs/TRUNK.md) and a WhatsApp/SMS provider (T2, docs/NOTIFICATIONS.md) need the owner's accounts.
 
 ## ▶ Earlier: START HERE (8 Oct, after the demo)
 
