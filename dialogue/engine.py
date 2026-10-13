@@ -260,6 +260,12 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
             and any(isinstance(n, Notice) and n.line == "date.sunday" for n in notices)
         if not (answer.line == "unknown" and asks_about_booking) and not hours_again:
             notices.insert(0, answer)
+            if answer.line == "unknown" and plan.goal == Goal.ANSWER_ONLY and not ctx.workflow_active() \
+                    and ctx.outcome is None:
+                # "How may I help you out?" -> "I'm not sure about that, sorry." and nothing more (phone
+                # check, 14 Oct): with nothing under way, steer back to what they need.
+                plan = policy._plan(ctx, Goal.ASK_INTENT, rt.catalog)
+                ctx.pending, ctx.pending_params = Goal.ASK_INTENT, {"_line": plan.line, "_rung": plan.rung}
             if answer.line == "answer.fact" and ctx.intent != Intent.BOOK:
                 # "Do you do dentures?" is answered by the fact; "we'd start with a consultation" is only
                 # for someone booking it (11 Oct).
