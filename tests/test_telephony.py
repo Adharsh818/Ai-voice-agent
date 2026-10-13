@@ -410,6 +410,7 @@ class FakeManager:
     def __init__(self, reason="4", secret="pw"):
         self.reason, self.secret = reason, secret
         self.originates = []
+        self.redirects = []
 
     async def start(self):
         self.server = await asyncio.start_server(self._handle, "127.0.0.1", 0)
@@ -438,6 +439,9 @@ class FakeManager:
                 writer.write(ami._message({"Event": "OriginateResponse", "ActionID": aid,
                                            "Response": "Success" if self.reason == "4" else "Failure",
                                            "Reason": self.reason}))
+            elif action == "Redirect":
+                self.redirects.append(msg)
+                writer.write(ami._message({"Response": "Success", "ActionID": aid, "Message": "Redirect successful"}))
             elif action == "Logoff":
                 writer.close()
                 break
@@ -470,6 +474,49 @@ class AMITests(unittest.IsolatedAsyncioTestCase):
                 await self.originate(manager, secret="wrong")
         finally:
             await manager.stop()
+
+
+class TransferTests(unittest.IsolatedAsyncioTestCase):
+    """Phone check 5, 14 Oct: Asterisk 20.6 hangs up when AudioSocket closes, so the dialplan's
+    "transfer" step never ran; Emma moves the live channel to [emma-transfer] first (AMI Redirect)."""
+
+    async def test_redirect(self):
+        manager = FakeManager()
+        await manager.start()
+        try:
+            ok = await ami.redirect(channel="PJSIP/1001-0000000d", context="emma-transfer", host="127.0.0.1",
+                                    port=manager.port, user="emma", secret="pw")
+        finally:
+            await manager.stop()
+        self.assertTrue(ok)
+        self.assertEqual((manager.redirects[0]["Channel"], manager.redirects[0]["Context"],
+                          manager.redirects[0]["Exten"]), ("PJSIP/1001-0000000d", "emma-transfer", "s"))
+
+    async def test_a_transfer_moves_the_call_and_never_sends_hangup(self):
+        manager = FakeManager()
+        await manager.start()
+        key = audiosocket.registry.register_inbound("9845012345", "PJSIP/1001-0000000d")
+        writer = _Writer()
+        t = PhoneTransport(writer, "tr", key, phone_audio.LineSounds(enabled=False))
+        t.session = type("S", (), {"s": type("C", (), {"transfer_requested": True})()})()
+        try:
+            with mock.patch.multiple(config, AMI_USER="emma", AMI_SECRET="pw", AMI_HOST="127.0.0.1",
+                                AMI_PORT=manager.port):
+                await t.close()
+        finally:
+            await manager.stop()
+        self.assertEqual(len(manager.redirects), 1)
+        self.assertFalse(any(d[0] == KIND_HANGUP for _, d in writer.frames))
+        self.assertIsNone(audiosocket.registry.channel(key))
+
+    async def test_without_ami_it_hangs_up_as_before(self):
+        key = audiosocket.registry.register_inbound("9845012345", "PJSIP/1001-0000000e")
+        writer = _Writer()
+        t = PhoneTransport(writer, "tr2", key, phone_audio.LineSounds(enabled=False))
+        t.session = type("S", (), {"s": type("C", (), {"transfer_requested": True})()})()
+        with mock.patch.object(config, "AMI_USER", ""):
+            await t.close()
+        self.assertTrue(any(d[0] == KIND_HANGUP for _, d in writer.frames))
 
 
 class DialerTests(unittest.IsolatedAsyncioTestCase):
