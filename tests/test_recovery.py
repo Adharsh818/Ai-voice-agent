@@ -389,6 +389,22 @@ class RecoveryCallTests(unittest.TestCase):
                 self.assertEqual(slot.doctor, "Dr Rao")
                 self.assertNotEqual(slot.start.date(), _day(7, 0).date())
 
+    def test_a_day_the_branch_is_closed_is_said_with_why(self):
+        # Phone check, 14 Oct: "I want it on Thursday" -> "I don't have anything then" (Nagarbhavi closed that day).
+        with RecoveryClinic() as c:
+            a1 = c.book("Dr Rao", _day(7, 15), "Priya Sharma", PRIYA)
+            branch = c.run(lambda conn: conn.execute("SELECT branch_id FROM doctors WHERE spoken_name = 'Dr Rao'")
+                           .fetchone()[0])
+            closed_day = _day(8, 0).date()
+            c.run(scheduling.add_closure, closed_day, branch, "Staff training")
+            call = self._call(c, [a1])
+            call.say("")
+            call.say("yes")
+            reply = call.say(f"I'd like it on {closed_day.strftime('%A')} with Dr Rao.").text
+            self.assertIn("closed", reply)
+            self.assertIn("staff training", reply)
+            self.assertNotIn("don't have anything", reply)
+
     def test_named_day_is_searched(self):
         with RecoveryClinic() as c:
             a1 = c.book("Dr Rao", _day(7, 15), "Priya Sharma", PRIYA)
