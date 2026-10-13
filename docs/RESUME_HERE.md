@@ -13,6 +13,30 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Pushed up to the WIP commit of 12 Oct.
 
+## TOMORROW (written 14 Oct, night): start here
+
+Everything is committed and pushed (`day2-r2-engine` = `main`). Phone checks 1-8 were done 12-14 Oct
+(results in docs/PHONE_CHECKS.md); the final state is in docs/HANDOFF.md "START HERE (14 Oct)".
+
+**To do, in order:**
+1. **Before 9 am:** last night's test campaign has two retries queued for 9 am that will ring the owner's
+   phone. Either stop it (dashboard → Recovery → stop the campaign, lift the Dr Rao test blocks), or let one
+   ring and use it for step 2.
+2. **Re-test a Reject live (between 9 am and 8 pm):** block Dr Rao on the Recovery tab for a day with a booking,
+   start the campaign, press Reject on the phone. The dashboard must show "declined", not "no answer"
+   (fixed in 3519890: Linphone's Reject arrives as reason "0" about 2 s in).
+3. **Optional clean re-run of check 6 on a Wi-Fi router** (not the phone hotspot, which lost 10-50% of the
+   caller's audio): answer Emma's recovery call and move the booking to another day with Dr Rao.
+4. **One browser call** on the talk page (http://localhost:8000): book something, then check it on the dashboard.
+5. **Then:** final push (docs only) and close Phase 7.
+
+**Before testing:** run `.\tools\phone_up.ps1` (it prints any firewall commands for an admin window); start
+Emma from `A:\Voice-Agent`; restart Linphone/MicroSIP if they don't show registered.
+
+**Notes:** WSL (Asterisk) now lives on `A:\WSL\Ubuntu` (moved 14 Oct after C: filled up; C: had 4 GB free
+after). If C: is ever full, run tests with `TEMP`/`TMP` set to `A:\emma-tmp`. Still needing the owner's
+accounts: a real Indian number (T1, docs/TRUNK.md) and a WhatsApp/SMS provider (T2, docs/NOTIFICATIONS.md).
+
 ## START HERE (written 12 Oct): the next session continues from this list
 
 **WIP commit verified (12 Oct, later session):** 1058 tests pass, 53/53 scenarios, all four 200-call sims on target (Z1-Z7 = 0; M3 0-0.5%; M7 99-100%; M10 0-1%; T5 = 9). Fixed on the way, each with a test: the travel buffer is now applied when *offering* times too (Emma said "that's free" and then refused it at booking, five times in one call); small talk without the model gets a friendly reply instead of "Honestly, I don't know that one", and "raining a lot today" is no longer taken as the day; "move my appointment" again right after a move reopens the move (it said "anything else?" and hung up); a turned-down time asked for by name is offered again; at "another branch or a later date?" the same branch or "later" searches the week after (it looped seven times).
