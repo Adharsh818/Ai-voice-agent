@@ -407,8 +407,8 @@ class DialplanEndpointTests(unittest.IsolatedAsyncioTestCase):
 class FakeManager:
     """Asterisk's manager port: login, then Originate answered with `reason`."""
 
-    def __init__(self, reason="4", secret="pw"):
-        self.reason, self.secret = reason, secret
+    def __init__(self, reason="4", secret="pw", ring_s=0.0):
+        self.reason, self.secret, self.ring_s = reason, secret, ring_s
         self.originates = []
         self.redirects = []
 
@@ -436,6 +436,9 @@ class FakeManager:
                 self.originates.append(msg)
                 writer.write(ami._message({"Response": "Success", "ActionID": aid, "Message": "queued"}))
                 writer.write(ami._message({"Event": "Newchannel", "Channel": "PJSIP/1001-0001"}))
+                if self.ring_s:
+                    await writer.drain()
+                    await asyncio.sleep(self.ring_s)
                 writer.write(ami._message({"Event": "OriginateResponse", "ActionID": aid,
                                            "Response": "Success" if self.reason == "4" else "Failure",
                                            "Reason": self.reason}))
@@ -465,6 +468,25 @@ class AMITests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((res.answered, res.declined), (answered, declined), reason)
         self.assertEqual(manager.originates[0]["Channel"], "PJSIP/1001")
         self.assertEqual(manager.originates[0]["Variable"], "EMMA_UUID=abc")
+
+    async def test_a_quick_reason_0_is_a_reject_a_late_one_rang_out(self):
+        # Phone check 7, 14 Oct: Linphone's Reject came back as reason "0" ~2 s in and was logged "no answer"
+        # (a retry was queued for 3 am).
+        manager = FakeManager("0")
+        await manager.start()
+        try:
+            res = await self.originate(manager)
+        finally:
+            await manager.stop()
+        self.assertEqual((res.answered, res.declined), (False, True))
+        manager = FakeManager("0", ring_s=0.3)
+        await manager.start()
+        try:
+            with mock.patch.object(ami, "DECLINE_WITHIN_S", 0.1):
+                res = await self.originate(manager)
+        finally:
+            await manager.stop()
+        self.assertEqual((res.answered, res.declined), (False, False))
 
     async def test_bad_login(self):
         manager = FakeManager()
