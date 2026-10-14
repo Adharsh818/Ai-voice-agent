@@ -28,62 +28,58 @@
     <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.1"/></symbol>
   </svg>
 
-  <div class="app">
-    <!-- Sidebar (regular widths) -------------------------------------------->
-    <nav class="sidebar" aria-label="Dashboard sections">
-      <div class="account">
-        <div class="account-text">
-          <div class="brand-name">Pearl Dental</div>
-          <div class="account-who" id="account-who">Staff dashboard</div>
-        </div>
-        <button class="btn small icon-only" type="button" popovertarget="account-menu" aria-label="Account" aria-haspopup="menu">
-          <svg class="icon"><use href="#i-more"/></svg>
+  <!-- apple.com global nav: 44 px frosted bar, drop-down menus, curtain (docs/REDESIGN_V2_APPLE.md F1-F4) -->
+  <header class="globalnav" id="globalnav">
+    <nav class="gn-inner" aria-label="Dashboard">
+      <a class="gn-brand" href="#live">Pearl Dental</a>
+      <div class="gn-items">
+        <button class="gn-item" type="button" data-menu="today" aria-expanded="false" aria-controls="gn-flyout">
+          <span class="pearl" data-live-pearl aria-hidden="true"></span>Today<span class="count urgent" data-badge="tasks" hidden></span>
         </button>
-        <div class="menu" id="account-menu" popover role="menu">
-          <a href="/" target="_blank" rel="noopener" role="menuitem">Open the talk page</a>
-          <hr>
-          <button type="button" role="menuitem" data-signout>Sign out</button>
-        </div>
+        <button class="gn-item" type="button" data-menu="followup" aria-expanded="false" aria-controls="gn-flyout">Follow-up</button>
+        <button class="gn-item" type="button" data-menu="clinic" aria-expanded="false" aria-controls="gn-flyout">Clinic<span class="count urgent" data-badge="health" hidden></span></button>
       </div>
-
-      <div class="nav-group">
-        <div class="nav-title" id="nav-today">Today</div>
-        <a class="nav-item" href="#live" data-nav="live">
-          <span class="pearl" data-live-pearl aria-hidden="true"></span>
-          <span class="nav-label">Live call</span>
-          <span class="count" data-badge="live" hidden></span>
-        </a>
-        <a class="nav-item" href="#appointments" data-nav="appointments">
-          <svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span class="nav-label">Appointments</span>
-        </a>
-        <a class="nav-item" href="#tasks" data-nav="tasks">
-          <svg class="icon" aria-hidden="true"><use href="#i-tasks"/></svg><span class="nav-label">Tasks</span>
-          <span class="count" data-badge="tasks" hidden></span>
-        </a>
+      <button class="gn-item gn-account" type="button" popovertarget="account-menu" aria-haspopup="menu" id="account-who">Account</button>
+      <div class="menu" id="account-menu" popover role="menu">
+        <p class="hint" id="account-label">Staff dashboard</p>
+        <a href="/" target="_blank" rel="noopener" role="menuitem">Open the talk page</a>
+        <hr>
+        <button type="button" role="menuitem" data-signout>Sign out</button>
       </div>
-      <div class="nav-group">
-        <div class="nav-title">Follow-up</div>
-        <a class="nav-item" href="#calls" data-nav="calls">
-          <svg class="icon" aria-hidden="true"><use href="#i-calls"/></svg><span class="nav-label">Calls</span>
-        </a>
-        <a class="nav-item" href="#rebooking" data-nav="rebooking">
-          <svg class="icon" aria-hidden="true"><use href="#i-rebook"/></svg><span class="nav-label">Rebooking</span>
-        </a>
-      </div>
-      <div class="nav-group">
-        <div class="nav-title">Clinic</div>
-        <a class="nav-item" href="#health" data-nav="health">
-          <svg class="icon" aria-hidden="true"><use href="#i-health"/></svg><span class="nav-label">Health</span>
-          <span class="count urgent" data-badge="health" hidden></span>
-        </a>
-        <a class="nav-item" href="#setup" data-nav="setup">
-          <svg class="icon" aria-hidden="true"><use href="#i-setup"/></svg><span class="nav-label">Setup</span>
-        </a>
-        <a class="nav-item" href="#privacy" data-nav="privacy">
-          <svg class="icon" aria-hidden="true"><use href="#i-privacy"/></svg><span class="nav-label">Privacy</span>
-        </a>
-      </div>
+      <button class="gn-menu-toggle" type="button" data-menu="all" aria-expanded="false" aria-controls="gn-flyout" aria-label="Menu"><span></span></button>
     </nav>
+  </header>
+  <div class="gn-flyout" id="gn-flyout">
+    <div class="gn-panel" data-panel="today">
+      <div class="gn-col">
+        <p class="gn-label">Today</p>
+        <a class="gn-link" href="#live" data-nav="live">Live call<span class="gn-status" data-status="live">No call right now</span></a>
+        <a class="gn-link" href="#appointments" data-nav="appointments">Appointments<span class="gn-status" data-status="appointments">The day's diary</span></a>
+        <a class="gn-link" href="#tasks" data-nav="tasks">Tasks<span class="gn-status" data-status="tasks">Callbacks Emma promised</span></a>
+      </div>
+    </div>
+    <div class="gn-panel" data-panel="followup">
+      <div class="gn-col">
+        <p class="gn-label">Follow-up</p>
+        <a class="gn-link" href="#calls" data-nav="calls">Calls<span class="gn-status" data-status="calls">Transcripts of every call</span></a>
+        <a class="gn-link" href="#rebooking" data-nav="rebooking">Rebooking<span class="gn-status" data-status="rebooking">When a doctor can't come in</span></a>
+      </div>
+    </div>
+    <div class="gn-panel" data-panel="clinic">
+      <div class="gn-col">
+        <p class="gn-label">Clinic</p>
+        <a class="gn-link" href="#health" data-nav="health">Health<span class="gn-status" data-status="health">Services, sync and messages</span></a>
+        <a class="gn-link" href="#setup" data-nav="setup">Setup<span class="gn-status" data-status="setup">Doctors, hours, closures, sign-ins</span></a>
+        <a class="gn-link" href="#privacy" data-nav="privacy">Privacy<span class="gn-status" data-status="privacy">Data requests and the audit log</span></a>
+      </div>
+      <div class="gn-col">
+        <p class="gn-label">More</p>
+        <a class="gn-link small" href="/" target="_blank" rel="noopener">Open the talk page</a>
+        <button class="gn-link small link-btn" type="button" data-signout>Sign out</button>
+      </div>
+    </div>
+  </div>
+  <div class="gn-curtain" id="gn-curtain"></div>
 
     <main class="content">
       <div class="alerts" id="alerts" role="status" aria-live="polite" hidden></div>
@@ -464,37 +460,8 @@
         </div>
       </section>
 
-      <!-- Clinic (compact widths: the rest of the sections) ----------------->
-      <section class="view" id="view-clinic" aria-labelledby="h-clinic" hidden>
-        <header class="bar"><h1 id="h-clinic">Clinic</h1></header>
-        <div class="view-body">
-          <div class="card list-card">
-            <ul class="list clinic-links">
-              <li><a class="row" href="#rebooking"><svg class="icon" aria-hidden="true"><use href="#i-rebook"/></svg><span>Rebooking</span><span class="chevron" aria-hidden="true"></span></a></li>
-              <li><a class="row" href="#health"><svg class="icon" aria-hidden="true"><use href="#i-health"/></svg><span>Health <span class="count urgent" data-badge="health" hidden></span></span><span class="chevron" aria-hidden="true"></span></a></li>
-              <li><a class="row" href="#setup"><svg class="icon" aria-hidden="true"><use href="#i-setup"/></svg><span>Setup</span><span class="chevron" aria-hidden="true"></span></a></li>
-              <li><a class="row" href="#privacy"><svg class="icon" aria-hidden="true"><use href="#i-privacy"/></svg><span>Privacy</span><span class="chevron" aria-hidden="true"></span></a></li>
-            </ul>
-          </div>
-          <div class="card list-card">
-            <ul class="list clinic-links">
-              <li><a class="row" href="/" target="_blank" rel="noopener"><svg class="icon" aria-hidden="true"><use href="#i-live"/></svg><span>Open the talk page</span><span class="chevron" aria-hidden="true"></span></a></li>
-            </ul>
-          </div>
-          <button class="btn danger" type="button" data-signout>Sign out</button>
-        </div>
-      </section>
     </main>
 
-    <!-- Tab bar (compact widths) ---------------------------------------------->
-    <nav class="tabbar" aria-label="Dashboard sections">
-      <a href="#live" data-nav="live"><svg class="icon" aria-hidden="true"><use href="#i-live"/></svg>Live</a>
-      <a href="#appointments" data-nav="appointments"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg>Appointments</a>
-      <a href="#tasks" data-nav="tasks"><svg class="icon" aria-hidden="true"><use href="#i-tasks"/></svg>Tasks<span class="count" data-badge="tasks" hidden></span></a>
-      <a href="#calls" data-nav="calls"><svg class="icon" aria-hidden="true"><use href="#i-calls"/></svg>Calls</a>
-      <a href="#clinic" data-nav="clinic" data-also="rebooking health setup privacy"><svg class="icon" aria-hidden="true"><use href="#i-clinic"/></svg>Clinic<span class="count urgent" data-badge="health" hidden></span></a>
-    </nav>
-  </div>
 
   <!-- Row menu (appointments), filled per row ------------------------------>
   <div class="menu" id="row-menu" popover role="menu"></div>

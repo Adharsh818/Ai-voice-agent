@@ -5,16 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sign in · Pearl Dental</title>
   <meta name="description" content="Staff sign-in for the Pearl Dental dashboard.">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="light">
   <link rel="stylesheet" href="/dashboard/static/dashboard.css">
 </head>
-<body>
+<body class="login-page">
+  <header class="globalnav">
+    <nav class="gn-inner" aria-label="Pearl Dental">
+      <span class="gn-brand">Pearl Dental</span>
+    </nav>
+  </header>
   <main class="login-wrap">
-    <div class="card login-card">
-      <span class="pearl" aria-hidden="true"></span>
-      <div>
-        <h1>Sign in to Pearl Dental</h1>
-        <p class="lede">The front desk dashboard</p>
+    <div class="login-stack">
+      <span class="pearl reveal-item" aria-hidden="true"></span>
+      <div class="reveal-item">
+        <h1>Sign in to Pearl Dental.</h1>
+        <p class="lede">The front desk dashboard.</p>
       </div>
 
       <div id="locked" class="note-box" hidden>
@@ -22,17 +27,19 @@
         <div id="locked-reason" class="small"></div>
       </div>
 
-      <form id="login-form" autocomplete="on" hidden>
-        <label class="field">User name
-          <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" aria-describedby="username-hint">
-          <span class="hint" id="username-hint">Leave blank to use the clinic password.</span>
-        </label>
-        <label class="field">Password
-          <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
-        </label>
-        <div id="login-error" class="error-box" role="alert" hidden></div>
-        <button class="btn primary" type="submit" id="login-button">Sign in</button>
-      </form>
+      <div class="card login-card reveal-item">
+        <form id="login-form" autocomplete="on" hidden>
+          <label class="field">User name
+            <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" aria-describedby="username-hint">
+            <span class="hint" id="username-hint">Leave blank to use the clinic password.</span>
+          </label>
+          <label class="field">Password
+            <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+          </label>
+          <div id="login-error" class="error-box" role="alert" hidden></div>
+          <button class="btn primary" type="submit" id="login-button">Sign in</button>
+        </form>
+      </div>
     </div>
   </main>
   <script type="module" src="/dashboard/static/login.js"></script>

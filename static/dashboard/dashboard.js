@@ -172,7 +172,7 @@ document.querySelectorAll("[popovertarget]").forEach((button) => {
   const popover = $(button.getAttribute("popovertarget"));
   popover.addEventListener("toggle", (e) => {
     if (e.newState !== "open") return;
-    place(popover, button, button.closest(".sidebar") ? "start" : "end");
+    place(popover, button, "end");
     grow(popover, button);
   });
 });
@@ -324,7 +324,7 @@ function fillDoctorFilter() {
   select.value = [...select.options].some((o) => o.value === current) ? current : "";
 }
 
-// Counts on the sidebar and the tab bar (the old header chips): open tasks, problems for Health.
+// Counts on the global nav: open tasks (Today), problems for Health (Clinic).
 function setBadge(name, count, { urgent = false, label = "" } = {}) {
   document.querySelectorAll(`[data-badge="${name}"]`).forEach((badge) => {
     badge.hidden = !count;
@@ -349,6 +349,17 @@ async function refreshOverview() {
   setBadge("health", problems, { urgent: true, label: `${problems} problem${problems === 1 ? "" : "s"}` });
   updateCallChip(data.call);
   renderAlerts(alerts);
+  // One line of live status under each link in the drop-down menus.
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  setStatus("appointments", `${data.appointments_today} today`
+    + (data.needs_reschedule ? `, ${data.needs_reschedule} need${data.needs_reschedule === 1 ? "s" : ""} a new time` : ""));
+  setStatus("tasks", openTasks ? `${openTasks} open${urgent ? `, ${urgent} urgent` : ""}` : "Nothing waiting");
+  setStatus("calls", `${plural(data.calls_today, "call")} today`);
+  setStatus("health", problems ? `${plural(problems, "problem")} to look at` : "Everything is working");
+}
+
+function setStatus(key, text) {
+  document.querySelectorAll(`[data-status="${key}"]`).forEach((node) => { node.textContent = text; });
 }
 
 // Problems the server found (alerts.py): a speech service down, calendar sync stuck, a call line stuck.
@@ -373,6 +384,7 @@ function renderAlerts(alerts) {
 function updateCallChip(call) {
   const busy = Boolean(call && call.busy);
   document.querySelectorAll("[data-live-pearl]").forEach((pearl) => pearl.classList.toggle("live", busy));
+  setStatus("live", busy ? "Emma is on a call" : "No call right now");
   const live = [...liveCalls.values()].filter((st) => !st.ended).length;
   setBadge("live", live > 1 ? live : 0, { label: `${live} calls on` });
 }
@@ -388,10 +400,12 @@ const loaders = {
   health: () => loadHealthView(),
   setup: () => loadSetup(),
   privacy: () => loadPrivacy(),
-  clinic: () => {},
 };
-const OLD_NAMES = { recovery: "rebooking", system: "health" };
-const WIDE = matchMedia("(min-width: 900px)");
+const OLD_NAMES = { recovery: "rebooking", system: "health", clinic: "health" };
+const GROUP_OF = {
+  live: "today", appointments: "today", tasks: "today", calls: "followup", rebooking: "followup",
+  health: "clinic", setup: "clinic", privacy: "clinic",
+};
 let currentTab = "live";
 
 function sectionName(name) {
@@ -406,25 +420,127 @@ function showTab(name) {
 }
 
 function render(name) {
-  if (name === "clinic" && WIDE.matches) {
-    name = "health";
-    history.replaceState(null, "", "#health");
-  }
   const changed = name !== currentTab;
   currentTab = name;
+  closeNav();
   for (const key of Object.keys(loaders)) $(`view-${key}`).hidden = key !== name;
   document.querySelectorAll("[data-nav]").forEach((link) => {
-    const on = link.dataset.nav === name || (link.dataset.also || "").split(" ").includes(name);
-    if (on) link.setAttribute("aria-current", "page");
+    if (link.dataset.nav === name) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   });
+  document.querySelectorAll(".gn-item[data-menu]").forEach((item) => item.classList.toggle("current", item.dataset.menu === GROUP_OF[name]));
   store("tab", name);
-  const brand = document.querySelector(".brand-name").textContent;
+  const brand = document.querySelector(".gn-brand").textContent;
   document.title = `${$(`view-${name}`).querySelector("h1").textContent} · ${brand}`;
   if (changed) window.scrollTo(0, 0);
   refreshSoon();
-  loaders[name]();
+  const loaded = Promise.resolve(loaders[name]()).catch(() => {});
+  // apple.com's staggered reveal each time a section opens (owner's choice); refreshes don't re-run it.
+  if (changed) loaded.then(() => requestAnimationFrame(() => reveal($(`view-${name}`))));
 }
+
+// ------------------------------------------------------------------ apple.com motion: reveal on scroll (F8)
+// Items fade in (0.9 s) and rise 30 px (0.7 s), 0.15 s apart, when their top reaches 70% of the
+// viewport. apple.com sets the curve in script, so its content curve stands in (docs/REDESIGN_V2_APPLE.md F9).
+const revealer = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
+  let i = 0;
+  for (const entry of entries) {
+    if (!entry.isIntersecting) continue;
+    const node = entry.target;
+    revealer.unobserve(node);
+    node.style.setProperty("--reveal-delay", `${Math.min(i++, 4) * 0.15}s`);
+    node.classList.add("revealed");
+    const settle = () => { node.classList.remove("reveal-item", "revealed"); node.style.removeProperty("--reveal-delay"); };
+    node.addEventListener("transitionend", (e) => { if (e.propertyName === "opacity") settle(); }, { once: true });
+    setTimeout(settle, 2000);
+  }
+}, { rootMargin: "0px 0px -30% 0px" }) : null;
+
+function reveal(view) {
+  if (!revealer || REDUCED_MOTION.matches || view.hidden) return;
+  const items = view.querySelectorAll(
+    ".view-body > .view-intro, .view-body > .toolbar, .view-body .card:not(.list-card), .view-body .list-card > .list > li");
+  for (const node of items) {
+    if (node.classList.contains("reveal-item")) continue;
+    node.classList.add("reveal-item");
+    revealer.observe(node);
+  }
+}
+
+// ------------------------------------------------------------------ apple.com global nav (F1-F4)
+// Menus open 80 ms after the pointer arrives (or at once on click, tap or keyboard), slide 8 px in the
+// direction of travel between menus, and dim the page behind with the blurred curtain.
+const gnav = { open: null, timer: null };
+const MENU_ORDER = ["today", "followup", "clinic"];
+const flyout = $("gn-flyout");
+
+function openNav(name, { focus = false } = {}) {
+  clearTimeout(gnav.timer);
+  if (gnav.open === name) return;
+  const previous = gnav.open;
+  gnav.open = name;
+  const panels = [...flyout.querySelectorAll(".gn-panel")];
+  panels.forEach((panel) => panel.classList.remove("active", "compact-all", "entering", "entering-forward", "entering-back"));
+  const shown = name === "all" ? panels : panels.filter((panel) => panel.dataset.panel === name);
+  const motion = !previous || previous === "all" || name === "all" ? "entering"
+    : MENU_ORDER.indexOf(name) > MENU_ORDER.indexOf(previous) ? "entering-forward" : "entering-back";
+  shown.forEach((panel) => {
+    panel.classList.add(name === "all" ? "compact-all" : "active");
+    void panel.offsetWidth;             // restart the slide when switching menus
+    panel.classList.add(motion);
+  });
+  if (name === "all") flyout.querySelectorAll(".gn-col > *").forEach((row, i) => row.style.setProperty("--row", i));
+  flyout.style.height = name === "all" ? "" : `${shown[0].offsetHeight}px`;
+  flyout.classList.add("open");
+  $("gn-curtain").classList.add("open");
+  $("globalnav").classList.add("open");
+  document.querySelectorAll("[data-menu]").forEach((button) => button.setAttribute("aria-expanded", String(button.dataset.menu === name)));
+  if (focus) shown[0].querySelector("a, button")?.focus();
+}
+
+function closeNav() {
+  clearTimeout(gnav.timer);
+  if (!gnav.open) return;
+  gnav.open = null;
+  flyout.style.height = "0px";
+  flyout.classList.remove("open");
+  $("gn-curtain").classList.remove("open");
+  $("globalnav").classList.remove("open");
+  document.querySelectorAll("[data-menu]").forEach((button) => button.setAttribute("aria-expanded", "false"));
+}
+
+document.querySelectorAll("[data-menu]").forEach((button) => {
+  button.addEventListener("pointerenter", (e) => {
+    if (e.pointerType !== "mouse" || button.dataset.menu === "all") return;
+    clearTimeout(gnav.timer);
+    gnav.timer = setTimeout(() => openNav(button.dataset.menu), 80);
+  });
+  button.addEventListener("click", (e) => {
+    if (gnav.open === button.dataset.menu) closeNav();
+    else openNav(button.dataset.menu, { focus: e.detail === 0 });   // keyboard: move focus into the menu
+  });
+});
+for (const area of [$("globalnav"), flyout]) {
+  area.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse" && gnav.open) clearTimeout(gnav.timer); });
+  area.addEventListener("pointerleave", (e) => {
+    if (e.pointerType !== "mouse" || gnav.open === "all") return;
+    clearTimeout(gnav.timer);
+    gnav.timer = setTimeout(closeNav, 160);
+  });
+}
+$("gn-curtain").addEventListener("click", closeNav);
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || !gnav.open) return;
+  const menu = gnav.open;
+  closeNav();
+  document.querySelector(`[data-menu="${menu}"]`)?.focus();
+});
+matchMedia("(max-width: 833px)").addEventListener("change", closeNav);
+
+// The section bar turns frosted once the page scrolls under it (F7).
+const markScrolled = () => document.body.classList.toggle("scrolled", window.scrollY > 4);
+window.addEventListener("scroll", markScrolled, { passive: true });
+markScrolled();
 
 window.addEventListener("hashchange", () => render(sectionName(location.hash.slice(1)) || "live"));
 
@@ -1897,7 +2013,10 @@ async function start() {
   await refreshOverview();
   try { await loadCatalog(); } catch (err) { toast(err.message, "error"); }
   api("/dashboard/api/auth").then((me) => {
-    if (me && me.user) $("account-who").textContent = `Signed in as ${me.user}`;
+    if (me && me.user) {
+      $("account-who").textContent = me.user;
+      $("account-label").textContent = `Signed in as ${me.user}`;
+    }
   }).catch(() => {});
   connectEvents();
   const wanted = sectionName(location.hash.slice(1)) || sectionName(recall("tab")) || "live";
