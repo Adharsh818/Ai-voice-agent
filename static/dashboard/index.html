@@ -251,6 +251,18 @@
           <h1 class="t-large-title" id="h-calls">Calls</h1>
           <p class="t-small ink-2" id="calls-retention">Transcripts only, no audio.</p>
         </div>
+        <div class="view-tools">
+          <div class="segmented" id="call-filter" role="group" aria-label="Which calls">
+            <button type="button" data-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-filter="changes" aria-pressed="false">Booked or changed</button>
+            <button type="button" data-filter="hungup" aria-pressed="false">Hung up</button>
+            <button type="button" data-filter="recovery" aria-pressed="false">Recovery</button>
+            <button type="button" data-filter="live" aria-pressed="false">Live</button>
+          </div>
+          <label class="search-field"><svg class="ico"><use href="#i-search"/></svg>
+            <input type="search" id="call-search" placeholder="Search number or call ID" aria-label="Search calls"></label>
+          <span class="t-caption ink-2" id="call-count"></span>
+        </div>
         <div class="mail">
           <ul class="mail-list" id="call-rows" aria-label="Calls"></ul>
           <div class="mail-detail" id="call-detail">
@@ -321,7 +333,9 @@
         <header class="view-bar glass-bar"><span class="bar-title">System</span><span class="bar-actions"></span></header>
         <div class="view-head"><h1 class="t-large-title" id="h-system">System</h1></div>
 
-        <div class="settings">
+        <div class="settings-split">
+        <nav class="settings-index" id="settings-index" aria-label="System settings"></nav>
+        <div class="settings" id="settings-panes">
           <section class="settings-group">
             <h2 class="group-title">How Emma is doing <span>real calls, last 7 days</span></h2>
             <div class="group-box" id="perf-body"><p class="ink-2 pad">Loading…</p></div>
@@ -425,6 +439,7 @@
               </table>
             </div>
           </section>
+        </div>
         </div>
       </section>
     </main>

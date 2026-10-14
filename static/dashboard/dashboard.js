@@ -345,10 +345,11 @@ function showTab(name) {
   document.title = `${{ today: "Today", live: "Live call", appointments: "Appointments", tasks: "Tasks", calls: "Calls",
     recovery: "Recovery", system: "System" }[name]} · ${document.title.split(" · ").slice(-1)[0]}`;
   if (changed) window.scrollTo({ top: 0 });
+  if (changed && name === "system") $("view-system").classList.remove("drilled");   // Settings opens on its list
   updateBars();
   loaders[name]();
   if (name === "today" && changed) replay($("today-grid"));
-  if (name === "appointments") requestAnimationFrame(() => segmentPlacers.forEach((place) => place()));
+  requestAnimationFrame(() => segmentPlacers.forEach((place) => place()));
 }
 
 document.querySelectorAll(".side-item[data-tab]").forEach((item) => item.addEventListener("click", () => showTab(item.dataset.tab)));
@@ -744,7 +745,8 @@ function paintToday() {
   const rows = todayData.appts;
   const active = rows.filter((r) => r.status === "booked" || r.status === "needs_reschedule");
   const now = new Date();
-  const next = active.filter((r) => new Date(r.end) > now).slice(0, 4);
+  const upcoming = active.filter((r) => new Date(r.end) > now);
+  const next = upcoming.slice(0, 4);
   const done = rows.filter((r) => r.status === "completed").length;
   const cancelled = rows.filter((r) => r.status === "cancelled").length;
   $("side-appt-count").textContent = String(active.length);
@@ -756,7 +758,7 @@ function paintToday() {
     next.length ? el("ul", { class: "tile-list" }, ...next.map((r) => el("li", {},
       el("span", { class: "t", text: r.time }),
       el("span", { class: "x", text: `${r.patient_name} · ${r.service} · ${r.doctor}` })))) : el("span", { class: "tile-sub", text: "Nothing else booked today." }),
-    active.length > next.length ? el("span", { class: "tile-sub", text: `${active.length - next.length} more` }) : null,
+    upcoming.length > next.length ? el("span", { class: "tile-sub", text: `${upcoming.length - next.length} more` }) : null,
     el("span", { class: "tile-foot", text: "Open calendar" }));
 
   // Tasks.
@@ -1557,18 +1559,42 @@ document.querySelectorAll("#task-filter button").forEach((button) => button.addE
 
 // ------------------------------------------------------------------ calls (Mail)
 let selectedCall = null;
+let callList = [];
+let callFilter = "all";
+
+// Mail's mailbox filters: what a call came to, matched on its outcome and direction.
+const CALL_FILTERS = {
+  all: () => true,
+  changes: (c) => /^(booked|rescheduled|cancelled)/.test(c.outcome || ""),
+  hungup: (c) => /^abandoned|_hangup$|hung_up/.test(c.outcome || ""),
+  recovery: (c) => c.direction === "outbound",
+  live: (c) => !c.ended_at,
+};
 
 async function loadCalls() {
+  document.querySelectorAll("#call-filter button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === callFilter)));
   const list = $("call-rows");
-  let calls;
   try {
-    calls = (await api("/dashboard/api/calls?limit=100")).calls;
+    callList = (await api("/dashboard/api/calls?limit=100")).calls;
   } catch (err) {
     list.replaceChildren(emptyItem(err.message));
     return;
   }
+  renderCalls();
+  if (selectedCall) openCall(selectedCall);
+}
+
+function renderCalls() {
+  const list = $("call-rows");
+  const q = $("call-search").value.trim().toLowerCase();
+  const digits = q.replace(/\D/g, "");
+  const calls = callList.filter(CALL_FILTERS[callFilter] || CALL_FILTERS.all).filter((c) => !q
+    || c.id.toLowerCase().includes(q)
+    || (digits.length >= 3 && (c.phone_display || "").replace(/\D/g, "").includes(digits))
+    || callOutcome(c.outcome).toLowerCase().includes(q));
+  $("call-count").textContent = `${calls.length} of ${callList.length}`;
   if (!calls.length) {
-    list.replaceChildren(emptyItem("No calls yet."));
+    list.replaceChildren(emptyItem(callList.length ? "No calls match." : "No calls yet."));
     return;
   }
   list.replaceChildren(...calls.map((c) => {
@@ -1578,17 +1604,40 @@ async function loadCalls() {
     el("span", { class: "mail-time", text: fmtDateTime(c.started_at) }),
     el("span", { class: "mail-sub" },
       el("span", { class: `badge ${(c.outcome || "").split("@")[0]}`, title: c.outcome || "", text: callOutcome(c.outcome) }),
-      el("span", { text: [CHANNEL_LABEL[c.channel] || null, c.ended_at ? length(c.started_at, c.ended_at) : "live",
+      el("span", { text: [c.direction === "outbound" ? "Recovery call" : null, CHANNEL_LABEL[c.channel] || null,
+        c.ended_at ? length(c.started_at, c.ended_at) : "live",
         c.turns === c.kept_turns ? `${c.turns} turns` : `${c.kept_turns}/${c.turns} kept`].filter(Boolean).join(" · ") })));
     row.addEventListener("click", () => openCall(c.id));
-    row.addEventListener("keydown", (e) => { if (e.key === "Enter") openCall(c.id); });
+    row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCall(c.id); } });
     return row;
   }));
-  if (selectedCall) openCall(selectedCall);
 }
+
+document.querySelectorAll("#call-filter button").forEach((button) => button.addEventListener("click", () => {
+  callFilter = button.dataset.filter;
+  document.querySelectorAll("#call-filter button").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+  renderCalls();
+}));
+$("call-search").addEventListener("input", debounce(renderCalls, 150));
+// Mail: up and down arrows move through the list.
+$("call-rows").addEventListener("keydown", (event) => {
+  if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+  const rows = [...$("call-rows").querySelectorAll(".mail-row")];
+  const i = rows.indexOf(document.activeElement);
+  const next = rows[Math.max(0, Math.min(rows.length - 1, i + (event.key === "ArrowDown" ? 1 : -1)))];
+  if (next) { event.preventDefault(); next.focus(); openCall(next.dataset.call); }
+});
 
 async function openCall(callId) {
   selectedCall = callId;
+  // Opened from a task or a recovery call: clear a filter that would hide its row.
+  if (!$("call-rows").querySelector(`[data-call="${CSS.escape(callId)}"]`) && (callFilter !== "all" || $("call-search").value)) {
+    callFilter = "all";
+    $("call-search").value = "";
+    document.querySelectorAll("#call-filter button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === "all")));
+    renderCalls();
+  }
+
   const box = $("call-detail");
   let call;
   try {
@@ -1644,6 +1693,8 @@ async function openCall(callId) {
     el("div", { class: "transcript" }, ...(turns.length ? turns : [el("div", { class: "detail-empty", text: "No turns recorded." })])));
   box.scrollTop = 0;
   document.querySelectorAll("#call-rows .mail-row").forEach((row) => row.classList.toggle("selected", row.dataset.call === callId));
+  const chosen = $("call-rows").querySelector(".mail-row.selected");
+  if (chosen) chosen.scrollIntoView({ block: "nearest" });
 }
 
 // ------------------------------------------------------------------ system (Settings)
@@ -1681,6 +1732,7 @@ async function loadStaff() {
   const who = await loadMe();
   if (!who) return;
   $("staff-card").hidden = who.role !== "admin";
+  buildSettingsIndex();
   if (who.role !== "admin") return;
   $("staff-me").textContent = `You're signed in as ${who.user}.`;
   let data;
@@ -1933,6 +1985,7 @@ async function loadSystem() {
     el("td", { text: a.action.replace(/_/g, " ") }),
     el("td", { class: "t-caption", title: `${a.entity} ${a.entity_id}`, text: a.what || `${a.entity} ${a.entity_id}` }))));
   loadHealth(data);
+  buildSettingsIndex();
 }
 const reloadSystemSoon = debounce(loadSystem, 500);
 
@@ -1977,6 +2030,41 @@ $("dnc-form").addEventListener("submit", async (event) => {
     $("dnc-phone").value = "";
     loadSystem();
   } catch (err) { toast(err.message, "error"); }
+});
+
+// Settings: an index of the groups on the left, one group's pane at a time on the right.
+// On a phone the index is a list you drill into, with a back button, as in iOS Settings.
+let settingsPane = recall("settings-pane");
+function buildSettingsIndex() {
+  const index = $("settings-index");
+  const groups = [...document.querySelectorAll("#settings-panes > .settings-group")];
+  groups.forEach((group, i) => { if (!group.id) group.id = `settings-${i}`; });
+  const visible = groups.filter((g) => !g.hidden);
+  if (!visible.some((g) => g.id === settingsPane)) settingsPane = visible[0] && visible[0].id;
+  index.replaceChildren(...visible.map((group) => {
+    const title = group.querySelector(".group-title");
+    const label = title ? title.childNodes[0].textContent.trim() : group.id;
+    const badge = group.querySelector(".group-title .badge");
+    return el("button", { type: "button", class: "settings-row", "aria-current": String(group.id === settingsPane),
+      "data-pane": group.id, onclick: () => showSettingsPane(group.id, true) },
+    el("span", { class: "li-main", text: label }),
+    badge && badge.textContent !== "–" ? el("span", { class: badge.className, text: badge.textContent }) : null,
+    el("span", { class: "chev", "aria-hidden": "true", text: "›" }));
+  }));
+  showSettingsPane(settingsPane, $("view-system").classList.contains("drilled"));
+}
+function showSettingsPane(id, drill) {
+  settingsPane = id;
+  store("settings-pane", id);
+  document.querySelectorAll("#settings-panes > .settings-group").forEach((g) => g.classList.toggle("active", g.id === id));
+  document.querySelectorAll("#settings-index .settings-row").forEach((r) => r.setAttribute("aria-current", String(r.dataset.pane === id)));
+  $("view-system").classList.toggle("drilled", Boolean(drill));
+  if (drill && window.matchMedia("(max-width: 734px)").matches) window.scrollTo({ top: 0 });
+}
+document.querySelectorAll("#settings-panes > .settings-group").forEach((group) => {
+  const back = el("button", { type: "button", class: "settings-back btn-pill text small", text: "‹ System",
+    onclick: () => $("view-system").classList.remove("drilled") });
+  group.prepend(back);
 });
 
 // ------------------------------------------------------------------ recovery calls (guided steps)
@@ -2286,7 +2374,7 @@ $("logout").addEventListener("click", logout);
 document.querySelector('#more-sheet [data-action="logout"]').addEventListener("click", logout);
 
 async function start() {
-  for (const id of ["cal-view", "task-filter", "appt-scope"]) segmentPlacers.push(segmented($(id)));
+  for (const id of ["cal-view", "task-filter", "appt-scope", "call-filter"]) segmentPlacers.push(segmented($(id)));
   await refreshOverview();
   try { await loadCatalog(); } catch (err) { toast(err.message, "error"); }
   loadMe();

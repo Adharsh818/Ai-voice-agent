@@ -1,6 +1,6 @@
 # Apple-style redesign: talk page, dashboard, login
 
-Status: **built on branch `claude/rea-availability-b99f59` (14 Oct 2026), fresh from `main`.** Owner's choices: this session's decisions, built fresh, not on PR #6 or the v2 WIP branch. See "8. As built" at the end.
+Status: **built and click-tested on branch `claude/rea-availability-b99f59` (14 Oct 2026), fresh from `main`.** Owner's choices: this session's decisions, built fresh, not on PR #6 or the v2 WIP branch. See "8. As built" at the end.
 
 **Owner's decisions (14 Oct):**
 - **Talk page:** light, following the device's dark mode.
@@ -311,7 +311,52 @@ The preview copy used a copied database and a test login.
 - Apple sign-in screenshot: `ev_dbda65b5…`
 - our talk page capture: `ev_fe8d6f94…`. It shows only same-origin files (2 stylesheets, 4 scripts) and no console messages.
 
-**Not done yet:**
-- a real microphone call on the talk page
-- the patient page (`/patient`) restyle, out of scope
-- a full keyboard-only pass of the dashboard
+**Built in the second pass (14 Oct, evening):**
+- System is now Settings-style: an index of groups on the left with one pane at a time. On a phone it is a list you tap into, with a "‹ System" back button, and it always opens on the list.
+- Calls has Mail-style filters (All, Booked or changed, Hung up, Recovery, Live) and a search by number, call ID or outcome. Up and down arrows move through the list. Opening a call from a task or a recovery call clears a filter that would hide it.
+- The talk page's "Staff" link shows only when this deployment has a staff login set up (`/dashboard/api/auth` → `configured`).
+- The Today appointments tile's "N more" counts only the appointments still to come.
+
+## 9. Feature checklist (old dashboard → new), tested 14 Oct on the 8003 preview copy
+
+**Mechanical check:**
+- **API calls:** all 34 distinct dashboard API calls in the old `dashboard.js` are in the new one; none are missing.
+- **Element IDs:** every element ID the old code used still exists, except three replaced on purpose:
+  - the top-bar chips `chip-call` and `chip-tasks` became the sidebar's live dot and counts;
+  - `appt-day-controls` became the calendar's arrows.
+
+**Clicked through by hand, each with its result checked:**
+
+| Area | Action | Result |
+|---|---|---|
+| Sign-in | wrong password, then a real sign-in | the error shows and the fields shake; the sign-in redirects into the dashboard |
+| Appointments | New appointment → Find free times → pick a slot → Book | toast "Appointment booked." |
+| Appointments | Day/Week/Month/Year/List, ‹ › Today, mini month, doctor show/hide | each view renders the right range |
+| Appointments | click an event → inspector → Move → Find free times → Move it | the toast appears and the event moves |
+| Appointments | inspector → Cancel → Cancel appointment | the toast appears and the event shows struck through |
+| Appointments | Past list → Attended, No-show | toasts "Completed." and "No-show." |
+| Appointments | Export CSV (the button's URL fetched) | 200, `text/csv`, correct header row |
+| Tasks | tick done, then reopen from Done | the task leaves the Open list, then comes back |
+| Tasks | a task's "Call" link | opens Calls with that call selected (a call purged from the data shows "No such call.", as before) |
+| Calls | filters, search, select a call | the counts are right, and the transcript shows as bubbles |
+| Calls | Delete call data → confirm | toast; the transcript shows "(text removed)" |
+| Live call | typed call: bubbles, Take over → Say → Hand back, End | all reflected live |
+| Recovery | Block a doctor → preview → Start calls → confirm | "Ringing", toasts, a campaign card with a progress ring |
+| Recovery | Pause → Resume → Stop → confirm | badge paused → running → stopped |
+| Recovery | Lift block → confirm; campaign CSV | block removed; CSV 200 |
+| Recovery | Patients' calling hours → Save | the row is added and a toast appears |
+| System | closures add/remove, do-not-call add/remove | the lists update |
+| System | staff add, switch off | the row is added, then shown greyed |
+| System | doctor Edit → Save; Add doctor; Switch off | messages shown; the row is greyed when off |
+| System | privacy export (API) and Erase → confirm | export 200; "Erased: 1 appointments…" |
+| System | audit log | records every action above |
+| Keyboard | Tab through the sidebar and Today tiles | every control is reachable in order, with a 2 px focus ring |
+| Phone (375 px) | tab bar, Calendar Day view, System list → pane → back | no horizontal scroll |
+| Fonts | SF Pro installed; Inter forced | SF Pro is used; Inter loads (47 KB, same origin) and renders |
+
+**Not tested, with the reason:**
+- **"Retry" and "Retry all failed" in Calendar sync:** calendar sync is off on the preview copy, so nothing can fail. The button is correctly disabled.
+- **Privacy "Download their data" as a real browser download:** the endpoint behind it was checked instead.
+- **A real microphone call on the talk page:** the preview copy has no ElevenLabs key, and a microphone call needs a person speaking. This is left for the owner on the main server.
+
+`dashboard.js` stays one file, on purpose (see "Deviations").
