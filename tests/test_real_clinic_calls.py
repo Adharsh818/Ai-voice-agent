@@ -239,6 +239,56 @@ class AskForOptionsTests(ClinicCallCase):
         self.assertIn("Nagarbhavi", call.say("Cleaning.").text)   # on to the branch
 
 
+class ChangeWithoutValueTests(ClinicCallCase):
+    """Talk-page call 44f15bd6 (14 Oct): "No. Change the branch." got "What day works for you?" twice."""
+
+    def _to_summary(self) -> Call:
+        call = Call()
+        call.run("", "I'd like to book an appointment.", "Jimmy", "9899375620", "yes", "Cleaning.", "Jayanagar.",
+                 "Tomorrow.", "Morning.", "9.")
+        return call
+
+    def test_change_the_branch_asks_which_branch_again(self):
+        call = Call()
+        call.run("", "I'd like to book an appointment.", "Jimmy", "9899375620", "yes", "Cleaning.", "Nagarbhavi.")
+        reply = call.say("No. Change the branch.").text
+        self.assertNotIn("day", reply.lower())
+        for branch in ("Indiranagar", "Jayanagar", "Whitefield"):
+            self.assertIn(branch, reply)
+        self.assertNotIn("Nagarbhavi", reply)              # the one they're leaving isn't offered again
+        self.assertIsNone(call.s.book.branch)
+        reply = call.say("I want Jayanagar.").text
+        self.assertNotIn("change the branch", reply.lower())   # no "did you want to change it?" on top
+        self.assertEqual(call.s.book.branch, "Jayanagar")
+
+    def test_change_the_time_at_the_summary_asks_for_a_time(self):
+        call = self._to_summary()
+        reply = call.say("Change the time.").text
+        self.assertIn("time", reply.lower())
+        self.assertNotIn("book it", reply.lower())
+        self.assertIsNone(call.s.book.chosen)
+
+    def test_a_different_day_is_a_change_not_a_question(self):
+        call = self._to_summary()
+        reply = call.say("Can we do a different day?").text
+        self.assertIn("day", reply.lower())
+        self.assertNotIn("not sure", reply.lower())
+        self.assertIsNone(call.s.book.date_c)
+
+    def test_change_the_treatment_asks_what_instead(self):
+        call = self._to_summary()
+        reply = call.say("Change the treatment.").text
+        self.assertNotIn("book it", reply.lower())
+        self.assertIsNone(call.s.book.service)
+        call.say("A filling.")
+        self.assertEqual(call.s.book.service, "Tooth Filling")
+
+    def test_a_new_value_in_the_same_breath_is_an_ordinary_change(self):
+        call = self._to_summary()
+        call.say("Change the branch to Whitefield.")
+        self.assertEqual(call.s.book.branch, "Whitefield")
+
+
 class ForeignNumberTests(ClinicCallCase):
     def test_a_foreign_number_is_told_plainly_then_an_indian_one_works(self):
         call = Call()

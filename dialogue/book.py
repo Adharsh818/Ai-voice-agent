@@ -50,6 +50,7 @@ Owner in Sprint 1b: E6.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime, time, timedelta
 from typing import Optional
 
@@ -84,6 +85,18 @@ ISSUE_LINES = {
 # scheduling reasons for a refused exact request that are worth saying.
 REASON_LINES = {"OUTSIDE_HOURS": "time.outside_hours", "LUNCH": "time.lunch.at", "DOCTOR_OFF": "time.doctor_off"}
 GENDER_WORDS = {"female": "lady", "male": "male"}
+# "Change the branch", "a different day", "the time is wrong": the caller wants a detail changed but
+# hasn't said to what (talk-page call 44f15bd6, 14 Oct: "No. Change the branch." got "What day works
+# for you?" twice). Group names are the draft details; the value is asked again.
+_REOPEN_RE = re.compile(
+    r"\b(?:change|switch|swap)\s+(?:the\s+|my\s+|that\s+|this\s+)?(?P<a>\w+)"
+    r"|\b(?:a\s+|an\s+)?(?:different|another)\s+(?P<b>\w+)"
+    r"|\b(?:the\s+)?(?P<c>\w+)\s+(?:is|was|'s)\s+wrong\b", re.I)
+_REOPEN_FIELDS = {
+    "branch": "branch", "location": "branch", "clinic": "branch", "centre": "branch", "center": "branch",
+    "service": "service", "treatment": "service", "procedure": "service",
+    "day": "date", "date": "date", "time": "time", "timing": "time",
+}
 MONTH_NAMES = ("January", "February", "March", "April", "May", "June", "July", "August", "September",
                "October", "November", "December")
 
@@ -251,7 +264,69 @@ def take(ctx: CallContext, u: Understanding, rt: Runtime) -> list:
         notices += _take_when(ctx, u)
         if b.offered and b.chosen is None and u.reject_options:
             _reject_offers(ctx)
+    if not picked and not held_back:
+        _reopen(ctx, u, catalog)
     return notices
+
+
+def _reopen(ctx: CallContext, u: Understanding, catalog) -> None:
+    """
+    "Change the branch" with no branch named: forget that detail so it is
+    asked again ("Sure. We also do cleanings at Indiranagar, Jayanagar or
+    Whitefield. Which would you like?"), instead of carrying on with the
+    next question. A new value in the same breath is an ordinary change.
+    """
+    b = ctx.book
+    notes = _notes(b)
+    done = notes.get("reopened", {}).get("field")
+    if done and _filled(b, done):
+        notes.pop("reopened")                       # asked again and answered
+    field_name = None
+    for m in _REOPEN_RE.finditer(u.raw_text or ""):
+        word = (m.group("a") or m.group("b") or m.group("c") or "").lower()
+        field_name = _REOPEN_FIELDS.get(word)
+        if field_name:
+            break
+    if field_name is None:
+        return
+    if field_name == "branch" and b.branch and not u.branch:
+        others = [n for n in offering_branches(ctx, catalog) if n != b.branch]
+        if b.doctor_id is not None:
+            # Doctors work at one branch: another branch means letting the doctor go.
+            saved, b.doctor_id = b.doctor_id, None
+            others = [n for n in offering_branches(ctx, catalog) if n != b.branch]
+            b.doctor_id = saved
+        if not others:
+            return                                  # nowhere else does it: the branch stands
+        b.branch, b.branch_any = None, False
+        b.doctor_id, b.doctor = None, None
+        notes["reopened"] = {"field": "branch", "others": others}
+    elif field_name == "service" and b.service and not u.service:
+        b.service, b.service_phrase, b.service_options = None, None, []
+        notes["reopened"] = {"field": "service"}
+    elif field_name == "date" and b.date_c is not None and not u.date_phrase:
+        b.date_c, b.when_phrase = None, ""
+        notes["reopened"] = {"field": "date"}
+    elif field_name == "time" and (b.time_c is not None or b.any_time) and not u.time_phrase:
+        b.time_c, b.any_time = None, False
+        notes["reopened"] = {"field": "time"}
+    else:
+        return
+    _changed(ctx, search=True)
+    # "Can we do a different day?" is the change itself, not a clinic question to answer.
+    u.acts = [a for a in u.acts if a not in (Act.QUESTION, Act.QUESTION.value)]
+    u.correction = True
+
+
+def _filled(b, field_name: str) -> bool:
+    return {"branch": bool(b.branch or b.branch_any), "service": bool(b.service),
+            "date": b.date_c is not None, "time": b.time_c is not None or b.any_time}[field_name]
+
+
+def _reopened_line(b, field_name: str) -> Optional[dict]:
+    """The note of a "change the {field_name}" still waiting for its new value, else None."""
+    note = _notes(b).get("reopened") or {}
+    return note if note.get("field") == field_name and not _filled(b, field_name) else None
 
 
 def _changed(ctx: CallContext, *, search: bool = False):
@@ -814,7 +889,7 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
         return _plan(Goal.CLARIFY_SERVICE, "clarify.service",
                      options=prompts.speak_list([_spoken_service(o) for o in b.service_options], "or"))
     if not b.service:
-        return _plan(Goal.ASK_SERVICE, "ask.service")
+        return _plan(Goal.ASK_SERVICE, "ask.service.instead" if _reopened_line(b, "service") else "ask.service")
     if _same_service_booked(ctx):
         # Owner decision, 8 Oct (IMPLEMENTATION_PLAN 4.x "same patient and service"): asked only when
         # this patient already has this service booked; another treatment needs no question.
@@ -827,12 +902,18 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
         # once; an answer that isn't an age is let go.
         return _plan(Goal.ASK_AGE, "ask.age", patient=_patient_name(ctx))
     if not b.branch and not b.branch_any:
+        reopened = _reopened_line(b, "branch")
+        if reopened:
+            return _plan(Goal.ASK_BRANCH, "ask.branch.instead", service=_service_plural(b.service),
+                         branches=prompts.speak_list(reopened["others"], "or"))
         return _plan(Goal.ASK_BRANCH, "ask.branch", service=_service_plural(b.service),
                      branches=prompts.speak_list(notes.get("branch_options") or [], "or"))
 
     if b.date_c is None:
         if b.offer_rounds >= MAX_OFFER_ROUNDS:
             return _plan(Goal.CALLBACK_OFFER, "callback.offer")
+        if _reopened_line(b, "date"):
+            return _plan(Goal.ASK_WHEN, "ask.when.instead")
         if b.offer_rounds:
             return _plan(Goal.ASK_WHEN, "ask.when.after_reject")
         return _plan(Goal.ASK_WHEN, "ask.when")
@@ -840,7 +921,7 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
         return _plan(Goal.RESOLVE_AMPM, "resolve.ampm", hour=speak_hour(b.time_c.candidates[0]))
     if not _settled_when(b):
         day = prompts.speak_day(b.date_c.start) if b.date_c.exact else (b.when_phrase or prompts.speak_when(b.date_c, None))
-        return _plan(Goal.ASK_TIME, "ask.time", day=day)
+        return _plan(Goal.ASK_TIME, "ask.time.instead" if _reopened_line(b, "time") else "ask.time", day=day)
 
     if b.chosen is None:
         if b.offered:
