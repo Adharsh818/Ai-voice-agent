@@ -183,6 +183,8 @@ LINES: dict[str, LineSpec] = {
     "ask.service.rephrase": _l("'Is it a check-up, or is something bothering you?'"),
     "ask.service.choices": _l("'We do check-ups, cleanings, fillings, root canals, extractions, braces and "
                               "children's dentistry. Which one is it?'"),
+    "ask.service.instead": _l("The caller asked to change the service without naming one. 'Sure, what would you "
+                              "like to come in for instead?'"),
     "ask.service.list": _l("The caller asked what the clinic does. 'We do check-ups, cleanings, fillings, root "
                            "canals, extractions, braces and children's dentistry. Which would you like?'"),
     "clarify.service": _l("Ambiguous service. 'Is that {options}?'", "options"),
@@ -193,6 +195,9 @@ LINES: dict[str, LineSpec] = {
                      "service", "branches"),
     "ask.branch.rephrase": _l("'Which of those is closer for you, {branches}?'", "branches"),
     "ask.branch.choices": _l("'I can just book whichever has the earliest slot, if you like?'"),
+    "ask.branch.instead": _l("The caller asked to change the branch without naming one; {branches} are the "
+                             "others. 'Sure. We also do {service} at {branches}. Which would you like?'",
+                             "service", "branches"),
     "branch.only": _l("Notice: only one branch offers it. 'We do {service} at our {branch} branch.'",
                       "service", "branch", critical=True),
     "branch.no_service": _l("Notice: 'Our {branch} branch doesn't do {service}, but {branches} do.'",
@@ -206,11 +211,15 @@ LINES: dict[str, LineSpec] = {
     "ask.when.rephrase": _l("'What day works best for you?'", cache=True),
     "ask.when.choices": _l("'No worries, we'll find something. Are you thinking this week or next?'", cache=True),
     "ask.when.after_reject": _l("After offers were turned down. 'No problem. What would work better?'"),
+    "ask.when.instead": _l("The caller asked to change the day without naming one. 'Sure, which day would you "
+                           "like instead?'"),
     "ack.when": _l("Notice: 'Sure, {when}.'", "when", critical=True),
     "ack.request": _l("Notice: the opening request said back. 'Sure, a check-up for your daughter at "
                       "Jayanagar.'", "request", critical=True),
     "ask.time": _l("A day is known. 'Morning or evening?' / 'Any particular time for {day}?'", "day"),
     "ask.time.choices": _l("'Would morning, afternoon or evening be easier?'", cache=True),
+    "ask.time.instead": _l("The caller asked to change the time without naming one. 'Sure, what time would "
+                           "suit you better on {day}?'", "day"),
     "resolve.ampm": _l("'{hour} in the morning or the evening?'", "hour", critical=True),
     "date.sunday": _l("Notice: 'We're closed on Sundays.'", critical=True, cache=True),
     "date.past": _l("Notice: 'That one's already gone by.'", critical=True),
@@ -503,6 +512,8 @@ VARIANTS: dict[str, tuple] = {
                          "children's dentistry. Which would you like?",
                          "Sure. There's check-ups, cleanings, fillings, root canals, extractions, braces and "
                          "children's dentistry. Which one would you like?"),
+    "ask.service.instead": ("Sure, what would you like to come in for instead?",
+                            "Of course. What's the visit for, then?"),
     "clarify.service": ("Is that {options}?", "Just to check, is it {options}?"),
     "service.unknown": ("For {phrase}, I'll book you a consultation first, where the plan and the cost are worked out.",
                         "For {phrase}, the first visit is a consultation, and you get the plan and the cost there."),
@@ -513,6 +524,8 @@ VARIANTS: dict[str, tuple] = {
                             "Which is more convenient for you, {branches}?"),
     "ask.branch.choices": ("I can just book whichever has the earliest slot, if you like?",
                            "Shall I just go with whichever branch has the earliest slot?"),
+    "ask.branch.instead": ("Sure. We also do {service} at {branches}. Which would you like?",
+                           "Of course. For {service}, there's also {branches}. Which one suits you?"),
     "branch.only": ("We do {service} at our {branch} branch.", "{service} are done at our {branch} branch."),
     # No verb agreement to get wrong: {branches} may be one branch or several.
     "branch.no_service": ("Our {branch} branch doesn't do {service}, but {branches} can.",
@@ -529,12 +542,15 @@ VARIANTS: dict[str, tuple] = {
                          "That's okay, we'll find a time. Would this week or next week be better?"),
     "ask.when.after_reject": ("No problem. What would work better?",
                               "Okay, no worries. What day or time would suit you better?"),
+    "ask.when.instead": ("Sure, which day would you like instead?", "No problem. What day would suit you better?"),
     "ack.when": ("Sure, {when}.", "Okay, {when}.", "{when}, got it."),
     "ack.request": ("Sure, {request}.", "Of course, {request}.", "Okay, {request}."),
     "ask.time": ("Morning or evening?", "Any particular time for {day}?", "What time would suit you for {day}?",
                  "Would morning or evening suit you better?"),
     "ask.time.choices": ("Would morning, afternoon or evening be easier?",
                          "Is morning, afternoon or evening better for you?"),
+    "ask.time.instead": ("Sure, what time would suit you better on {day}?",
+                         "No problem. What time would you like on {day} instead?"),
     "resolve.ampm": ("{hour} in the morning or the evening?", "Is that {hour} in the morning, or in the evening?"),
     "date.sunday": ("We're closed on Sundays.", "We're closed on Sunday, sorry."),
     "date.past": ("That one's already gone by.", "That date's already passed."),

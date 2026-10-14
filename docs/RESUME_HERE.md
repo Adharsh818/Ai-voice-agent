@@ -48,7 +48,7 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
 - Emma's phone number is **100** (from Linphone 1001 or MicroSIP 1002).
 
 **To do, in order:**
-1. **Bug (talk-page call 44f15bd6):** the caller said "No. Change the branch" without naming one. Emma replied "No problem, we can change that. What day works for you?" twice, and only moved on when the caller said "I want Jayanagar". A change request with no new value should re-ask that detail: "Sure, which branch would you like instead?" (the same for the service, day or time). Fix it in Python (the policy/workflow, not the model's words), add a test that replays the call, then run the suite, the scenarios and one sim.
+1. ~~**Bug (talk-page call 44f15bd6)**~~ (done 15 Oct): "change the branch / service / day / time" with no new value now clears that detail in `book._reopen` and asks it again ("Sure. We also do cleanings at Indiranagar, Jayanagar or Whitefield. Which would you like?"; lines `ask.*.instead`). "Can we do a different day?" is the change, not a clinic question. Tests: `ChangeWithoutValueTests` in tests/test_real_clinic_calls.py. 1022 tests, 53/53 scenarios, seed-7 sim on target. Goes live at Emma's next restart.
 2. **Cancel tonight's three test bookings** in the real database. Use the dashboard, or say if they should stay:
    - Adharsh, Fri 16 Oct 9:00, Dr Rao, Nagarbhavi (call 561d74b2);
    - Adharsh, Fri 16 Oct 9:30, Dr Rao, Nagarbhavi (call 2e4a81e6);
