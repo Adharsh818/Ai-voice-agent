@@ -8,9 +8,7 @@ from datetime import date, datetime
 
 import calendar_sync
 import clock
-import config
 import db
-import scheduling
 import seed_demo
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))

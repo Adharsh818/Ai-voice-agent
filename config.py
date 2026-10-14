@@ -8,7 +8,6 @@ load_dotenv()
 CLINIC_NAME = os.getenv("CLINIC_NAME", "Pearl Dental Clinic").strip()          # written: dashboard, calendars, SMS
 CLINIC_SHORT_NAME = os.getenv("CLINIC_SHORT_NAME", "Pearl Dental").strip()     # what Emma says on the phone
 CLINIC_CITY = os.getenv("CLINIC_CITY", "Bengaluru").strip()
-CLINIC_LOCATION = "Nagarbhavi"
 CLINIC_TIMEZONE = os.getenv("CLINIC_TIMEZONE", "Asia/Kolkata")
 
 # Agent persona / greeting (docs/NORTH_STAR.md, decisions R1 and R2).
@@ -48,7 +47,6 @@ TYPING_BEAT_MS = (int(os.getenv("TYPING_BEAT_MIN_MS", "150")), int(os.getenv("TY
 BREATH_BEFORE_WORDS = int(os.getenv("BREATH_BEFORE_WORDS", "20"))
 
 # Clinic Working Hours
-WORKING_DAYS = [0, 1, 2, 3, 4, 5]  # Monday (0) to Saturday (5)
 CLOSED_DAYS = [6]                  # Sunday (6)
 CLINIC_START_HOUR = 7              # 7:00 AM
 CLINIC_END_HOUR = 21               # 9:00 PM
@@ -56,19 +54,6 @@ LUNCH_START_HOUR = 14              # 2:00 PM
 LUNCH_START_MIN = 0
 LUNCH_END_HOUR = 14                # 2:30 PM
 LUNCH_END_MIN = 30
-
-# Services Available
-ALLOWED_SERVICES = [
-    "General Check-up",
-    "Consultation",
-    "Teeth Cleaning",
-    "Tooth Filling",
-    "Root Canal Treatment",
-    "Tooth Extraction",
-    "Braces",
-    "Invisalign",
-    "Pediatric Dentistry"
-]
 
 # Google Calendar is a one-way mirror of SQLite, written by a background worker
 # with a service account (Day 4). Nothing reads it during a call, and Google

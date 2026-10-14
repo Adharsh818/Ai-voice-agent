@@ -144,13 +144,6 @@ def get_service(conn, service) -> Optional[sqlite3.Row]:
                         (str(service),)).fetchone()
 
 
-def get_branch(conn, branch) -> Optional[sqlite3.Row]:
-    if isinstance(branch, int):
-        return conn.execute("SELECT * FROM branches WHERE id = ? AND active = 1", (branch,)).fetchone()
-    return conn.execute("SELECT * FROM branches WHERE lower(name) = lower(?) AND active = 1",
-                        (str(branch),)).fetchone()
-
-
 def _doctors(conn, service_id: int, branch_ids=None, doctor_id=None, gender=None) -> list[sqlite3.Row]:
     sql = ("SELECT d.*, b.name AS branch_name FROM doctors d JOIN branches b ON b.id = d.branch_id "
            "JOIN doctor_services ds ON ds.doctor_id = d.id "
@@ -546,7 +539,6 @@ def _patient_busy(conn, patient: tuple, first: date, last: date, exclude_id=None
     """[(start, end, branch_id)] of the patient's booked appointments from `first` to `last` (local days)."""
     phone_e164, name_norm = patient
     name_norm = patient_norm(conn, phone_e164, name_norm)
-    lo, hi =db.utc_str(_at(first, time(0, 0))), db.utc_str(_at(last + timedelta(days=1), time(0, 0)))
     rows = conn.execute(
         "SELECT a.start_utc, a.end_utc, a.branch_id FROM appointments a JOIN patients p ON p.id = a.patient_id "
         "WHERE p.phone_e164 = ? AND p.name_norm = ? AND a.status = 'booked' AND a.id IS NOT ? "

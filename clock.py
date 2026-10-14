@@ -64,11 +64,6 @@ def freeze(dt: datetime):
     _frozen = localize(dt)
 
 
-def unfreeze():
-    global _frozen
-    _frozen = None
-
-
 @contextmanager
 def frozen(dt: datetime):
     previous = _frozen

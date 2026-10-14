@@ -29,7 +29,7 @@ import config
 logger = logging.getLogger("ami")
 
 # OriginateResponse "Reason" codes (Asterisk's AST_CONTROL_* values).
-REASON_NO_ANSWER = {"0", "1", "3"}       # failed / hung up before answer / rang out
+# Any other code ("0", "1", "3": failed / hung up before answer / rang out) counts as no answer.
 REASON_ANSWERED = "4"
 REASON_DECLINED = {"5", "8"}             # busy (a softphone's Reject sends 486) / congestion (603 Decline)
 # Linphone's Reject comes back as reason "0" about 2 s into the ring (phone check 7, 14 Oct), the same code

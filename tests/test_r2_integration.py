@@ -30,7 +30,7 @@ at the end.
 
 import asyncio
 import unittest
-from datetime import date, datetime
+from datetime import date
 
 import ai_engine
 import dateparse

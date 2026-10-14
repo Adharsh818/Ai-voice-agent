@@ -23,7 +23,7 @@ import logging
 import os
 import time
 from collections import deque
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import Optional
 
 logger = logging.getLogger(__name__)

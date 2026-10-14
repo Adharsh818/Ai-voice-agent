@@ -111,14 +111,12 @@ a:hover { text-decoration: underline; }
 .t-headline { font-family: var(--font-display); font-size: 48px; line-height: 1.08349; font-weight: 600; letter-spacing: -0.003em; }
 .t-title { font-family: var(--font-display); font-size: 40px; line-height: 1.1; font-weight: 600; letter-spacing: 0; }
 .t-large-title { font-family: var(--font-display); font-size: 34px; line-height: 1.17647; font-weight: 700; letter-spacing: 0.007em; }
-.t-card-title { font-family: var(--font-display); font-size: 28px; line-height: 1.14286; font-weight: 600; letter-spacing: 0.007em; }
 .t-subhead { font-family: var(--font-display); font-size: 24px; line-height: 1.16667; font-weight: 400; letter-spacing: 0.009em; }
 .t-section { font-family: var(--font-display); font-size: 21px; line-height: 1.19048; font-weight: 600; letter-spacing: 0.011em; }
 .t-body { font-size: 17px; line-height: 1.47059; letter-spacing: -0.022em; }
 .t-small { font-size: 14px; line-height: 1.28577; letter-spacing: -0.016em; }
 .t-caption { font-size: 12px; line-height: 1.33337; letter-spacing: -0.01em; }
 .ink-2 { color: var(--ink-2); }
-.ink-3 { color: var(--ink-3); }
 .num { font-variant-numeric: tabular-nums; }
 
 @media (max-width: 734px) {
@@ -144,14 +142,8 @@ a:hover { text-decoration: underline; }
   box-shadow: inset 0 0 0 0.5px var(--glass-glow), inset 0 1px 0 var(--glass-edge), 0 8px 28px rgba(0, 0, 0, 0.08);
 }
 
-.curtain-backdrop {
-  background: var(--curtain);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-}
-
 @media (prefers-reduced-transparency: reduce) {
-  .glass-bar, .glass-pill, .curtain-backdrop {
+  .glass-bar, .glass-pill {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background: var(--canvas-index);
@@ -188,12 +180,8 @@ a:hover { text-decoration: underline; }
 
 .btn-pill.outline { background: transparent; color: var(--link); border-color: var(--link); }
 .btn-pill.outline:hover { background: var(--link); color: #fff; }
-.btn-pill.secondary { background: var(--tile-raised); color: var(--ink); border-color: var(--hairline); }
-.btn-pill.secondary:hover { background: var(--canvas-alt); }
 .btn-pill.gray { background: var(--canvas-alt); color: var(--ink); }
 .btn-pill.gray:hover { background: var(--hairline-soft); }
-.btn-pill.dark { background: var(--ink); color: var(--canvas); }
-.btn-pill.dark:hover { opacity: 0.86; }
 .btn-pill.danger { background: var(--red); color: #fff; }
 .btn-pill.danger:hover { background: #ff453a; }
 .btn-pill.danger-text { background: transparent; color: var(--red-ink); }

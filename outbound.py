@@ -45,7 +45,6 @@ import tasks
 logger = logging.getLogger(__name__)
 
 REASONS = ("illness", "emergency", "training", "personal", "other")
-ACTIVE_JOB_STATES = ("ringing", "in_call")
 
 
 class RecoveryError(ValueError):
@@ -463,10 +462,6 @@ def next_job(conn, now: Optional[datetime] = None) -> Optional[dict]:
         if callable_now(conn, r["phone_e164"], now):
             return get_job(conn, r["id"])
     return None
-
-
-def has_queued(conn) -> bool:
-    return next_job(conn) is not None
 
 
 def waiting_summary(conn) -> dict:

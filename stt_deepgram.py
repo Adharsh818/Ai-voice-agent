@@ -511,12 +511,6 @@ class DeepgramSTT:
             return False
         return last[0][-len(words):] == words
 
-    def reset_utterance(self):
-        """Reset the current utterance buffer."""
-        self._current_utterance = ""
-        self._utterance_start = None
-        self._interim_tail, self._interim_end = "", None
-
     async def close(self):
         """Close the Deepgram connection."""
         self._closing = True

@@ -34,7 +34,7 @@ import logging
 import random
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, time as time_of_day, timedelta
+from datetime import datetime, time as time_of_day, timedelta
 from types import SimpleNamespace
 from typing import Callable, Optional
 
@@ -841,7 +841,6 @@ def _to_recap(ctx: RecoveryContext, slot: scheduling.Slot) -> Reply:
 
 
 def _recap(ctx, text, t, run, emit) -> Reply:
-    a = ctx.current
     yn = _yes_no(text)
     if yn == "yes" and not ctx.last_reply_heard:
         # The recap was cut off: a yes to half a summary moves nothing (recap-heard rule).

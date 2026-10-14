@@ -4,7 +4,6 @@ import asyncio
 import io
 import json
 import logging
-import os
 import tempfile
 import unittest
 import wave

@@ -22,7 +22,7 @@ import ai_engine
 import facts
 import nlu
 import speech
-from dialogue import engine, policy
+from dialogue import engine
 from dialogue.context import CallContext, Goal, Intent, new_context
 from dialogue.testing import DemoClinic
 

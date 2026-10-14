@@ -19,7 +19,6 @@ import asyncio
 import base64
 import json
 import logging
-import time
 from typing import Callable, Optional
 from urllib.parse import urlencode
 
@@ -52,7 +51,6 @@ class SarvamSTT:
         self._receive_task: Optional[asyncio.Task] = None
         self._closing = False
         self._pending: list = []                  # audio sent before the socket opened
-        self._sent_sec = 0.0
         self.errors: list = []
 
     def add_keyterms(self, terms):

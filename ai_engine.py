@@ -154,9 +154,3 @@ def install_test_nlu(reader):
     """
     import nlu
     return nlu.use_backend(nlu.ReaderBackend(reader))
-
-
-async def async_get_ai_response(user_text, session_state):
-    """Text-only entry point (tests, tools): Emma's reply."""
-    result = await async_process_turn(user_text, session_state)
-    return result.text
