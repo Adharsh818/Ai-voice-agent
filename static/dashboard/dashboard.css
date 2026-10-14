@@ -53,8 +53,6 @@ body.dash { background: var(--canvas); min-height: 100vh; }
   overflow-y: auto;
   z-index: 20;
 }
-:root[data-theme="dark"] .sidebar { background: rgba(28, 28, 30, 0.78); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sidebar { background: rgba(28, 28, 30, 0.78); } }
 
 .side-brand {
   display: flex;
@@ -311,14 +309,6 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 .badge.bad, .badge.failed, .badge.urgent, .badge.cancelled, .badge.no_show, .badge.abandoned { color: var(--red-ink); background: rgba(255, 59, 48, 0.12); }
 .badge.info, .badge.normal, .badge.transferred { color: var(--blue); background: rgba(0, 113, 227, 0.1); }
 .badge.low { color: var(--ink-2); }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .badge.ok, :root:not([data-theme="light"]) .badge.booked,
-  :root:not([data-theme="light"]) .badge.done, :root:not([data-theme="light"]) .badge.sent,
-  :root:not([data-theme="light"]) .badge.completed, :root:not([data-theme="light"]) .badge.rescheduled { color: #30d158; }
-  :root:not([data-theme="light"]) .badge.warn, :root:not([data-theme="light"]) .badge.needs_reschedule,
-  :root:not([data-theme="light"]) .badge.pending, :root:not([data-theme="light"]) .badge.high,
-  :root:not([data-theme="light"]) .badge.logged { color: #ffb340; }
-}
 
 /* ------------------------------------------------------------------ tables (Apple spec-table style) */
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
