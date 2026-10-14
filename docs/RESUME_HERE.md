@@ -49,10 +49,7 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
 
 **To do, in order:**
 1. ~~**Bug (talk-page call 44f15bd6)**~~ (done 15 Oct): "change the branch / service / day / time" with no new value now clears that detail in `book._reopen` and asks it again ("Sure. We also do cleanings at Indiranagar, Jayanagar or Whitefield. Which would you like?"; lines `ask.*.instead`). "Can we do a different day?" is the change, not a clinic question. Tests: `ChangeWithoutValueTests` in tests/test_real_clinic_calls.py. 1022 tests, 53/53 scenarios, seed-7 sim on target. Goes live at Emma's next restart.
-2. **Cancel tonight's three test bookings** in the real database. Use the dashboard, or say if they should stay:
-   - Adharsh, Fri 16 Oct 9:00, Dr Rao, Nagarbhavi (call 561d74b2);
-   - Adharsh, Fri 16 Oct 9:30, Dr Rao, Nagarbhavi (call 2e4a81e6);
-   - Jimmy, Fri 16 Oct 9:30, Dr Kulkarni, Jayanagar (call 44f15bd6).
+2. ~~**Cancel tonight's three test bookings**~~ (done 15 Oct, owner approved): Adharsh 9:00 and 9:30 (Dr Rao, Nagarbhavi) and Jimmy 9:30 (Dr Kulkarni, Jayanagar) on Fri 16 Oct cancelled through `scheduling.cancel` (actor "owner", reason "Test booking (owner, 15 Oct)"); the calendar removals went through the sync outbox.
 3. **Reject test on a recovery call (between 09:00 and 20:00):**
    1. Block Dr Rao for a day that has a booking.
    2. Start the campaign.
