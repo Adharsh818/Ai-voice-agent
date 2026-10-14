@@ -876,6 +876,52 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 .rota-grid input { height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--hairline); background: var(--tile-raised); color: var(--ink); font: inherit; font-size: 13px; }
 .table tr.editor-row td { background: var(--canvas-alt); }
 
+/* Settings: index on the left, one pane on the right */
+.settings-split {
+  margin: 0 var(--gutter);
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  max-width: 1200px;
+}
+.settings-split .settings { margin: 0; }
+.settings-index {
+  position: sticky;
+  top: calc(var(--bar-h) + 8px);
+  background: var(--tile);
+  border-radius: var(--r-group);
+  overflow: hidden;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--hairline-soft);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: -0.016em;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease-color);
+}
+.settings-row:last-child { border-bottom: 0; }
+.settings-row:hover { background: var(--hairline-soft); }
+.settings-row[aria-current="true"] { background: var(--blue); color: #fff; }
+.settings-row[aria-current="true"] .badge { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.settings-row .chev { color: var(--ink-3); font-size: 18px; }
+.settings-row[aria-current="true"] .chev { color: rgba(255, 255, 255, 0.8); }
+#settings-panes > .settings-group { display: none; }
+#settings-panes > .settings-group.active { display: block; animation: fade-slide var(--t-fast) var(--ease) both; }
+#settings-panes > .settings-group[hidden] { display: none; }
+.settings-back { display: none; margin: 0 0 8px 4px; }
+
 /* ------------------------------------------------------------------ dialogs: sheets over the blurred curtain */
 dialog {
   border: 0;
@@ -1008,6 +1054,14 @@ dialog::backdrop {
   .mev span { display: none; }
   .ygrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mail { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .settings-split { grid-template-columns: minmax(0, 1fr); }
+  .settings-index { position: static; }
+  .settings-row[aria-current="true"] { background: transparent; color: var(--ink); }
+  .settings-row[aria-current="true"] .chev { color: var(--ink-3); }
+  #view-system:not(.drilled) #settings-panes { display: none; }
+  #view-system.drilled .settings-index { display: none; }
+  .settings-back { display: inline-flex; }
+  .view-tools .segmented { width: 100%; overflow-x: auto; }
   .mail-list { max-height: 50vh; border-right: 0; border-bottom: 1px solid var(--hairline-soft); }
   .table thead { display: none; }
   .table, .table tbody, .table tr, .table td { display: block; width: 100%; }
@@ -1029,3 +1083,4 @@ dialog::backdrop {
   .sidebar, .tabbar, .view-bar, .alerts { display: none !important; }
   .app { display: block; }
 }
+.settings-row .li-main { flex: 1; min-width: 0; }

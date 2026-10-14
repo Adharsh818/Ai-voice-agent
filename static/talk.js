@@ -31,4 +31,10 @@ window.addEventListener("emma-call-state", (event) => apply(event.detail.state))
 callButton.addEventListener("click", () => orb.click());
 
 apply(orb.dataset.state || "idle");
+
+// The "Staff" link appears only when this deployment has a staff login set up.
+fetch("/dashboard/api/auth", { credentials: "same-origin" })
+  .then((res) => (res.ok ? res.json() : null))
+  .then((auth) => { if (auth && auth.configured) document.getElementById("staff-link").hidden = false; })
+  .catch(() => {});
 reveal();
