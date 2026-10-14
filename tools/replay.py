@@ -24,7 +24,6 @@ import difflib
 import json
 import os
 import re
-import statistics
 import sys
 import time
 import wave

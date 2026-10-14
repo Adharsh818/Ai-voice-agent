@@ -24,7 +24,7 @@ import os
 import shutil
 import sqlite3
 import tempfile
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Optional
 
 import clock
@@ -278,9 +278,3 @@ def _spoken_time(dt: datetime) -> str:
     h = dt.hour % 12 or 12
     suffix = "am" if dt.hour < 12 else "pm"
     return f"{h}:{dt.minute:02d} {suffix}" if dt.minute else f"{h} {suffix}"
-
-
-def weekday_date(today: date, weekday: int, weeks_ahead: int = 0) -> date:
-    """The next `weekday` after today (plus whole weeks)."""
-    ahead = (weekday - today.weekday()) % 7 or 7
-    return today + timedelta(days=ahead + 7 * weeks_ahead)

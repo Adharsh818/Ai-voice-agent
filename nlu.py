@@ -981,11 +981,6 @@ def get_backend():
     return _backend
 
 
-def set_backend(backend) -> None:
-    global _backend
-    _backend = backend
-
-
 @contextmanager
 def use_backend(backend):
     """Swap the backend for a block (tests, harness): `with nlu.use_backend(FakeNLU(...)):`."""

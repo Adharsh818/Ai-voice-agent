@@ -61,6 +61,3 @@ class DemoClinic:
         def _q(conn):
             return [dict(r) for r in conn.execute(sql, args).fetchall()]
         return self.db.run_sync(_q)
-
-    def appointments_for(self, phone_e164: str) -> list:
-        return self.query("SELECT * FROM appointments WHERE caller_phone_e164 = ? ORDER BY start_utc", phone_e164)

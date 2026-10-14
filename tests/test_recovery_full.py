@@ -6,13 +6,11 @@ upgrade of a database made before these columns existed.
 
 import asyncio
 import os
-import sqlite3
 import tempfile
 import unittest
 from datetime import datetime
 
 import clock
-import config
 import db
 import outbound
 from dialogue import recovery

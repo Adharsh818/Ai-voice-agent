@@ -485,7 +485,7 @@ def _z4(record, tx: _Transcript) -> list[dict]:
         for m in _PRICE.finditer(line):
             amount = m.group(1).replace(",", "")
             if amount not in facts and amount not in caller_said.replace(",", ""):
-                out.append(_finding("Z4", i, f"price {m.group(0)!r} not in clinic facts", f"Z4 price not in facts",
+                out.append(_finding("Z4", i, f"price {m.group(0)!r} not in clinic facts", "Z4 price not in facts",
                                     severity="candidate", degraded=tx.degraded(i)))
     return out
 

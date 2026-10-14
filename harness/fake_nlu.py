@@ -22,7 +22,7 @@ whatever NLU the engine used.
 
 import json
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import date, time
 from functools import lru_cache
 from typing import Optional

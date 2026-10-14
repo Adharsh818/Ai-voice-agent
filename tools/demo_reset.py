@@ -22,7 +22,6 @@ Everything is fictitious DEMO data; the phone numbers are never dialled.
 """
 
 import argparse
-import json
 import os
 import sys
 import urllib.request

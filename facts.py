@@ -29,7 +29,7 @@ import logging
 import os
 import re
 import time as time_mod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import time
 from typing import Optional
 

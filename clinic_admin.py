@@ -13,7 +13,7 @@ closures. The catalog Emma speaks from is reloaded at once (facts.clear_cache).
 
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 import clock

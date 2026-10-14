@@ -16,7 +16,7 @@ import asyncio
 import os
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import clock
 import config
@@ -428,7 +428,7 @@ class RecoveryCallTests(unittest.TestCase):
             self.assertIn("could also do", alt.text)
             call.say("No, neither.")
             self.assertEqual(call.ctx.state, "preference")
-            bye = call.say("Let me think about it and call you back.")
+            call.say("Let me think about it and call you back.")
             self.assertTrue(call.ctx.closed_conversation)
             result = recovery.call_result(call.ctx)
             self.assertEqual(result["outcome"], "pending")

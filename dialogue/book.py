@@ -73,8 +73,6 @@ CONSULTATION = "Consultation"
 MAX_OFFER_ROUNDS = 3
 # How many offered slots are held at once (the caller hears at most two).
 HOLD_TOP = 2
-# Scheduling codes at commit that mean "that slot can't be had any more".
-SLOT_LOST = ("TAKEN", "TOO_SOON")
 # dateparse issue codes -> the notice that explains them.
 ISSUE_LINES = {
     "PAST": "date.past",

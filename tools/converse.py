@@ -37,7 +37,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import pickle
 import random
 import secrets

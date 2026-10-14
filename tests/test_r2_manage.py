@@ -15,7 +15,7 @@ import asyncio
 import pickle
 import random
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import clock
 import prompts
