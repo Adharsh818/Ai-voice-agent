@@ -99,7 +99,7 @@ powershell -ExecutionPolicy Bypass -File tools\phone_up.ps1
 ```
 
 It needs no admin rights and no Ubuntu password, and:
-- keeps Ubuntu running. WSL stops a distro about a minute after its last window closes, and Asterisk with it; that broke calls twice on 8 Oct. A hidden `wsl ... sleep infinity`, started through WMI so it outlives any window, keeps it up until the PC restarts or `wsl --shutdown`;
+- keeps Ubuntu running. WSL stops a distro about a minute after its last window closes, and Asterisk with it; that broke calls twice on 8 Oct. The fix (15 Oct) is WSL's own setting `[general] instanceIdleTimeout=-1` in `%USERPROFILE%\.wslconfig`: phone_up adds it when missing (the old file is kept as `.wslconfig.bak`), and it applies after the next `wsl --shutdown` or PC restart. A hidden `wsl ... sleep infinity`, started through WMI, stays as a backup; under WSL 3.0.3 it died twice on 14 Oct, which is why the setting is needed;
 - re-binds SIP when the address changed (a phone hotspot hands out a new one each time: 10.49.155.x on 6 Oct, 10.69.54.x and 10.221.82.x on 8 Oct) and reinstalls the configs; it compares against what Asterisk is really listening on, so an interrupted run is repaired;
 - checks Asterisk and turns on the SIP log (`/var/log/asterisk/sip.log`);
 - prints the two admin firewall commands when the rules still admit an old subnet;

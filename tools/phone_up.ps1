@@ -4,8 +4,9 @@
 #   powershell -ExecutionPolicy Bypass -File tools\phone_up.ps1 -Force   re-render and reinstall the configs anyway
 #
 # 1. Keeps Ubuntu (WSL) running: WSL stops it about a minute after its last window
-#    closes, and Asterisk stops with it (8 Oct). A hidden "sleep infinity" keeps it up
-#    until the PC restarts or someone runs "wsl --shutdown".
+#    closes, and Asterisk stops with it (8 Oct). The fix is "[general] instanceIdleTimeout=-1"
+#    in %USERPROFILE%\.wslconfig (added here if missing, old file kept as .wslconfig.bak).
+#    A hidden "sleep infinity" stays as a backup; under WSL 3.0.3 it died twice (14 Oct).
 # 2. If the PC's Wi-Fi address changed (a phone hotspot hands out new ones), binds SIP
 #    to the new one (tools/telephony_setup.py --lan) and reinstalls Asterisk's configs.
 # 3. Makes sure Asterisk is running and turns on SIP logging (/var/log/asterisk/sip.log).
@@ -34,6 +35,25 @@ function Root([string]$command) { wsl.exe -d $Distro -u root -- bash -c $command
 
 # -- 1. Ubuntu stays up -------------------------------------------------------------
 Step "Ubuntu (WSL)"
+# The real fix: WSL's own idle timeout off ([general] instanceIdleTimeout=-1, read by WSL 3.0.3's
+# wslservice.exe). The hidden keep-alive below died twice on 14 Oct and Ubuntu stopped with it.
+# .wslconfig is read when WSL starts, so a new line needs "wsl --shutdown" (between calls) first.
+$WslConfig = Join-Path $env:USERPROFILE ".wslconfig"
+$cfg = if (Test-Path $WslConfig) { Get-Content $WslConfig -Raw } else { "" }
+if ($cfg -match "(?ms)^\[general\][^\[]*^\s*instanceIdleTimeout\s*=\s*-1\s*$") {
+    Ok "WSL never stops Ubuntu for being idle (.wslconfig)"
+} else {
+    if ($cfg) { Copy-Item $WslConfig "$WslConfig.bak" -Force }
+    $add = "`n# Never stop Ubuntu for being idle: Asterisk lives there (Emma's phone line; tools/phone_up.ps1).`n[general]`ninstanceIdleTimeout=-1`n"
+    if ($cfg -match "(?m)^\[general\]") {
+        $cfg = $cfg -replace "(?m)^\[general\]\s*$", "[general]`ninstanceIdleTimeout=-1"
+        $cfg = $cfg -replace "(?m)^\s*instanceIdleTimeout\s*=\s*(?!-1\s*$).*$\r?\n?", ""
+    } else {
+        $cfg = if ($cfg.Trim()) { $cfg.TrimEnd() + "`n" + $add } else { $add.TrimStart() }
+    }
+    [System.IO.File]::WriteAllText($WslConfig, $cfg.Replace("`r`n", "`n"))
+    Warn "added instanceIdleTimeout=-1 to $WslConfig. It applies after a WSL restart: with no call on, run 'wsl --shutdown', then this script again"
+}
 $keep = Get-CimInstance Win32_Process -Filter "Name='wsl.exe'" |
     Where-Object { $_.CommandLine -like "*$Distro*sleep infinity*" }
 if ($keep) {
