@@ -1,4 +1,4 @@
-# Resume here (updated 12 Oct 2026)
+# Resume here (updated 15 Oct 2026)
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
@@ -12,6 +12,65 @@ When the owner says **"continue your work"**, start from this file. The full pla
 ## Pushing
 
 Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Pushed up to the WIP commit of 12 Oct.
+
+## START HERE (written 15 Oct, ~01:00): the next session continues from this list
+
+**What happened on 14 Oct, evening:**
+- **Redesign live:** the Apple-style redesign of the talk page, sign-in and dashboard was built, click-tested and made live. The plan, the REA evidence ledger and the feature checklist are in [APPLE_DESIGN_PLAN.md](APPLE_DESIGN_PLAN.md) (sections 8-10). Owner's choices:
+  - light only, with apple.com's colours exactly;
+  - a glass sidebar;
+  - a Today tile grid;
+  - Live call as Messages;
+  - Appointments as Apple Calendar (no drag-to-move);
+  - Tasks as Reminders, Calls as Mail, System as Settings.
+
+  Earlier redesign attempts (PR #6, branch `claude/dashboard-v2-apple-wip`) are superseded and can be closed.
+- **Dead code removed** (12b7e9e), with pyflakes, vulture and whole-repo searches as proof.
+- **Fixes from the owner's phone calls:**
+  - a closed day is said as soon as the day is given (no "morning or evening?" first);
+  - two times on one day name the day once ("Friday the 16th at 9 or 9:30");
+  - the live view shows the caller's words from the stored turn;
+  - "tell me the services" reads the full list instead of offering a callback.
+
+  Each fix has a test. Result: 1017 tests, 53/53 scenarios, and a 200-call sim (seed 7) on target.
+- **Owner's test calls:** Linphone (two bookings), MicroSIP, and the talk page with the microphone (worked well).
+
+**Before testing anything with phones:**
+- Start `phone_up` **in a visible terminal**, then keep a tab attached to Ubuntu open the whole time:
+
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File tools\phone_up.ps1
+  wsl -d Ubuntu-24.04 -u root -- tail -n 0 -F /var/log/asterisk/messages.log
+  ```
+
+  The second command is the keep-alive: leave that tab open.
+- Why: on 14 Oct the hidden WMI keep-alive (`wsl --exec sleep infinity`) died twice under WSL 3.0.3. Ubuntu then stopped about 4 minutes later and took Asterisk with it, and Linphone and MicroSIP showed offline. After Asterisk restarts, restart Linphone and MicroSIP.
+- Emma's phone number is **100** (from Linphone 1001 or MicroSIP 1002).
+
+**To do, in order:**
+1. **Bug (talk-page call 44f15bd6):** the caller said "No. Change the branch" without naming one. Emma replied "No problem, we can change that. What day works for you?" twice, and only moved on when the caller said "I want Jayanagar". A change request with no new value should re-ask that detail: "Sure, which branch would you like instead?" (the same for the service, day or time). Fix it in Python (the policy/workflow, not the model's words), add a test that replays the call, then run the suite, the scenarios and one sim.
+2. **Cancel tonight's three test bookings** in the real database. Use the dashboard, or say if they should stay:
+   - Adharsh, Fri 16 Oct 9:00, Dr Rao, Nagarbhavi (call 561d74b2);
+   - Adharsh, Fri 16 Oct 9:30, Dr Rao, Nagarbhavi (call 2e4a81e6);
+   - Jimmy, Fri 16 Oct 9:30, Dr Kulkarni, Jayanagar (call 44f15bd6).
+3. **Reject test on a recovery call (between 09:00 and 20:00):**
+   1. Block Dr Rao for a day that has a booking.
+   2. Start the campaign.
+   3. Press Reject on the phone.
+   4. The dashboard must show "declined".
+4. **Owner's design feedback.** The owner said there are "lots of changes"; ask for the list and work through it.
+5. **Network (owner's choice):** the voice breaks on Linphone calls came from the phone, which hosts the hotspot and runs Linphone at once. Emma's own audio left the PC clean (3 late frames per call). One MicroSIP call had a single "Emma's live audio ran dry" stall, caused by the ElevenLabs stream over mobile data.
+   - The real fix is a Wi-Fi router.
+   - Suggested phone settings: Linphone battery set to Unrestricted, G.722 first, adaptive jitter on.
+   - Change the hotspot password if it really is "password".
+   - Don't raise `PHONE_PREBUFFER_MS` (250 ms) without measuring: it delays every reply.
+   - Note: the "gaps" count in `line timing` includes the softphone pausing its audio during silence, so it isn't packet loss.
+6. **phone_up:** make the keep-alive survive WSL 3.0.3. Options:
+   - start it in a visible window;
+   - use a scheduled task;
+   - set an idle timeout in `.wslconfig`, if WSL supports one (check before changing).
+7. **Optional:** close PR #6 and the `claude/dashboard-v2-apple-wip` branch. Resolve the REA residual unknown `unk_d588f18b` (runtime confirmation of apple.com's stagger easing).
+8. **Still needs the owner's accounts:** a real Indian number (T1, docs/TRUNK.md) and a WhatsApp/SMS provider (T2, docs/NOTIFICATIONS.md).
 
 ## TOMORROW (written 14 Oct, night): start here
 
