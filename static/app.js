@@ -45,6 +45,10 @@ const action = document.getElementById('action');
 const typeInstead = document.getElementById('type-instead');
 const typedForm = document.getElementById('typed');
 const typedText = document.getElementById('typed-text');
+// The talk page only (the patient page shares this file and has none of these):
+const statusLine = document.getElementById('status');   // what Emma is doing, in words
+const heard = document.getElementById('heard');         // the caller's latest words, under Emma's
+const endButton = document.getElementById('end-call');
 
 const VAD_RMS = 0.02;          // local "caller is talking" energy threshold
 const VAD_FRAMES = 2;          // consecutive 20 ms frames above it
@@ -74,6 +78,15 @@ let busyMessage = null;    // the server refused the call
 let callSeq = 0;           // bumped on hang-up, so a call still starting up stops quietly
 let typed = false;         // this call has no microphone: the caller types (the demo's backup)
 
+// The state in words, so it never rests on the pearl's motion alone. Problems say why in the caption.
+const STATUS = {
+  idle: 'Tap the pearl to call Emma',
+  connecting: 'Connecting…',
+  listening: 'Listening',
+  thinking: 'One moment…',
+  speaking: 'Emma is speaking',
+};
+
 function setState(next) {
   const was = state;
   state = next;
@@ -81,12 +94,26 @@ function setState(next) {
   orb.dataset.state = next;
   const inCall = IN_CALL.includes(next);
   orb.setAttribute('aria-pressed', String(inCall));
-  orb.setAttribute('aria-label', inCall ? 'End call' : 'Start call');
+  orb.setAttribute('aria-label', inCall ? 'End call' : statusLine ? 'Call Emma' : 'Start call');
+  if (statusLine) statusLine.textContent = STATUS[next] || '';
+  if (endButton) endButton.hidden = !inCall;
+  if (heard && !inCall) heard.textContent = '';
 }
 
 function setCaption(text, who) {
+  if (heard && who === 'user') {
+    // The caller's words sit under Emma's line instead of replacing it.
+    heard.textContent = text ? `You: ${text}` : '';
+    return;
+  }
+  if (heard && who !== 'emma') heard.textContent = '';
   caption.textContent = text || '';
   caption.className = ['user', 'error', 'notice'].includes(who) ? who : '';
+  if (statusLine) {
+    // A long reply shows its latest lines, fading out at the top.
+    caption.scrollTop = caption.scrollHeight;
+    caption.classList.toggle('overflowing', caption.scrollHeight > caption.clientHeight + 1);
+  }
 }
 
 /** A one-line reason the call isn't running, with a button to try again. */
@@ -394,11 +421,25 @@ function onPlayer(msg) {
 }
 
 // ------------------------------------------------------------------ animation
-function frame() {
+// The pearl follows the voice through a critically damped spring (damping 1.0): it chases the level
+// every frame, so it never jitters or overshoots. It rises quickly (response 0.12 s) and settles
+// slowly (0.35 s). The sheen drifts faster while someone is talking. Reduced motion: the CSS ignores both.
+let levelVelocity = 0;
+let sheen = 0;
+let lastFrame = 0;
+function frame(now) {
+  const dt = Math.min(1 / 30, lastFrame ? (now - lastFrame) / 1000 : 1 / 60);
+  lastFrame = now;
   const target = Math.min(1, Math.max(micLevel * 6, playLevel * 5));
-  // Fast attack, slow release.
-  shownLevel += (target - shownLevel) * (target > shownLevel ? 0.5 : 0.08);
+  const omega = (2 * Math.PI) / (target > shownLevel ? 0.12 : 0.35);
+  levelVelocity += (omega * omega * (target - shownLevel) - 2 * omega * levelVelocity) * dt;
+  shownLevel = Math.min(1.2, Math.max(0, shownLevel + levelVelocity * dt));
   orb.style.setProperty('--lvl', shownLevel.toFixed(3));
+  if (statusLine) {
+    const drift = IN_CALL.includes(state) ? 10 + 140 * shownLevel : 6;   // degrees per second
+    sheen = (sheen + drift * dt) % 360;
+    orb.style.setProperty('--sheen', `${sheen.toFixed(1)}deg`);
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -410,6 +451,7 @@ orb.addEventListener('click', () => {
   if (IN_CALL.includes(state)) endCall();
   else if (!PATIENT_PAGE) startCall();
 });
+if (endButton) endButton.addEventListener('click', () => { if (IN_CALL.includes(state)) endCall(); });
 typeInstead.addEventListener('click', () => {
   if (PATIENT_PAGE) window.dispatchEvent(new CustomEvent('emma-type-instead'));
   else startCall(undefined, { typed: true });

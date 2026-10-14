@@ -41,7 +41,7 @@ async function api(path, { method = "GET", body } = {}) {
   const res = await fetch(path, options);
   if (res.status === 401 || res.status === 503) {
     location.replace("/dashboard/login");
-    throw new ApiError(res.status, "Please log in.");
+    throw new ApiError(res.status, "Please sign in.");
   }
   let data = null;
   try { data = await res.json(); } catch { /* not JSON */ }
@@ -94,10 +94,123 @@ function newKey() {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function toast(message, kind = "") {
-  const node = el("div", { class: `toast ${kind}`, role: kind === "error" ? "alert" : "status", text: message });
+// ------------------------------------------------------------------ motion (docs/REDESIGN_PLAN.md, Motion)
+// A critically damped spring (damping 1.0) as a CSS linear() easing: x(t) = 1 - (1 + wt)e^(-wt), w = 2pi/response.
+// It has no overshoot, and it settles when the remaining distance is under 0.1%.
+const REDUCED_MOTION = matchMedia("(prefers-reduced-motion: reduce)");
+
+function springEasing(response) {
+  const w = (2 * Math.PI) / response;
+  const settle = 9.23 / w;
+  const points = [];
+  for (let i = 0; i <= 24; i++) {
+    const t = (settle * i) / 24;
+    points.push((1 - (1 + w * t) * Math.exp(-w * t)).toFixed(4));
+  }
+  points[points.length - 1] = "1";
+  return { easing: `linear(${points.join(", ")})`, duration: Math.round(settle * 1000) };
+}
+const SPRING = springEasing(0.3);
+document.documentElement.style.setProperty("--spring", SPRING.easing);
+
+// Sheets and popovers grow from the control that opened them and return the same way (spatial consistency).
+let lastTrigger = null;
+document.addEventListener("pointerdown", (e) => { lastTrigger = e.target.closest("button, a, [tabindex]"); }, true);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") lastTrigger = document.activeElement;
+}, true);
+
+function originFrom(node, trigger) {
+  if (!trigger || !trigger.isConnected) return "50% 50%";
+  const r = node.getBoundingClientRect();
+  const t = trigger.getBoundingClientRect();
+  return `${t.left + t.width / 2 - r.left}px ${t.top + t.height / 2 - r.top}px`;
+}
+
+function grow(node, trigger) {
+  if (REDUCED_MOTION.matches) {
+    node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150 });
+    return;
+  }
+  node.style.transformOrigin = originFrom(node, trigger);
+  node.animate([{ opacity: 0, transform: "scale(0.88)" }, { opacity: 1, transform: "none" }], SPRING);
+}
+
+function present(dialog) {
+  const trigger = lastTrigger;
+  dialog.showModal();
+  dialog._trigger = trigger;
+  grow(dialog, trigger);
+}
+
+function dismiss(dialog, value = "") {
+  if (!dialog.open || dialog._closing) return;
+  dialog._closing = true;
+  const done = () => { dialog._closing = false; dialog.close(value); };
+  if (REDUCED_MOTION.matches) { done(); return; }
+  dialog.style.transformOrigin = originFrom(dialog, dialog._trigger);
+  const shrink = dialog.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(0.88)" }],
+    { duration: 180, easing: "cubic-bezier(0.4, 0, 1, 1)" });
+  shrink.onfinish = done;
+  shrink.oncancel = done;
+}
+
+// Popovers are placed next to the control that opened them, kept inside the window.
+function place(popover, anchor, align = "end") {
+  const r = anchor.getBoundingClientRect();
+  const pw = popover.offsetWidth;
+  const ph = popover.offsetHeight;
+  let left = align === "start" ? r.left : r.right - pw;
+  left = Math.max(8, Math.min(left, innerWidth - pw - 8));
+  let top = r.bottom + 6;
+  if (top + ph > innerHeight - 8) top = Math.max(8, r.top - ph - 6);
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+}
+
+document.querySelectorAll("[popovertarget]").forEach((button) => {
+  const popover = $(button.getAttribute("popovertarget"));
+  popover.addEventListener("toggle", (e) => {
+    if (e.newState !== "open") return;
+    place(popover, button, button.closest(".sidebar") ? "start" : "end");
+    grow(popover, button);
+  });
+});
+
+function openMenu(anchor, items) {
+  const menu = $("row-menu");
+  menu.replaceChildren(...items.map((item) => el("button", {
+    type: "button", role: "menuitem", class: item.danger ? "danger" : "", text: item.label,
+    onclick: () => { menu.hidePopover(); item.run(); },
+  })));
+  menu.showPopover();
+  place(menu, anchor);
+  grow(menu, anchor);
+  menu.querySelector("button")?.focus();
+}
+$("row-menu").addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  e.preventDefault();
+  const items = [...$("row-menu").querySelectorAll("button")];
+  const i = items.indexOf(document.activeElement);
+  items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
+});
+
+function toast(message, kind = "", action = null) {
+  const node = el("div", { class: `toast ${kind}`, role: kind === "error" ? "alert" : "status" },
+    el("span", { text: message }),
+    action ? el("button", { type: "button", text: action.label, onclick: () => { node.remove(); action.run(); } }) : null);
   $("toasts").append(node);
-  setTimeout(() => node.remove(), kind === "urgent" ? 12000 : 4500);
+  if (!REDUCED_MOTION.matches) {
+    node.animate([{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "none" }], SPRING);
+  }
+  setTimeout(() => {
+    if (!node.isConnected) return;
+    if (REDUCED_MOTION.matches) { node.remove(); return; }
+    // Leaves the way it came.
+    node.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(12px)" }],
+      { duration: 200, easing: "cubic-bezier(0.4, 0, 1, 1)" }).onfinish = () => node.remove();
+  }, kind === "urgent" ? 12000 : action ? 7000 : 4500);
 }
 
 function debounce(fn, wait) {
@@ -119,12 +232,16 @@ function emptyRow(colspan, text) {
   return el("tr", {}, el("td", { colspan, class: "empty", text }));
 }
 
+function emptyItem(text) {
+  return el("li", { class: "empty", text });
+}
+
 const STATUS_LABEL = {
   booked: "Booked", cancelled: "Cancelled", needs_reschedule: "Needs reschedule",
   completed: "Completed", no_show: "No-show",
 };
 const KIND_LABEL = {
-  callback: "Callback", emergency: "Emergency", red_flag: "Red flag", recovery_failed: "Recovery call failed",
+  callback: "Callback", emergency: "Emergency", red_flag: "Red flag", recovery_failed: "Rebooking call failed",
   escalation: "Escalation", language: "Language", abandoned: "Abandoned call",
 };
 const ROLE_LABEL = { caller: "Caller", emma: "Emma", operator: "Staff" };
@@ -154,7 +271,11 @@ function callOutcome(outcome) {
 
 // ------------------------------------------------------------------ dialogs
 document.querySelectorAll("dialog [data-close]").forEach((button) => {
-  button.addEventListener("click", () => button.closest("dialog").close());
+  button.addEventListener("click", () => dismiss(button.closest("dialog")));
+});
+document.querySelectorAll("dialog").forEach((dialog) => {
+  // Esc closes along the same path the sheet came in on.
+  dialog.addEventListener("cancel", (e) => { e.preventDefault(); dismiss(dialog); });
 });
 
 function confirmAction(title, text, okLabel = "Confirm") {
@@ -168,11 +289,14 @@ function confirmAction(title, text, okLabel = "Confirm") {
       resolve(dialog.returnValue === "ok");
     };
     dialog.returnValue = "";
-    $("confirm-ok").value = "ok";
     dialog.addEventListener("close", done);
-    dialog.showModal();
+    present(dialog);
   });
 }
+$("dlg-confirm").querySelector("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  dismiss($("dlg-confirm"), "ok");
+});
 
 function showError(box, message) {
   box.textContent = message || "";
@@ -200,65 +324,118 @@ function fillDoctorFilter() {
   select.value = [...select.options].some((o) => o.value === current) ? current : "";
 }
 
+// Counts on the sidebar and the tab bar (the old header chips): open tasks, problems for Health.
+function setBadge(name, count, { urgent = false, label = "" } = {}) {
+  document.querySelectorAll(`[data-badge="${name}"]`).forEach((badge) => {
+    badge.hidden = !count;
+    badge.textContent = String(count || "");
+    badge.classList.toggle("urgent", urgent);
+    if (label) badge.setAttribute("aria-label", label);
+  });
+}
+
 async function refreshOverview() {
   let data;
   try { data = await api("/dashboard/api/overview"); } catch { return; }
   if (data.timezone) TZ = data.timezone;
   const openTasks = Object.values(data.tasks).reduce((a, b) => a + b, 0);
   const urgent = data.tasks.urgent || 0;
-  const chipTasks = $("chip-tasks");
-  chipTasks.replaceChildren("Tasks ", el("strong", { text: urgent ? `${openTasks} · ${urgent} urgent` : String(openTasks) }));
-  chipTasks.classList.toggle("alert", urgent > 0);
-  const count = $("tab-task-count");
-  count.textContent = String(openTasks);
-  count.hidden = openTasks === 0;
+  setBadge("tasks", openTasks, {
+    urgent: urgent > 0, label: urgent ? `${openTasks} open, ${urgent} urgent` : `${openTasks} open`,
+  });
   const failed = data.sync.failed || 0;
-  const chipSync = $("chip-sync");
-  chipSync.hidden = failed === 0;
-  chipSync.classList.toggle("alert", failed > 0);
-  chipSync.replaceChildren("Calendar ", el("strong", { text: `${failed} failed` }));
+  const alerts = data.alerts || [];
+  const problems = alerts.length + (failed ? 1 : 0);
+  setBadge("health", problems, { urgent: true, label: `${problems} problem${problems === 1 ? "" : "s"}` });
   updateCallChip(data.call);
-  renderAlerts(data.alerts || []);
+  renderAlerts(alerts);
 }
 
 // Problems the server found (alerts.py): a speech service down, calendar sync stuck, a call line stuck.
 function renderAlerts(alerts) {
   const box = $("alerts");
   box.hidden = alerts.length === 0;
-  box.replaceChildren(...alerts.map((a) => el("p", { class: `alert-line ${a.level}`,
-    text: `${a.text} (since ${fmtDateTime(a.since)})` })));
+  const icon = () => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "icon");
+    svg.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+    use.setAttribute("href", "#i-alert");
+    svg.append(use);
+    return svg;
+  };
+  box.replaceChildren(...alerts.map((a) => el("p", { class: `alert-line ${a.level}` }, icon(),
+    el("span", { text: `${a.text} (since ${fmtDateTime(a.since)})` }),
+    currentTab === "health" ? null : el("a", { href: "#health", text: "Health ›" }))));
 }
 
+// Emma's pearl next to "Live call" glows while a call is on.
 function updateCallChip(call) {
-  const chip = $("chip-call");
-  const busy = call && call.busy;
-  chip.classList.toggle("live", Boolean(busy));
-  chip.replaceChildren(el("span", { class: "dot" }), el("span", { text: busy ? "On a call" : "No call" }));
+  const busy = Boolean(call && call.busy);
+  document.querySelectorAll("[data-live-pearl]").forEach((pearl) => pearl.classList.toggle("live", busy));
+  const live = [...liveCalls.values()].filter((st) => !st.ended).length;
+  setBadge("live", live > 1 ? live : 0, { label: `${live} calls on` });
 }
 
-// ------------------------------------------------------------------ tabs
+// ------------------------------------------------------------------ sections and routing
+// Each section has its own address (#appointments, …), so Back and Forward move between them.
 const loaders = {
   live: () => renderLive(),
   appointments: () => loadAppointments(),
   tasks: () => loadTasks(),
   calls: () => loadCalls(),
-  recovery: () => loadRecovery(),
-  system: () => loadSystem(),
+  rebooking: () => loadRecovery(),
+  health: () => loadHealthView(),
+  setup: () => loadSetup(),
+  privacy: () => loadPrivacy(),
+  clinic: () => {},
 };
+const OLD_NAMES = { recovery: "rebooking", system: "health" };
+const WIDE = matchMedia("(min-width: 900px)");
 let currentTab = "live";
 
+function sectionName(name) {
+  name = OLD_NAMES[name] || name;
+  return loaders[name] ? name : null;
+}
+
 function showTab(name) {
-  if (!loaders[name]) name = "live";
+  name = sectionName(name) || "live";
+  if (location.hash === `#${name}`) render(name);
+  else location.hash = name;               // hashchange renders it and records it in history
+}
+
+function render(name) {
+  if (name === "clinic" && WIDE.matches) {
+    name = "health";
+    history.replaceState(null, "", "#health");
+  }
+  const changed = name !== currentTab;
   currentTab = name;
-  document.querySelectorAll(".tab").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.tab === name)));
   for (const key of Object.keys(loaders)) $(`view-${key}`).hidden = key !== name;
+  document.querySelectorAll("[data-nav]").forEach((link) => {
+    const on = link.dataset.nav === name || (link.dataset.also || "").split(" ").includes(name);
+    if (on) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
   store("tab", name);
-  if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
+  const brand = document.querySelector(".brand-name").textContent;
+  document.title = `${$(`view-${name}`).querySelector("h1").textContent} · ${brand}`;
+  if (changed) window.scrollTo(0, 0);
+  refreshSoon();
   loaders[name]();
 }
 
-document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
-document.querySelectorAll("[data-go]").forEach((chip) => chip.addEventListener("click", () => showTab(chip.dataset.go)));
+window.addEventListener("hashchange", () => render(sectionName(location.hash.slice(1)) || "live"));
+
+// "/" jumps to search, as in Apple's apps; nothing else overrides the browser's own shortcuts.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest("input, select, textarea, [contenteditable]")) return;
+  e.preventDefault();
+  if (currentTab !== "appointments") showTab("appointments");
+  $("appt-search").focus();
+});
 
 // ------------------------------------------------------------------ live call
 // Up to MAX_CONCURRENT_CALLS calls can be on at once (11 Oct): each has its own state, and the
@@ -390,7 +567,7 @@ function handleEvent(event) {
     case "sync":
       refreshSoon();
       if (currentTab === "appointments") reloadAppointmentsSoon();
-      if (currentTab === "system") reloadSystemSoon();
+      if (currentTab === "health" || currentTab === "privacy") reloadSystemSoon();
       break;
     case "call_data_deleted":
       if (currentTab === "calls") loadCalls();
@@ -401,7 +578,7 @@ function handleEvent(event) {
     case "recovery":
     case "ring":
     case "ring_ended":
-      if (currentTab === "recovery") reloadRecoverySoon();
+      if (currentTab === "rebooking") reloadRecoverySoon();
       if (event.type === "ring") toast(`Emma is calling ${event.to_name || "a patient"}…`);
       break;
     default:
@@ -425,9 +602,10 @@ function renderLive() {
   const hasCall = Boolean(live.callId);
   $("live-empty").hidden = hasCall;
   const pill = $("live-state");
-  const label = { idle: "Idle", listening: "Listening", thinking: "Thinking", speaking: "Speaking", ended: "Call ended" };
+  const label = { idle: "No call", listening: "Listening", thinking: "Thinking", speaking: "Emma is speaking", ended: "Call ended" };
   pill.className = `state-pill ${live.state}`;
-  pill.textContent = label[live.state] || live.state;
+  pill.lastElementChild.textContent = label[live.state] || live.state;
+  pill.firstElementChild.classList.toggle("live", hasCall && !live.ended);
   $("live-call").textContent = live.callId || "–";
   $("live-goal").textContent = live.goal || "–";
   $("live-tier").textContent = live.tier === null ? "–" : TIER_LABEL[live.tier] ?? String(live.tier);
@@ -441,7 +619,11 @@ function renderLive() {
 
   const box = $("live-transcript");
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
-  const nodes = live.lines.map((line) => el("div", { class: `line ${line.who}` },
+  // Only lines that weren't on screen before slide in; a line that grows sentence by sentence stays put.
+  const shown = box.dataset.call === String(live.callId) ? Number(box.dataset.lines || 0) : live.lines.length;
+  box.dataset.call = String(live.callId);
+  box.dataset.lines = String(live.lines.length);
+  const nodes = live.lines.map((line, i) => el("div", { class: `line ${line.who}${i >= shown ? " new" : ""}` },
     el("span", { class: "who", text: ROLE_LABEL[line.who] || line.who }),
     el("div", { class: "bubble", text: line.text })));
   if (live.interim) {
@@ -500,7 +682,8 @@ $("op-end").addEventListener("click", async () => {
 });
 
 function renderDuration() {
-  $("live-duration").textContent = live.started ? (live.ended ? "ended" : length(live.started.toISOString())) : "–";
+  $("live-duration").textContent = live.started
+    ? (live.ended ? "Ended" : `${fmtTime(live.started.toISOString())} · ${length(live.started.toISOString())}`) : "–";
 }
 setInterval(() => { if (currentTab === "live" && live.callId && !live.ended) renderDuration(); }, 1000);
 
@@ -552,19 +735,48 @@ async function loadAppointments() {
   $("appt-day").value = appt.day;
   $("appt-day-controls").hidden = appt.scope !== "day";
   document.querySelectorAll("#appt-scope button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scope === appt.scope)));
-  const tbody = $("appt-rows");
+  const list = $("appt-rows");
+  renderFilterTokens();
   try {
     appt.rows = (await api(`/dashboard/api/appointments?${apptQuery()}`)).appointments;
   } catch (err) {
-    tbody.replaceChildren(emptyRow(9, err.message));
+    list.replaceChildren(emptyItem(err.message));
     return;
   }
   renderAppointments();
 }
 const reloadAppointmentsSoon = debounce(loadAppointments, 400);
 
+// Active filters show as tokens under the toolbar, each removable on its own.
+const FILTERS = [["appt-branch", "Branch"], ["appt-doctor", "Doctor"], ["appt-status", "Status"], ["appt-group", "Grouped"]];
+function renderFilterTokens() {
+  const active = FILTERS.filter(([id]) => $(id).value);
+  $("appt-tokens").replaceChildren(...active.map(([id, label]) => {
+    const select = $(id);
+    const text = select.options[select.selectedIndex].text;
+    return el("span", { class: "token" }, `${label}: ${text}`,
+      el("button", { type: "button", "aria-label": `Remove filter ${label}: ${text}`, text: "×", onclick: () => {
+        select.value = "";
+        if (id === "appt-branch") fillDoctorFilter();
+        if (id === "appt-group") { renderFilterTokens(); renderAppointments(); } else loadAppointments();
+      } }));
+  }));
+  $("appt-filter-button").lastChild.textContent = active.length ? `Filter (${active.length})` : "Filter";
+}
+
+function appointmentActions(r, now) {
+  const changeable = (r.status === "booked" || r.status === "needs_reschedule") && new Date(r.start) > now;
+  if (changeable) {
+    return [{ label: "Move…", run: () => openBook("move", r) }, { label: "Cancel appointment…", danger: true, run: () => openCancel(r) }];
+  }
+  if (r.status === "booked" && new Date(r.start) <= now) {
+    return [{ label: "Attended", run: () => markAttendance(r, "completed") }, { label: "No-show", run: () => markAttendance(r, "no_show") }];
+  }
+  return [];
+}
+
 function renderAppointments() {
-  const tbody = $("appt-rows");
+  const list = $("appt-rows");
   const group = $("appt-group").value;
   const rows = [...appt.rows];
   if (group) rows.sort((a, b) => a[group].localeCompare(b[group]) || a.start.localeCompare(b.start));
@@ -573,7 +785,7 @@ function renderAppointments() {
   $("appt-summary").textContent = `${where} · ${rows.length} shown, ${active} active`;
   if (!rows.length) {
     const sunday = appt.scope === "day" && new Date(`${appt.day}T12:00:00`).getDay() === 0;
-    tbody.replaceChildren(emptyRow(9, sunday ? "The clinic is closed on Sundays." : "No appointments match."));
+    list.replaceChildren(emptyItem(sunday ? "The clinic is closed on Sundays." : "No appointments match."));
     return;
   }
   const out = [];
@@ -582,30 +794,48 @@ function renderAppointments() {
   for (const r of rows) {
     if (group && r[group] !== lastGroup) {
       lastGroup = r[group];
-      out.push(el("tr", { class: "group-row" }, el("td", { colspan: 9, text: lastGroup })));
+      out.push(el("li", { class: "group-head", text: lastGroup }));
     }
-    const when = appt.scope === "day" ? `${r.time}–${r.end_time}` : fmtDateTime(r.start);
-    const changeable = (r.status === "booked" || r.status === "needs_reschedule") && new Date(r.start) > now;
-    out.push(el("tr", { class: r.status === "cancelled" ? "muted-row" : "" },
-      el("td", { class: "nowrap num", text: when }),
-      el("td", {}, r.patient_name, r.patient_age ? el("span", { class: "muted small", text: ` · ${r.patient_age} y` }) : null,
-        r.name_unverified ? el("div", {}, el("span", { class: "badge warn", text: "name unverified" })) : null),
-      el("td", { class: "nowrap num", text: r.phone_display }),
-      el("td", { text: r.service }),
-      el("td", { text: r.doctor }),
-      el("td", { text: r.branch }),
-      el("td", {}, el("span", { class: `badge ${r.status}`, text: STATUS_LABEL[r.status] || r.status }),
-        r.cancel_reason ? el("div", { class: "muted small", text: r.cancel_reason }) : null),
-      el("td", { title: r.calendar_synced ? "In Google Calendar" : "Waiting to sync", text: r.calendar_synced ? "✓" : "…" }),
-      el("td", { class: "actions" }, changeable ? [
-        el("button", { class: "btn small", type: "button", text: "Move", onclick: () => openBook("move", r) }),
-        el("button", { class: "btn small danger", type: "button", text: "Cancel", onclick: () => openCancel(r) }),
-      ] : r.status === "booked" && new Date(r.start) <= now ? [
-        el("button", { class: "btn small", type: "button", text: "Attended", onclick: () => markAttendance(r, "completed") }),
-        el("button", { class: "btn small ghost", type: "button", text: "No-show", onclick: () => markAttendance(r, "no_show") }),
-      ] : null)));
+    const day = appt.scope === "day";
+    const actions = appointmentActions(r, now);
+    const more = actions.length ? el("button", {
+      class: "btn small icon-only", type: "button", "aria-haspopup": "menu",
+      "aria-label": `Actions for ${r.patient_name}, ${r.time}`,
+    }) : el("span", { class: "btn small icon-only", "aria-hidden": "true", style: null });
+    if (actions.length) {
+      more.append(svgIcon("i-more"));
+      more.addEventListener("click", () => openMenu(more, actions));
+    } else {
+      more.style.visibility = "hidden";
+    }
+    const synced = r.calendar_synced;
+    const item = el("li", {}, el("div", { class: `row appt-row${r.status === "cancelled" ? " muted" : ""}` },
+      el("div", { class: "row-time" }, day ? r.time : fmtDateTime(r.start).replace(/, (\d\d:\d\d)$/, ""),
+        el("span", { class: "muted", text: day ? `to ${r.end_time}` : fmtTime(r.start) })),
+      el("div", {},
+        el("div", { class: "row-title" }, r.patient_name,
+          r.patient_age ? el("span", { class: "muted", text: ` · ${r.patient_age} y` }) : null),
+        el("div", { class: "row-sub", text: `${r.service} · ${r.doctor}` }),
+        r.name_unverified ? el("span", { class: "badge warn", text: "Name unverified" }) : null),
+      el("div", { class: "row-where row-sub" }, el("div", { class: "num", text: r.phone_display }), el("div", { text: r.branch })),
+      el("div", { class: "row-status" },
+        el("span", { class: `cal-mark${synced ? "" : " waiting"}`, text: synced ? "Calendar ✓" : "Calendar …",
+          title: synced ? "In Google Calendar" : "Waiting to sync" }),
+        el("span", { class: `badge ${r.status}`, text: STATUS_LABEL[r.status] || r.status, title: r.cancel_reason || null })),
+      more));
+    out.push(item);
   }
-  tbody.replaceChildren(...out);
+  list.replaceChildren(...out);
+}
+
+function svgIcon(id) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `#${id}`);
+  svg.append(use);
+  return svg;
 }
 
 document.querySelectorAll("#appt-scope button").forEach((button) => button.addEventListener("click", () => {
@@ -619,7 +849,7 @@ $("appt-today").addEventListener("click", () => { appt.day = clinicToday(); load
 $("appt-branch").addEventListener("change", () => { fillDoctorFilter(); loadAppointments(); });
 $("appt-doctor").addEventListener("change", loadAppointments);
 $("appt-status").addEventListener("change", loadAppointments);
-$("appt-group").addEventListener("change", renderAppointments);
+$("appt-group").addEventListener("change", () => { renderFilterTokens(); renderAppointments(); });
 $("appt-search").addEventListener("input", debounce(loadAppointments, 300));
 $("appt-export").addEventListener("click", () => {
   // A plain navigation: the browser downloads the file with the session cookie.
@@ -647,7 +877,7 @@ function openCancel(r) {
   $("cancel-what").textContent = describe(r);
   $("cancel-reason").value = "";
   showError($("cancel-error"), "");
-  $("dlg-cancel").showModal();
+  present($("dlg-cancel"));
 }
 
 $("cancel-form").addEventListener("submit", async (event) => {
@@ -658,7 +888,7 @@ $("cancel-form").addEventListener("submit", async (event) => {
     await api(`/dashboard/api/appointments/${encodeURIComponent(cancelTarget.id)}/cancel`, {
       method: "POST", body: { reason: $("cancel-reason").value, version: cancelTarget.version, idem_key: newKey() },
     });
-    $("dlg-cancel").close();
+    dismiss($("dlg-cancel"));
     toast("Appointment cancelled.");
     loadAppointments();
   } catch (err) {
@@ -737,7 +967,7 @@ function openBook(mode, target = null) {
   }
   showError($("book-error"), "");
   clearSlots();
-  $("dlg-book").showModal();
+  present($("dlg-book"));
 }
 
 async function findSlots() {
@@ -808,7 +1038,7 @@ $("book-form").addEventListener("submit", async (event) => {
       });
       toast("Appointment booked.");
     }
-    $("dlg-book").close();
+    dismiss($("dlg-book"));
     if (currentTab === "appointments") loadAppointments();
   } catch (err) {
     showError($("book-error"), err.message);
@@ -822,46 +1052,73 @@ let taskStatus = "open";
 
 async function loadTasks() {
   document.querySelectorAll("#task-filter button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.status === taskStatus)));
-  const tbody = $("task-rows");
+  const listBox = $("task-rows");
   let list;
   try {
     list = (await api(`/dashboard/api/tasks?status=${taskStatus}`)).tasks;
   } catch (err) {
-    tbody.replaceChildren(emptyRow(8, err.message));
+    listBox.replaceChildren(emptyItem(err.message));
     return;
   }
   if (!list.length) {
-    tbody.replaceChildren(emptyRow(8, taskStatus === "open" ? "Nothing waiting. Nice." : "No tasks."));
+    listBox.replaceChildren(emptyItem(taskStatus === "open" ? "Nothing waiting. Nice." : "No tasks."));
     return;
   }
-  tbody.replaceChildren(...list.map((t) => {
-    const box = el("input", { type: "checkbox", "aria-label": `Mark task ${t.id} done` });
-    box.checked = t.status === "done";
-    box.addEventListener("change", async () => {
-      box.disabled = true;
-      try {
-        await api(`/dashboard/api/tasks/${t.id}`, { method: "POST", body: { done: box.checked } });
-        loadTasks();
-        refreshSoon();
-      } catch (err) {
-        toast(err.message, "error");
-        box.checked = !box.checked;
-        box.disabled = false;
-      }
+  const PRIORITY = { urgent: ["!!!", "Urgent"], high: ["!!", "High"] };
+  listBox.replaceChildren(...list.map((t) => {
+    const done = t.status === "done";
+    const title = t.note || KIND_LABEL[t.kind] || t.kind;
+    const check = el("button", {
+      class: "task-check", type: "button", role: "checkbox", "aria-checked": String(done), "aria-label": `Done: ${title}`,
     });
-    return el("tr", { class: t.status === "done" ? "muted-row" : "" },
-      el("td", {}, box),
-      el("td", {}, el("span", { class: `badge ${t.priority}`, text: t.priority })),
-      el("td", { class: "nowrap", text: KIND_LABEL[t.kind] || t.kind }),
-      el("td", { text: t.note || "–" }),
-      el("td", { class: "nowrap num", text: t.phone_display || "–" }),
-      el("td", { class: "nowrap", text: fmtDateTime(t.created_at) }),
-      el("td", { class: "nowrap", text: t.due_at ? fmtDateTime(t.due_at) : "–" }),
-      el("td", {}, t.call_id ? el("button", {
-        class: "btn small ghost mono", type: "button", text: t.call_id,
-        onclick: () => { showTab("calls"); openCall(t.call_id); },
-      }) : "–"));
+    const item = el("li", {});
+    check.addEventListener("click", () => setTaskDone(t, !done, check, item));
+    const [marks, word] = PRIORITY[t.priority] || [];
+    item.append(el("div", { class: `row task-row${done ? " muted" : ""}` },
+      check,
+      el("div", {},
+        el("div", { class: "row-title", text: title }),
+        el("div", { class: "row-sub task-meta" },
+          t.note ? el("span", { text: KIND_LABEL[t.kind] || t.kind }) : null,
+          t.phone_display ? el("span", { class: "num", text: t.phone_display }) : null,
+          el("span", { text: `Added ${fmtDateTime(t.created_at)}` }),
+          t.due_at ? el("span", { text: `Due ${fmtDateTime(t.due_at)}` }) : null,
+          t.call_id ? el("button", {
+            class: "link-btn", type: "button", text: "Read the call",
+            onclick: () => { showTab("calls"); openCall(t.call_id); },
+          }) : null)),
+      marks ? el("span", { class: `priority ${t.priority}` }, el("span", { "aria-hidden": "true", text: marks }), word)
+        : el("span")));
+    return item;
   }));
+}
+
+// Checking a task off: the circle fills at once, the row fades out, and Undo puts it back.
+async function setTaskDone(t, done, check, item) {
+  check.setAttribute("aria-checked", String(done));
+  check.disabled = true;
+  try {
+    await api(`/dashboard/api/tasks/${t.id}`, { method: "POST", body: { done } });
+  } catch (err) {
+    toast(err.message, "error");
+    check.setAttribute("aria-checked", String(!done));
+    check.disabled = false;
+    return;
+  }
+  refreshSoon();
+  const leaves = (done && taskStatus === "open") || (!done && taskStatus === "done");
+  if (leaves) item.firstElementChild.classList.add("leaving");
+  setTimeout(loadTasks, leaves && !REDUCED_MOTION.matches ? 800 : 0);
+  toast(done ? "Marked done." : "Marked not done.", "", {
+    label: "Undo",
+    run: async () => {
+      try {
+        await api(`/dashboard/api/tasks/${t.id}`, { method: "POST", body: { done: !done } });
+      } catch (err) { toast(err.message, "error"); }
+      loadTasks();
+      refreshSoon();
+    },
+  });
 }
 
 document.querySelectorAll("#task-filter button").forEach((button) => button.addEventListener("click", () => {
@@ -873,36 +1130,47 @@ document.querySelectorAll("#task-filter button").forEach((button) => button.addE
 let selectedCall = null;
 
 async function loadCalls() {
-  const tbody = $("call-rows");
+  const listBox = $("call-rows");
   let list;
   try {
     list = (await api("/dashboard/api/calls?limit=100")).calls;
   } catch (err) {
-    tbody.replaceChildren(emptyRow(6, err.message));
+    listBox.replaceChildren(emptyItem(err.message));
     return;
   }
   if (!list.length) {
-    tbody.replaceChildren(emptyRow(6, "No calls yet."));
+    listBox.replaceChildren(emptyItem("No calls yet."));
     return;
   }
-  tbody.replaceChildren(...list.map((c) => {
-    const row = el("tr", { tabindex: "0", "data-call": c.id, class: c.id === selectedCall ? "selected" : "" },
-      el("td", { class: "nowrap", text: fmtDateTime(c.started_at) }),
-      el("td", { class: "nowrap num", text: c.ended_at ? length(c.started_at, c.ended_at) : "live" }),
-      el("td", {}, el("span", { class: `badge ${(c.outcome || "").split("@")[0]}`, title: c.outcome || "",
-        text: callOutcome(c.outcome) })),
-      el("td", { text: CHANNEL_LABEL[c.channel] || "–" }),
-      el("td", { class: "nowrap num", text: c.phone_display || "–" }),
-      el("td", { class: "num", text: c.turns === c.kept_turns ? String(c.turns) : `${c.kept_turns}/${c.turns} kept` }));
+  const OUTCOME_BADGE = { booked: "booked", rescheduled: "rescheduled", cancelled: "cancelled", completed: "completed",
+    transferred: "transferred" };
+  listBox.replaceChildren(...list.map((c) => {
+    const kind = (c.outcome || "").split("@")[0];
+    const turns = c.turns === c.kept_turns ? `${c.turns} turns` : `${c.kept_turns} of ${c.turns} turns kept`;
+    const row = el("button", {
+      type: "button", class: "row call-row", "data-call": c.id,
+      "aria-current": c.id === selectedCall ? "true" : null,
+    },
+      el("div", {},
+        el("div", { class: "row-title", text: fmtDateTime(c.started_at) }),
+        el("div", { class: "row-sub num", text: [c.phone_display, CHANNEL_LABEL[c.channel], turns].filter(Boolean).join(" · ") })),
+      el("div", { class: "row-status" },
+        el("span", { class: "row-sub num", text: c.ended_at ? length(c.started_at, c.ended_at) : "Live" }),
+        el("span", { class: `badge ${OUTCOME_BADGE[kind] || ""}`.trim(), title: c.outcome || "", text: callOutcome(c.outcome) })));
     row.addEventListener("click", () => openCall(c.id));
-    row.addEventListener("keydown", (e) => { if (e.key === "Enter") openCall(c.id); });
-    return row;
+    return el("li", {}, row);
   }));
-  if (selectedCall) openCall(selectedCall);
+  if (selectedCall) openCall(selectedCall, { quiet: true });
 }
 
-async function openCall(callId) {
+$("calls-back").addEventListener("click", () => {
+  $("view-calls").classList.remove("detail");
+  document.querySelector(`#call-rows [data-call="${CSS.escape(selectedCall || "")}"]`)?.focus();
+});
+
+async function openCall(callId, { quiet = false } = {}) {
   selectedCall = callId;
+  if (!quiet) $("view-calls").classList.add("detail");
   const box = $("call-detail");
   let call;
   try {
@@ -937,9 +1205,9 @@ async function openCall(callId) {
     }
   });
   box.replaceChildren(
-    el("div", { class: "card-head" }, el("h3", {}, "Call ", el("span", { class: "mono", text: call.id })), deleteButton),
+    el("div", { class: "card-head" }, el("h2", { text: fmtDateTime(call.started_at) }), deleteButton),
     el("dl", { class: "kv" },
-      el("dt", { text: "Started" }), el("dd", { text: fmtDateTime(call.started_at) }),
+      el("dt", { text: "Call ID" }), el("dd", { class: "mono", text: call.id }),
       el("dt", { text: "Length" }), el("dd", { text: call.ended_at ? length(call.started_at, call.ended_at) : "still live" }),
       el("dt", { text: "Direction" }), el("dd", { text: call.direction }),
       el("dt", { text: "Outcome" }), el("dd", { text: callOutcome(call.outcome), title: call.outcome || "" }),
@@ -950,9 +1218,12 @@ async function openCall(callId) {
         ...call.appointments.map((a) => el("div", { text: `${a.service}, ${fmtDateTime(a.start_utc)}, ${a.branch} (${STATUS_LABEL[a.status] || a.status})` })))] : null,
       call.tasks.length ? [el("dt", { text: "Tasks" }), el("dd", {},
         ...call.tasks.map((t) => el("div", { text: `${KIND_LABEL[t.kind] || t.kind} · ${t.priority} · ${t.status}` })))] : null),
-    el("h3", { class: "small muted", text: "Transcript" }),
+    el("h3", { class: "card-head", text: "Transcript" }),
     el("div", { class: "transcript" }, ...(turns.length ? turns : [el("div", { class: "empty", text: "No turns recorded." })])));
-  document.querySelectorAll("#call-rows tr").forEach((tr) => tr.classList.toggle("selected", tr.dataset.call === callId));
+  document.querySelectorAll("#call-rows [data-call]").forEach((row) => {
+    const on = row.dataset.call === callId;
+    if (on) row.setAttribute("aria-current", "true"); else row.removeAttribute("aria-current");
+  });
 }
 
 // ------------------------------------------------------------------ system
@@ -984,7 +1255,7 @@ async function loadStaff() {
   try { me = await api("/dashboard/api/auth"); } catch { return; }
   $("staff-card").hidden = me.role !== "admin";
   if (me.role !== "admin") return;
-  $("staff-me").textContent = `You're logged in as ${me.user}.`;
+  $("staff-me").textContent = `You're signed in as ${me.user}.`;
   let data;
   try { data = await api("/dashboard/api/staff"); } catch (err) { $("staff-result").textContent = err.message; return; }
   $("staff-rows").replaceChildren(...(data.staff.length ? data.staff.map((s) => el("tr", { class: s.active ? "" : "muted-row" },
@@ -1007,7 +1278,7 @@ $("staff-form").addEventListener("submit", async (e) => {
     await api("/dashboard/api/staff", { method: "POST", body: {
       username: $("staff-username").value, display_name: $("staff-name").value,
       password: $("staff-password").value, role: $("staff-role").value } });
-    $("staff-result").textContent = `Added ${$("staff-username").value}. They log in with that user name and password.`;
+    $("staff-result").textContent = `Added ${$("staff-username").value}. They sign in with that user name and password.`;
     $("staff-form").reset();
     loadStaff();
   } catch (err) { $("staff-result").textContent = err.message; }
@@ -1071,7 +1342,7 @@ function editDoctor(d, row, data) {
             await api(`/dashboard/api/doctors/${d.id}/services`, { method: "POST", body: { services: chosen } });
           }
           $("doctor-result").textContent = out.affected.length
-            ? `Saved. ${out.affected.length} upcoming booking(s) with ${d.spoken_name} are now outside these hours: block the doctor for those days on the Recovery tab to have Emma move them.`
+            ? `Saved. ${out.affected.length} upcoming booking(s) with ${d.spoken_name} are now outside these hours: block the doctor for those days in Rebooking to have Emma move them.`
             : `Saved. Emma offers ${d.spoken_name}'s new hours from the next call.`;
           loadDoctors();
         } catch (err) { note.textContent = err.message; }
@@ -1118,7 +1389,7 @@ $("closure-form").addEventListener("submit", async (e) => {
     const out = await api("/dashboard/api/closures", { method: "POST", body: {
       date: $("closure-date").value, branch: $("closure-branch").value, reason: $("closure-reason").value } });
     $("closure-result").textContent = out.affected.length
-      ? `Added. ${out.affected.length} appointment(s) already booked that day: block the doctors on the Recovery tab to have Emma call them.`
+      ? `Added. ${out.affected.length} appointment(s) already booked that day: block the doctors in Rebooking to have Emma call them.`
       : "Added.";
     loadClosures();
   } catch (err) { $("closure-result").textContent = err.message; }
@@ -1136,10 +1407,19 @@ async function loadPerformance() {
   const channels = Object.entries(data.channels);
   if (!channels.length) {
     box.replaceChildren(el("p", { class: "muted", text: "No calls in the last 7 days." }));
+    $("perf-summary").replaceChildren(el("dt", { text: "Calls" }), el("dd", { text: "None in the last 7 days" }));
     return;
   }
   const sec = (v) => (v === null || v === undefined ? "–" : `${(v / 1000).toFixed(1)} s`);
   const pct = (n, d) => (d ? `${Math.round((100 * n) / d)}%` : "–");
+  // The three things the owner asks: how many calls, how quickly Emma answers, what a call costs.
+  const per = (f) => channels.map(([name, c]) => (channels.length > 1 ? `${CHANNEL_LABEL[name] || name} ${f(c)}` : f(c))).join(" · ");
+  $("perf-summary").replaceChildren(
+    el("dt", { text: "Calls" }), el("dd", { class: "num", text: per((c) => String(c.calls)) }),
+    el("dt", { text: "Typical reply" }), el("dd", { class: "num", text: per((c) => sec(c.model_p50_ms ?? c.simple_p50_ms)) }),
+    el("dt", { text: "Slow replies (fallback)" }), el("dd", { class: "num", text: per((c) => pct(c.fallback, c.model + c.fallback)) }),
+    el("dt", { text: "Cost per call" }), el("dd", { class: "num",
+      text: per((c) => (c.metered_calls ? `$${c.cost_per_call_usd.toFixed(3)}` : "–")) }));
   const row = (label, f) => el("tr", {}, el("th", { text: label }), ...channels.map(([, c]) => el("td", { class: "num", text: f(c) })));
   box.replaceChildren(el("table", { class: "kv-table" },
     el("thead", {}, el("tr", {}, el("th", {}), ...channels.map(([name, c]) =>
@@ -1157,11 +1437,23 @@ async function loadPerformance() {
         : "–")))));
 }
 
-async function loadSystem() {
-  loadPerformance();
-  loadClosures();
+// The old System tab is three sections now: Health (is everything working), Setup (doctors, closures,
+// sign-ins) and Privacy (data requests, do-not-call, audit). Health and Privacy share /api/system.
+function loadSetup() {
   loadDoctors();
+  loadClosures();
   loadStaff();
+}
+
+async function loadPrivacy() {
+  let data;
+  try { data = await api("/dashboard/api/system"); } catch (err) { toast(err.message, "error"); return; }
+  renderDoNotCall(data);
+  renderAudit(data);
+}
+
+async function loadHealthView() {
+  loadPerformance();
   let data;
   try {
     data = await api("/dashboard/api/system");
@@ -1169,6 +1461,16 @@ async function loadSystem() {
     $("sync-detail").textContent = err.message;
     return;
   }
+  renderSync(data);
+  renderMessages(data);
+  loadHealth(data);
+}
+
+function loadSystem() {
+  return currentTab === "privacy" ? loadPrivacy() : loadHealthView();
+}
+
+function renderSync(data) {
   const cal = data.calendar;
   const state = $("sync-state");
   state.className = `badge ${cal.enabled ? "ok" : "warn"}`;
@@ -1201,7 +1503,9 @@ async function loadSystem() {
       },
     }))));
   $("sync-rows").replaceChildren(...(rows.length ? rows : [emptyRow(8, "Everything is in sync.")]));
+}
 
+function renderDoNotCall(data) {
   const dnc = data.do_not_call.map((d) => el("tr", {},
     el("td", { class: "num", text: d.phone_display }),
     el("td", { class: "muted small nowrap", text: fmtDateTime(d.updated_at) }),
@@ -1215,7 +1519,9 @@ async function loadSystem() {
       },
     }))));
   $("dnc-rows").replaceChildren(...(dnc.length ? dnc : [emptyRow(3, "Nobody on the list.")]));
+}
 
+function renderMessages(data) {
   const ms = data.message_status || {};
   const mc = data.message_counts || {};
   $("msg-state").className = `badge ${ms.sender === "twilio" ? "ok" : "warn"}`;
@@ -1230,14 +1536,14 @@ async function loadSystem() {
     el("td", { class: "small", text: m.body }),
     el("td", {}, el("span", { class: `badge ${m.status}`, title: m.last_error || "", text: m.status })),
     el("td", { class: "nowrap", text: fmtDateTime(m.sent_at || m.due_at) }))) : [emptyRow(5, "No messages yet.")]));
+}
 
+function renderAudit(data) {
   $("audit-rows").replaceChildren(...data.audit.map((a) => el("tr", {},
     el("td", { class: "nowrap", text: fmtDateTime(a.ts) }),
     el("td", { text: a.actor }),
     el("td", { text: a.action.replace(/_/g, " ") }),
     el("td", { class: "small", title: `${a.entity} ${a.entity_id}`, text: a.what || `${a.entity} ${a.entity_id}` }))));
-
-  loadHealth(data);
 }
 const reloadSystemSoon = debounce(loadSystem, 500);
 
@@ -1260,7 +1566,7 @@ async function loadHealth(system) {
   }
   const retention = system.retention;
   add("Transcripts", `Kept ${retention.transcript_days} days, no audio. Last purge ${retention.last_purge ? fmtDateTime(retention.last_purge) : "not yet"}.`);
-  add("Dashboard login", yes(system.auth.configured, system.auth.persistent_sessions ? "On" : "On (logins end on restart)", "Locked"));
+  add("Dashboard sign-in", yes(system.auth.configured, system.auth.persistent_sessions ? "On" : "On (logins end on restart)", "Locked"));
   add("Call slot", system.call.busy ? `In use (${system.call.kind})` : "Free");
   add("Live viewers", String(system.events.subscribers));
   $("health").replaceChildren(...items);
@@ -1412,17 +1718,17 @@ function updateCampaignButton() {
   const ticked = document.querySelectorAll("#preview-rows input:checked").length;
   const button = $("campaign-start");
   button.disabled = !ticked;
-  button.textContent = ticked ? `Start recovery calls (${ticked})` : "Start recovery calls";
+  button.textContent = ticked ? `Start rebooking calls (${ticked})` : "Start rebooking calls";
 }
 
 $("campaign-start").addEventListener("click", async () => {
   const ids = [...document.querySelectorAll("#preview-rows input:checked")].map((b) => b.value);
   if (!ids.length || !recovery.blockId) return;
   const text = `Emma will call about ${ids.length} appointment(s), one patient at a time, and offer only valid new times.`;
-  if (!await confirmAction("Start recovery calls?", text, "Start calls")) return;
+  if (!await confirmAction("Start rebooking calls?", text, "Start calls")) return;
   try {
     await api("/dashboard/api/recovery/campaigns", { method: "POST", body: { block_id: recovery.blockId, appointment_ids: ids } });
-    toast("Recovery calls started.");
+    toast("Rebooking calls started.");
     loadRecovery();
   } catch (err) { toast(err.message, "error"); }
 });
@@ -1516,7 +1822,7 @@ function jobCallLabel(j) {
 function renderCampaigns(campaigns) {
   const box = $("campaign-list");
   if (!campaigns.length) {
-    box.replaceChildren(el("div", { class: "empty", text: "No recovery calls yet." }));
+    box.replaceChildren(el("div", { class: "empty", text: "No rebooking calls yet." }));
     return;
   }
   box.replaceChildren(...campaigns.map((c) => {
@@ -1581,18 +1887,23 @@ $("window-form").addEventListener("submit", async (event) => {
 // ------------------------------------------------------------------ start
 const refreshSoon = debounce(refreshOverview, 500);
 
-$("logout").addEventListener("click", async () => {
+document.querySelectorAll("[data-signout]").forEach((button) => button.addEventListener("click", async () => {
   try { await fetch("/dashboard/api/logout", { method: "POST", credentials: "same-origin" }); } finally {
     location.replace("/dashboard/login");
   }
-});
+}));
 
 async function start() {
   await refreshOverview();
   try { await loadCatalog(); } catch (err) { toast(err.message, "error"); }
+  api("/dashboard/api/auth").then((me) => {
+    if (me && me.user) $("account-who").textContent = `Signed in as ${me.user}`;
+  }).catch(() => {});
   connectEvents();
-  const wanted = location.hash.slice(1) || recall("tab") || "live";
-  showTab(wanted);
+  const wanted = sectionName(location.hash.slice(1)) || sectionName(recall("tab")) || "live";
+  if (location.hash !== `#${wanted}`) history.replaceState(null, "", `#${wanted}`);
+  currentTab = null;
+  render(wanted);
   setInterval(refreshOverview, 30000);
 }
 
