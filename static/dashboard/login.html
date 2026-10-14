@@ -3,19 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Staff login · Pearl Dental</title>
-  <meta name="description" content="Staff login for the Pearl Dental dashboard.">
+  <title>Sign in · Pearl Dental</title>
+  <meta name="description" content="Staff sign-in for the Pearl Dental dashboard.">
+  <meta name="color-scheme" content="light dark">
   <link rel="stylesheet" href="/dashboard/static/dashboard.css">
 </head>
 <body>
-  <div class="login-wrap">
+  <main class="login-wrap">
     <div class="card login-card">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <div>
-          <div class="brand-name">Pearl Dental</div>
-          <div class="muted small">Staff dashboard</div>
-        </div>
+      <span class="pearl" aria-hidden="true"></span>
+      <div>
+        <h1>Sign in to Pearl Dental</h1>
+        <p class="lede">The front desk dashboard</p>
       </div>
 
       <div id="locked" class="note-box" hidden>
@@ -24,17 +23,18 @@
       </div>
 
       <form id="login-form" autocomplete="on" hidden>
-        <label class="field">User name <span class="muted small">(leave empty for the clinic password)</span>
-          <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none">
+        <label class="field">User name
+          <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" aria-describedby="username-hint">
+          <span class="hint" id="username-hint">Leave blank to use the clinic password.</span>
         </label>
         <label class="field">Password
           <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
         </label>
         <div id="login-error" class="error-box" role="alert" hidden></div>
-        <button class="btn primary" type="submit" id="login-button">Log in</button>
+        <button class="btn primary" type="submit" id="login-button">Sign in</button>
       </form>
     </div>
-  </div>
+  </main>
   <script type="module" src="/dashboard/static/login.js"></script>
 </body>
 </html>

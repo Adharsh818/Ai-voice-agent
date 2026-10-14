@@ -47,7 +47,7 @@ form.addEventListener("submit", async (event) => {
       return;
     }
     const body = await res.json().catch(() => ({}));
-    showError(body.detail || "Couldn't log in.");
+    showError(body.detail || "Couldn't sign in. Check the user name and password.");
     form.password.select();
   } catch {
     showError("Can't reach the server. Is it running?");

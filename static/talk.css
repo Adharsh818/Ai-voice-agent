@@ -1,0 +1,306 @@
+/* Emma's talk page. Emma is a pearl: nacre that never changes colour with state. The status line says
+   what she's doing, and the sheen and size move with whoever is talking (docs/REDESIGN_PLAN.md).
+   The patient page keeps app.css; this file is the talk page's only stylesheet. */
+
+/* SF Pro where it's installed (Windows matches it reliably only by its full name). local() only:
+   no font file is shipped or downloaded, which Apple's licence wouldn't allow. */
+@font-face { font-family: "SF Text (installed)"; font-style: normal; font-weight: 400; src: local("SF Pro Text Regular"), local("SFProText-Regular"); }
+@font-face { font-family: "SF Text (installed)"; font-style: normal; font-weight: 500; src: local("SF Pro Text Medium"), local("SFProText-Medium"); }
+@font-face { font-family: "SF Text (installed)"; font-style: normal; font-weight: 600; src: local("SF Pro Text Semibold"), local("SFProText-Semibold"); }
+@font-face { font-family: "SF Text (installed)"; font-style: normal; font-weight: 700; src: local("SF Pro Text Bold"), local("SFProText-Bold"); }
+@font-face { font-family: "SF Text (installed)"; font-style: italic; font-weight: 400; src: local("SF Pro Text Regular Italic"), local("SFProText-RegularItalic"); }
+@font-face { font-family: "SF Display (installed)"; font-style: normal; font-weight: 400; src: local("SF Pro Display Regular"), local("SFProDisplay-Regular"); }
+@font-face { font-family: "SF Display (installed)"; font-style: normal; font-weight: 500; src: local("SF Pro Display Medium"), local("SFProDisplay-Medium"); }
+@font-face { font-family: "SF Display (installed)"; font-style: normal; font-weight: 600; src: local("SF Pro Display Semibold"), local("SFProDisplay-Semibold"); }
+@font-face { font-family: "SF Display (installed)"; font-style: normal; font-weight: 700; src: local("SF Pro Display Bold"), local("SFProDisplay-Bold"); }
+@font-face { font-family: "SF Mono (installed)"; font-style: normal; font-weight: 400; src: local("SF Mono Regular"), local("SFMono-Regular"); }
+@font-face { font-family: "SF Mono (installed)"; font-style: normal; font-weight: 500; src: local("SF Mono Medium"), local("SFMono-Medium"); }
+@font-face { font-family: "SF Mono (installed)"; font-style: normal; font-weight: 600; src: local("SF Mono Semibold"), local("SFMono-Semibold"); }
+
+@property --sheen {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
+:root {
+  --bg: #f5f5f7;
+  --label: #1d1d1f;
+  --secondary: #636366;
+  --fill: #e8e8ed;
+  --fill-hover: #dcdce1;
+  --accent: #0b7469;
+  --on-accent: #ffffff;
+  --red: #c4000f;
+  --destructive: #c4000f;
+  --field-border: #86868b;
+  --pearl-base: #f6f1ea;
+  --pearl-rose: #f2d4d7;
+  --pearl-lilac: #d9d3f2;
+  --pearl-mint: #cdeae2;
+  --pearl-sky: #cfe2f5;
+  --pearl-shade: rgba(110, 92, 80, 0.32);
+  --pearl-glow: rgba(214, 205, 238, 0.55);
+  --contact: rgba(60, 45, 35, 0.22);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Text (installed)", "SF Pro", system-ui, "Segoe UI Variable Text", "Segoe UI",
+    Roboto, "Helvetica Neue", sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Display (installed)", "SF Pro", system-ui, "Segoe UI Variable Display",
+    "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --lvl: 0;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000;
+    --label: #f5f5f7;
+    --secondary: #a1a1a6;
+    --fill: #2c2c2e;
+    --fill-hover: #3a3a3c;
+    --accent: #3cc8b4;
+    --on-accent: #00201c;
+    --red: #ff6961;
+    --destructive: #e0242c;
+    --field-border: #6e6e73;
+    --pearl-shade: rgba(60, 48, 40, 0.45);
+    --pearl-glow: rgba(196, 186, 236, 0.32);
+    --contact: rgba(0, 0, 0, 0);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --label: #f5f5f7;
+  --secondary: #a1a1a6;
+  --fill: #2c2c2e;
+  --fill-hover: #3a3a3c;
+  --accent: #3cc8b4;
+  --on-accent: #00201c;
+  --red: #ff6961;
+  --destructive: #e0242c;
+  --field-border: #6e6e73;
+  --pearl-shade: rgba(60, 48, 40, 0.45);
+  --pearl-glow: rgba(196, 186, 236, 0.32);
+  --contact: rgba(0, 0, 0, 0);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--label);
+  font: 400 1.0625rem/1.4118 var(--font);   /* 17/24 */
+  letter-spacing: -0.022em;
+  -webkit-font-smoothing: antialiased;
+}
+body { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: auto 1fr; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.masthead { padding: 20px 24px 0; }
+.masthead .clinic { font: 600 1.0625rem/1.3 var(--font-display); letter-spacing: -0.02em; margin: 0; }
+.masthead .who { color: var(--secondary); font-size: 0.9375rem; letter-spacing: -0.01em; margin: 0; }
+
+main {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 18px;
+  width: min(560px, 100%);
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------ the pearl */
+#orb {
+  --size: min(52vmin, 228px);
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  margin-bottom: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+#orb:focus-visible { outline-offset: 10px; border-radius: 50%; }
+
+/* Soft contact shadow: a pearl resting on satin (light); none on black velvet (dark). */
+#orb::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: -9%;
+  height: 12%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--contact), transparent);
+  filter: blur(4px);
+  transform: scale(calc(0.94 + var(--lvl) * 0.12), 1);
+  pointer-events: none;
+}
+
+#orb .core,
+#orb .halo,
+#orb .ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Nacre: soft iridescent patches that turn slowly with --sheen (::before), under a fixed
+   specular highlight and shaded side (::after), so the light source never moves. */
+#orb .core {
+  overflow: hidden;
+  background: var(--pearl-base);
+  transform: scale(calc(0.96 + var(--lvl) * 0.1));
+}
+#orb .core::before,
+#orb .core::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+}
+#orb .core::before {
+  inset: -12%;
+  background:
+    radial-gradient(circle at 28% 30%, var(--pearl-rose), rgba(255, 255, 255, 0) 42%),
+    radial-gradient(circle at 76% 32%, var(--pearl-lilac), rgba(255, 255, 255, 0) 44%),
+    radial-gradient(circle at 70% 76%, var(--pearl-sky), rgba(255, 255, 255, 0) 46%),
+    radial-gradient(circle at 26% 74%, var(--pearl-mint), rgba(255, 255, 255, 0) 44%);
+  filter: blur(calc(var(--size) * 0.05));
+  transform: rotate(var(--sheen));
+}
+#orb .core::after {
+  inset: 0;
+  background:
+    radial-gradient(circle at 34% 27%, #ffffff 0 5%, rgba(255, 255, 255, 0.82) 11%, rgba(255, 255, 255, 0) 34%),
+    radial-gradient(circle at 72% 80%, var(--pearl-shade), rgba(0, 0, 0, 0) 58%);
+  box-shadow:
+    inset -10px -14px 28px rgba(90, 72, 60, 0.16),
+    inset 8px 10px 22px rgba(255, 255, 255, 0.55);
+}
+
+#orb .halo {
+  inset: -22%;
+  background: radial-gradient(closest-side, var(--pearl-glow), rgba(0, 0, 0, 0));
+  opacity: calc(0.35 + var(--lvl) * 0.65);
+  transform: scale(calc(0.9 + var(--lvl) * 0.16));
+}
+
+/* Thinking: one highlight travels across the pearl, like light turning on it. */
+#orb .ring {
+  overflow: hidden;
+  opacity: 0;
+  background: linear-gradient(105deg, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0.75) 50%, rgba(255, 255, 255, 0) 62%);
+  background-size: 260% 100%;
+  background-position: 130% 0;
+  mix-blend-mode: soft-light;
+  transition: opacity 200ms ease;
+}
+#orb[data-state="thinking"] .ring,
+#orb[data-state="connecting"] .ring { opacity: 1; animation: sweep 1.6s cubic-bezier(0.45, 0, 0.25, 1) infinite; }
+@keyframes sweep { from { background-position: 130% 0; } to { background-position: -30% 0; } }
+
+#orb:active .core { transform: scale(0.94); transition: transform 100ms ease-out; }
+#orb[data-state="idle"]:hover .core { transform: scale(0.99); }
+
+/* Something went wrong: the pearl dims; the words underneath say why. */
+#orb[data-state="error"] .core,
+#orb[data-state="lost"] .core,
+#orb[data-state="blocked"] .core,
+#orb[data-state="busy"] .core { filter: saturate(0.4) brightness(0.92); }
+
+/* ------------------------------------------------------------ words */
+#status {
+  margin: 0;
+  min-height: 1.4em;
+  color: var(--secondary);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+#caption {
+  margin: 4px 0 0;
+  max-width: 100%;
+  min-height: 1.4em;
+  max-height: calc(3 * 1.3636em);
+  overflow: hidden;
+  color: var(--label);
+  font: 500 1.375rem/1.3636 var(--font-display);   /* 22/30 */
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+#caption.overflowing {
+  -webkit-mask-image: linear-gradient(transparent, #000 1.2em);
+          mask-image: linear-gradient(transparent, #000 1.2em);
+}
+#caption.notice { color: var(--secondary); font-size: 1.0625rem; font-weight: 400; font-family: var(--font); }
+#caption.error { color: var(--red); font-size: 1.0625rem; font-weight: 500; font-family: var(--font); }
+
+#heard {
+  margin: 0;
+  max-width: 100%;
+  color: var(--secondary);
+  font-size: 1.0625rem;
+  line-height: 1.4118;
+  overflow-wrap: anywhere;
+}
+#heard:empty { display: none; }
+
+/* ------------------------------------------------------------ controls */
+.controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
+
+#action, #type-instead, #end-call, #typed button {
+  appearance: none;
+  min-height: 44px;
+  padding: 11px 22px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 100ms ease-out;
+}
+#action:active, #type-instead:active, #end-call:active, #typed button:active { transform: scale(0.97); }
+#action { background: var(--accent); color: var(--on-accent); }
+#type-instead { background: var(--fill); color: var(--label); }
+#type-instead:hover { background: var(--fill-hover); }
+#end-call { background: var(--destructive); color: #fff; }
+
+#typed { display: flex; gap: 8px; width: 100%; margin-top: 6px; }
+#typed input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 16px;
+  font: inherit;
+  color: var(--label);
+  background: transparent;
+  border: 1px solid var(--field-border);
+  border-radius: 999px;
+}
+#typed input::placeholder { color: var(--secondary); opacity: 1; }
+#typed button { background: var(--accent); color: var(--on-accent); }
+
+/* Reduced motion: the pearl holds still with a static sheen; the status line carries everything. */
+@media (prefers-reduced-motion: reduce) {
+  #orb .core, #orb .halo, #orb::after { transform: none !important; }
+  #orb .ring { animation: none !important; opacity: 0 !important; }
+  #orb .halo { opacity: 0.5; }
+  #action, #type-instead, #end-call, #typed button { transition: none; }
+}
+@media (prefers-contrast: more) {
+  :root { --secondary: color-mix(in srgb, var(--label) 82%, var(--bg)); }
+  #orb .core { box-shadow: inset 0 0 0 2px var(--label); }
+}

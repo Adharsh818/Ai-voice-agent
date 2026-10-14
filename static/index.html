@@ -2,21 +2,31 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Emma</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Emma · Pearl Dental</title>
   <meta name="description" content="Talk to Emma, Pearl Dental's automated receptionist.">
-  <link rel="stylesheet" href="/static/app.css">
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="/static/talk.css">
 </head>
 <body>
+  <header class="masthead">
+    <p class="clinic">Pearl Dental</p>
+    <p class="who">Emma · Reception</p>
+  </header>
   <main>
-    <button id="orb" data-state="idle" aria-label="Start call" aria-pressed="false">
+    <button id="orb" data-state="idle" aria-label="Call Emma" aria-pressed="false" aria-describedby="status">
       <span class="halo" aria-hidden="true"></span>
-      <span class="ring" aria-hidden="true"></span>
       <span class="core" aria-hidden="true"></span>
+      <span class="ring" aria-hidden="true"></span>
     </button>
+    <p id="status" role="status">Tap the pearl to call Emma</p>
     <p id="caption" aria-live="polite"></p>
-    <button id="action" type="button" hidden>Try again</button>
-    <button id="type-instead" type="button" hidden>Type instead</button>
+    <p id="heard" aria-live="polite"></p>
+    <div class="controls">
+      <button id="action" type="button" hidden>Try again</button>
+      <button id="type-instead" type="button" hidden>Type instead</button>
+      <button id="end-call" type="button" hidden>End call</button>
+    </div>
     <form id="typed" hidden autocomplete="off">
       <input id="typed-text" type="text" placeholder="Type what the caller says, then Enter" aria-label="What the caller says">
       <button type="submit">Send</button>
