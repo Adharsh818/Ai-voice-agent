@@ -1,6 +1,6 @@
 /* Talk page, styled like an apple.com product hero (docs/APPLE_DESIGN_PLAN.md 4.2):
    a glass bar, "Emma." as the headline, the orb as a glass sphere that moves with the voice,
-   and pill buttons. Light by default, dark with the device. The orb's states and ids are the
+   and pill buttons. Light only, exactly like apple.com. The orb's states and ids are the
    ones app.js drives; the patient page keeps app.css. */
 
 body.talk {
@@ -260,21 +260,6 @@ body[data-call="error"] #call-button { display: none; }
 body:has(.typed:not([hidden])) .talk-footer { visibility: hidden; }
 body:has(.typed:not([hidden])) .talk-main { padding-bottom: 104px; }
 
-/* ------------------------------------------------------------------ dark */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) body.talk { --t-idle: #8e97ab; }
-  :root:not([data-theme="light"]) #orb .core {
-    background:
-      radial-gradient(circle at 50% 62%, color-mix(in srgb, var(--tint) 62%, transparent) 0%, transparent 64%),
-      radial-gradient(circle at 50% 50%, rgba(70, 72, 80, 0.9) 0%, rgba(40, 41, 46, 0.92) 55%, rgba(24, 24, 27, 0.96) 100%);
-    box-shadow:
-      inset 0 -18px 40px color-mix(in srgb, var(--tint) 34%, transparent),
-      inset 0 1px 1px rgba(255, 255, 255, 0.28),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.1),
-      0 30px 70px -24px color-mix(in srgb, var(--tint) 65%, transparent);
-  }
-  :root:not([data-theme="light"]) #orb .gloss { opacity: 0.14; inset: 7% 24% 58% 24%; }
-}
 
 @media (max-width: 734px) {
   .talk-main { padding-top: 32px; }

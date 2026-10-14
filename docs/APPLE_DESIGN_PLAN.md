@@ -3,7 +3,7 @@
 Status: **built and click-tested on branch `claude/rea-availability-b99f59` (14 Oct 2026), fresh from `main`.** Owner's choices: this session's decisions, built fresh, not on PR #6 or the v2 WIP branch. See "8. As built" at the end.
 
 **Owner's decisions (14 Oct):**
-- **Talk page:** light, following the device's dark mode.
+- **Colours (changed 14 Oct, evening):** all three pages are light only, exactly apple.com's colours. They ignore the device's dark mode. This replaces the earlier "talk page follows dark mode".
 - **Fonts:** SF Pro and the other Apple fonts are installed on the owner's PC, so the pages use them by name.
 - **Glass:** the apple.com recipe, without iOS 26 refraction.
 - **Dashboard:** a full rebuild with a glass sidebar, a Today tile grid, Live call with the transcript in the centre, and Appointments exactly like Apple Calendar.
@@ -131,7 +131,7 @@ Today: a dark page with a coloured orb and a caption. The Apple version is style
 - **The orb** stays the centre of the page and keeps all its states (idle, listening, thinking, speaking, busy, error). It is restyled as a **glass sphere**: a translucent fill with saturate and blur, a specular highlight, and the state colour as an inner glow that pulses with the audio level (`--lvl`, already driven by app.js). The press animation is `scale(.96)`.
 - **The caption** is 21px/400 in ink-2, with the newest line in ink at 28px/600. Lines cross-fade over 320ms with the standard easing.
 - **"Type instead" and "Try again"** become a **floating glass pill** (56px, bottom centre) like Apple's all-access pass. It expands into the text field and Send button using the pill's width animation (`.3s cubic-bezier(.25,.1,.3,1)`).
-- **Light by default** (white canvas, like apple.com), with automatic dark mode.
+- **Light only** (white canvas, apple.com's colours). The device's dark mode is ignored, at the owner's request.
 
 All element IDs (`orb`, `caption`, `action`, `type-instead`, `typed`, `typed-text`) stay the same, so `app.js` needs no logic changes, only class hooks.
 
@@ -279,6 +279,7 @@ The pages are previewed on the review copy (port 8001) so the owner's database i
 - **Rev 1:** first draft. It copied Apple's CSS values directly and loaded SF Pro.
 - **Rev 2:** checked against the code. Every ID and data hook is now kept, so the JavaScript and tests are unaffected. A CSS-first approach replaced the plan to rewrite the dashboard markup. Added the CSP limit (no CDNs, no inline styles), the 8001 review copy, and the reduced-motion and reduced-transparency rules.
 - **Rev 5:** the owner changed the dashboard to a full rebuild. Added a glass sidebar (a bottom tab bar on phones), a new Today tile grid, Live call as Messages-style bubbles, Appointments as Apple Calendar (Day/Week/Month/Year), Tasks as Reminders, Calls as Mail, System as Settings, and Recovery as a guided flow. Added the feature checklist and the module split, and left out drag-to-move on purpose.
+- **Rev 6:** the owner asked for apple.com's colours exactly, with no switching for the device. All dark-mode rules were removed from the three pages.
 - **Rev 4:** the owner's answers. The talk page is light and follows dark mode. SF Pro is used by name from the installed fonts, with Inter only as a fallback. The glass is the apple.com recipe. The dashboard gets a full reskin with the same behaviour (superseded by rev 5).
 - **Rev 3:** checked against legal and the north star. Dropped the SF Pro files (licence) in favour of the system SF plus self-hosted Inter, and dropped all Apple assets and copy. Faster dashboard motion (60ms stagger instead of 150ms) so staff aren't slowed down. Glass is kept off tables for performance. The talk page keeps the orb as the focus so the call stays the hero. Nothing on the page says "automated", in line with the north star's honesty rule. (The current `<meta description>` says "automated receptionist": see question Q5.)
 
