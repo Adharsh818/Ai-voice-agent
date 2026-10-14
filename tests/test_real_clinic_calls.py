@@ -223,6 +223,22 @@ class ClosureTests(ClinicCallCase):
         self.assertTrue(self.clinic.db.run_sync(scheduling.remove_closure, out["id"], "staff"))
 
 
+class AskForOptionsTests(ClinicCallCase):
+    """Owner's phone call, 14 Oct: "Tell me the services, I'll choose one" ended in a callback offer."""
+
+    def test_asking_for_the_services_hears_them_all_and_is_not_a_miss(self):
+        call = Call()
+        call.run("", "I'd like to book an appointment.", "Adharsh", "9845012345", "yes")
+        reply = call.say("Tell me the services, I'll choose one.").text
+        for service in ("check-ups", "cleanings", "fillings", "root canals", "extractions", "braces"):
+            self.assertIn(service, reply)
+        self.assertNotIn("call", reply.lower())          # no callback offer
+        again = call.say("Tell me the services again please.").text
+        self.assertIn("cleanings", again)
+        self.assertNotIn("give you a call", again.lower())
+        self.assertIn("Nagarbhavi", call.say("Cleaning.").text)   # on to the branch
+
+
 class ForeignNumberTests(ClinicCallCase):
     def test_a_foreign_number_is_told_plainly_then_an_indian_one_works(self):
         call = Call()

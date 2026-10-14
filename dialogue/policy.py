@@ -227,6 +227,8 @@ def _from_workflow(ctx: CallContext, wf: GoalPlan, u: Optional[Understanding]) -
     line = wf.line or GOAL_LINES.get(wf.goal, "ask.intent")
     if rung > RUNG_ASK:
         line = _rung_line(wf.goal, rung, base=line)
+    if wf.goal == Goal.ASK_SERVICE and asks_for_options(ctx, wf.goal, u):
+        line = "ask.service.list"                    # "tell me the services": all of them, not the short version
     spec = GOAL_SPECS[wf.goal]
     return GoalPlan(goal=wf.goal, line=line, params=dict(wf.params), rung=rung,
                     critical=wf.critical or spec.critical,
@@ -489,10 +491,31 @@ def plan_hint(ctx: CallContext, catalog=None) -> GoalPlan:
 # ---------------------------------------------------------------- loop breaker
 
 
+# "Tell me the services, I'll choose one", "what treatments do you do?", "which branches are there?":
+# the caller wants the options read out (owner's phone call, 14 Oct: it was taken as a miss twice and
+# ended in a callback offer instead of the list).
+_ASKS_OPTIONS = re.compile(
+    r"\b(?:what|which|tell me|list|say|read|name|go through)\b.{0,30}?"
+    r"\b(?:services?|treatments?|options?|choices?|branches|branch|locations?|times|slots)\b"
+    r"|\bwhat (?:do|can) you (?:do|offer|have)\b|\bwhat (?:are|is) (?:there|available)\b",
+    re.IGNORECASE)
+
+
+def asks_for_options(ctx: CallContext, goal: Goal, u: Optional[Understanding]) -> bool:
+    """The caller asked Emma to list the answers to the question she just asked (one with a choices line)."""
+    if u is None or ctx.pending != goal or u.service or u.branch or u.date_phrase or u.time_phrase:
+        return False
+    if _rung_line(goal, RUNG_CHOICES) == _rung_line(goal, RUNG_ASK):
+        return False                                    # no list to read for this question
+    return bool(_ASKS_OPTIONS.search(u.raw_text or ""))
+
+
 def _is_miss(ctx: CallContext, goal: Goal, u: Optional[Understanding]) -> bool:
     """Emma asked `goal`, and this reply neither filled it nor did anything else that counts."""
     if u is None or ctx.pending != goal:
         return False
+    if asks_for_options(ctx, goal, u):
+        return False                                    # asking for the list is progress, not a miss
     if any(u.has(a) for a in _NOT_A_MISS) or u.correction:
         return False
     if u.intent in (Intent.BOOK, *MANAGE_INTENTS) and u.intent != ctx.intent:
@@ -558,6 +581,8 @@ def rung_for(ctx: CallContext, goal: Goal, u: Optional[Understanding] = None) ->
     rung = min(RUNG_EXIT, RUNG_ASK + misses)
     if u is not None and u.has(Act.NON_ANSWER) and ctx.pending == goal:
         rung = max(rung, RUNG_CHOICES)               # a non-answer to this question, not to an earlier one
+    if asks_for_options(ctx, goal, u):
+        rung = RUNG_CHOICES                          # read the options out, never jump past them to an exit
     return rung
 
 
