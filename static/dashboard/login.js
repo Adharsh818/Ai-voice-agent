@@ -57,3 +57,11 @@ form.addEventListener("submit", async (event) => {
 });
 
 checkStatus();
+
+// apple.com's staggered entrance: each block rises 30 px and fades in, 0.15 s after the one before.
+requestAnimationFrame(() => {
+  document.querySelectorAll(".reveal-item").forEach((node, i) => {
+    node.style.setProperty("--reveal-delay", `${i * 0.15}s`);
+    node.classList.add("revealed");
+  });
+});

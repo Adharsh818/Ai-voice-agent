@@ -5,32 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Emma · Pearl Dental</title>
   <meta name="description" content="Talk to Emma, Pearl Dental's automated receptionist.">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="light">
   <link rel="stylesheet" href="/static/talk.css">
 </head>
-<body>
-  <header class="masthead">
-    <p class="clinic">Pearl Dental</p>
-    <p class="who">Emma · Reception</p>
+<body data-call="off">
+  <header class="globalnav">
+    <nav class="gn-inner" aria-label="Pearl Dental">
+      <span class="gn-brand">Pearl Dental</span>
+    </nav>
   </header>
-  <main>
-    <button id="orb" data-state="idle" aria-label="Call Emma" aria-pressed="false" aria-describedby="status">
+  <main class="hero">
+    <div class="hero-copy">
+      <h1 class="reveal-item">Emma.</h1>
+      <p class="hero-sub reveal-item">Pearl Dental reception.</p>
+      <div class="hero-ctas reveal-item">
+        <button id="call-start" class="pill primary" type="button">Call Emma</button>
+        <button id="type-instead" class="pill secondary" type="button">Type instead</button>
+      </div>
+    </div>
+    <button id="orb" class="reveal-item" data-state="idle" aria-label="Call Emma" aria-pressed="false" aria-describedby="status">
       <span class="halo" aria-hidden="true"></span>
       <span class="core" aria-hidden="true"></span>
       <span class="ring" aria-hidden="true"></span>
     </button>
-    <p id="status" role="status">Tap the pearl to call Emma</p>
-    <p id="caption" aria-live="polite"></p>
-    <p id="heard" aria-live="polite"></p>
-    <div class="controls">
-      <button id="action" type="button" hidden>Try again</button>
-      <button id="type-instead" type="button" hidden>Type instead</button>
-      <button id="end-call" type="button" hidden>End call</button>
+    <div class="live">
+      <p id="status" role="status"></p>
+      <p id="caption" aria-live="polite"></p>
+      <p id="heard" aria-live="polite"></p>
+      <div class="controls">
+        <button id="action" class="pill primary" type="button" hidden>Try again</button>
+        <button id="end-call" class="pill end" type="button" hidden>End call</button>
+      </div>
+      <form id="typed" hidden autocomplete="off">
+        <input id="typed-text" type="text" placeholder="Type what the caller says, then Enter" aria-label="What the caller says">
+        <button class="pill primary" type="submit">Send</button>
+      </form>
     </div>
-    <form id="typed" hidden autocomplete="off">
-      <input id="typed-text" type="text" placeholder="Type what the caller says, then Enter" aria-label="What the caller says">
-      <button type="submit">Send</button>
-    </form>
   </main>
   <script type="module" src="/static/app.js"></script>
 </body>
