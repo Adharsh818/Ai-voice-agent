@@ -8,7 +8,7 @@
 // caller who gives "<script>" as their name stays plain text. All times are shown in the
 // clinic's timezone, whatever the browser's is.
 
-import { reveal, replay, segmented, toast as glassToast } from "/static/ui/emma-ui.js";
+import { reveal, replay, segmented, cardHover, toast as glassToast } from "/static/ui/emma-ui.js";
 
 let TZ = "Asia/Kolkata";
 const $ = (id) => document.getElementById(id);
@@ -1165,7 +1165,9 @@ function apptActions(r, small = false) {
 
 // Calendar's event inspector, a glass popover beside the event.
 let popoverFor = null;
+let popoverAnchor = null;
 function openPopover(r, anchor) {
+  popoverAnchor = anchor;
   const pop = $("appt-popover");
   if (popoverFor === r.id && !pop.hidden) { closePopover(); return; }
   document.querySelectorAll(".event.selected").forEach((n) => n.classList.remove("selected"));
@@ -1200,17 +1202,22 @@ function openPopover(r, anchor) {
   pop.style.left = `${left}px`;
   pop.style.top = `${top}px`;
 }
-function closePopover() {
+function closePopover(restoreFocus = false) {
   const pop = $("appt-popover");
   if (pop.hidden) return;
   pop.hidden = true;
   popoverFor = null;
+  if (restoreFocus && popoverAnchor && popoverAnchor.isConnected) popoverAnchor.focus();
   document.querySelectorAll(".event.selected").forEach((n) => n.classList.remove("selected"));
 }
 document.addEventListener("click", (event) => {
   if (!event.target.closest("#appt-popover") && !event.target.closest(".event")) closePopover();
 });
-document.addEventListener("keydown", (event) => { if (event.key === "Escape") closePopover(); });
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  closePopover(true);
+  if (!$("more-sheet").hidden) { $("more-sheet").hidden = true; $("tab-more").focus(); }
+});
 window.addEventListener("scroll", () => closePopover(), { passive: true });
 
 // Calendar's sidebar: a mini month and the doctors as show/hide "calendars".
@@ -2383,6 +2390,7 @@ async function start() {
   currentTab = "";
   showTab(wanted);
   reveal();
+  cardHover();
   setInterval(refreshOverview, 30000);
   setInterval(() => { if (currentTab === "appointments" && ["day", "week"].includes(appt.view)) renderAppointments(); }, 60000);
 }

@@ -10,8 +10,23 @@ const revealObserver = "IntersectionObserver" in window ? new IntersectionObserv
     if (!entry.isIntersecting) continue;
     entry.target.classList.add("is-in");
     revealObserver.unobserve(entry.target);
+    finishLater(entry.target);
   }
-}, { rootMargin: "0px 0px -12% 0px", threshold: 0.01 }) : null;
+}, { rootMargin: "0px 0px -15% 0px", threshold: 0 }) : null;   // apple.com: start "t - 85vh"
+
+// Like apple.com's "staggered-end": once every item has arrived, drop the reveal transition so
+// each element's own transitions (a card's hover lift) apply again.
+function finishLater(group) {
+  const css = getComputedStyle(group);
+  const ms = (name, fallback) => {
+    const v = css.getPropertyValue(name).trim();
+    return v ? parseFloat(v) * (v.endsWith("ms") ? 1 : 1000) : fallback;
+  };
+  const items = group.hasAttribute("data-reveal") ? group.children.length : 1;
+  const total = (items - 1) * ms("--reveal-step", 150) + Math.max(ms("--reveal-fade", 900), ms("--reveal-rise", 700));
+  clearTimeout(group._revealDone);
+  group._revealDone = setTimeout(() => group.classList.add("is-done"), total + 50);
+}
 
 export function reveal(root = document) {
   const groups = [];
@@ -22,17 +37,32 @@ export function reveal(root = document) {
       [...group.children].forEach((child, i) => child.style.setProperty("--i", String(i)));
     }
     if (reducedMotion() || !revealObserver) {
-      group.classList.add("is-in");
+      group.classList.add("is-in", "is-done");
     } else {
       revealObserver.observe(group);
     }
   }
 }
 
+// apple.com's card hover (overview Card component): --card-element-scale = (width + 6) / width,
+// recomputed on resize, so every card grows by exactly 6 px whatever its size.
+const cardObserver = "ResizeObserver" in window ? new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const width = entry.target.offsetWidth;          // layout width, unaffected by the hover transform
+    if (width > 0) entry.target.style.setProperty("--card-element-scale", ((width + 6) / width).toFixed(5));
+  }
+}) : null;
+
+export function cardHover(root = document) {
+  if (!cardObserver) return;
+  root.querySelectorAll(".tile-hover").forEach((card) => cardObserver.observe(card));
+}
+
 // Re-run a group's reveal (a dashboard section opened again).
 export function replay(group) {
   if (!group) return;
-  group.classList.remove("is-in");
+  clearTimeout(group._revealDone);
+  group.classList.remove("is-in", "is-done");
   void group.offsetWidth;          // restart the transition from the hidden state
   reveal(group);
 }
