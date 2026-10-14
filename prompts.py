@@ -183,6 +183,8 @@ LINES: dict[str, LineSpec] = {
     "ask.service.rephrase": _l("'Is it a check-up, or is something bothering you?'"),
     "ask.service.choices": _l("'We do check-ups, cleanings, fillings, root canals, extractions, braces and "
                               "children's dentistry. Which one is it?'"),
+    "ask.service.list": _l("The caller asked what the clinic does. 'We do check-ups, cleanings, fillings, root "
+                           "canals, extractions, braces and children's dentistry. Which would you like?'"),
     "clarify.service": _l("Ambiguous service. 'Is that {options}?'", "options"),
     "service.unknown": _l("Notice: a treatment not bookable directly. 'For {phrase}, I'll book you a "
                           "consultation first, where the plan and the cost are worked out.'", "phrase", critical=True),
@@ -496,6 +498,11 @@ VARIANTS: dict[str, tuple] = {
     "ask.service.choices": ("We do check-ups, cleanings, fillings, root canals, extractions, braces and "
                             "children's dentistry. Which one is it?",
                             "Is it a cleaning, a filling, a check-up, or something else?"),
+    # Asked for outright ("tell me the services"): every service, never the short version.
+    "ask.service.list": ("Of course. We do check-ups, cleanings, fillings, root canals, extractions, braces and "
+                         "children's dentistry. Which would you like?",
+                         "Sure. There's check-ups, cleanings, fillings, root canals, extractions, braces and "
+                         "children's dentistry. Which one would you like?"),
     "clarify.service": ("Is that {options}?", "Just to check, is it {options}?"),
     "service.unknown": ("For {phrase}, I'll book you a consultation first, where the plan and the cost are worked out.",
                         "For {phrase}, the first visit is a consultation, and you get the plan and the cost there."),
