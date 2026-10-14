@@ -1,0 +1,288 @@
+/* Talk page, styled like an apple.com product hero (docs/APPLE_DESIGN_PLAN.md 4.2):
+   a glass bar, "Emma." as the headline, the orb as a glass sphere that moves with the voice,
+   and pill buttons. Light by default, dark with the device. The orb's states and ids are the
+   ones app.js drives; the patient page keeps app.css. */
+
+body.talk {
+  --lvl: 0;
+  --tint: #9aa6bd;
+  --t-idle: #9aa6bd;
+  --t-listening: #34c759;
+  --t-thinking: #5e5ce6;
+  --t-speaking: #0071e3;
+  --t-error: #ff3b30;
+  --t-busy: #ff9f0a;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow-x: hidden;
+}
+
+/* ------------------------------------------------------------------ glass bar */
+.talk-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: 44px;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.talk-nav-inner {
+  max-width: 1024px;
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.talk-nav .pearl { --size: 18px; }
+.talk-nav-name { font-weight: 600; font-size: 14px; letter-spacing: -0.016em; }
+.talk-nav-link {
+  margin-left: auto;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  opacity: 0.8;
+  transition: opacity var(--t) var(--ease);
+}
+.talk-nav-link:hover { opacity: 1; text-decoration: none; }
+
+/* ------------------------------------------------------------------ hero */
+.talk-main {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0;
+  padding: clamp(36px, 7vh, 80px) 16px 40px;
+  text-align: center;
+}
+
+.hero { display: grid; justify-items: center; gap: 6px; transition: opacity var(--t) var(--ease), transform var(--t) var(--ease); }
+.hero-title { margin: 0; }
+.hero-sub { margin: 0; color: var(--ink-2); }
+
+/* In a call the headline steps back and a status line takes its place (cross-fade). */
+.hero-stack { display: grid; place-items: center; }
+.hero-stack > * { grid-area: 1 / 1; }
+.call-status {
+  margin: 0;
+  opacity: 0;
+  color: var(--ink);
+  transform: translateY(8px);
+  transition: opacity var(--t) var(--ease), transform var(--t) var(--ease);
+}
+body:not([data-call="idle"]) .call-status { opacity: 1; transform: none; }
+body:not([data-call="idle"]) .hero { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+body[data-call="busy"] .call-status,
+body[data-call="lost"] .call-status,
+body[data-call="blocked"] .call-status,
+body[data-call="error"] .call-status { opacity: 0; }
+body[data-call="busy"] .hero,
+body[data-call="lost"] .hero,
+body[data-call="blocked"] .hero,
+body[data-call="error"] .hero { opacity: 1; transform: none; }
+
+/* ------------------------------------------------------------------ the orb: a glass sphere */
+#orb {
+  --size: min(52vmin, 300px);
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  margin: clamp(34px, 6vh, 64px) 0 clamp(26px, 4vh, 40px);
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 200ms var(--ease);
+}
+#orb:active { transform: scale(0.96); }
+#orb:focus-visible { outline: 2px solid var(--focus); outline-offset: 14px; }
+
+#orb .core, #orb .halo, #orb .ring, #orb .gloss {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Frosted glass with the state colour glowing from inside. */
+#orb .core {
+  background:
+    radial-gradient(circle at 50% 62%, color-mix(in srgb, var(--tint) 58%, transparent) 0%, transparent 62%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.92) 0%, rgba(246, 247, 250, 0.86) 48%, rgba(222, 226, 235, 0.9) 100%);
+  box-shadow:
+    inset 0 -18px 40px color-mix(in srgb, var(--tint) 28%, transparent),
+    inset 0 2px 1px rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    0 30px 60px -24px color-mix(in srgb, var(--tint) 55%, transparent),
+    0 2px 6px rgba(0, 0, 0, 0.06);
+  transform: scale(calc(0.92 + var(--lvl) * 0.16));
+  transition: background 480ms var(--ease), box-shadow 480ms var(--ease), transform 70ms linear;
+}
+/* the specular highlight that sells the glass */
+#orb .gloss {
+  inset: 6% 18% 52% 18%;
+  border-radius: 50% / 46%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
+  opacity: 0.9;
+  transform: scale(calc(0.92 + var(--lvl) * 0.16));
+  transform-origin: 50% 160%;
+  transition: transform 70ms linear;
+}
+#orb .halo {
+  inset: -22%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--tint) 70%, transparent) 0%, transparent 62%);
+  opacity: calc(0.18 + var(--lvl) * 0.65);
+  filter: blur(14px);
+  transition: opacity 90ms linear, background 480ms var(--ease);
+}
+#orb .ring {
+  inset: -6%;
+  opacity: 0;
+  background: conic-gradient(from 0deg, transparent 0 68%, var(--tint) 100%);
+  -webkit-mask: radial-gradient(circle, transparent 67%, #000 68%, #000 70%, transparent 71%);
+          mask: radial-gradient(circle, transparent 67%, #000 68%, #000 70%, transparent 71%);
+  transition: opacity var(--t) var(--ease);
+}
+
+#orb[data-state="idle"] { --tint: var(--t-idle); }
+#orb[data-state="idle"] .core { animation: float 6s var(--ease) infinite; }
+#orb[data-state="idle"]:hover .core { transform: scale(0.95); }
+#orb[data-state="connecting"] { --tint: var(--t-idle); }
+#orb[data-state="connecting"] .core { animation: pulse 1.4s var(--ease) infinite; }
+#orb[data-state="listening"] { --tint: var(--t-listening); }
+#orb[data-state="listening"] .halo { animation: breathe 4s var(--ease) infinite; }
+#orb[data-state="thinking"] { --tint: var(--t-thinking); }
+#orb[data-state="thinking"] .ring { opacity: 1; animation: spin 1.4s linear infinite; }
+#orb[data-state="speaking"] { --tint: var(--t-speaking); }
+#orb[data-state="error"], #orb[data-state="lost"], #orb[data-state="blocked"] { --tint: var(--t-error); }
+#orb[data-state="busy"] { --tint: var(--t-busy); }
+
+@keyframes float { 50% { transform: scale(0.94) translateY(-4px); } }
+@keyframes pulse { 50% { transform: scale(0.86); opacity: 0.75; } }
+@keyframes breathe { 50% { transform: scale(1.06); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ------------------------------------------------------------------ caption */
+#caption {
+  margin: 0;
+  max-width: min(88vw, 680px);
+  min-height: 2.4em;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.009em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  animation: caption-in var(--t) var(--ease) both;
+}
+#caption:empty { animation: none; }
+#caption.user { color: var(--ink-2); font-weight: 400; }
+#caption.notice { color: var(--ink-2); font-weight: 400; font-size: 19px; }
+#caption.error { color: var(--red-ink); font-weight: 400; font-size: 19px; }
+@keyframes caption-in { from { opacity: 0.4; } to { opacity: 1; } }
+
+/* ------------------------------------------------------------------ buttons */
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 22px;
+  min-height: 44px;
+}
+body[data-call="connecting"] #call-button,
+body[data-call="listening"] #call-button,
+body[data-call="thinking"] #call-button,
+body[data-call="speaking"] #call-button { background: var(--red); }
+body[data-call="connecting"] #call-button:hover,
+body[data-call="listening"] #call-button:hover,
+body[data-call="thinking"] #call-button:hover,
+body[data-call="speaking"] #call-button:hover { background: #ff453a; }
+/* A problem shows its own "Try again"; the call button steps aside. */
+body[data-call="busy"] #call-button,
+body[data-call="lost"] #call-button,
+body[data-call="blocked"] #call-button,
+body[data-call="error"] #call-button { display: none; }
+
+/* ------------------------------------------------------------------ typed backup: a floating glass pill */
+.typed {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(92vw, 600px);
+  height: 56px;
+  padding: 0 8px 0 22px;
+  transform: translateX(-50%);
+  animation: pill-in var(--t) var(--ease-layout) both;
+}
+.typed[hidden] { display: none; }
+.typed input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+  outline: none;
+}
+.typed-send {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease-color), transform 160ms var(--ease);
+}
+.typed-send:hover { background: var(--blue-hover); }
+.typed-send:active { transform: scale(0.92); }
+@keyframes pill-in { from { opacity: 0; transform: translate(-50%, 16px) scale(0.96); } to { opacity: 1; transform: translateX(-50%); } }
+
+.talk-footer { padding: 16px 22px 22px; text-align: center; }
+.talk-footer p { margin: 0; }
+body:has(.typed:not([hidden])) .talk-footer { visibility: hidden; }
+body:has(.typed:not([hidden])) .talk-main { padding-bottom: 104px; }
+
+/* ------------------------------------------------------------------ dark */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body.talk { --t-idle: #8e97ab; }
+  :root:not([data-theme="light"]) #orb .core {
+    background:
+      radial-gradient(circle at 50% 62%, color-mix(in srgb, var(--tint) 62%, transparent) 0%, transparent 64%),
+      radial-gradient(circle at 50% 50%, rgba(70, 72, 80, 0.9) 0%, rgba(40, 41, 46, 0.92) 55%, rgba(24, 24, 27, 0.96) 100%);
+    box-shadow:
+      inset 0 -18px 40px color-mix(in srgb, var(--tint) 34%, transparent),
+      inset 0 1px 1px rgba(255, 255, 255, 0.28),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+      0 30px 70px -24px color-mix(in srgb, var(--tint) 65%, transparent);
+  }
+  :root:not([data-theme="light"]) #orb .gloss { opacity: 0.14; inset: 7% 24% 58% 24%; }
+}
+
+@media (max-width: 734px) {
+  .talk-main { padding-top: 32px; }
+  #caption { font-size: 21px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #orb .core, #orb .halo, #orb .ring, #orb .gloss { animation: none !important; }
+  #orb .core, #orb .gloss { transform: none; }
+  #orb[data-state="thinking"] .ring { opacity: 0.6; }
+}

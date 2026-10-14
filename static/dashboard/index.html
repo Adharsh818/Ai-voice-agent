@@ -2,116 +2,198 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Dashboard · Pearl Dental</title>
-  <meta name="description" content="Pearl Dental staff dashboard: live call, appointments, tasks, calls and system status.">
+  <meta name="description" content="Pearl Dental staff dashboard: today, live call, appointments, tasks, calls and system status.">
+  <link rel="stylesheet" href="/static/ui/emma-ui.css">
   <link rel="stylesheet" href="/dashboard/static/dashboard.css">
 </head>
-<body>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <div>
-          <div class="brand-name">Pearl Dental</div>
-          <div class="brand-sub">Staff dashboard</div>
+<body class="dash">
+  <svg width="0" height="0" class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-today" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-live" viewBox="0 0 24 24"><path d="M5 14v-4M9 17V7M13 19V5M17 16V8M21 13v-2"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+    <symbol id="i-tasks" viewBox="0 0 24 24"><circle cx="5.5" cy="7" r="2"/><circle cx="5.5" cy="17" r="2"/><path d="M10.5 7h10M10.5 17h10"/></symbol>
+    <symbol id="i-calls" viewBox="0 0 24 24"><path d="M6.6 3.8 9 6.2a1.5 1.5 0 0 1 0 2.1L7.8 9.5a12 12 0 0 0 6.7 6.7l1.2-1.2a1.5 1.5 0 0 1 2.1 0l2.4 2.4a1.5 1.5 0 0 1 0 2.1l-1.3 1.3c-.9.9-2.3 1.2-3.5.7A19 19 0 0 1 3.5 9.6c-.5-1.2-.2-2.6.7-3.5l1.3-1.3a1.5 1.5 0 0 1 2.1 0Z"/></symbol>
+    <symbol id="i-recovery" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/></symbol>
+    <symbol id="i-system" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></symbol>
+    <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5 5"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l4-4-4-4M14 12H4"/></symbol>
+    <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></symbol>
+  </svg>
+
+  <div class="app">
+    <!-- Sidebar (Mail / Settings style). Below 734 px it becomes the bottom tab bar. -->
+    <aside class="sidebar glass-bar" id="sidebar" aria-label="Dashboard sections">
+      <div class="side-brand">
+        <span class="pearl" aria-hidden="true"></span>
+        <div class="side-brand-text">
+          <div class="side-brand-name">Pearl Dental</div>
+          <div class="side-brand-sub" id="me-name">Staff dashboard</div>
         </div>
       </div>
-      <div class="chips" id="chips">
-        <button class="chip" id="chip-call" type="button" data-go="live"><span class="dot"></span><span>No call</span></button>
-        <button class="chip" id="chip-tasks" type="button" data-go="tasks">Tasks <strong>0</strong></button>
-        <button class="chip" id="chip-sync" type="button" data-go="system" hidden>Calendar <strong>0 failed</strong></button>
-      </div>
-      <button class="btn small ghost" id="logout" type="button">Log out</button>
-    </div>
-    <nav class="tabs" role="tablist" aria-label="Dashboard sections">
-      <button class="tab" role="tab" data-tab="live" aria-selected="true">Live call</button>
-      <button class="tab" role="tab" data-tab="appointments" aria-selected="false">Appointments</button>
-      <button class="tab" role="tab" data-tab="tasks" aria-selected="false">Tasks <span class="count" id="tab-task-count" hidden></span></button>
-      <button class="tab" role="tab" data-tab="calls" aria-selected="false">Calls</button>
-      <button class="tab" role="tab" data-tab="recovery" aria-selected="false">Recovery</button>
-      <button class="tab" role="tab" data-tab="system" aria-selected="false">System</button>
-    </nav>
-    <div class="alerts" id="alerts" role="status" aria-live="polite" hidden></div>
-  </header>
 
-  <main>
-    <!-- Live call -------------------------------------------------------->
-    <section class="view" id="view-live" role="tabpanel">
-      <div class="view-head">
-        <h2>Live call</h2>
-        <p class="muted small">Captions and timings as the call happens. With more than one call on, pick the one to follow above the transcript.</p>
+      <nav class="side-nav" role="tablist" aria-label="Sections">
+        <button class="side-item" role="tab" data-tab="today" aria-selected="true">
+          <svg class="ico"><use href="#i-today"/></svg><span class="side-label">Today</span></button>
+        <button class="side-item" role="tab" data-tab="live" aria-selected="false">
+          <svg class="ico"><use href="#i-live"/></svg><span class="side-label">Live call</span>
+          <span class="side-live" id="side-live" hidden><span class="live-dot"></span><span id="side-live-time" class="num"></span></span></button>
+        <button class="side-item" role="tab" data-tab="appointments" aria-selected="false">
+          <svg class="ico"><use href="#i-calendar"/></svg><span class="side-label">Appointments</span>
+          <span class="side-count num" id="side-appt-count" hidden></span></button>
+        <button class="side-item" role="tab" data-tab="tasks" aria-selected="false">
+          <svg class="ico"><use href="#i-tasks"/></svg><span class="side-label">Tasks</span>
+          <span class="side-count num" id="tab-task-count" hidden></span></button>
+        <button class="side-item" role="tab" data-tab="calls" aria-selected="false">
+          <svg class="ico"><use href="#i-calls"/></svg><span class="side-label">Calls</span></button>
+        <button class="side-item" role="tab" data-tab="recovery" aria-selected="false">
+          <svg class="ico"><use href="#i-recovery"/></svg><span class="side-label">Recovery</span>
+          <span class="side-badge" id="side-recovery-badge" hidden></span></button>
+        <button class="side-item" role="tab" data-tab="system" aria-selected="false">
+          <svg class="ico"><use href="#i-system"/></svg><span class="side-label">System</span>
+          <span class="side-badge alert" id="chip-sync" hidden></span></button>
+      </nav>
+
+      <!-- Calendar's sidebar: mini month and the doctors as "calendars". Only on Appointments. -->
+      <div class="side-calendar" id="side-calendar" hidden>
+        <div class="mini-month" id="mini-month" aria-label="Pick a day"></div>
+        <div class="side-section-title">Doctors</div>
+        <div class="doctor-toggles" id="cal-doctors"></div>
       </div>
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head">
-            <h3>Conversation</h3>
-            <span class="state-pill" id="live-state">Idle</span>
-          </div>
-          <div class="call-switcher" id="live-calls" hidden></div>
-          <div class="transcript" id="live-transcript" aria-live="polite"></div>
-          <div class="empty" id="live-empty">No call right now. Start one from the <a href="/" target="_blank" rel="noopener">talk page</a>.</div>
-          <div class="operator" id="live-controls" hidden>
-            <div class="toolbar">
-              <button class="btn" type="button" id="op-takeover">Take over</button>
-              <button class="btn" type="button" id="op-handback" hidden>Hand back to Emma</button>
-              <span class="spacer"></span>
-              <button class="btn danger" type="button" id="op-end">End call + task</button>
+
+      <div class="side-foot">
+        <button class="side-item quiet" id="logout" type="button">
+          <svg class="ico"><use href="#i-out"/></svg><span class="side-label">Log out</span></button>
+      </div>
+    </aside>
+
+    <!-- Phone tab bar -->
+    <nav class="tabbar glass-bar" id="tabbar" aria-label="Sections">
+      <button class="tab-item" data-tab="today"><svg class="ico"><use href="#i-today"/></svg><span>Today</span></button>
+      <button class="tab-item" data-tab="live"><svg class="ico"><use href="#i-live"/></svg><span>Live</span><span class="tab-dot" id="tab-live-dot" hidden></span></button>
+      <button class="tab-item" data-tab="appointments"><svg class="ico"><use href="#i-calendar"/></svg><span>Calendar</span></button>
+      <button class="tab-item" data-tab="tasks"><svg class="ico"><use href="#i-tasks"/></svg><span>Tasks</span><span class="tab-badge num" id="tab-task-badge" hidden></span></button>
+      <button class="tab-item" data-tab="more" id="tab-more"><svg class="ico"><use href="#i-more"/></svg><span>More</span></button>
+    </nav>
+    <div class="more-sheet glass-bar" id="more-sheet" hidden>
+      <button class="side-item" data-go="calls"><svg class="ico"><use href="#i-calls"/></svg><span class="side-label">Calls</span></button>
+      <button class="side-item" data-go="recovery"><svg class="ico"><use href="#i-recovery"/></svg><span class="side-label">Recovery</span></button>
+      <button class="side-item" data-go="system"><svg class="ico"><use href="#i-system"/></svg><span class="side-label">System</span></button>
+      <button class="side-item" data-action="logout"><svg class="ico"><use href="#i-out"/></svg><span class="side-label">Log out</span></button>
+    </div>
+
+    <main class="content" id="content">
+      <div class="alerts" id="alerts" role="status" aria-live="polite" hidden></div>
+
+      <!-- Today ----------------------------------------------------------------->
+      <section class="view" id="view-today" role="tabpanel" aria-labelledby="h-today">
+        <header class="view-bar glass-bar"><span class="bar-title">Today</span><span class="bar-actions"></span></header>
+        <div class="view-head">
+          <p class="eyebrow" id="today-date"></p>
+          <h1 class="t-large-title" id="h-today">Today</h1>
+        </div>
+        <div class="today-grid" data-reveal="fast" id="today-grid">
+          <button class="tile tile-hover today-tile wide" data-go="live" id="today-live" type="button"></button>
+          <button class="tile tile-hover today-tile wide" data-go="appointments" id="today-appts" type="button"></button>
+          <button class="tile tile-hover today-tile" data-go="tasks" id="today-tasks" type="button"></button>
+          <button class="tile tile-hover today-tile" data-go="calls" id="today-calls" type="button"></button>
+          <button class="tile tile-hover today-tile" data-go="recovery" id="today-recovery" type="button"></button>
+          <button class="tile tile-hover today-tile" data-go="system" id="today-system" type="button"></button>
+        </div>
+      </section>
+
+      <!-- Live call (Messages style) ------------------------------------------>
+      <section class="view" id="view-live" role="tabpanel" aria-labelledby="h-live" hidden>
+        <header class="view-bar glass-bar"><span class="bar-title">Live call</span>
+          <span class="bar-actions"><span class="state-pill" id="live-state-bar">Idle</span></span></header>
+        <div class="view-head">
+          <h1 class="t-large-title" id="h-live">Live call</h1>
+        </div>
+        <div class="live-layout">
+          <div class="chat">
+            <div class="call-switcher" id="live-calls" hidden></div>
+            <div class="transcript" id="live-transcript" aria-live="polite"></div>
+            <div class="chat-empty" id="live-empty">
+              <span class="pearl big" aria-hidden="true"></span>
+              <p class="t-section">No call right now</p>
+              <p class="t-small ink-2">When someone calls, the conversation appears here as it happens.
+                Try one from the <a href="/" target="_blank" rel="noopener">talk page</a>.</p>
             </div>
-            <form class="toolbar" id="op-form" hidden>
-              <input id="op-text" maxlength="400" placeholder="Type what to say to the caller" aria-label="Line to say" autocomplete="off">
-              <button class="btn primary" type="submit">Say</button>
+            <button class="jump glass-pill" id="live-jump" type="button" hidden>Jump to latest</button>
+            <form class="compose" id="op-form" hidden autocomplete="off">
+              <input id="op-text" class="compose-input" maxlength="400" placeholder="Say something to the caller" aria-label="Line to say">
+              <button class="compose-send" type="submit" aria-label="Say it">↑</button>
             </form>
           </div>
-        </div>
-        <div class="live-status">
-          <div class="card">
-            <div class="card-head"><h3>Call</h3></div>
-            <dl class="kv">
-              <dt>Call</dt><dd id="live-call" class="mono">–</dd>
-              <dt>Duration</dt><dd id="live-duration" class="num">–</dd>
-              <dt>Goal</dt><dd id="live-goal">–</dd>
-              <dt>Last tier</dt><dd id="live-tier">–</dd>
-              <dt>Outcome</dt><dd id="live-outcome">–</dd>
-            </dl>
-            <div class="entities" id="live-entities"></div>
-          </div>
-          <div class="card">
-            <div class="card-head"><h3>Turn timings</h3><span class="muted small">ms</span></div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Turn</th><th>Tier</th><th title="Caller stopped → Emma audible">Heard</th><th>End of speech</th><th>Understanding</th><th>First audio</th></tr></thead>
-                <tbody id="live-turns"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- Appointments ------------------------------------------------------>
-    <section class="view" id="view-appointments" role="tabpanel" hidden>
-      <div class="view-head">
-        <h2>Appointments</h2>
-        <p class="muted small" id="appt-summary"></p>
-      </div>
-      <div class="card">
-        <div class="toolbar">
-          <div class="segmented" id="appt-scope" role="group" aria-label="Which appointments">
-            <button type="button" data-scope="day" aria-pressed="true">Day</button>
-            <button type="button" data-scope="upcoming" aria-pressed="false">Upcoming</button>
-            <button type="button" data-scope="past" aria-pressed="false">Past</button>
-            <button type="button" data-scope="all" aria-pressed="false">All</button>
+          <aside class="inspector">
+            <div class="inspector-card">
+              <div class="inspector-head">
+                <span class="t-section">This call</span>
+                <span class="state-pill" id="live-state">Idle</span>
+              </div>
+              <dl class="kv">
+                <dt>Call</dt><dd id="live-call" class="mono">–</dd>
+                <dt>Duration</dt><dd id="live-duration" class="num">–</dd>
+                <dt>Doing</dt><dd id="live-goal">–</dd>
+                <dt>Answered by</dt><dd id="live-tier">–</dd>
+                <dt>Outcome</dt><dd id="live-outcome">–</dd>
+              </dl>
+              <div class="entities" id="live-entities"></div>
+              <div class="operator" id="live-controls" hidden>
+                <button class="btn-pill block" type="button" id="op-takeover">Take over</button>
+                <button class="btn-pill block gray" type="button" id="op-handback" hidden>Hand back to Emma</button>
+                <button class="btn-pill block danger" type="button" id="op-end">End call + task</button>
+              </div>
+            </div>
+            <details class="inspector-card disclosure">
+              <summary><span class="t-body">Turn timings</span><span class="t-caption ink-2">ms</span></summary>
+              <div class="table-wrap">
+                <table class="table compact">
+                  <thead><tr><th>Turn</th><th>Tier</th><th title="Caller stopped → Emma audible">Heard</th><th>End of speech</th><th>Understanding</th><th>First audio</th></tr></thead>
+                  <tbody id="live-turns"></tbody>
+                </table>
+              </div>
+            </details>
+          </aside>
+        </div>
+      </section>
+
+      <!-- Appointments (Calendar) ---------------------------------------------->
+      <section class="view view-calendar" id="view-appointments" role="tabpanel" aria-labelledby="h-appointments" hidden>
+        <header class="view-bar glass-bar cal-toolbar">
+          <span class="bar-title">Appointments</span>
+          <div class="segmented" id="cal-view" role="group" aria-label="Calendar view">
+            <button type="button" data-view="day" aria-pressed="true">Day</button>
+            <button type="button" data-view="week" aria-pressed="false">Week</button>
+            <button type="button" data-view="month" aria-pressed="false">Month</button>
+            <button type="button" data-view="year" aria-pressed="false">Year</button>
+            <button type="button" data-view="list" aria-pressed="false">List</button>
           </div>
-          <span id="appt-day-controls" class="toolbar">
-            <button class="btn small" type="button" id="appt-prev" aria-label="Previous day">‹</button>
-            <input type="date" id="appt-day" aria-label="Day">
-            <button class="btn small" type="button" id="appt-next" aria-label="Next day">›</button>
-            <button class="btn small" type="button" id="appt-today">Today</button>
+          <span class="bar-actions">
+            <label class="search-field"><svg class="ico"><use href="#i-search"/></svg>
+              <input type="search" id="appt-search" placeholder="Search" aria-label="Search name, phone or ID"></label>
+            <button class="icon-btn" type="button" id="appt-new" aria-label="New appointment" title="New appointment"><svg class="ico"><use href="#i-plus"/></svg></button>
           </span>
-          <select id="appt-branch" aria-label="Branch"><option value="">All branches</option></select>
-          <select id="appt-doctor" aria-label="Doctor"><option value="">All doctors</option></select>
-          <select id="appt-status" aria-label="Status">
+        </header>
+        <div class="cal-head">
+          <h1 class="cal-title" id="h-appointments"><span id="cal-title-main">Appointments</span> <span class="ink-2" id="cal-title-sub"></span></h1>
+          <div class="cal-nav">
+            <button class="icon-btn" type="button" id="appt-prev" aria-label="Previous"><svg class="ico"><use href="#i-chev-l"/></svg></button>
+            <button class="btn-pill small gray" type="button" id="appt-today">Today</button>
+            <button class="icon-btn" type="button" id="appt-next" aria-label="Next"><svg class="ico"><use href="#i-chev-r"/></svg></button>
+          </div>
+        </div>
+        <div class="cal-filters">
+          <select id="appt-branch" class="select" aria-label="Branch"><option value="">All branches</option></select>
+          <select id="appt-doctor" class="select" aria-label="Doctor"><option value="">All doctors</option></select>
+          <select id="appt-status" class="select" aria-label="Status">
             <option value="">Any status</option>
             <option value="booked">Booked</option>
             <option value="needs_reschedule">Needs reschedule</option>
@@ -119,324 +201,298 @@
             <option value="completed">Completed</option>
             <option value="no_show">No-show</option>
           </select>
-          <select id="appt-group" aria-label="Group by">
+          <span class="list-only segmented" id="appt-scope" role="group" aria-label="Which appointments" hidden>
+            <button type="button" data-scope="upcoming" aria-pressed="true">Upcoming</button>
+            <button type="button" data-scope="past" aria-pressed="false">Past</button>
+            <button type="button" data-scope="all" aria-pressed="false">All</button>
+          </span>
+          <select id="appt-group" class="select list-only" aria-label="Group by" hidden>
             <option value="">No grouping</option>
             <option value="branch">By branch</option>
             <option value="doctor">By doctor</option>
           </select>
-          <input type="search" id="appt-search" placeholder="Search name, phone or ID" aria-label="Search">
+          <input type="date" id="appt-day" class="input" aria-label="Go to day">
           <span class="spacer"></span>
-          <button class="btn" type="button" id="appt-export">Export CSV</button>
-          <button class="btn primary" type="button" id="appt-new">New appointment</button>
+          <span class="t-caption ink-2" id="appt-summary"></span>
+          <button class="btn-pill small text" type="button" id="appt-export">Export CSV</button>
         </div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>When</th><th>Patient</th><th>Phone</th><th>Service</th><th>Doctor</th><th>Branch</th><th>Status</th><th title="Google Calendar">Cal</th><th></th></tr></thead>
-          <tbody id="appt-rows"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Tasks ------------------------------------------------------------->
-    <section class="view" id="view-tasks" role="tabpanel" hidden>
-      <div class="view-head">
-        <h2>Tasks</h2>
-        <p class="muted small">Every "someone will call you back" Emma promises is here.</p>
-      </div>
-      <div class="toolbar">
-        <div class="segmented" id="task-filter" role="group" aria-label="Which tasks">
-          <button type="button" data-status="open" aria-pressed="true">Open</button>
-          <button type="button" data-status="done" aria-pressed="false">Done</button>
-          <button type="button" data-status="all" aria-pressed="false">All</button>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Done</th><th>Priority</th><th>Kind</th><th>Note</th><th>Phone</th><th>Created</th><th>Due</th><th>Call</th></tr></thead>
-          <tbody id="task-rows"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Calls ------------------------------------------------------------->
-    <section class="view" id="view-calls" role="tabpanel" hidden>
-      <div class="view-head">
-        <h2>Calls</h2>
-        <p class="muted small" id="calls-retention">Transcripts only, no audio.</p>
-      </div>
-      <div class="grid-2">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Started</th><th>Length</th><th>Outcome</th><th>Via</th><th>Phone</th><th>Turns</th></tr></thead>
-            <tbody id="call-rows"></tbody>
-          </table>
-        </div>
-        <div class="card" id="call-detail">
-          <div class="empty">Pick a call to read its transcript.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Recovery (doctor unavailable) ------------------------------------>
-    <section class="view" id="view-recovery" role="tabpanel" hidden>
-      <div class="view-head">
-        <h2>Doctor unavailable</h2>
-        <p class="muted small">Block a doctor, check who is affected, then let Emma call them to find a new time.
-          Calls ring the patient's phone: the <a href="/patient" target="_blank" rel="noopener">patient page</a>,
-          and the SIP phone when phone calls are set up.</p>
-      </div>
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>1. Block a doctor</h3></div>
-          <form id="block-form" class="form-grid">
-            <label class="field">Doctor
-              <select id="block-doctor" required></select>
-            </label>
-            <label class="field">From
-              <input type="datetime-local" id="block-start" required step="1800">
-            </label>
-            <label class="field">To
-              <input type="datetime-local" id="block-end" required step="1800">
-            </label>
-            <label class="field">Reason (never told to patients)
-              <select id="block-reason"></select>
-            </label>
-            <label class="field">Note (optional)
-              <input id="block-note" maxlength="200" placeholder="e.g. called in sick">
-            </label>
-            <div class="toolbar"><button class="btn primary" type="submit">Block and preview</button></div>
-          </form>
-          <div class="error-box" id="block-error" hidden></div>
-          <h4>Active blocks</h4>
+        <div class="cal-body" id="cal-body"></div>
+        <div class="list-view" id="list-view" hidden>
           <div class="table-wrap">
-            <table>
-              <thead><tr><th>Doctor</th><th>From</th><th>To</th><th>Reason</th><th></th></tr></thead>
-              <tbody id="block-rows"></tbody>
+            <table class="table">
+              <thead><tr><th>When</th><th>Patient</th><th>Phone</th><th>Service</th><th>Doctor</th><th>Branch</th><th>Status</th><th title="Google Calendar">Cal</th><th></th></tr></thead>
+              <tbody id="appt-rows"></tbody>
             </table>
           </div>
         </div>
-        <div class="card" id="preview-card">
-          <div class="card-head">
-            <h3>2. Affected appointments</h3>
-            <button class="btn primary" type="button" id="campaign-start" disabled>Start recovery calls</button>
-          </div>
-          <p class="muted small" id="preview-summary">Block a doctor or pick a block to see who is affected.</p>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Call</th><th>Patient</th><th>Phone</th><th>Appointment</th><th>Service</th></tr></thead>
-              <tbody id="preview-rows"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head">
-          <h3>3. Recovery calls</h3>
-          <span class="badge" id="runner-state">–</span>
-        </div>
-        <p class="muted small" id="runner-detail"></p>
-        <div id="campaign-list"></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h3>Patients' calling hours</h3>
-          <span class="muted small">Recovery calls to this number only ring inside these hours (and the clinic's).</span></div>
-        <form class="toolbar" id="window-form">
-          <input type="tel" id="window-phone" placeholder="Phone number" aria-label="Phone number" required>
-          <label class="small">After <input type="time" id="window-after" aria-label="Call after"></label>
-          <label class="small">Before <input type="time" id="window-before" aria-label="Call before"></label>
-          <button class="btn" type="submit">Save</button>
-        </form>
-        <div class="table-wrap">
-          <table><thead><tr><th>Phone</th><th>Call after</th><th>Call before</th></tr></thead>
-            <tbody id="window-rows"></tbody></table>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- System ------------------------------------------------------------>
-    <section class="view" id="view-system" role="tabpanel" hidden>
-      <div class="view-head"><h2>System</h2></div>
-      <div class="card">
-        <div class="card-head"><h3>How Emma is doing</h3><span class="muted small">real calls, last 7 days</span></div>
-        <div class="table-wrap" id="perf-body"><p class="muted">Loading…</p></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h3>Messages to patients</h3><span id="msg-state" class="badge">–</span></div>
-        <p class="muted small" id="msg-detail"></p>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Kind</th><th>To</th><th>Message</th><th>State</th><th>Due</th></tr></thead>
-            <tbody id="msg-rows"></tbody>
-          </table>
+      <!-- Tasks (Reminders style) ------------------------------------------------>
+      <section class="view" id="view-tasks" role="tabpanel" aria-labelledby="h-tasks" hidden>
+        <header class="view-bar glass-bar"><span class="bar-title">Tasks</span><span class="bar-actions"></span></header>
+        <div class="view-head">
+          <h1 class="t-large-title" id="h-tasks">Tasks</h1>
+          <p class="t-small ink-2">Every "someone will call you back" Emma promises is here.</p>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-head">
-          <h3>Google Calendar sync</h3>
-          <span id="sync-state" class="badge">–</span>
-          <button class="btn small" type="button" id="sync-retry-all">Retry all failed</button>
+        <div class="view-tools">
+          <div class="segmented" id="task-filter" role="group" aria-label="Which tasks">
+            <button type="button" data-status="open" aria-pressed="true">Open</button>
+            <button type="button" data-status="done" aria-pressed="false">Done</button>
+            <button type="button" data-status="all" aria-pressed="false">All</button>
+          </div>
         </div>
-        <p class="muted small" id="sync-detail"></p>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Appointment</th><th>When</th><th>Branch</th><th>State</th><th>Attempts</th><th>Last error</th><th>Next try</th><th></th></tr></thead>
-            <tbody id="sync-rows"></tbody>
-          </table>
+        <ul class="reminders" id="task-rows"></ul>
+      </section>
+
+      <!-- Calls (Mail style) ----------------------------------------------------->
+      <section class="view view-split" id="view-calls" role="tabpanel" aria-labelledby="h-calls" hidden>
+        <header class="view-bar glass-bar"><span class="bar-title">Calls</span><span class="bar-actions"></span></header>
+        <div class="view-head">
+          <h1 class="t-large-title" id="h-calls">Calls</h1>
+          <p class="t-small ink-2" id="calls-retention">Transcripts only, no audio.</p>
         </div>
-      </div>
-      <div class="grid-3">
-        <div class="card">
-          <div class="card-head"><h3>Providers</h3><button class="btn small ghost" type="button" id="health-refresh">Refresh</button></div>
-          <dl class="kv" id="health"></dl>
+        <div class="mail">
+          <ul class="mail-list" id="call-rows" aria-label="Calls"></ul>
+          <div class="mail-detail" id="call-detail">
+            <div class="detail-empty">
+              <svg class="ico big"><use href="#i-calls"/></svg>
+              <p class="t-section">No call selected</p>
+              <p class="t-small ink-2">Pick a call to read its transcript.</p>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-head"><h3>Do-not-call list</h3></div>
-          <form class="toolbar" id="dnc-form">
-            <input type="tel" id="dnc-phone" placeholder="Phone number" aria-label="Phone number to add" required>
-            <button class="btn" type="submit">Add</button>
+      </section>
+
+      <!-- Recovery (guided) ------------------------------------------------------->
+      <section class="view" id="view-recovery" role="tabpanel" aria-labelledby="h-recovery" hidden>
+        <header class="view-bar glass-bar"><span class="bar-title">Recovery</span><span class="bar-actions"><span class="state-pill" id="runner-state">–</span></span></header>
+        <div class="view-head">
+          <h1 class="t-large-title" id="h-recovery">Doctor unavailable</h1>
+          <p class="t-small ink-2">Block a doctor, check who is affected, then let Emma call them to find a new time.
+            Calls ring the patient's phone: the <a href="/patient" target="_blank" rel="noopener">patient page</a>,
+            and the SIP phone when phone calls are set up.</p>
+        </div>
+
+        <ol class="steps" data-reveal="fast">
+          <li class="step">
+            <div class="step-head"><span class="step-num">1</span><h2 class="t-section">Block a doctor</h2></div>
+            <form id="block-form" class="group-form">
+              <label class="row-field"><span>Doctor</span><select id="block-doctor" class="select" required></select></label>
+              <label class="row-field"><span>From</span><input type="datetime-local" id="block-start" class="input" required step="1800"></label>
+              <label class="row-field"><span>To</span><input type="datetime-local" id="block-end" class="input" required step="1800"></label>
+              <label class="row-field"><span>Reason <small class="ink-2">(never told to patients)</small></span><select id="block-reason" class="select"></select></label>
+              <label class="row-field"><span>Note</span><input id="block-note" class="input" maxlength="200" placeholder="Optional, e.g. called in sick"></label>
+              <div class="form-actions"><button class="btn-pill small" type="submit">Block and preview</button></div>
+            </form>
+            <p class="field-error" id="block-error" hidden></p>
+            <div class="sub-title">Active blocks</div>
+            <ul class="grouped-list" id="block-rows"></ul>
+          </li>
+
+          <li class="step" id="preview-card">
+            <div class="step-head"><span class="step-num">2</span><h2 class="t-section">Who is affected</h2>
+              <button class="btn-pill small" type="button" id="campaign-start" disabled>Start recovery calls</button></div>
+            <p class="t-small ink-2" id="preview-summary">Block a doctor or pick a block to see who is affected.</p>
+            <ul class="grouped-list checklist" id="preview-rows"></ul>
+          </li>
+
+          <li class="step">
+            <div class="step-head"><span class="step-num">3</span><h2 class="t-section">Recovery calls</h2></div>
+            <p class="t-small ink-2" id="runner-detail"></p>
+            <div id="campaign-list"></div>
+          </li>
+        </ol>
+
+        <details class="settings-disclosure">
+          <summary><span class="t-body">Patients' calling hours</span>
+            <span class="t-caption ink-2">Recovery calls to a number only ring inside its hours (and the clinic's).</span></summary>
+          <form class="group-form inline" id="window-form">
+            <input type="tel" id="window-phone" class="input" placeholder="Phone number" aria-label="Phone number" required>
+            <label class="t-small">After <input type="time" id="window-after" class="input" aria-label="Call after"></label>
+            <label class="t-small">Before <input type="time" id="window-before" class="input" aria-label="Call before"></label>
+            <button class="btn-pill small" type="submit">Save</button>
           </form>
-          <div class="table-wrap">
-            <table><tbody id="dnc-rows"></tbody></table>
-          </div>
-        </div>
-      </div>
-      <div class="card" id="staff-card" hidden>
-        <div class="card-head"><h3>Staff logins</h3><span class="muted small" id="staff-me"></span></div>
-        <form class="inline-form" id="staff-form">
-          <input id="staff-username" type="text" placeholder="user name (e.g. anita)" autocomplete="off" required>
-          <input id="staff-name" type="text" placeholder="Name shown" autocomplete="off">
-          <input id="staff-password" type="password" placeholder="Password (10+ characters)" autocomplete="new-password" required>
-          <select id="staff-role"><option value="staff">Staff</option><option value="admin">Admin</option></select>
-          <button class="btn small" type="submit">Add</button>
-        </form>
-        <p class="muted small" id="staff-result"></p>
-        <div class="table-wrap">
-          <table><thead><tr><th>User</th><th>Name</th><th>Role</th><th>Last login</th><th></th></tr></thead>
-            <tbody id="staff-rows"></tbody></table>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h3>Holidays and closures</h3><span class="muted small">Emma tells callers the clinic is closed</span></div>
-        <form class="inline-form" id="closure-form">
-          <input id="closure-date" type="date" required>
-          <select id="closure-branch"><option value="">All branches</option></select>
-          <input id="closure-reason" type="text" placeholder="Reason (e.g. Diwali)">
-          <button class="btn small" type="submit">Add</button>
-        </form>
-        <p class="muted small" id="closure-result"></p>
-        <div class="table-wrap">
-          <table><thead><tr><th>Date</th><th>Branch</th><th>Reason</th><th></th></tr></thead>
-            <tbody id="closure-rows"></tbody></table>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h3>Doctors and hours</h3><span class="muted small" id="doctors-note">Emma offers only these hours</span></div>
-        <form class="inline-form" id="doctor-form" hidden>
-          <input id="doctor-name" type="text" placeholder="Full name (e.g. Dr Kavya Shetty)" autocomplete="off" required>
-          <select id="doctor-branch"></select>
-          <select id="doctor-gender"><option value="">Gender</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select>
-          <input id="doctor-hours" type="text" placeholder="Mon-Sat hours (e.g. 09:00-13:00, 16:00-20:00)" autocomplete="off">
-          <span class="checks" id="doctor-services"></span>
-          <button class="btn small" type="submit">Add doctor</button>
-        </form>
-        <p class="muted small" id="doctor-result"></p>
-        <div class="table-wrap">
-          <table><thead><tr><th>Doctor</th><th>Branch</th><th>Does</th><th>Weekly hours</th><th></th></tr></thead>
-            <tbody id="doctor-rows"></tbody></table>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h3>Patient data requests</h3><span class="muted small">DPDP: see or erase what we hold</span></div>
-        <form class="inline-form" id="privacy-form">
-          <input id="privacy-phone" type="tel" placeholder="Patient's phone number" autocomplete="off">
-          <button class="btn small" type="button" id="privacy-export">Download their data</button>
-          <button class="btn small danger" type="button" id="privacy-erase">Erase their data</button>
-        </form>
-        <p class="muted small" id="privacy-result"></p>
-      </div>
-      <div class="card">
-        <div class="card-head"><h3>Audit log</h3><span class="muted small">latest 60</span></div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>When</th><th>Who</th><th>Action</th><th>What</th></tr></thead>
-            <tbody id="audit-rows"></tbody>
-          </table>
-        </div>
-      </div>
-    </section>
+          <ul class="grouped-list" id="window-rows"></ul>
+        </details>
+      </section>
 
-  </main>
+      <!-- System (Settings style) ------------------------------------------------>
+      <section class="view" id="view-system" role="tabpanel" aria-labelledby="h-system" hidden>
+        <header class="view-bar glass-bar"><span class="bar-title">System</span><span class="bar-actions"></span></header>
+        <div class="view-head"><h1 class="t-large-title" id="h-system">System</h1></div>
 
-  <!-- Dialogs ------------------------------------------------------------->
+        <div class="settings">
+          <section class="settings-group">
+            <h2 class="group-title">How Emma is doing <span>real calls, last 7 days</span></h2>
+            <div class="group-box" id="perf-body"><p class="ink-2 pad">Loading…</p></div>
+          </section>
+
+          <section class="settings-group">
+            <h2 class="group-title">Providers <button class="btn-pill small text" type="button" id="health-refresh">Refresh</button></h2>
+            <dl class="group-box kv-rows" id="health"></dl>
+          </section>
+
+          <section class="settings-group">
+            <h2 class="group-title">Google Calendar sync <span id="sync-state" class="badge">–</span>
+              <button class="btn-pill small text" type="button" id="sync-retry-all">Retry all failed</button></h2>
+            <p class="group-note" id="sync-detail"></p>
+            <div class="group-box table-wrap">
+              <table class="table">
+                <thead><tr><th>Appointment</th><th>When</th><th>Branch</th><th>State</th><th>Attempts</th><th>Last error</th><th>Next try</th><th></th></tr></thead>
+                <tbody id="sync-rows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="settings-group">
+            <h2 class="group-title">Messages to patients <span id="msg-state" class="badge">–</span></h2>
+            <p class="group-note" id="msg-detail"></p>
+            <div class="group-box table-wrap">
+              <table class="table">
+                <thead><tr><th>Kind</th><th>To</th><th>Message</th><th>State</th><th>Due</th></tr></thead>
+                <tbody id="msg-rows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="settings-group">
+            <h2 class="group-title">Doctors and hours <span id="doctors-note">Emma offers only these hours</span></h2>
+            <form class="group-box group-form inline" id="doctor-form" hidden>
+              <input id="doctor-name" class="input" type="text" placeholder="Full name (e.g. Dr Kavya Shetty)" autocomplete="off" required>
+              <select id="doctor-branch" class="select"></select>
+              <select id="doctor-gender" class="select"><option value="">Gender</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select>
+              <input id="doctor-hours" class="input" type="text" placeholder="Mon-Sat hours (e.g. 09:00-13:00, 16:00-20:00)" autocomplete="off">
+              <span class="checks" id="doctor-services"></span>
+              <button class="btn-pill small" type="submit">Add doctor</button>
+            </form>
+            <p class="group-note" id="doctor-result"></p>
+            <div class="group-box table-wrap">
+              <table class="table"><thead><tr><th>Doctor</th><th>Branch</th><th>Does</th><th>Weekly hours</th><th></th></tr></thead>
+                <tbody id="doctor-rows"></tbody></table>
+            </div>
+          </section>
+
+          <section class="settings-group">
+            <h2 class="group-title">Holidays and closures <span>Emma tells callers the clinic is closed</span></h2>
+            <form class="group-box group-form inline" id="closure-form">
+              <input id="closure-date" class="input" type="date" required>
+              <select id="closure-branch" class="select"><option value="">All branches</option></select>
+              <input id="closure-reason" class="input" type="text" placeholder="Reason (e.g. Diwali)">
+              <button class="btn-pill small" type="submit">Add</button>
+            </form>
+            <p class="group-note" id="closure-result"></p>
+            <ul class="grouped-list" id="closure-rows"></ul>
+          </section>
+
+          <section class="settings-group" id="staff-card" hidden>
+            <h2 class="group-title">Staff logins <span id="staff-me"></span></h2>
+            <form class="group-box group-form inline" id="staff-form">
+              <input id="staff-username" class="input" type="text" placeholder="User name (e.g. anita)" autocomplete="off" required>
+              <input id="staff-name" class="input" type="text" placeholder="Name shown" autocomplete="off">
+              <input id="staff-password" class="input" type="password" placeholder="Password (10+ characters)" autocomplete="new-password" required>
+              <select id="staff-role" class="select"><option value="staff">Staff</option><option value="admin">Admin</option></select>
+              <button class="btn-pill small" type="submit">Add</button>
+            </form>
+            <p class="group-note" id="staff-result"></p>
+            <ul class="grouped-list" id="staff-rows"></ul>
+          </section>
+
+          <section class="settings-group">
+            <h2 class="group-title">Do-not-call list</h2>
+            <form class="group-box group-form inline" id="dnc-form">
+              <input type="tel" id="dnc-phone" class="input" placeholder="Phone number" aria-label="Phone number to add" required>
+              <button class="btn-pill small" type="submit">Add</button>
+            </form>
+            <ul class="grouped-list" id="dnc-rows"></ul>
+          </section>
+
+          <section class="settings-group">
+            <h2 class="group-title">Patient data requests <span>DPDP: see or erase what we hold</span></h2>
+            <form class="group-box group-form inline" id="privacy-form">
+              <input id="privacy-phone" class="input" type="tel" placeholder="Patient's phone number" autocomplete="off">
+              <button class="btn-pill small gray" type="button" id="privacy-export">Download their data</button>
+              <button class="btn-pill small danger-text" type="button" id="privacy-erase">Erase their data</button>
+            </form>
+            <p class="group-note" id="privacy-result"></p>
+          </section>
+
+          <section class="settings-group">
+            <h2 class="group-title">Audit log <span>latest 60</span></h2>
+            <div class="group-box table-wrap">
+              <table class="table">
+                <thead><tr><th>When</th><th>Who</th><th>Action</th><th>What</th></tr></thead>
+                <tbody id="audit-rows"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Appointment inspector (Calendar's event popover) -->
+  <div class="popover glass-bar" id="appt-popover" role="dialog" aria-modal="false" aria-labelledby="pop-title" hidden>
+    <div class="pop-bar" id="pop-bar"></div>
+    <h2 class="t-section" id="pop-title"></h2>
+    <p class="t-small ink-2" id="pop-when"></p>
+    <dl class="kv" id="pop-details"></dl>
+    <div class="pop-actions" id="pop-actions"></div>
+  </div>
+
+  <!-- Dialogs (sheets over the blurred curtain) -->
   <dialog id="dlg-cancel" aria-labelledby="dlg-cancel-title">
-    <form method="dialog" class="dialog-body" id="cancel-form">
-      <h2 id="dlg-cancel-title">Cancel appointment</h2>
-      <p id="cancel-what"></p>
-      <label class="field">Reason (optional)
-        <input id="cancel-reason" maxlength="200" placeholder="e.g. patient called to cancel">
-      </label>
-      <div class="error-box" id="cancel-error" hidden></div>
-      <div class="dialog-actions">
-        <button class="btn" value="close" type="button" data-close>Keep it</button>
-        <button class="btn danger solid" type="submit" id="cancel-confirm">Cancel appointment</button>
+    <form method="dialog" class="sheet" id="cancel-form">
+      <h2 class="t-section" id="dlg-cancel-title">Cancel appointment</h2>
+      <p class="t-small ink-2" id="cancel-what"></p>
+      <div class="field-float">
+        <input id="cancel-reason" maxlength="200" placeholder=" ">
+        <label for="cancel-reason">Reason (optional)</label>
+      </div>
+      <p class="field-error" id="cancel-error" hidden></p>
+      <div class="sheet-actions">
+        <button class="btn-pill gray" value="close" type="button" data-close>Keep it</button>
+        <button class="btn-pill danger" type="submit" id="cancel-confirm">Cancel appointment</button>
       </div>
     </form>
   </dialog>
 
   <dialog id="dlg-book" aria-labelledby="dlg-book-title">
-    <form method="dialog" class="dialog-body" id="book-form">
-      <h2 id="dlg-book-title">New appointment</h2>
-      <p class="muted small" id="book-what" hidden></p>
-      <div class="form-grid">
-        <label class="field" id="book-service-field">Service
-          <select id="book-service" required></select>
-        </label>
-        <label class="field" id="book-branch-field">Branch
-          <select id="book-branch"></select>
-        </label>
-        <label class="field">Doctor
-          <select id="book-doctor"></select>
-        </label>
-        <label class="field">Day
-          <input type="date" id="book-day" required>
-        </label>
+    <form method="dialog" class="sheet wide" id="book-form">
+      <h2 class="t-section" id="dlg-book-title">New appointment</h2>
+      <p class="t-small ink-2" id="book-what" hidden></p>
+      <div class="sheet-grid">
+        <label class="row-field" id="book-service-field"><span>Service</span><select id="book-service" class="select" required></select></label>
+        <label class="row-field" id="book-branch-field"><span>Branch</span><select id="book-branch" class="select"></select></label>
+        <label class="row-field"><span>Doctor</span><select id="book-doctor" class="select"></select></label>
+        <label class="row-field"><span>Day</span><input type="date" id="book-day" class="input" required></label>
       </div>
-      <div>
-        <button class="btn" type="button" id="book-find">Find free times</button>
-      </div>
+      <div><button class="btn-pill small gray" type="button" id="book-find">Find free times</button></div>
       <div class="slot-grid" id="book-slots"></div>
-      <div class="form-grid" id="book-patient">
-        <label class="field">Patient name
-          <input id="book-name" maxlength="80" autocomplete="off">
-        </label>
-        <label class="field">Phone
-          <input id="book-phone" type="tel" maxlength="20" autocomplete="off">
-        </label>
-        <label class="field">Age (optional)
-          <input id="book-age" type="number" min="0" max="120">
-        </label>
+      <div class="sheet-grid" id="book-patient">
+        <div class="field-float"><input id="book-name" maxlength="80" autocomplete="off" placeholder=" "><label for="book-name">Patient name</label></div>
+        <div class="field-float"><input id="book-phone" type="tel" maxlength="20" autocomplete="off" placeholder=" "><label for="book-phone">Phone</label></div>
+        <div class="field-float"><input id="book-age" type="number" min="0" max="120" placeholder=" "><label for="book-age">Age (optional)</label></div>
       </div>
-      <div class="error-box" id="book-error" hidden></div>
-      <div class="dialog-actions">
-        <button class="btn" type="button" data-close>Close</button>
-        <button class="btn primary" type="submit" id="book-confirm" disabled>Book</button>
+      <p class="field-error" id="book-error" hidden></p>
+      <div class="sheet-actions">
+        <button class="btn-pill gray" type="button" data-close>Close</button>
+        <button class="btn-pill" type="submit" id="book-confirm" disabled>Book</button>
       </div>
     </form>
   </dialog>
 
   <dialog id="dlg-confirm" aria-labelledby="dlg-confirm-title">
-    <form method="dialog" class="dialog-body">
-      <h2 id="dlg-confirm-title">Are you sure?</h2>
-      <p id="confirm-text"></p>
-      <div class="dialog-actions">
-        <button class="btn" type="button" data-close>Go back</button>
-        <button class="btn danger solid" type="submit" id="confirm-ok">Confirm</button>
+    <form method="dialog" class="sheet">
+      <h2 class="t-section" id="dlg-confirm-title">Are you sure?</h2>
+      <p class="t-small ink-2" id="confirm-text"></p>
+      <div class="sheet-actions">
+        <button class="btn-pill gray" type="button" data-close>Go back</button>
+        <button class="btn-pill danger" type="submit" id="confirm-ok">Confirm</button>
       </div>
     </form>
   </dialog>
 
-  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <div class="toast-stack" id="toasts" aria-live="polite"></div>
   <script type="module" src="/dashboard/static/dashboard.js"></script>
 </body>
 </html>

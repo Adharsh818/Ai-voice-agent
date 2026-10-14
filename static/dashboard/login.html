@@ -2,39 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Staff login · Pearl Dental</title>
-  <meta name="description" content="Staff login for the Pearl Dental dashboard.">
-  <link rel="stylesheet" href="/dashboard/static/dashboard.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Staff sign in · Pearl Dental</title>
+  <meta name="description" content="Staff sign in for the Pearl Dental dashboard.">
+  <link rel="stylesheet" href="/static/ui/emma-ui.css">
+  <link rel="stylesheet" href="/dashboard/static/login.css">
 </head>
-<body>
-  <div class="login-wrap">
-    <div class="card login-card">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <div>
-          <div class="brand-name">Pearl Dental</div>
-          <div class="muted small">Staff dashboard</div>
-        </div>
-      </div>
-
-      <div id="locked" class="note-box" hidden>
-        <strong>The dashboard is locked.</strong>
-        <div id="locked-reason" class="small"></div>
-      </div>
-
-      <form id="login-form" autocomplete="on" hidden>
-        <label class="field">User name <span class="muted small">(leave empty for the clinic password)</span>
-          <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none">
-        </label>
-        <label class="field">Password
-          <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
-        </label>
-        <div id="login-error" class="error-box" role="alert" hidden></div>
-        <button class="btn primary" type="submit" id="login-button">Log in</button>
-      </form>
+<body class="signin">
+  <header class="signin-nav glass-bar">
+    <div class="signin-nav-inner">
+      <span class="pearl" aria-hidden="true"></span>
+      <span class="signin-nav-name">Pearl Dental</span>
+      <span class="signin-nav-section">Staff</span>
     </div>
-  </div>
+  </header>
+
+  <main class="signin-main">
+    <div class="signin-column" data-reveal>
+      <span class="pearl signin-mark" aria-hidden="true"></span>
+      <h1 class="t-title signin-title">Staff sign in</h1>
+      <p class="t-body ink-2 signin-sub">Pearl Dental dashboard</p>
+
+      <div id="locked" class="signin-locked glass-pill" hidden>
+        <strong>The dashboard is locked.</strong>
+        <span id="locked-reason" class="t-small ink-2"></span>
+      </div>
+
+      <form id="login-form" class="signin-form" autocomplete="on" hidden novalidate>
+        <div class="field-group" id="field-group">
+          <div class="field-float">
+            <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder=" ">
+            <label for="username">User name</label>
+          </div>
+          <div class="field-float">
+            <input id="password" name="password" type="password" autocomplete="current-password" required placeholder=" ">
+            <label for="password">Password</label>
+          </div>
+        </div>
+        <p class="field-help" id="username-help">Leave the user name empty to use the clinic password.</p>
+        <p id="login-error" class="field-error" role="alert" hidden></p>
+        <button class="btn-pill block signin-button" type="submit" id="login-button" disabled>Sign in</button>
+      </form>
+
+      <p class="t-caption ink-2 signin-note">For Pearl Dental staff only. Every sign-in is recorded in the audit log.</p>
+    </div>
+  </main>
+
+  <footer class="signin-footer">
+    <p class="t-caption ink-2">Pearl Dental · Staff dashboard</p>
+  </footer>
   <script type="module" src="/dashboard/static/login.js"></script>
 </body>
 </html>

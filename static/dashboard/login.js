@@ -1,14 +1,29 @@
 // Staff login. The password goes to the server once over a same-origin POST;
 // the server answers with an HttpOnly cookie this script never sees.
 
+import { reveal, shake } from "/static/ui/emma-ui.js";
+
 const form = document.getElementById("login-form");
 const errorBox = document.getElementById("login-error");
 const button = document.getElementById("login-button");
+const password = document.getElementById("password");
+const group = document.getElementById("field-group");
 
 function showError(message) {
   errorBox.textContent = message;
   errorBox.hidden = !message;
+  group.querySelectorAll(".field-float").forEach((f) => f.classList.toggle("invalid", Boolean(message)));
+  if (message) shake(group);
 }
+
+// Like Apple's sign-in, the button wakes up once there's something to send.
+function updateButton() {
+  button.disabled = !password.value;
+}
+password.addEventListener("input", () => {
+  updateButton();
+  if (!errorBox.hidden) showError("");
+});
 
 async function checkStatus() {
   try {
@@ -24,7 +39,7 @@ async function checkStatus() {
       return;
     }
     form.hidden = false;
-    document.getElementById("password").focus();
+    password.focus();
   } catch {
     form.hidden = false;
     showError("Can't reach the server. Is it running?");
@@ -33,6 +48,7 @@ async function checkStatus() {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!password.value) return;
   showError("");
   button.disabled = true;
   try {
@@ -47,13 +63,14 @@ form.addEventListener("submit", async (event) => {
       return;
     }
     const body = await res.json().catch(() => ({}));
-    showError(body.detail || "Couldn't log in.");
+    showError(body.detail || "Couldn't sign in.");
     form.password.select();
   } catch {
     showError("Can't reach the server. Is it running?");
   } finally {
-    button.disabled = false;
+    updateButton();
   }
 });
 
+reveal();
 checkStatus();
