@@ -1,8 +1,14 @@
 // Pearl Dental staff dashboard. Vanilla JS, no build step, no CDN.
 //
-// Every value from the server goes into the page with textContent, never
-// innerHTML, so a caller who gives "<script>" as their name stays plain text.
-// All times are shown in the clinic's timezone, whatever the browser's is.
+// Layout (docs/APPLE_DESIGN_PLAN.md 4.4): a glass sidebar, a Today tile grid, Live call as
+// Messages, Appointments as Calendar, Tasks as Reminders, Calls as Mail, System as Settings.
+// Every API call and action from the earlier dashboard is kept; only the presentation changed.
+//
+// Every value from the server goes into the page with textContent, never innerHTML, so a
+// caller who gives "<script>" as their name stays plain text. All times are shown in the
+// clinic's timezone, whatever the browser's is.
+
+import { reveal, replay, segmented, toast as glassToast } from "/static/ui/emma-ui.js";
 
 let TZ = "Asia/Kolkata";
 const $ = (id) => document.getElementById(id);
@@ -22,6 +28,17 @@ function el(tag, attrs = {}, ...children) {
     node.append(child instanceof Node ? child : document.createTextNode(String(child)));
   }
   return node;
+}
+
+function svgIcon(id, cls = "ico") {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", cls);
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS(ns, "use");
+  use.setAttribute("href", `#${id}`);
+  svg.append(use);
+  return svg;
 }
 
 class ApiError extends Error {
@@ -60,6 +77,17 @@ function fmt(value, options) {
 const fmtDateTime = (v) => fmt(v, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const fmtTime = (v) => fmt(v, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
+function ago(value) {
+  if (!value) return "";
+  const secs = Math.round((Date.now() - new Date(value).getTime()) / 1000);
+  if (Number.isNaN(secs)) return "";
+  if (secs < 60) return "just now";
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  if (secs < 7 * 86400) return `${Math.floor(secs / 86400)}d ago`;
+  return fmt(value, { day: "numeric", month: "short" });
+}
+
 function clinicToday() {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" })
     .formatToParts(new Date());
@@ -67,22 +95,49 @@ function clinicToday() {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
-function shiftDay(iso, days) {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+// Minutes since midnight, clinic time, right now.
+function clinicNowMinutes() {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .formatToParts(new Date());
+  const get = (type) => Number(parts.find((p) => p.type === type).value);
+  return get("hour") * 60 + get("minute");
 }
 
-function prettyDay(iso) {
+const isoDate = (y, m, d) => new Date(Date.UTC(y, m, d)).toISOString().slice(0, 10);
+function parts(iso) {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-IN", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" })
-    .format(new Date(Date.UTC(y, m - 1, d)));
+  return { y, m: m - 1, d };
 }
+function shiftDay(iso, days) {
+  const { y, m, d } = parts(iso);
+  return isoDate(y, m, d + days);
+}
+function weekday(iso) {                       // 0 = Monday … 6 = Sunday
+  const { y, m, d } = parts(iso);
+  return (new Date(Date.UTC(y, m, d)).getUTCDay() + 6) % 7;
+}
+function startOfWeek(iso) { return shiftDay(iso, -weekday(iso)); }
+function startOfMonth(iso) { const { y, m } = parts(iso); return isoDate(y, m, 1); }
+function shiftMonth(iso, months) {
+  const { y, m, d } = parts(iso);
+  const last = new Date(Date.UTC(y, m + months + 1, 0)).getUTCDate();
+  return isoDate(y, m + months, Math.min(d, last));
+}
+function dayFmt(iso, options) {
+  const { y, m, d } = parts(iso);
+  return new Intl.DateTimeFormat("en-IN", { timeZone: "UTC", ...options }).format(new Date(Date.UTC(y, m, d)));
+}
+const prettyDay = (iso) => dayFmt(iso, { weekday: "long", day: "numeric", month: "long" });
 
 function length(startIso, endIso) {
   if (!startIso) return "–";
   const secs = Math.max(0, Math.round(((endIso ? new Date(endIso) : new Date()) - new Date(startIso)) / 1000));
   const m = Math.floor(secs / 60);
   return m ? `${m}m ${secs % 60}s` : `${secs}s`;
+}
+function clock(startDate) {
+  const secs = Math.max(0, Math.round((Date.now() - startDate.getTime()) / 1000));
+  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
 }
 
 function ms(value) {
@@ -94,11 +149,7 @@ function newKey() {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function toast(message, kind = "") {
-  const node = el("div", { class: `toast ${kind}`, role: kind === "error" ? "alert" : "status", text: message });
-  $("toasts").append(node);
-  setTimeout(() => node.remove(), kind === "urgent" ? 12000 : 4500);
-}
+const toast = (message, kind = "") => glassToast(message, kind);
 
 function debounce(fn, wait) {
   let timer = null;
@@ -117,6 +168,9 @@ function recall(key) {
 
 function emptyRow(colspan, text) {
   return el("tr", {}, el("td", { colspan, class: "empty", text }));
+}
+function emptyItem(text) {
+  return el("li", { class: "empty", text });
 }
 
 const STATUS_LABEL = {
@@ -156,6 +210,10 @@ function callOutcome(outcome) {
 document.querySelectorAll("dialog [data-close]").forEach((button) => {
   button.addEventListener("click", () => button.closest("dialog").close());
 });
+// A click on the blurred curtain (outside the sheet) closes it, like a sheet on the Mac.
+document.querySelectorAll("dialog").forEach((dialog) => {
+  dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
+});
 
 function confirmAction(title, text, okLabel = "Confirm") {
   const dialog = $("dlg-confirm");
@@ -179,14 +237,26 @@ function showError(box, message) {
   box.hidden = !message;
 }
 
-// ------------------------------------------------------------------ catalogue and overview
+// ------------------------------------------------------------------ catalogue and doctor colours
 const catalog = { services: [], doctors: [], branches: [] };
+let dayHours = [8, 21];
+
+function doctorColor(doctorId) {
+  const i = catalog.doctors.findIndex((d) => d.id === doctorId);
+  return `var(--doc-${(i < 0 ? 0 : i % 8) + 1})`;
+}
 
 async function loadCatalog() {
   Object.assign(catalog, await api("/dashboard/api/catalog"));
   const branchSelect = $("appt-branch");
   for (const b of catalog.branches) branchSelect.append(el("option", { value: b.id, text: b.name }));
   fillDoctorFilter();
+  renderDoctorToggles();
+  try {
+    const data = await api("/dashboard/api/doctors");
+    const [from, to] = (data.day_hours || []).map((t) => Number(String(t).split(":")[0]));
+    if (Number.isFinite(from) && Number.isFinite(to) && to > from) dayHours = [from, to];
+  } catch { /* keep the default hours */ }
 }
 
 function fillDoctorFilter() {
@@ -200,25 +270,31 @@ function fillDoctorFilter() {
   select.value = [...select.options].some((o) => o.value === current) ? current : "";
 }
 
+// ------------------------------------------------------------------ overview: sidebar counts, alerts
+let overview = null;
+
 async function refreshOverview() {
   let data;
   try { data = await api("/dashboard/api/overview"); } catch { return; }
+  overview = data;
   if (data.timezone) TZ = data.timezone;
   const openTasks = Object.values(data.tasks).reduce((a, b) => a + b, 0);
   const urgent = data.tasks.urgent || 0;
-  const chipTasks = $("chip-tasks");
-  chipTasks.replaceChildren("Tasks ", el("strong", { text: urgent ? `${openTasks} · ${urgent} urgent` : String(openTasks) }));
-  chipTasks.classList.toggle("alert", urgent > 0);
   const count = $("tab-task-count");
-  count.textContent = String(openTasks);
+  count.textContent = urgent ? `${openTasks} · ${urgent}!` : String(openTasks);
   count.hidden = openTasks === 0;
+  const badge = $("tab-task-badge");
+  badge.textContent = String(openTasks);
+  badge.hidden = openTasks === 0;
   const failed = data.sync.failed || 0;
   const chipSync = $("chip-sync");
   chipSync.hidden = failed === 0;
-  chipSync.classList.toggle("alert", failed > 0);
-  chipSync.replaceChildren("Calendar ", el("strong", { text: `${failed} failed` }));
+  chipSync.textContent = String(failed);
+  chipSync.title = `${failed} calendar sync${failed === 1 ? "" : "s"} failed`;
   updateCallChip(data.call);
   renderAlerts(data.alerts || []);
+  $("today-date").textContent = prettyDay(clinicToday());
+  if (currentTab === "today") renderTodaySoon();
 }
 
 // Problems the server found (alerts.py): a speech service down, calendar sync stuck, a call line stuck.
@@ -229,15 +305,21 @@ function renderAlerts(alerts) {
     text: `${a.text} (since ${fmtDateTime(a.since)})` })));
 }
 
+let callBusy = false;
 function updateCallChip(call) {
-  const chip = $("chip-call");
-  const busy = call && call.busy;
-  chip.classList.toggle("live", Boolean(busy));
-  chip.replaceChildren(el("span", { class: "dot" }), el("span", { text: busy ? "On a call" : "No call" }));
+  callBusy = Boolean(call && call.busy);
+  $("side-live").hidden = !callBusy;
+  $("tab-live-dot").hidden = !callBusy;
+  renderSideTimer();
+}
+function renderSideTimer() {
+  const running = [...liveCalls.values()].find((st) => !st.ended && st.started);
+  $("side-live-time").textContent = running ? clock(running.started) : "";
 }
 
-// ------------------------------------------------------------------ tabs
+// ------------------------------------------------------------------ sections (sidebar, tab bar, hash)
 const loaders = {
+  today: () => renderToday(),
   live: () => renderLive(),
   appointments: () => loadAppointments(),
   tasks: () => loadTasks(),
@@ -245,24 +327,56 @@ const loaders = {
   recovery: () => loadRecovery(),
   system: () => loadSystem(),
 };
-let currentTab = "live";
+const TAB_FOR = { calls: "more", recovery: "more", system: "more" };
+let currentTab = "today";
 
 function showTab(name) {
-  if (!loaders[name]) name = "live";
+  if (!loaders[name]) name = "today";
+  const changed = name !== currentTab;
   currentTab = name;
-  document.querySelectorAll(".tab").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.tab === name)));
+  closePopover();
+  $("more-sheet").hidden = true;
+  document.querySelectorAll(".side-item[data-tab]").forEach((item) => item.setAttribute("aria-selected", String(item.dataset.tab === name)));
+  document.querySelectorAll(".tab-item").forEach((item) => item.setAttribute("aria-selected", String(item.dataset.tab === (TAB_FOR[name] || name))));
   for (const key of Object.keys(loaders)) $(`view-${key}`).hidden = key !== name;
+  $("side-calendar").hidden = name !== "appointments";
   store("tab", name);
-  if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
+  if (location.hash !== `#${name}`) history.pushState(null, "", `#${name}`);
+  document.title = `${{ today: "Today", live: "Live call", appointments: "Appointments", tasks: "Tasks", calls: "Calls",
+    recovery: "Recovery", system: "System" }[name]} · ${document.title.split(" · ").slice(-1)[0]}`;
+  if (changed) window.scrollTo({ top: 0 });
+  updateBars();
   loaders[name]();
+  if (name === "today" && changed) replay($("today-grid"));
+  if (name === "appointments") requestAnimationFrame(() => segmentPlacers.forEach((place) => place()));
 }
 
-document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
-document.querySelectorAll("[data-go]").forEach((chip) => chip.addEventListener("click", () => showTab(chip.dataset.go)));
+document.querySelectorAll(".side-item[data-tab]").forEach((item) => item.addEventListener("click", () => showTab(item.dataset.tab)));
+document.querySelectorAll(".tab-item").forEach((item) => item.addEventListener("click", () => {
+  if (item.dataset.tab === "more") {
+    $("more-sheet").hidden = !$("more-sheet").hidden;
+    return;
+  }
+  showTab(item.dataset.tab);
+}));
+document.addEventListener("click", (event) => {
+  const go = event.target.closest("[data-go]");
+  if (go) showTab(go.dataset.go);
+  const sheet = $("more-sheet");
+  if (!sheet.hidden && !event.target.closest("#more-sheet") && !event.target.closest("#tab-more")) sheet.hidden = true;
+});
+window.addEventListener("popstate", () => showTab(location.hash.slice(1)));
+
+// iOS navigation bar: the large title scrolls away and the bar turns to glass with a small title.
+function updateBars() {
+  const stuck = window.scrollY > 36;
+  document.querySelectorAll(".view-bar").forEach((bar) => bar.classList.toggle("stuck", stuck));
+}
+window.addEventListener("scroll", updateBars, { passive: true });
 
 // ------------------------------------------------------------------ live call
 // Up to MAX_CONCURRENT_CALLS calls can be on at once (11 Oct): each has its own state, and the
-// Live tab follows one of them (`live`); the chips above the transcript switch between them.
+// Live view follows one of them (`live`); the chips above the transcript switch between them.
 function newLiveState(callId = null) {
   return {
     callId, started: callId ? new Date() : null, ended: false, state: callId ? "listening" : "idle", lines: [],
@@ -408,6 +522,7 @@ function handleEvent(event) {
       return;
   }
   if (currentTab === "live") renderLive();
+  if (currentTab === "today") renderTodayLive();
 }
 
 function renderCallSwitcher() {
@@ -420,14 +535,36 @@ function renderCallSwitcher() {
   })));
 }
 
+const STATE_LABEL = { idle: "Idle", listening: "Listening", thinking: "Thinking", speaking: "Speaking", ended: "Call ended" };
+
+function bubbleLines(lines, interim) {
+  const nodes = [];
+  let prev = null;
+  for (const line of lines) {
+    nodes.push(el("div", { class: `line ${line.who}${prev === line.who ? " same" : ""}` },
+      el("span", { class: "who", text: ROLE_LABEL[line.who] || line.who }),
+      el("div", { class: "bubble", text: line.text })));
+    prev = line.who;
+  }
+  if (interim) {
+    nodes.push(el("div", { class: `line caller interim${prev === "caller" ? " same" : ""}` },
+      el("span", { class: "who", text: "Caller (hearing…)" }),
+      el("div", { class: "bubble", text: interim })));
+  }
+  return nodes;
+}
+
+let renderedLineCount = 0;
 function renderLive() {
   renderCallSwitcher();
   const hasCall = Boolean(live.callId);
   $("live-empty").hidden = hasCall;
-  const pill = $("live-state");
-  const label = { idle: "Idle", listening: "Listening", thinking: "Thinking", speaking: "Speaking", ended: "Call ended" };
-  pill.className = `state-pill ${live.state}`;
-  pill.textContent = label[live.state] || live.state;
+  $("live-transcript").hidden = !hasCall;
+  for (const id of ["live-state", "live-state-bar"]) {
+    const pill = $(id);
+    pill.className = `state-pill ${live.state}`;
+    pill.textContent = STATE_LABEL[live.state] || live.state;
+  }
   $("live-call").textContent = live.callId || "–";
   $("live-goal").textContent = live.goal || "–";
   $("live-tier").textContent = live.tier === null ? "–" : TIER_LABEL[live.tier] ?? String(live.tier);
@@ -437,19 +574,23 @@ function renderLive() {
   $("live-controls").hidden = !active;
   $("op-takeover").hidden = live.operator;
   $("op-handback").hidden = !live.operator;
-  $("op-form").hidden = !live.operator;
+  $("op-form").hidden = !(active && live.operator);
 
   const box = $("live-transcript");
-  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
-  const nodes = live.lines.map((line) => el("div", { class: `line ${line.who}` },
-    el("span", { class: "who", text: ROLE_LABEL[line.who] || line.who }),
-    el("div", { class: "bubble", text: line.text })));
-  if (live.interim) {
-    nodes.push(el("div", { class: "line caller interim" }, el("span", { class: "who", text: "Caller (hearing…)" }),
-      el("div", { class: "bubble", text: live.interim })));
-  }
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  const nodes = bubbleLines(live.lines, live.interim);
+  if (active && live.state === "thinking") nodes.push(el("div", { class: "typing", "aria-label": "Emma is thinking" }, el("i"), el("i"), el("i")));
+  // Only the newest bubble animates in; re-rendered older ones don't replay it.
+  const total = live.lines.length + (live.interim ? 1 : 0);
+  nodes.forEach((node, i) => { if (i < Math.min(renderedLineCount, total) - 1) node.style.animation = "none"; });
+  renderedLineCount = total;
   box.replaceChildren(...nodes);
-  if (nearBottom) box.scrollTop = box.scrollHeight;
+  if (nearBottom) {
+    box.scrollTop = box.scrollHeight;
+    $("live-jump").hidden = true;
+  } else if (hasCall) {
+    $("live-jump").hidden = false;
+  }
 
   const entities = Object.entries(live.entities).filter(([, v]) => v !== null && v !== "" && v !== undefined);
   $("live-entities").replaceChildren(...entities.map(([k, v]) => el("span", { class: "entity" },
@@ -464,6 +605,16 @@ function renderLive() {
     el("td", { class: "num", text: ms(t.first_audio_ms) })));
   $("live-turns").replaceChildren(...(rows.length ? rows : [emptyRow(6, "No turns yet")]));
 }
+
+$("live-transcript").addEventListener("scroll", () => {
+  const box = $("live-transcript");
+  if (box.scrollHeight - box.scrollTop - box.clientHeight < 80) $("live-jump").hidden = true;
+});
+$("live-jump").addEventListener("click", () => {
+  const box = $("live-transcript");
+  box.scrollTop = box.scrollHeight;
+  $("live-jump").hidden = true;
+});
 
 async function liveAction(action, body = {}) {
   if (!live.callId) return null;
@@ -502,7 +653,10 @@ $("op-end").addEventListener("click", async () => {
 function renderDuration() {
   $("live-duration").textContent = live.started ? (live.ended ? "ended" : length(live.started.toISOString())) : "–";
 }
-setInterval(() => { if (currentTab === "live" && live.callId && !live.ended) renderDuration(); }, 1000);
+setInterval(() => {
+  if (currentTab === "live" && live.callId && !live.ended) renderDuration();
+  if (callBusy) renderSideTimer();
+}, 1000);
 
 const EVENT_TYPES = ["call_started", "caption", "state", "turn", "metrics", "call_turn", "call_ended", "task_created",
   "task_updated", "appointment", "sync", "call_data_deleted", "bye", "error", "recovery", "ring", "ring_ended",
@@ -515,6 +669,7 @@ function connectEvents() {
     failures = 0;
     lastSeq = 0;                // the server replays the calls in progress from the start
     resetLive();
+    renderedLineCount = 0;
     if (currentTab === "live") renderLive();
   });
   for (const type of EVENT_TYPES) {
@@ -533,99 +688,618 @@ function connectEvents() {
   });
 }
 
-// ------------------------------------------------------------------ appointments
-const appt = { scope: "day", day: null, rows: [] };
+// ------------------------------------------------------------------ Today (apple.com tile grid)
+function tileHead(icon, label) {
+  return el("span", { class: "tile-kicker" }, svgIcon(icon), label);
+}
 
-function apptQuery() {
-  const params = new URLSearchParams({ scope: appt.scope });
-  if (appt.scope === "day") params.set("day", appt.day);
+function renderTodayLive() {
+  const tile = $("today-live");
+  const running = [...liveCalls.values()].find((st) => !st.ended) || null;
+  tile.classList.toggle("live-on", Boolean(running));
+  if (!running) {
+    const calls = todayData.calls || [];
+    const today = clinicToday();
+    const todays = calls.filter((c) => (c.started_at || "").slice(0, 10) === today || fmt(c.started_at, { year: "numeric", month: "2-digit", day: "2-digit" }) === dayFmt(today, { year: "numeric", month: "2-digit", day: "2-digit" }));
+    tile.replaceChildren(tileHead("i-live", "Live call"),
+      el("span", { class: "tile-headline", text: "No call right now" }),
+      el("span", { class: "tile-sub", text: todays.length ? `${todays.length} call${todays.length === 1 ? "" : "s"} so far today.` : "Emma is ready for the next caller." }),
+      el("span", { class: "tile-foot", text: "Open live call" }));
+    return;
+  }
+  const last = running.lines.slice(-2);
+  tile.replaceChildren(tileHead("i-live", "Live call"),
+    el("span", { class: "tile-headline" }, el("span", { class: "live-dot", style: null }), " ", STATE_LABEL[running.state] || running.state),
+    el("span", { class: "tile-sub", text: running.goal ? `Emma is ${running.goal.replace(/_/g, " ")}` : "Emma is on a call" }),
+    el("div", { class: "tile-bubbles" }, ...bubbleLines(last, "")),
+    el("span", { class: "tile-foot", text: "Follow the call" }));
+  tile.querySelector(".tile-headline .live-dot").style.display = "inline-block";
+}
+
+const todayData = { appts: [], tasks: [], calls: [], recovery: null, health: null };
+
+async function renderToday() {
+  const today = clinicToday();
+  $("today-date").textContent = prettyDay(today);
+  const [appts, tasks, calls, recovery, health] = await Promise.allSettled([
+    api(`/dashboard/api/appointments?scope=day&day=${today}`),
+    api("/dashboard/api/tasks?status=open"),
+    api("/dashboard/api/calls?limit=40"),
+    api("/dashboard/api/recovery"),
+    fetch("/health", { credentials: "same-origin" }).then((r) => r.json()),
+  ]);
+  if (appts.status === "fulfilled") todayData.appts = appts.value.appointments;
+  if (tasks.status === "fulfilled") todayData.tasks = tasks.value.tasks;
+  if (calls.status === "fulfilled") todayData.calls = calls.value.calls;
+  if (recovery.status === "fulfilled") todayData.recovery = recovery.value;
+  todayData.health = health.status === "fulfilled" ? health.value : null;
+  paintToday();
+}
+const renderTodaySoon = debounce(renderToday, 600);
+
+function paintToday() {
+  renderTodayLive();
+
+  // Appointments: the next four as a mini timeline.
+  const rows = todayData.appts;
+  const active = rows.filter((r) => r.status === "booked" || r.status === "needs_reschedule");
+  const now = new Date();
+  const next = active.filter((r) => new Date(r.end) > now).slice(0, 4);
+  const done = rows.filter((r) => r.status === "completed").length;
+  const cancelled = rows.filter((r) => r.status === "cancelled").length;
+  $("side-appt-count").textContent = String(active.length);
+  $("side-appt-count").hidden = active.length === 0;
+  $("today-appts").replaceChildren(tileHead("i-calendar", "Appointments today"),
+    el("span", { class: "tile-big", text: String(active.length) }),
+    el("span", { class: "tile-sub", text: [`${done} attended`, `${cancelled} cancelled`,
+      rows.some((r) => r.status === "needs_reschedule") ? "some need a new time" : null].filter(Boolean).join(" · ") }),
+    next.length ? el("ul", { class: "tile-list" }, ...next.map((r) => el("li", {},
+      el("span", { class: "t", text: r.time }),
+      el("span", { class: "x", text: `${r.patient_name} · ${r.service} · ${r.doctor}` })))) : el("span", { class: "tile-sub", text: "Nothing else booked today." }),
+    active.length > next.length ? el("span", { class: "tile-sub", text: `${active.length - next.length} more` }) : null,
+    el("span", { class: "tile-foot", text: "Open calendar" }));
+
+  // Tasks.
+  const tasks = todayData.tasks;
+  const urgent = tasks.filter((t) => t.priority === "urgent" || t.priority === "high").length;
+  $("today-tasks").replaceChildren(tileHead("i-tasks", "Open tasks"),
+    el("span", { class: "tile-big", text: String(tasks.length) }),
+    el("span", { class: "tile-sub", text: tasks.length ? (urgent ? `${urgent} need attention first` : "Callbacks Emma promised") : "Nothing waiting. Nice." }),
+    el("ul", { class: "tile-list" }, ...tasks.slice(0, 3).map((t) => el("li", {},
+      el("span", { class: "x", text: `${KIND_LABEL[t.kind] || t.kind}${t.phone_display ? ` · ${t.phone_display}` : ""}` })))),
+    el("span", { class: "tile-foot", text: "Open tasks" }));
+
+  // Recent calls.
+  const calls = todayData.calls.slice(0, 5);
+  $("today-calls").replaceChildren(tileHead("i-calls", "Recent calls"),
+    calls.length ? el("ul", { class: "tile-list" }, ...calls.map((c) => el("li", {},
+      el("span", { class: "t", text: fmtTime(c.started_at) }),
+      el("span", { class: "x", text: callOutcome(c.outcome) })))) : el("span", { class: "tile-sub", text: "No calls yet." }),
+    el("span", { class: "tile-foot", text: "Open calls" }));
+
+  // Recovery campaign progress.
+  const rec = todayData.recovery;
+  const campaign = rec && (rec.campaigns || []).find((c) => c.status === "running");
+  const recTile = $("today-recovery");
+  if (campaign) {
+    const total = campaign.jobs.length || 1;
+    const finished = campaign.jobs.filter((j) => ["done", "failed", "skipped"].includes(j.status)).length;
+    const pct = Math.round((100 * finished) / total);
+    const ring = el("div", { class: "ring", "data-label": `${finished}/${total}` });
+    ring.style.setProperty("--p", String(pct));
+    recTile.replaceChildren(tileHead("i-recovery", "Recovery calls"), ring,
+      el("span", { class: "tile-sub", text: `${campaign.doctor}: ${summaryText(campaign)}` }),
+      el("span", { class: "tile-foot", text: "Open recovery" }));
+    $("side-recovery-badge").textContent = String(total - finished);
+    $("side-recovery-badge").hidden = total === finished;
+  } else {
+    const blocks = rec ? (rec.blocks || []).length : 0;
+    recTile.replaceChildren(tileHead("i-recovery", "Recovery"),
+      el("span", { class: "tile-headline", text: blocks ? `${blocks} doctor${blocks === 1 ? "" : "s"} blocked` : "All doctors available" }),
+      el("span", { class: "tile-sub", text: "When a doctor can't come in, Emma calls their patients to find a new time." }),
+      el("span", { class: "tile-foot", text: "Open recovery" }));
+    $("side-recovery-badge").hidden = true;
+  }
+
+  // System health.
+  const h = todayData.health;
+  const problems = [];
+  if (!h) problems.push("Server unreachable");
+  else {
+    if (!h.deepgram) problems.push("Speech to text has no key");
+    if (!h.elevenlabs) problems.push("Voice has no key");
+    if (!h.gemini) problems.push("Understanding unavailable");
+  }
+  const failed = overview ? overview.sync.failed || 0 : 0;
+  if (failed) problems.push(`${failed} calendar sync${failed === 1 ? "" : "s"} failed`);
+  for (const a of (overview && overview.alerts) || []) problems.push(a.text);
+  $("today-system").replaceChildren(tileHead("i-system", "System"),
+    el("span", { class: "tile-headline" }, el("span", { class: `health-dot${problems.length ? " bad" : ""}` }), " ",
+      problems.length ? "Needs a look" : "All good"),
+    el("span", { class: "tile-sub", text: problems.length ? problems.slice(0, 3).join(" · ") : "Speech, voice, understanding and calendar sync are working." }),
+    el("span", { class: "tile-foot", text: "Open system" }));
+}
+
+// ------------------------------------------------------------------ appointments (Calendar)
+const VIEWS = ["day", "week", "month", "year", "list"];
+const appt = {
+  view: VIEWS.includes(recall("cal-view")) ? recall("cal-view") : "day",
+  day: null, listScope: "upcoming", rows: [], hidden: new Set(JSON.parse(recall("cal-hidden") || "[]")), byDate: null,
+};
+const segmentPlacers = [];
+
+function apptRange() {
+  if (appt.view === "day") return { first: appt.day, days: 1 };
+  if (appt.view === "week") return { first: startOfWeek(appt.day), days: 7 };
+  if (appt.view === "month") return { first: startOfWeek(startOfMonth(appt.day)), days: 42 };
+  return null;
+}
+
+function apptQuery(range = apptRange()) {
+  const params = new URLSearchParams();
+  if (appt.view === "list") params.set("scope", appt.listScope);
+  else if (range) {
+    params.set("scope", "day");
+    params.set("day", range.first);
+    params.set("days", String(range.days));
+  }
   for (const [key, id] of [["branch_id", "appt-branch"], ["doctor_id", "appt-doctor"], ["status", "appt-status"]]) {
     if ($(id).value) params.set(key, $(id).value);
   }
   const q = $("appt-search").value.trim();
   if (q) params.set("q", q);
-  return params.toString();
+  return params;
 }
 
+let apptRequest = 0;
 async function loadAppointments() {
   appt.day = appt.day || clinicToday();
   $("appt-day").value = appt.day;
-  $("appt-day-controls").hidden = appt.scope !== "day";
-  document.querySelectorAll("#appt-scope button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scope === appt.scope)));
-  const tbody = $("appt-rows");
+  document.querySelectorAll("#cal-view button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === appt.view)));
+  document.querySelectorAll("#appt-scope button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scope === appt.listScope)));
+  const listing = appt.view === "list";
+  document.querySelectorAll(".list-only").forEach((node) => { node.hidden = !listing; });
+  $("appt-day").hidden = listing;
+  $("list-view").hidden = !listing;
+  $("cal-body").hidden = listing;
+  document.querySelector(".cal-nav").style.visibility = listing ? "hidden" : "visible";
+  renderCalTitle();
+  renderMiniMonth();
+  const ticket = ++apptRequest;
   try {
-    appt.rows = (await api(`/dashboard/api/appointments?${apptQuery()}`)).appointments;
+    if (appt.view === "year") {
+      const { y } = parts(appt.day);
+      const starts = [0, 62, 124, 186, 248, 310].map((offset) => shiftDay(isoDate(y, 0, 1), offset));
+      const chunks = await Promise.all(starts.map((first) => api(`/dashboard/api/appointments?${apptQuery({ first, days: 62 })}`)));
+      appt.rows = chunks.flatMap((c) => c.appointments).filter((r) => r.date.startsWith(String(y)));
+    } else {
+      appt.rows = (await api(`/dashboard/api/appointments?${apptQuery()}`)).appointments;
+    }
   } catch (err) {
-    tbody.replaceChildren(emptyRow(9, err.message));
+    if (ticket !== apptRequest) return;
+    $("cal-body").replaceChildren(el("div", { class: "cal-empty", text: err.message }));
+    $("appt-rows").replaceChildren(emptyRow(9, err.message));
     return;
   }
+  if (ticket !== apptRequest) return;
   renderAppointments();
 }
 const reloadAppointmentsSoon = debounce(loadAppointments, 400);
 
+function visibleRows() {
+  return appt.rows.filter((r) => !appt.hidden.has(r.doctor_id));
+}
+
+function renderCalTitle() {
+  const main = $("cal-title-main");
+  const sub = $("cal-title-sub");
+  const { y } = parts(appt.day);
+  if (appt.view === "day") {
+    main.textContent = `${dayFmt(appt.day, { day: "numeric", month: "long" })} ${y}`;
+    sub.textContent = dayFmt(appt.day, { weekday: "long" });
+  } else if (appt.view === "week") {
+    const first = startOfWeek(appt.day);
+    const last = shiftDay(first, 6);
+    main.textContent = dayFmt(first, { month: "long" });
+    sub.textContent = parts(first).m === parts(last).m ? String(y) : `– ${dayFmt(last, { month: "long" })} ${parts(last).y}`;
+  } else if (appt.view === "month") {
+    main.textContent = dayFmt(appt.day, { month: "long" });
+    sub.textContent = String(y);
+  } else if (appt.view === "year") {
+    main.textContent = String(y);
+    sub.textContent = "";
+  } else {
+    main.textContent = "Appointments";
+    sub.textContent = { upcoming: "Upcoming", past: "Past", all: "All" }[appt.listScope];
+  }
+}
+
 function renderAppointments() {
+  const rows = visibleRows();
+  const active = rows.filter((r) => r.status === "booked" || r.status === "needs_reschedule").length;
+  $("appt-summary").textContent = `${rows.length} shown, ${active} active`;
+  if (appt.view === "day") renderTimeGrid([appt.day], "doctors");
+  else if (appt.view === "week") renderTimeGrid([...Array(7)].map((_, i) => shiftDay(startOfWeek(appt.day), i)), "days");
+  else if (appt.view === "month") renderMonth();
+  else if (appt.view === "year") renderYear();
+  else renderList();
+}
+
+// Lay overlapping events side by side, as Calendar does.
+function layoutLanes(events) {
+  const sorted = [...events].sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
+  let cluster = [];
+  let clusterEnd = -1;
+  const flush = () => {
+    const lanes = [];
+    for (const ev of cluster) {
+      let lane = lanes.findIndex((end) => end <= ev.startMin);
+      if (lane < 0) { lane = lanes.length; lanes.push(0); }
+      lanes[lane] = ev.endMin;
+      ev.lane = lane;
+    }
+    for (const ev of cluster) ev.lanes = lanes.length;
+    cluster = [];
+  };
+  for (const ev of sorted) {
+    if (ev.startMin >= clusterEnd && cluster.length) flush();
+    cluster.push(ev);
+    clusterEnd = Math.max(clusterEnd, ev.endMin);
+  }
+  if (cluster.length) flush();
+  return sorted;
+}
+
+const minutesOf = (hhmm) => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+
+function eventButton(r, ev, firstHour, hourPx) {
+  const top = ((ev.startMin - firstHour * 60) / 60) * hourPx;
+  const height = Math.max(22, ((ev.endMin - ev.startMin) / 60) * hourPx - 2);
+  const width = 100 / ev.lanes;
+  const node = el("button", {
+    type: "button", class: `event ${r.status}`, "data-appt": r.id,
+    title: `${r.time}–${r.end_time} ${r.patient_name}, ${r.service}, ${r.doctor}, ${r.branch}`,
+  },
+  el("span", { class: "ev-name", text: r.patient_name }),
+  height > 34 ? el("span", { class: "ev-meta", text: `${r.time} · ${r.service}` }) : null,
+  height > 52 ? el("span", { class: "ev-meta", text: appt.view === "day" ? r.branch : r.doctor }) : null);
+  node.style.setProperty("--doc", doctorColor(r.doctor_id));
+  node.style.top = `${top}px`;
+  node.style.height = `${height}px`;
+  node.style.left = `calc(${ev.lane * width}% + 3px)`;
+  node.style.right = "auto";
+  node.style.width = `calc(${width}% - 6px)`;
+  node.addEventListener("click", (event) => { event.stopPropagation(); openPopover(r, node); });
+  return node;
+}
+
+function renderTimeGrid(daysList, mode) {
+  const rows = visibleRows();
+  let first = dayHours[0];
+  let last = dayHours[1];
+  for (const r of rows) {
+    first = Math.min(first, Math.floor(minutesOf(r.time) / 60));
+    last = Math.max(last, Math.ceil(minutesOf(r.end_time) / 60));
+  }
+  const hourPx = window.matchMedia("(max-width: 734px)").matches ? 56 : 64;
+
+  // Columns: in Day view one per doctor (filtered by branch), in Week view one per day.
+  let columns;
+  if (mode === "doctors") {
+    const branch = Number($("appt-branch").value) || null;
+    const chosenDoctor = Number($("appt-doctor").value) || null;
+    let doctors = catalog.doctors.filter((d) => (!branch || d.branch_id === branch) && (!chosenDoctor || d.id === chosenDoctor)
+      && !appt.hidden.has(d.id));
+    const withRows = new Set(rows.map((r) => r.doctor_id));
+    if (doctors.length > 6) doctors = doctors.filter((d) => withRows.has(d.id));
+    if (!doctors.length) doctors = catalog.doctors.filter((d) => withRows.has(d.id));
+    columns = doctors.map((d) => ({ key: d.id, label: d.name.replace(/^Dr\.? /, "Dr "), sub: d.branch, day: daysList[0],
+      rows: rows.filter((r) => r.doctor_id === d.id), color: doctorColor(d.id) }));
+    if (!columns.length) columns = [{ key: "none", label: "", sub: "", day: daysList[0], rows: [] }];
+  } else {
+    columns = daysList.map((iso) => ({ key: iso, day: iso, rows: rows.filter((r) => r.date === iso),
+      label: dayFmt(iso, { weekday: "short" }), num: parts(iso).d }));
+  }
+
+  const today = clinicToday();
+  const grid = el("div", { class: "tgrid" });
+  grid.style.setProperty("--cols", String(columns.length));
+  grid.style.setProperty("--hour", `${hourPx}px`);
+  const head = el("div", { class: "tgrid-head" }, el("div", { class: "col-head" }));
+  for (const col of columns) {
+    if (mode === "doctors") {
+      const h = el("div", { class: "col-head" }, el("b", { text: col.label || "No doctors" }), col.sub ? col.sub : "");
+      h.querySelector("b").style.fontSize = "14px";
+      h.querySelector("b").style.fontWeight = "600";
+      if (col.color) h.style.boxShadow = `inset 0 -3px 0 ${col.color}`;
+      head.append(h);
+    } else {
+      const button = el("button", { type: "button", "aria-label": `Open ${prettyDay(col.day)}` }, col.label, el("b", { text: String(col.num) }));
+      button.addEventListener("click", () => { appt.day = col.day; setView("day"); });
+      head.append(el("div", { class: `col-head${col.day === today ? " today" : ""}` }, button));
+    }
+  }
+  grid.append(head);
+  const hoursCol = el("div", { class: "hours" });
+  for (let h = first; h < last; h += 1) hoursCol.append(el("div", { class: "hour-label", text: h === first ? "" : `${String(h).padStart(2, "0")}:00` }));
+  grid.append(hoursCol);
+  for (const col of columns) {
+    const sunday = weekday(col.day) === 6;
+    const colNode = el("div", { class: `day-col${sunday ? " closed" : ""}` });
+    colNode.style.height = `${(last - first) * hourPx}px`;
+    const events = layoutLanes(col.rows.map((r) => ({ r, startMin: minutesOf(r.time), endMin: minutesOf(r.end_time) })));
+    for (const ev of events) colNode.append(eventButton(ev.r, ev, first, hourPx));
+    if (col.day === today) {
+      const now = clinicNowMinutes();
+      if (now >= first * 60 && now <= last * 60) {
+        const line = el("div", { class: `now-line${col === columns.find((c) => c.day === today) ? " first" : ""}` });
+        line.style.top = `${((now - first * 60) / 60) * hourPx}px`;
+        colNode.append(line);
+      }
+    }
+    grid.append(colNode);
+  }
+  const body = $("cal-body");
+  const notes = [];
+  if (!rows.length) {
+    const sunday = appt.view === "day" && weekday(appt.day) === 6;
+    notes.push(el("div", { class: "cal-empty", text: sunday ? "The clinic is closed on Sundays." : "No appointments here." }));
+  }
+  body.replaceChildren(grid, ...notes);
+  if (mode === "doctors" || columns.some((c) => c.day === today)) {
+    // Start the view near "now" (or the first appointment), as Calendar does.
+    const target = rows.length ? Math.min(...rows.map((r) => minutesOf(r.time))) : clinicNowMinutes();
+    const y = grid.getBoundingClientRect().top + window.scrollY + ((target - first * 60) / 60) * hourPx - 160;
+    if (window.scrollY < 10 && y > 200) window.scrollTo({ top: y, behavior: "smooth" });
+  }
+}
+
+function renderMonth() {
+  const rows = visibleRows();
+  const first = startOfWeek(startOfMonth(appt.day));
+  const month = parts(appt.day).m;
+  const today = clinicToday();
+  const byDate = new Map();
+  for (const r of rows) (byDate.get(r.date) || byDate.set(r.date, []).get(r.date)).push(r);
+  const grid = el("div", { class: "mgrid" }, ...["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => el("div", { class: "dow", text: d })));
+  for (let i = 0; i < 42; i += 1) {
+    const iso = shiftDay(first, i);
+    const list = (byDate.get(iso) || []).sort((a, b) => a.time.localeCompare(b.time));
+    const cell = el("div", { class: `mcell${parts(iso).m !== month ? " other" : ""}${iso === today ? " today" : ""}`,
+      role: "button", tabindex: "0", "aria-label": `${prettyDay(iso)}, ${list.length} appointment${list.length === 1 ? "" : "s"}` },
+    el("span", { class: "mnum", text: String(parts(iso).d) }),
+    ...list.slice(0, 3).map((r) => {
+      const item = el("div", { class: `mev ${r.status}` }, el("i"), el("span", { text: r.time }), ` ${r.patient_name}`);
+      item.style.setProperty("--doc", doctorColor(r.doctor_id));
+      return item;
+    }),
+    list.length > 3 ? el("div", { class: "mmore", text: `${list.length - 3} more` }) : null);
+    const open = () => { appt.day = iso; setView("day"); };
+    cell.addEventListener("click", open);
+    cell.addEventListener("keydown", (e) => { if (e.key === "Enter") open(); });
+    grid.append(cell);
+  }
+  $("cal-body").replaceChildren(grid);
+}
+
+function renderYear() {
+  const rows = visibleRows();
+  const has = new Set(rows.map((r) => r.date));
+  const { y } = parts(appt.day);
+  const today = clinicToday();
+  const grid = el("div", { class: "ygrid" });
+  for (let m = 0; m < 12; m += 1) {
+    const firstIso = isoDate(y, m, 1);
+    const daysIn = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const cells = ["M", "T", "W", "T", "F", "S", "S"].map((d) => el("span", { class: "dow", text: d }));
+    for (let i = 0; i < weekday(firstIso); i += 1) cells.push(el("span"));
+    for (let d = 1; d <= daysIn; d += 1) {
+      const iso = isoDate(y, m, d);
+      const b = el("button", { type: "button", class: `${has.has(iso) ? "has" : ""}${iso === today ? " today" : ""}`, text: String(d),
+        "aria-label": prettyDay(iso) });
+      b.addEventListener("click", () => { appt.day = iso; setView("day"); });
+      cells.push(b);
+    }
+    const title = el("h3", {}, el("button", { type: "button", class: "btn-pill text small", text: dayFmt(firstIso, { month: "long" }),
+      onclick: () => { appt.day = firstIso; setView("month"); } }));
+    title.firstChild.style.color = "inherit";
+    title.firstChild.style.padding = "0";
+    grid.append(el("div", { class: "ymonth" }, title, el("div", { class: "ydays" }, ...cells)));
+  }
+  $("cal-body").replaceChildren(grid);
+}
+
+function renderList() {
   const tbody = $("appt-rows");
   const group = $("appt-group").value;
-  const rows = [...appt.rows];
+  const rows = [...visibleRows()];
   if (group) rows.sort((a, b) => a[group].localeCompare(b[group]) || a.start.localeCompare(b.start));
-  const active = rows.filter((r) => r.status === "booked" || r.status === "needs_reschedule").length;
-  const where = appt.scope === "day" ? prettyDay(appt.day) : { upcoming: "Upcoming", past: "Past", all: "All" }[appt.scope];
-  $("appt-summary").textContent = `${where} · ${rows.length} shown, ${active} active`;
   if (!rows.length) {
-    const sunday = appt.scope === "day" && new Date(`${appt.day}T12:00:00`).getDay() === 0;
-    tbody.replaceChildren(emptyRow(9, sunday ? "The clinic is closed on Sundays." : "No appointments match."));
+    tbody.replaceChildren(emptyRow(9, "No appointments match."));
     return;
   }
   const out = [];
   let lastGroup = null;
-  const now = new Date();
   for (const r of rows) {
     if (group && r[group] !== lastGroup) {
       lastGroup = r[group];
       out.push(el("tr", { class: "group-row" }, el("td", { colspan: 9, text: lastGroup })));
     }
-    const when = appt.scope === "day" ? `${r.time}–${r.end_time}` : fmtDateTime(r.start);
-    const changeable = (r.status === "booked" || r.status === "needs_reschedule") && new Date(r.start) > now;
     out.push(el("tr", { class: r.status === "cancelled" ? "muted-row" : "" },
-      el("td", { class: "nowrap num", text: when }),
-      el("td", {}, r.patient_name, r.patient_age ? el("span", { class: "muted small", text: ` · ${r.patient_age} y` }) : null,
+      el("td", { class: "nowrap num", text: fmtDateTime(r.start) }),
+      el("td", {}, r.patient_name, r.patient_age ? el("span", { class: "ink-2 t-caption", text: ` · ${r.patient_age} y` }) : null,
         r.name_unverified ? el("div", {}, el("span", { class: "badge warn", text: "name unverified" })) : null),
       el("td", { class: "nowrap num", text: r.phone_display }),
       el("td", { text: r.service }),
       el("td", { text: r.doctor }),
       el("td", { text: r.branch }),
       el("td", {}, el("span", { class: `badge ${r.status}`, text: STATUS_LABEL[r.status] || r.status }),
-        r.cancel_reason ? el("div", { class: "muted small", text: r.cancel_reason }) : null),
+        r.cancel_reason ? el("div", { class: "ink-2 t-caption", text: r.cancel_reason }) : null),
       el("td", { title: r.calendar_synced ? "In Google Calendar" : "Waiting to sync", text: r.calendar_synced ? "✓" : "…" }),
-      el("td", { class: "actions" }, changeable ? [
-        el("button", { class: "btn small", type: "button", text: "Move", onclick: () => openBook("move", r) }),
-        el("button", { class: "btn small danger", type: "button", text: "Cancel", onclick: () => openCancel(r) }),
-      ] : r.status === "booked" && new Date(r.start) <= now ? [
-        el("button", { class: "btn small", type: "button", text: "Attended", onclick: () => markAttendance(r, "completed") }),
-        el("button", { class: "btn small ghost", type: "button", text: "No-show", onclick: () => markAttendance(r, "no_show") }),
-      ] : null)));
+      el("td", { class: "actions" }, ...apptActions(r, true))));
   }
   tbody.replaceChildren(...out);
 }
 
+// The actions an appointment allows: Move/Cancel ahead of time, Attended/No-show once it has started.
+function apptActions(r, small = false) {
+  const now = new Date();
+  const changeable = (r.status === "booked" || r.status === "needs_reschedule") && new Date(r.start) > now;
+  const size = small ? " small" : " small";
+  if (changeable) {
+    return [
+      el("button", { class: `btn-pill gray${size}`, type: "button", text: "Move", onclick: () => { closePopover(); openBook("move", r); } }),
+      el("button", { class: `btn-pill danger-text${size}`, type: "button", text: "Cancel", onclick: () => { closePopover(); openCancel(r); } }),
+    ];
+  }
+  if (r.status === "booked" && new Date(r.start) <= now) {
+    return [
+      el("button", { class: `btn-pill${size}`, type: "button", text: "Attended", onclick: () => { closePopover(); markAttendance(r, "completed"); } }),
+      el("button", { class: `btn-pill gray${size}`, type: "button", text: "No-show", onclick: () => { closePopover(); markAttendance(r, "no_show"); } }),
+    ];
+  }
+  return [];
+}
+
+// Calendar's event inspector, a glass popover beside the event.
+let popoverFor = null;
+function openPopover(r, anchor) {
+  const pop = $("appt-popover");
+  if (popoverFor === r.id && !pop.hidden) { closePopover(); return; }
+  document.querySelectorAll(".event.selected").forEach((n) => n.classList.remove("selected"));
+  anchor.classList.add("selected");
+  popoverFor = r.id;
+  pop.style.setProperty("--doc", doctorColor(r.doctor_id));
+  $("pop-title").textContent = r.patient_name + (r.patient_age ? `, ${r.patient_age}` : "");
+  $("pop-when").textContent = `${prettyDay(r.date)}, ${r.time}–${r.end_time}`;
+  const row = (k, v) => [el("dt", { text: k }), el("dd", {}, v)];
+  $("pop-details").replaceChildren(
+    ...row("Service", r.service),
+    ...row("Doctor", r.doctor),
+    ...row("Branch", r.branch),
+    ...row("Phone", r.phone_display || "–"),
+    ...row("Status", el("span", { class: `badge ${r.status}`, text: STATUS_LABEL[r.status] || r.status })),
+    ...(r.cancel_reason ? row("Reason", r.cancel_reason) : []),
+    ...(r.name_unverified ? row("Name", el("span", { class: "badge warn", text: "unverified" })) : []),
+    ...row("Calendar", r.calendar_synced ? "In Google Calendar" : "Waiting to sync"),
+    ...row("Booked by", r.source === "call" || r.created_by_call_id ? "Emma, on a call" : (r.source || "–")));
+  const actions = apptActions(r);
+  if (r.created_by_call_id) {
+    actions.push(el("button", { class: "btn-pill text small", type: "button", text: "Open the call",
+      onclick: () => { closePopover(); showTab("calls"); openCall(r.created_by_call_id); } }));
+  }
+  $("pop-actions").replaceChildren(...actions);
+  pop.hidden = false;
+  const box = anchor.getBoundingClientRect();
+  const w = 320;
+  let left = box.right + 10;
+  if (left + w > window.innerWidth - 12) left = Math.max(12, box.left - w - 10);
+  let top = Math.min(window.innerHeight - pop.offsetHeight - 12, Math.max(12, box.top - 8));
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+}
+function closePopover() {
+  const pop = $("appt-popover");
+  if (pop.hidden) return;
+  pop.hidden = true;
+  popoverFor = null;
+  document.querySelectorAll(".event.selected").forEach((n) => n.classList.remove("selected"));
+}
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("#appt-popover") && !event.target.closest(".event")) closePopover();
+});
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") closePopover(); });
+window.addEventListener("scroll", () => closePopover(), { passive: true });
+
+// Calendar's sidebar: a mini month and the doctors as show/hide "calendars".
+let miniMonthOf = null;
+function renderMiniMonth() {
+  const box = $("mini-month");
+  const focus = miniMonthOf || startOfMonth(appt.day);
+  const month = parts(focus).m;
+  const first = startOfWeek(focus);
+  const today = clinicToday();
+  const grid = el("div", { class: "mini-grid" }, ...["M", "T", "W", "T", "F", "S", "S"].map((d) => el("span", { class: "dow", text: d })));
+  for (let i = 0; i < 42; i += 1) {
+    const iso = shiftDay(first, i);
+    const cls = [parts(iso).m !== month ? "other" : "", iso === today ? "today" : "", iso === appt.day ? "chosen" : ""].filter(Boolean).join(" ");
+    grid.append(el("button", { type: "button", class: cls, text: String(parts(iso).d), "aria-label": prettyDay(iso),
+      onclick: () => { appt.day = iso; miniMonthOf = null; if (appt.view === "year" || appt.view === "list") appt.view = "day"; loadAppointments(); } }));
+  }
+  box.replaceChildren(el("div", { class: "mini-head" },
+    el("span", { text: dayFmt(focus, { month: "long", year: "numeric" }) }),
+    el("span", {},
+      el("button", { type: "button", "aria-label": "Previous month", text: "‹", onclick: () => { miniMonthOf = shiftMonth(focus, -1); renderMiniMonth(); } }),
+      el("button", { type: "button", "aria-label": "Next month", text: "›", onclick: () => { miniMonthOf = shiftMonth(focus, 1); renderMiniMonth(); } }))),
+  grid);
+}
+
+function renderDoctorToggles() {
+  const box = $("cal-doctors");
+  box.replaceChildren(...catalog.doctors.map((d) => {
+    const button = el("button", { type: "button", class: "doc-toggle", "aria-pressed": String(!appt.hidden.has(d.id)),
+      title: `Show or hide ${d.name}` },
+    el("span", { class: "doc-check" }), el("span", { text: d.name }), el("small", { text: d.branch }));
+    button.style.setProperty("--doc", doctorColor(d.id));
+    button.addEventListener("click", () => {
+      if (appt.hidden.has(d.id)) appt.hidden.delete(d.id); else appt.hidden.add(d.id);
+      store("cal-hidden", JSON.stringify([...appt.hidden]));
+      button.setAttribute("aria-pressed", String(!appt.hidden.has(d.id)));
+      renderAppointments();
+    });
+    return button;
+  }));
+}
+
+function setView(view) {
+  appt.view = view;
+  store("cal-view", view);
+  window.scrollTo({ top: 0 });
+  loadAppointments();
+}
+
+function step(direction) {
+  if (appt.view === "day") appt.day = shiftDay(appt.day, direction);
+  else if (appt.view === "week") appt.day = shiftDay(appt.day, 7 * direction);
+  else if (appt.view === "month") appt.day = shiftMonth(appt.day, direction);
+  else if (appt.view === "year") appt.day = shiftMonth(appt.day, 12 * direction);
+  miniMonthOf = null;
+  loadAppointments();
+}
+
+document.querySelectorAll("#cal-view button").forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
 document.querySelectorAll("#appt-scope button").forEach((button) => button.addEventListener("click", () => {
-  appt.scope = button.dataset.scope;
+  appt.listScope = button.dataset.scope;
   loadAppointments();
 }));
-$("appt-day").addEventListener("change", () => { appt.day = $("appt-day").value || clinicToday(); loadAppointments(); });
-$("appt-prev").addEventListener("click", () => { appt.day = shiftDay(appt.day, -1); loadAppointments(); });
-$("appt-next").addEventListener("click", () => { appt.day = shiftDay(appt.day, 1); loadAppointments(); });
-$("appt-today").addEventListener("click", () => { appt.day = clinicToday(); loadAppointments(); });
+$("appt-day").addEventListener("change", () => {
+  appt.day = $("appt-day").value || clinicToday();
+  if (appt.view === "list") appt.view = "day";
+  loadAppointments();
+});
+$("appt-prev").addEventListener("click", () => step(-1));
+$("appt-next").addEventListener("click", () => step(1));
+$("appt-today").addEventListener("click", () => { appt.day = clinicToday(); miniMonthOf = null; loadAppointments(); });
 $("appt-branch").addEventListener("change", () => { fillDoctorFilter(); loadAppointments(); });
 $("appt-doctor").addEventListener("change", loadAppointments);
 $("appt-status").addEventListener("change", loadAppointments);
 $("appt-group").addEventListener("change", renderAppointments);
-$("appt-search").addEventListener("input", debounce(loadAppointments, 300));
+$("appt-search").addEventListener("input", debounce(() => {
+  // Searching across all dates reads better as a list, as in Calendar's search results.
+  if ($("appt-search").value.trim() && appt.view !== "list") { appt.view = "list"; appt.listScope = "all"; }
+  loadAppointments();
+}, 300));
 $("appt-export").addEventListener("click", () => {
   // A plain navigation: the browser downloads the file with the session cookie.
   location.href = `/dashboard/api/appointments.csv?${apptQuery()}`;
 });
 $("appt-new").addEventListener("click", () => openBook("book"));
+document.addEventListener("keydown", (event) => {
+  if (currentTab !== "appointments" || event.target.closest("input, select, textarea, dialog")) return;
+  if (event.key === "ArrowLeft") step(-1);
+  else if (event.key === "ArrowRight") step(1);
+  else if (event.key.toLowerCase() === "t") $("appt-today").click();
+});
 
 async function markAttendance(r, status) {
   try {
@@ -668,7 +1342,7 @@ $("cancel-form").addEventListener("submit", async (event) => {
   }
 });
 
-// Book and move share one dialog: pick where and when, then who (book only).
+// Book and move share one sheet: pick where and when, then who (book only).
 const booking = { mode: "book", target: null, slot: null, key: null };
 
 function doctorsFor(serviceId, branchId) {
@@ -732,7 +1406,8 @@ function openBook(mode, target = null) {
     $("book-doctor").value = String(target.doctor_id);
     $("book-day").value = target.date;
   } else {
-    $("book-day").value = appt.scope === "day" && appt.day >= clinicToday() ? appt.day : clinicToday();
+    const day = appt.day && appt.day >= clinicToday() && appt.view !== "list" ? appt.day : clinicToday();
+    $("book-day").value = day;
     for (const id of ["book-name", "book-phone", "book-age"]) $(id).value = "";
   }
   showError($("book-error"), "");
@@ -747,19 +1422,19 @@ async function findSlots() {
   if ($("book-doctor").value) params.set("doctor_id", $("book-doctor").value);
   if (booking.mode === "move") params.set("ignore_appointment", booking.target.id);
   const box = $("book-slots");
-  box.replaceChildren(el("span", { class: "muted small", text: "Looking…" }));
+  box.replaceChildren(el("span", { class: "ink-2 t-small", text: "Looking…" }));
   booking.slot = null;
   updateBookButton();
   try {
     const { slots } = await api(`/dashboard/api/slots?${params}`);
     if (!slots.length) {
-      box.replaceChildren(el("span", { class: "muted small", text: "No free times that day. Try another day or doctor." }));
+      box.replaceChildren(el("span", { class: "ink-2 t-small", text: "No free times that day. Try another day or doctor." }));
       return;
     }
     const anyDoctor = !$("book-doctor").value;
     box.replaceChildren(...slots.map((slot) => {
       const button = el("button", {
-        class: "btn small", type: "button", "aria-pressed": "false",
+        class: "slot", type: "button", "aria-pressed": "false",
         text: anyDoctor ? `${slot.time} · ${slot.doctor}` : slot.time,
         title: `${slot.doctor}, ${slot.branch}`,
       });
@@ -810,6 +1485,7 @@ $("book-form").addEventListener("submit", async (event) => {
     }
     $("dlg-book").close();
     if (currentTab === "appointments") loadAppointments();
+    if (currentTab === "today") renderToday();
   } catch (err) {
     showError($("book-error"), err.message);
     if (err.status === 409) booking.key = newKey();   // a fresh attempt, not a replay of the failed one
@@ -817,31 +1493,52 @@ $("book-form").addEventListener("submit", async (event) => {
   }
 });
 
-// ------------------------------------------------------------------ tasks
+// ------------------------------------------------------------------ tasks (Reminders)
 let taskStatus = "open";
 
 async function loadTasks() {
   document.querySelectorAll("#task-filter button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.status === taskStatus)));
-  const tbody = $("task-rows");
-  let list;
+  const list = $("task-rows");
+  let tasks;
   try {
-    list = (await api(`/dashboard/api/tasks?status=${taskStatus}`)).tasks;
+    tasks = (await api(`/dashboard/api/tasks?status=${taskStatus}`)).tasks;
   } catch (err) {
-    tbody.replaceChildren(emptyRow(8, err.message));
+    list.replaceChildren(emptyItem(err.message));
     return;
   }
-  if (!list.length) {
-    tbody.replaceChildren(emptyRow(8, taskStatus === "open" ? "Nothing waiting. Nice." : "No tasks."));
+  if (!tasks.length) {
+    list.replaceChildren(emptyItem(taskStatus === "open" ? "Nothing waiting. Nice." : "No tasks."));
     return;
   }
-  tbody.replaceChildren(...list.map((t) => {
-    const box = el("input", { type: "checkbox", "aria-label": `Mark task ${t.id} done` });
+  list.replaceChildren(...tasks.map((t) => {
+    const box = el("input", { type: "checkbox", class: "check-circle", "aria-label": `Mark task ${t.id} done` });
     box.checked = t.status === "done";
+    const item = el("li", { class: `reminder${t.status === "done" ? " done" : ""}${t.priority === "urgent" ? " urgent" : ""}` },
+      box,
+      el("div", {},
+        el("div", { class: "rem-title" },
+          t.priority === "urgent" || t.priority === "high" ? el("span", { class: "flag", text: t.priority === "urgent" ? "!!" : "!" }) : null,
+          KIND_LABEL[t.kind] || t.kind),
+        t.note ? el("div", { class: "rem-note", text: t.note }) : null,
+        el("div", { class: "rem-meta" },
+          t.phone_display ? el("span", { class: "num", text: t.phone_display }) : null,
+          el("span", { text: `Created ${ago(t.created_at)}`, title: fmtDateTime(t.created_at) }),
+          t.due_at ? el("span", { text: `Due ${fmtDateTime(t.due_at)}` }) : null)),
+      el("div", { class: "rem-side" },
+        el("span", { class: `badge ${t.priority}`, text: t.priority }),
+        t.call_id ? el("button", { class: "btn-pill text small", type: "button", text: "Call",
+          title: `Open call ${t.call_id}`, onclick: () => { showTab("calls"); openCall(t.call_id); } }) : null));
     box.addEventListener("change", async () => {
       box.disabled = true;
       try {
         await api(`/dashboard/api/tasks/${t.id}`, { method: "POST", body: { done: box.checked } });
-        loadTasks();
+        // Reminders: a ticked item fills its circle, then slides away from the Open list.
+        if (taskStatus !== "all") {
+          setTimeout(() => item.classList.add("leaving"), 260);
+          setTimeout(loadTasks, 620);
+        } else {
+          loadTasks();
+        }
         refreshSoon();
       } catch (err) {
         toast(err.message, "error");
@@ -849,18 +1546,7 @@ async function loadTasks() {
         box.disabled = false;
       }
     });
-    return el("tr", { class: t.status === "done" ? "muted-row" : "" },
-      el("td", {}, box),
-      el("td", {}, el("span", { class: `badge ${t.priority}`, text: t.priority })),
-      el("td", { class: "nowrap", text: KIND_LABEL[t.kind] || t.kind }),
-      el("td", { text: t.note || "–" }),
-      el("td", { class: "nowrap num", text: t.phone_display || "–" }),
-      el("td", { class: "nowrap", text: fmtDateTime(t.created_at) }),
-      el("td", { class: "nowrap", text: t.due_at ? fmtDateTime(t.due_at) : "–" }),
-      el("td", {}, t.call_id ? el("button", {
-        class: "btn small ghost mono", type: "button", text: t.call_id,
-        onclick: () => { showTab("calls"); openCall(t.call_id); },
-      }) : "–"));
+    return item;
   }));
 }
 
@@ -869,31 +1555,31 @@ document.querySelectorAll("#task-filter button").forEach((button) => button.addE
   loadTasks();
 }));
 
-// ------------------------------------------------------------------ calls
+// ------------------------------------------------------------------ calls (Mail)
 let selectedCall = null;
 
 async function loadCalls() {
-  const tbody = $("call-rows");
-  let list;
+  const list = $("call-rows");
+  let calls;
   try {
-    list = (await api("/dashboard/api/calls?limit=100")).calls;
+    calls = (await api("/dashboard/api/calls?limit=100")).calls;
   } catch (err) {
-    tbody.replaceChildren(emptyRow(6, err.message));
+    list.replaceChildren(emptyItem(err.message));
     return;
   }
-  if (!list.length) {
-    tbody.replaceChildren(emptyRow(6, "No calls yet."));
+  if (!calls.length) {
+    list.replaceChildren(emptyItem("No calls yet."));
     return;
   }
-  tbody.replaceChildren(...list.map((c) => {
-    const row = el("tr", { tabindex: "0", "data-call": c.id, class: c.id === selectedCall ? "selected" : "" },
-      el("td", { class: "nowrap", text: fmtDateTime(c.started_at) }),
-      el("td", { class: "nowrap num", text: c.ended_at ? length(c.started_at, c.ended_at) : "live" }),
-      el("td", {}, el("span", { class: `badge ${(c.outcome || "").split("@")[0]}`, title: c.outcome || "",
-        text: callOutcome(c.outcome) })),
-      el("td", { text: CHANNEL_LABEL[c.channel] || "–" }),
-      el("td", { class: "nowrap num", text: c.phone_display || "–" }),
-      el("td", { class: "num", text: c.turns === c.kept_turns ? String(c.turns) : `${c.kept_turns}/${c.turns} kept` }));
+  list.replaceChildren(...calls.map((c) => {
+    const row = el("li", { tabindex: "0", role: "button", "data-call": c.id,
+      class: `mail-row${c.id === selectedCall ? " selected" : ""}${c.ended_at ? "" : " live"}` },
+    el("span", { class: "mail-who num", text: c.phone_display || `${CHANNEL_LABEL[c.channel] || "Unknown"} caller` }),
+    el("span", { class: "mail-time", text: fmtDateTime(c.started_at) }),
+    el("span", { class: "mail-sub" },
+      el("span", { class: `badge ${(c.outcome || "").split("@")[0]}`, title: c.outcome || "", text: callOutcome(c.outcome) }),
+      el("span", { text: [CHANNEL_LABEL[c.channel] || null, c.ended_at ? length(c.started_at, c.ended_at) : "live",
+        c.turns === c.kept_turns ? `${c.turns} turns` : `${c.kept_turns}/${c.turns} kept`].filter(Boolean).join(" · ") })));
     row.addEventListener("click", () => openCall(c.id));
     row.addEventListener("keydown", (e) => { if (e.key === "Enter") openCall(c.id); });
     return row;
@@ -908,21 +1594,24 @@ async function openCall(callId) {
   try {
     call = await api(`/dashboard/api/calls/${encodeURIComponent(callId)}`);
   } catch (err) {
-    box.replaceChildren(el("div", { class: "error-box", text: err.message }));
+    box.replaceChildren(el("p", { class: "field-error", text: err.message }));
     return;
   }
   const kept = call.recording_consent !== 0;
+  let prev = null;
   const turns = call.turns.map((t) => {
     const removed = t.text === null;
     const perceived = t.latency && t.latency.perceived_ms;
     const meta = [t.tier !== null ? (TIER_LABEL[t.tier] || `tier ${t.tier}`) : null, perceived ? `${ms(perceived)} ms` : null,
       t.state_before || t.state_after ? `${t.state_before ?? "?"} → ${t.state_after ?? "?"}` : null].filter(Boolean).join(" · ");
-    return el("div", { class: `line ${t.role}${removed ? " removed" : ""}` },
+    const node = el("div", { class: `line ${t.role}${removed ? " removed" : ""}${prev === t.role ? " same" : ""}` },
       el("span", { class: "who", text: ROLE_LABEL[t.role] || t.role }),
       el("div", { class: "bubble", text: removed ? "(text removed)" : t.text }),
       meta ? el("span", { class: "meta", text: meta }) : null);
+    prev = t.role;
+    return node;
   });
-  const deleteButton = el("button", { class: "btn small danger", type: "button", text: "Delete call data" });
+  const deleteButton = el("button", { class: "btn-pill small danger-text", type: "button", text: "Delete call data" });
   deleteButton.addEventListener("click", async () => {
     const ok = await confirmAction("Delete call data?",
       "This blanks the transcript and the caller's number for this call. Appointments made on the call stay. It can't be undone.",
@@ -937,25 +1626,27 @@ async function openCall(callId) {
     }
   });
   box.replaceChildren(
-    el("div", { class: "card-head" }, el("h3", {}, "Call ", el("span", { class: "mono", text: call.id })), deleteButton),
-    el("dl", { class: "kv" },
-      el("dt", { text: "Started" }), el("dd", { text: fmtDateTime(call.started_at) }),
+    el("div", { class: "detail-head" },
+      el("div", {},
+        el("h2", { class: "t-section", text: call.phone_display || `${CHANNEL_LABEL[call.channel] || "Unknown"} caller` }),
+        el("p", { class: "t-small ink-2", text: `${fmtDateTime(call.started_at)} · ` }, el("span", { class: "mono", text: call.id }))),
+      deleteButton),
+    el("div", { class: "detail-kv" }, el("dl", { class: "kv" },
       el("dt", { text: "Length" }), el("dd", { text: call.ended_at ? length(call.started_at, call.ended_at) : "still live" }),
       el("dt", { text: "Direction" }), el("dd", { text: call.direction }),
       el("dt", { text: "Outcome" }), el("dd", { text: callOutcome(call.outcome), title: call.outcome || "" }),
       el("dt", { text: "Came in by" }), el("dd", { text: CHANNEL_LABEL[call.channel] || "–" }),
-      el("dt", { text: "Caller" }), el("dd", { class: "num", text: call.phone_display || "–" }),
       el("dt", { text: "Transcript" }), el("dd", { text: kept ? `kept until ${fmtDateTime(call.purge_after)}` : "not kept (caller's request or deleted)" }),
       call.appointments.length ? [el("dt", { text: "Appointments" }), el("dd", {},
         ...call.appointments.map((a) => el("div", { text: `${a.service}, ${fmtDateTime(a.start_utc)}, ${a.branch} (${STATUS_LABEL[a.status] || a.status})` })))] : null,
       call.tasks.length ? [el("dt", { text: "Tasks" }), el("dd", {},
-        ...call.tasks.map((t) => el("div", { text: `${KIND_LABEL[t.kind] || t.kind} · ${t.priority} · ${t.status}` })))] : null),
-    el("h3", { class: "small muted", text: "Transcript" }),
-    el("div", { class: "transcript" }, ...(turns.length ? turns : [el("div", { class: "empty", text: "No turns recorded." })])));
-  document.querySelectorAll("#call-rows tr").forEach((tr) => tr.classList.toggle("selected", tr.dataset.call === callId));
+        ...call.tasks.map((t) => el("div", { text: `${KIND_LABEL[t.kind] || t.kind} · ${t.priority} · ${t.status}` })))] : null)),
+    el("div", { class: "transcript" }, ...(turns.length ? turns : [el("div", { class: "detail-empty", text: "No turns recorded." })])));
+  box.scrollTop = 0;
+  document.querySelectorAll("#call-rows .mail-row").forEach((row) => row.classList.toggle("selected", row.dataset.call === callId));
 }
 
-// ------------------------------------------------------------------ system
+// ------------------------------------------------------------------ system (Settings)
 $("privacy-export").addEventListener("click", async () => {
   const phone = $("privacy-phone").value.trim();
   try {
@@ -979,27 +1670,33 @@ $("privacy-erase").addEventListener("click", async () => {
   } catch (err) { $("privacy-result").textContent = err.message; }
 });
 
+let me = null;
+async function loadMe() {
+  try { me = await api("/dashboard/api/auth"); } catch { return null; }
+  $("me-name").textContent = me.user ? `Signed in as ${me.user}` : "Staff dashboard";
+  return me;
+}
+
 async function loadStaff() {
-  let me;
-  try { me = await api("/dashboard/api/auth"); } catch { return; }
-  $("staff-card").hidden = me.role !== "admin";
-  if (me.role !== "admin") return;
-  $("staff-me").textContent = `You're logged in as ${me.user}.`;
+  const who = await loadMe();
+  if (!who) return;
+  $("staff-card").hidden = who.role !== "admin";
+  if (who.role !== "admin") return;
+  $("staff-me").textContent = `You're signed in as ${who.user}.`;
   let data;
   try { data = await api("/dashboard/api/staff"); } catch (err) { $("staff-result").textContent = err.message; return; }
-  $("staff-rows").replaceChildren(...(data.staff.length ? data.staff.map((s) => el("tr", { class: s.active ? "" : "muted-row" },
-    el("td", { class: "mono", text: s.username }),
-    el("td", { text: s.display_name }),
-    el("td", { text: s.role }),
-    el("td", { class: "nowrap", text: s.last_login_at ? fmtDateTime(s.last_login_at) : "never" }),
-    el("td", { class: "actions" }, el("button", { class: "btn small", type: "button",
+  $("staff-rows").replaceChildren(...(data.staff.length ? data.staff.map((s) => el("li", { class: s.active ? "" : "muted" },
+    el("span", { class: "li-main" }, el("span", { text: s.display_name || s.username }),
+      el("span", { class: "li-sub" }, el("span", { class: "mono", text: s.username }),
+        ` · ${s.role} · last sign-in ${s.last_login_at ? fmtDateTime(s.last_login_at) : "never"}`)),
+    el("button", { class: `btn-pill small ${s.active ? "danger-text" : "gray"}`, type: "button",
       text: s.active ? "Switch off" : "Switch on",
       onclick: async () => {
         try {
           await api(`/dashboard/api/staff/${encodeURIComponent(s.username)}/active`, { method: "POST", body: { active: !s.active } });
           loadStaff();
         } catch (err) { toast(err.message, "error"); }
-      } })))) : [emptyRow(5, "Only the clinic password so far. Add a login for each person.")]));
+      } }))) : [emptyItem("Only the clinic password so far. Add a login for each person.")]));
 }
 $("staff-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -1007,7 +1704,7 @@ $("staff-form").addEventListener("submit", async (e) => {
     await api("/dashboard/api/staff", { method: "POST", body: {
       username: $("staff-username").value, display_name: $("staff-name").value,
       password: $("staff-password").value, role: $("staff-role").value } });
-    $("staff-result").textContent = `Added ${$("staff-username").value}. They log in with that user name and password.`;
+    $("staff-result").textContent = `Added ${$("staff-username").value}. They sign in with that user name and password.`;
     $("staff-form").reset();
     loadStaff();
   } catch (err) { $("staff-result").textContent = err.message; }
@@ -1015,11 +1712,11 @@ $("staff-form").addEventListener("submit", async (e) => {
 
 // Doctors and their weekly hours (clinic_admin.py). Admins edit; everyone can see.
 async function loadDoctors() {
-  let data, me;
+  let data, who;
   try {
-    [data, me] = await Promise.all([api("/dashboard/api/doctors"), api("/dashboard/api/auth")]);
+    [data, who] = await Promise.all([api("/dashboard/api/doctors"), api("/dashboard/api/auth")]);
   } catch (err) { $("doctor-result").textContent = err.message; return; }
-  const isAdmin = me.role === "admin";
+  const isAdmin = who.role === "admin";
   const form = $("doctor-form");
   form.hidden = !isAdmin;
   $("doctors-note").textContent = `Emma offers only these hours (clinic day ${data.day_hours.join("–")})`;
@@ -1034,11 +1731,11 @@ async function loadDoctors() {
     const row = el("tr", { class: d.active ? "" : "muted-row" },
       el("td", { text: d.spoken_name + (d.active ? "" : " (off)"), title: d.name }),
       el("td", { text: d.branch }),
-      el("td", { class: "small", text: d.services.join(", ") }),
-      el("td", { class: "small", text: hours(d.rota) }),
+      el("td", { class: "t-caption", text: d.services.join(", ") }),
+      el("td", { class: "t-caption", text: hours(d.rota) }),
       el("td", { class: "actions" }, ...(isAdmin ? [
-        el("button", { class: "btn small", type: "button", text: "Edit", onclick: () => editDoctor(d, row, data) }),
-        el("button", { class: "btn small ghost", type: "button", text: d.active ? "Switch off" : "Switch on",
+        el("button", { class: "btn-pill small gray", type: "button", text: "Edit", onclick: () => editDoctor(d, row, data) }),
+        el("button", { class: "btn-pill small text", type: "button", text: d.active ? "Switch off" : "Switch on",
           onclick: async () => {
             try {
               await api(`/dashboard/api/doctors/${d.id}/active`, { method: "POST", body: { active: !d.active } });
@@ -1056,13 +1753,13 @@ function editDoctor(d, row, data) {
     "aria-label": `${d.spoken_name}, ${day}` })]));
   const services = data.services.map((s) => el("label", { class: "check" },
     el("input", { type: "checkbox", value: s, ...(d.services.includes(s) ? { checked: "" } : {}) }), ` ${s}`));
-  const note = el("p", { class: "muted small", text: "Shifts like 09:00-13:00, 16:00-20:00, or off." });
+  const note = el("p", { class: "ink-2 t-caption", text: "Shifts like 09:00-13:00, 16:00-20:00, or off." });
   const editor = el("tr", { class: "editor-row" }, el("td", { colspan: "5" },
     el("div", { class: "rota-grid" }, ...data.days.map((day) => el("label", {}, el("span", { text: day }), inputs[day]))),
     el("div", { class: "checks" }, ...services),
     note,
-    el("div", { class: "actions" },
-      el("button", { class: "btn small", type: "button", text: "Save", onclick: async () => {
+    el("div", { class: "pop-actions" },
+      el("button", { class: "btn-pill small", type: "button", text: "Save", onclick: async () => {
         try {
           const rota = Object.fromEntries(data.days.map((day) => [day, inputs[day].value]));
           const chosen = services.map((l) => l.querySelector("input")).filter((i) => i.checked).map((i) => i.value);
@@ -1076,7 +1773,7 @@ function editDoctor(d, row, data) {
           loadDoctors();
         } catch (err) { note.textContent = err.message; }
       } }),
-      el("button", { class: "btn small ghost", type: "button", text: "Cancel", onclick: () => editor.remove() }))));
+      el("button", { class: "btn-pill small gray", type: "button", text: "Cancel", onclick: () => editor.remove() }))));
   row.after(editor);
 }
 
@@ -1102,15 +1799,14 @@ async function loadClosures() {
   if (select.options.length === 1 && catalog && catalog.branches) {
     for (const b of catalog.branches) select.append(el("option", { value: b.name, text: b.name }));
   }
-  $("closure-rows").replaceChildren(...(data.closures.length ? data.closures.map((c) => el("tr", {},
-    el("td", { class: "nowrap", text: prettyDay(c.date) }),
-    el("td", { text: c.branch || "All branches" }),
-    el("td", { text: c.reason }),
-    el("td", { class: "actions" }, el("button", { class: "btn small", type: "button", text: "Remove",
+  $("closure-rows").replaceChildren(...(data.closures.length ? data.closures.map((c) => el("li", {},
+    el("span", { class: "li-main" }, el("span", { text: prettyDay(c.date) }),
+      el("span", { class: "li-sub", text: `${c.branch || "All branches"}${c.reason ? ` · ${c.reason}` : ""}` })),
+    el("button", { class: "btn-pill small danger-text", type: "button", text: "Remove",
       onclick: async () => {
         try { await api(`/dashboard/api/closures/${c.id}/delete`, { method: "POST", body: {} }); loadClosures(); }
         catch (err) { toast(err.message, "error"); }
-      } })))) : [emptyRow(4, "No closures coming up.")]));
+      } }))) : [emptyItem("No closures coming up.")]));
 }
 $("closure-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -1135,13 +1831,13 @@ async function loadPerformance() {
   }
   const channels = Object.entries(data.channels);
   if (!channels.length) {
-    box.replaceChildren(el("p", { class: "muted", text: "No calls in the last 7 days." }));
+    box.replaceChildren(el("p", { class: "ink-2 pad", text: "No calls in the last 7 days." }));
     return;
   }
   const sec = (v) => (v === null || v === undefined ? "–" : `${(v / 1000).toFixed(1)} s`);
   const pct = (n, d) => (d ? `${Math.round((100 * n) / d)}%` : "–");
   const row = (label, f) => el("tr", {}, el("th", { text: label }), ...channels.map(([, c]) => el("td", { class: "num", text: f(c) })));
-  box.replaceChildren(el("table", { class: "kv-table" },
+  box.replaceChildren(el("div", { class: "table-wrap" }, el("table", { class: "table kv-table" },
     el("thead", {}, el("tr", {}, el("th", {}), ...channels.map(([name, c]) =>
       el("th", { text: `${CHANNEL_LABEL[name] || name} (${c.calls} calls)` })))),
     el("tbody", {},
@@ -1154,7 +1850,7 @@ async function loadPerformance() {
       row("Of that, deciding the caller finished", (c) => sec(c.end_of_speech_p50_ms)),
       row("Estimated cost per call (7-day total)", (c) => (c.metered_calls
         ? `$${c.cost_per_call_usd.toFixed(3)} ($${c.cost_total_usd.toFixed(2)}, ${c.metered_calls} calls)`
-        : "–")))));
+        : "–"))))));
 }
 
 async function loadSystem() {
@@ -1188,10 +1884,10 @@ async function loadSystem() {
     el("td", { text: o.branch || "–" }),
     el("td", {}, el("span", { class: `badge ${o.status}`, text: o.status })),
     el("td", { class: "num", text: o.attempts }),
-    el("td", { class: "small", text: o.last_error || "–" }),
+    el("td", { class: "t-caption", text: o.last_error || "–" }),
     el("td", { class: "nowrap", text: fmtDateTime(o.due_at) }),
     el("td", { class: "actions" }, el("button", {
-      class: "btn small", type: "button", text: "Retry",
+      class: "btn-pill small gray", type: "button", text: "Retry",
       onclick: async () => {
         try {
           await api(`/dashboard/api/sync/${encodeURIComponent(o.appointment_id)}/retry`, { method: "POST", body: {} });
@@ -1202,32 +1898,32 @@ async function loadSystem() {
     }))));
   $("sync-rows").replaceChildren(...(rows.length ? rows : [emptyRow(8, "Everything is in sync.")]));
 
-  const dnc = data.do_not_call.map((d) => el("tr", {},
-    el("td", { class: "num", text: d.phone_display }),
-    el("td", { class: "muted small nowrap", text: fmtDateTime(d.updated_at) }),
-    el("td", { class: "actions" }, el("button", {
-      class: "btn small", type: "button", text: "Remove",
+  const dnc = data.do_not_call.map((d) => el("li", {},
+    el("span", { class: "li-main" }, el("span", { class: "num", text: d.phone_display }),
+      el("span", { class: "li-sub", text: `Added ${fmtDateTime(d.updated_at)}` })),
+    el("button", {
+      class: "btn-pill small danger-text", type: "button", text: "Remove",
       onclick: async () => {
         try {
           await api("/dashboard/api/dnc/remove", { method: "POST", body: { phone: d.phone_e164 } });
           loadSystem();
         } catch (err) { toast(err.message, "error"); }
       },
-    }))));
-  $("dnc-rows").replaceChildren(...(dnc.length ? dnc : [emptyRow(3, "Nobody on the list.")]));
+    })));
+  $("dnc-rows").replaceChildren(...(dnc.length ? dnc : [emptyItem("Nobody on the list.")]));
 
-  const ms = data.message_status || {};
+  const msgStatus = data.message_status || {};
   const mc = data.message_counts || {};
-  $("msg-state").className = `badge ${ms.sender === "twilio" ? "ok" : "warn"}`;
-  $("msg-state").textContent = ms.sender === "twilio" ? `Sending (${ms.channel})` : ms.sender === "off" ? "Off" : "Log only";
-  $("msg-detail").textContent = [ms.reason ? `${ms.reason}.` : null,
+  $("msg-state").className = `badge ${msgStatus.sender === "twilio" ? "ok" : "warn"}`;
+  $("msg-state").textContent = msgStatus.sender === "twilio" ? `Sending (${msgStatus.channel})` : msgStatus.sender === "off" ? "Off" : "Log only";
+  $("msg-detail").textContent = [msgStatus.reason ? `${msgStatus.reason}.` : null,
     `${mc.pending || 0} waiting, ${mc.sent || 0} sent, ${mc.logged || 0} logged, ${mc.failed || 0} failed.`]
     .filter(Boolean).join(" ");
   const MSG_KIND = { booked: "Confirmation", moved: "Moved", cancelled: "Cancelled", reminder: "Reminder" };
   $("msg-rows").replaceChildren(...((data.messages || []).length ? data.messages.map((m) => el("tr", {},
     el("td", { text: MSG_KIND[m.kind] || m.kind }),
     el("td", { class: "num nowrap", text: m.phone_display }),
-    el("td", { class: "small", text: m.body }),
+    el("td", { class: "t-caption", text: m.body }),
     el("td", {}, el("span", { class: `badge ${m.status}`, title: m.last_error || "", text: m.status })),
     el("td", { class: "nowrap", text: fmtDateTime(m.sent_at || m.due_at) }))) : [emptyRow(5, "No messages yet.")]));
 
@@ -1235,8 +1931,7 @@ async function loadSystem() {
     el("td", { class: "nowrap", text: fmtDateTime(a.ts) }),
     el("td", { text: a.actor }),
     el("td", { text: a.action.replace(/_/g, " ") }),
-    el("td", { class: "small", title: `${a.entity} ${a.entity_id}`, text: a.what || `${a.entity} ${a.entity_id}` }))));
-
+    el("td", { class: "t-caption", title: `${a.entity} ${a.entity_id}`, text: a.what || `${a.entity} ${a.entity_id}` }))));
   loadHealth(data);
 }
 const reloadSystemSoon = debounce(loadSystem, 500);
@@ -1284,7 +1979,7 @@ $("dnc-form").addEventListener("submit", async (event) => {
   } catch (err) { toast(err.message, "error"); }
 });
 
-// ------------------------------------------------------------------ recovery calls
+// ------------------------------------------------------------------ recovery calls (guided steps)
 const recovery = { blockId: null, preview: null, filled: false };
 const JOB_LABEL = {
   queued: "Waiting", ringing: "Ringing", in_call: "On the call", done: "Done", failed: "Needs staff", skipped: "Skipped",
@@ -1298,10 +1993,10 @@ const OUTCOME_LABEL = {
 };
 
 function localInput(date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
+  const p = new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   }).formatToParts(date);
-  const get = (type) => parts.find((p) => p.type === type).value;
+  const get = (type) => p.find((x) => x.type === type).value;
   return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
 
@@ -1340,34 +2035,31 @@ async function loadRecovery() {
 const reloadRecoverySoon = debounce(loadRecovery, 400);
 
 function renderBlocks(blocks) {
-  const tbody = $("block-rows");
+  const list = $("block-rows");
   if (!blocks.length) {
-    tbody.replaceChildren(emptyRow(5, "No doctor is blocked."));
+    list.replaceChildren(emptyItem("No doctor is blocked."));
     return;
   }
-  tbody.replaceChildren(...blocks.map((b) => el("tr", { class: b.id === recovery.blockId ? "selected" : "" },
-    el("td", { text: `${b.doctor} (${b.branch})` }),
-    el("td", { class: "nowrap", text: fmtDateTime(b.start) }),
-    el("td", { class: "nowrap", text: fmtDateTime(b.end) }),
-    el("td", { text: b.reason_category }),
-    el("td", { class: "nowrap" },
-      el("button", { class: "btn small", type: "button", text: "Preview", onclick: () => showPreview(b.id) }),
-      " ",
-      el("button", {
-        class: "btn small danger", type: "button", text: "Lift",
-        onclick: async () => {
-          const text = `${b.doctor} becomes bookable again. Calls still waiting for this block stop; appointments already moved stay moved.`;
-          if (!await confirmAction("Lift this block?", text, "Lift block")) return;
-          try {
-            await api(`/dashboard/api/recovery/blocks/${b.id}/lift`, { method: "POST", body: {} });
-            loadRecovery();
-          } catch (err) { toast(err.message, "error"); }
-        },
-      })))));
+  list.replaceChildren(...blocks.map((b) => el("li", { class: b.id === recovery.blockId ? "selected" : "" },
+    el("span", { class: "li-main" }, el("span", { text: `${b.doctor} (${b.branch})` }),
+      el("span", { class: "li-sub", text: `${fmtDateTime(b.start)} to ${fmtDateTime(b.end)} · ${b.reason_category}` })),
+    el("button", { class: "btn-pill small gray", type: "button", text: "Preview", onclick: () => showPreview(b.id) }),
+    el("button", {
+      class: "btn-pill small danger-text", type: "button", text: "Lift",
+      onclick: async () => {
+        const text = `${b.doctor} becomes bookable again. Calls still waiting for this block stop; appointments already moved stay moved.`;
+        if (!await confirmAction("Lift this block?", text, "Lift block")) return;
+        try {
+          await api(`/dashboard/api/recovery/blocks/${b.id}/lift`, { method: "POST", body: {} });
+          loadRecovery();
+        } catch (err) { toast(err.message, "error"); }
+      },
+    }))));
 }
 
 async function showPreview(blockId, keepTicks = false) {
   recovery.blockId = blockId;
+  document.querySelectorAll("#block-rows li").forEach((li) => li.classList.remove("selected"));
   try {
     renderPreview(await api(`/dashboard/api/recovery/blocks/${blockId}/preview`), keepTicks);
   } catch (err) {
@@ -1378,10 +2070,10 @@ async function showPreview(blockId, keepTicks = false) {
 function renderPreview(preview, keepTicks = false) {
   const before = new Set([...document.querySelectorAll("#preview-rows input:checked")].map((b) => b.value));
   recovery.preview = preview;
-  const tbody = $("preview-rows");
+  const list = $("preview-rows");
   if (!preview) {
     $("preview-summary").textContent = "Block a doctor or pick a block to see who is affected.";
-    tbody.replaceChildren();
+    list.replaceChildren();
     updateCampaignButton();
     return;
   }
@@ -1396,15 +2088,15 @@ function renderPreview(preview, keepTicks = false) {
       const box = el("input", { type: "checkbox", value: a.id, "aria-label": `Call about ${a.patient_name}'s appointment` });
       box.checked = keepTicks ? before.has(a.id) : !g.do_not_call;
       box.addEventListener("change", updateCampaignButton);
-      rows.push(el("tr", {},
-        el("td", {}, box),
-        el("td", {}, a.patient_name, g.do_not_call && i === 0 ? el("span", { class: "badge bad", text: "do not call" }) : null),
-        el("td", { class: "num nowrap", text: i === 0 ? g.phone_masked : "" }),
-        el("td", { class: "nowrap", text: fmtDateTime(a.start) }),
-        el("td", { text: a.service })));
+      rows.push(el("li", {},
+        box,
+        el("span", { class: "li-main" },
+          el("span", {}, a.patient_name, g.do_not_call && i === 0 ? el("span", { class: "badge bad", text: "do not call" }) : null),
+          el("span", { class: "li-sub", text: `${fmtDateTime(a.start)} · ${a.service}` })),
+        el("span", { class: "num ink-2 t-small", text: i === 0 ? g.phone_masked : "" })));
     });
   }
-  tbody.replaceChildren(...(rows.length ? rows : [emptyRow(5, "Nobody to call.")]));
+  list.replaceChildren(...(rows.length ? rows : [emptyItem("Nobody to call.")]));
   updateCampaignButton();
 }
 
@@ -1450,26 +2142,26 @@ function renderRunner(runner) {
   const detail = $("runner-detail");
   if (!runner) {
     badge.textContent = "Off";
-    badge.className = "badge";
+    badge.className = "state-pill";
     detail.textContent = "";
   } else if (runner.ringing) {
     badge.textContent = "Ringing";
-    badge.className = "badge warn";
+    badge.className = "state-pill warn";
     detail.textContent = `Calling ${runner.ringing.to_name || "the patient"} (${runner.ringing.to_masked}). Answer on the patient page.`;
   } else if (runner.paused) {
     badge.textContent = "Paused";
-    badge.className = "badge warn";
+    badge.className = "state-pill warn";
     detail.textContent = `Waiting: ${runner.paused}.`;
   } else if (runner.waiting && runner.waiting.queued) {
     const w = runner.waiting;
     badge.textContent = "Waiting";
-    badge.className = "badge info";
+    badge.className = "state-pill info";
     detail.textContent = `${w.queued} call(s) queued` + (w.next_retry ? `; next try ${fmtDateTime(w.next_retry)}` : "")
       + (w.paused_campaigns ? `; ${w.paused_campaigns} campaign(s) paused` : "")
       + `. Calls ring only ${runner.window} clinic time and inside each patient's own hours.`;
   } else {
     badge.textContent = "Ready";
-    badge.className = "badge ok";
+    badge.className = "state-pill ok";
     detail.textContent = `Calls are made one at a time, ${runner.window} clinic time, never while another call is on. Unanswered calls are tried again later.`;
   }
 }
@@ -1482,7 +2174,7 @@ function jobBadge(status) {
 
 function campaignButton(c, action, label, cls, confirmText) {
   return el("button", {
-    class: `btn small ${cls}`, type: "button", text: label,
+    class: `btn-pill small ${cls}`, type: "button", text: label,
     onclick: async () => {
       if (confirmText && !await confirmAction(`${label} these calls?`, confirmText, `${label} calls`)) return;
       try {
@@ -1496,14 +2188,14 @@ function campaignButton(c, action, label, cls, confirmText) {
 function summaryText(c) {
   const a = (c.summary || {}).appointments || {};
   const k = (c.summary || {}).calls || {};
-  const parts = [];
-  if (a.moved) parts.push(`${a.moved} moved`);
-  if (a.cancelled) parts.push(`${a.cancelled} cancelled`);
-  if (a.needs_reschedule) parts.push(`${a.needs_reschedule} need a new time`);
-  if (k.retrying) parts.push(`${k.retrying} call${k.retrying === 1 ? "" : "s"} to retry`);
-  if (k.waiting) parts.push(`${k.waiting} waiting`);
-  if (k.skipped) parts.push(`${k.skipped} skipped`);
-  return parts.length ? parts.join(" · ") : "No results yet.";
+  const bits = [];
+  if (a.moved) bits.push(`${a.moved} moved`);
+  if (a.cancelled) bits.push(`${a.cancelled} cancelled`);
+  if (a.needs_reschedule) bits.push(`${a.needs_reschedule} need a new time`);
+  if (k.retrying) bits.push(`${k.retrying} call${k.retrying === 1 ? "" : "s"} to retry`);
+  if (k.waiting) bits.push(`${k.waiting} waiting`);
+  if (k.skipped) bits.push(`${k.skipped} skipped`);
+  return bits.length ? bits.join(" · ") : "No results yet.";
 }
 
 function jobCallLabel(j) {
@@ -1516,24 +2208,28 @@ function jobCallLabel(j) {
 function renderCampaigns(campaigns) {
   const box = $("campaign-list");
   if (!campaigns.length) {
-    box.replaceChildren(el("div", { class: "empty", text: "No recovery calls yet." }));
+    box.replaceChildren(el("p", { class: "ink-2 t-small", text: "No recovery calls yet." }));
     return;
   }
   box.replaceChildren(...campaigns.map((c) => {
     const running = c.status === "running";
     const paused = running && Boolean(c.paused_at);
     const controls = running ? [
-      paused ? campaignButton(c, "resume", "Resume", "primary") : campaignButton(c, "pause", "Pause", ""),
-      campaignButton(c, "stop", "Stop", "danger", "Calls still waiting won't be made. A call in progress finishes."),
+      paused ? campaignButton(c, "resume", "Resume", "") : campaignButton(c, "pause", "Pause", "gray"),
+      campaignButton(c, "stop", "Stop", "danger-text", "Calls still waiting won't be made. A call in progress finishes."),
     ] : [];
-    const head = el("div", { class: "card-head" },
-      el("h4", { text: `${c.doctor} · started ${fmtDateTime(c.created_at)}` }),
+    const total = c.jobs.length || 1;
+    const finished = c.jobs.filter((j) => ["done", "failed", "skipped"].includes(j.status)).length;
+    const ring = el("div", { class: "ring", "data-label": `${finished}/${c.jobs.length}` });
+    ring.style.setProperty("--p", String(Math.round((100 * finished) / total)));
+    const head = el("div", { class: "campaign-head" },
+      el("h3", { text: `${c.doctor} · started ${fmtDateTime(c.created_at)}` }),
       el("span", {
         class: `badge ${paused ? "warn" : running ? "warn" : c.status === "completed" ? "ok" : ""}`,
         text: paused ? "paused" : c.status,
       }),
       ...controls,
-      el("a", { class: "btn small ghost", href: `/dashboard/api/recovery/campaigns/${c.id}.csv`, text: "Export CSV" }));
+      el("a", { class: "btn-pill small text", href: `/dashboard/api/recovery/campaigns/${c.id}.csv`, text: "Export CSV" }));
     const rows = c.jobs.map((j) => el("tr", {},
       el("td", { text: j.name || "–" }),
       el("td", { class: "num nowrap", text: j.phone_masked }),
@@ -1543,26 +2239,26 @@ function renderCampaigns(campaigns) {
       el("td", {}, el("span", { class: `badge ${jobBadge(j.status)}`, text: jobCallLabel(j) })),
       el("td", { text: j.outcome ? (OUTCOME_LABEL[j.outcome] || j.outcome) : "–" }),
       el("td", {}, j.call_id && ["done", "failed"].includes(j.status) ? el("button", {
-        class: "btn small ghost mono", type: "button", text: j.call_id,
+        class: "btn-pill small text", type: "button", text: "Transcript", title: j.call_id,
         onclick: () => { showTab("calls"); openCall(j.call_id); },
       }) : "–")));
-    const header = ["Patient", "Phone", "Appointments", "Call", "Result", "Transcript"].map((h) => el("th", { text: h }));
-    return el("div", { class: "campaign" }, head, el("p", { class: "muted small", text: summaryText(c) }),
-      el("div", { class: "table-wrap" }, el("table", {},
+    const header = ["Patient", "Phone", "Appointments", "Call", "Result", ""].map((h) => el("th", { text: h }));
+    return el("div", { class: "campaign" }, head,
+      el("div", { class: "campaign-progress" }, ring, el("p", { class: "ink-2 t-small", text: summaryText(c) })),
+      el("div", { class: "table-wrap" }, el("table", { class: "table" },
         el("thead", {}, el("tr", {}, ...header)), el("tbody", {}, ...rows))));
   }));
 }
 
 function renderWindows(windows) {
-  const tbody = $("window-rows");
+  const list = $("window-rows");
   if (!windows.length) {
-    tbody.replaceChildren(emptyRow(3, "No patient has their own calling hours."));
+    list.replaceChildren(emptyItem("No patient has their own calling hours."));
     return;
   }
-  tbody.replaceChildren(...windows.map((w) => el("tr", {},
-    el("td", { class: "num nowrap", text: w.phone_masked }),
-    el("td", { text: w.call_after || "–" }),
-    el("td", { text: w.call_before || "–" }))));
+  list.replaceChildren(...windows.map((w) => el("li", {},
+    el("span", { class: "li-main num", text: w.phone_masked }),
+    el("span", { class: "ink-2", text: `after ${w.call_after || "–"} · before ${w.call_before || "–"}` }))));
 }
 
 $("window-form").addEventListener("submit", async (event) => {
@@ -1581,19 +2277,26 @@ $("window-form").addEventListener("submit", async (event) => {
 // ------------------------------------------------------------------ start
 const refreshSoon = debounce(refreshOverview, 500);
 
-$("logout").addEventListener("click", async () => {
+async function logout() {
   try { await fetch("/dashboard/api/logout", { method: "POST", credentials: "same-origin" }); } finally {
     location.replace("/dashboard/login");
   }
-});
+}
+$("logout").addEventListener("click", logout);
+document.querySelector('#more-sheet [data-action="logout"]').addEventListener("click", logout);
 
 async function start() {
+  for (const id of ["cal-view", "task-filter", "appt-scope"]) segmentPlacers.push(segmented($(id)));
   await refreshOverview();
   try { await loadCatalog(); } catch (err) { toast(err.message, "error"); }
+  loadMe();
   connectEvents();
-  const wanted = location.hash.slice(1) || recall("tab") || "live";
+  const wanted = location.hash.slice(1) || recall("tab") || "today";
+  currentTab = "";
   showTab(wanted);
+  reveal();
   setInterval(refreshOverview, 30000);
+  setInterval(() => { if (currentTab === "appointments" && ["day", "week"].includes(appt.view)) renderAppointments(); }, 60000);
 }
 
 start();
