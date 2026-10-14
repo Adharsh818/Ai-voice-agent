@@ -361,3 +361,40 @@ The preview copy used a copied database and a test login.
 - **A real microphone call on the talk page:** the preview copy has no ElevenLabs key, and a microphone call needs a person speaking. This is left for the owner on the main server.
 
 `dashboard.js` stays one file, on purpose (see "Deviations").
+
+## 10. REA deep pass: Apple's shipped JavaScript (14 Oct, evening)
+
+**Method (the reverse-engineer-anything skill's staged workflow):**
+1. A passive REA capture of apple.com/iphone with script sources (`ev_58895281…`).
+2. The 109 scripts exported with their checksums verified (`ev_13fc516b…`).
+3. A static application graph of them (`ev_ec850501…`): 109/109 parsed, no failures. Coverage is partial for four very large scripts, as REA reports.
+4. Literal searches over the same exported bytes where the graph had no node.
+
+Nothing was executed; these are static facts from the shipped files.
+
+**Findings ledger.** O = observed in Apple's shipped code, I = inferred.
+
+| # | Question | Answer | Type | Where |
+|---|---|---|---|---|
+| R1 | Scroll-in easing (was unknown F9) | `easeFunction:"easeInOutQuad"` for both the opacity and the translateY keyframes | O | `overview/main.built.js`, StaggeredFadeIn `_staggeredKeyframes` |
+| R2 | When the scroll-in starts | `start:"t - 85vh"`: when the group's top reaches 85% of the viewport. The 70% in earlier notes was wrong | O | same, `_setupTimeline` |
+| R3 | Scroll-in timings | read at runtime from the CSS variables `--staggered-delay` 0.15, `--staggered-opacity-duration` 0.9, `--staggered-translate-y` 30px, `--staggered-translate-y-duration` 0.7; off when `html.reduced-motion`; the group gets `staggered-start`, then `staggered-end` | O | same, plus the CSS from section 2 |
+| R4 | Card hover scale (was unknown F17) | `--card-element-scale = (width + 6) / width`, set on mount and on resize, so a card grows by 6 px whatever its size; CSS `html.no-touch .card-hover:hover{transform:scale(var(--card-element-scale))}` | O | `overview/main.built.js` (Card), `overview.built.css` |
+| R5 | Nav menu hover | opens after a **120 ms** debounced hover (`onMenuItemMouseOver`, `s=120`); skipped on touch; leaving the nav closes it; the curtain click closes it; focus returns to the trigger **300 ms** after closing | O | `globalheader.umd.js` |
+| R6 | Other scroll effects | the scroll triggers are media preload (`t - 200vh`), play only while visible (`t - 100vh` → `b + 100vh`), will-change toggles and the chapter nav. No parallax and no scroll hijacking | O (triggers) / I (intent) | `overview/main.built.js` |
+| R7 | No-JS safety | content that fades in stays visible without JavaScript (`html.no-js` rule) | O | CSS, section 2 |
+
+**Applied to Emma's pages:**
+- **Reveal curve:** now `cubic-bezier(0.455, 0.03, 0.515, 0.955)` (easeInOutQuad, R1).
+- **Reveal trigger:** an IntersectionObserver with a −15% bottom margin, which is the 85vh trigger (R2).
+- **End of the reveal:** marked `is-done`, so each element's own transitions apply again, like `staggered-end` (R3).
+- **Card hover:** `.tile-hover` cards get `--card-element-scale = (offsetWidth + 6) / offsetWidth` from a ResizeObserver (R4). For example, a 495 px tile scales by 1.01212.
+- **No-JS safety:** `static/ui/head.js`, a same-origin classic script in `<head>` (CSP-safe), sets `html.js`. Content is hidden for the reveal only when JavaScript runs (R7).
+- **Focus return:** Escape on the appointment inspector or the phone "More" sheet returns focus to whatever opened it (R5's focus return). Our sidebar has no hover menus, so the 120 ms hover delay has nothing to apply to.
+
+**Verified on our pages:**
+- The REA capture of the sign-in page (`ev_0dba6c8b…`) shows `head.js` first in `<head>`, all five files same-origin, and no console messages.
+- In the browser, the Today grid gets `is-in` then `is-done`, its transition becomes the 0.3 s lift curve again, and the scale is 1.01212.
+- Tests: 1,015 passed, 1 skipped.
+
+**Residual unknown, recorded in REA:** `unk_d588f18b…`. Static evidence can't prove that apple.com's runtime applies R1/R2 unchanged. The probe to settle it is `observe_web_execution` while scrolling a stagger group into view. It is low severity: the live DOM earlier showed the `staggered-start` classes being applied.

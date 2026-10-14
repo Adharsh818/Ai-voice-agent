@@ -70,6 +70,7 @@
   --ease-layout: cubic-bezier(0.25, 0.1, 0.3, 1);
   --ease-color: cubic-bezier(0.28, 0.11, 0.32, 1);
   --ease-lift: cubic-bezier(0, 0, 0.5, 1);
+  --ease-in-out-quad: cubic-bezier(0.455, 0.03, 0.515, 0.955);   /* StaggeredFadeIn's easeFunction (REA) */
   --t-fast: 240ms;
   --t: 320ms;
   --t-layout: 300ms;
@@ -330,22 +331,25 @@ a:hover { text-decoration: underline; }
   cursor: pointer;
 }
 @media (hover: hover) and (pointer: fine) {
-  .tile-hover:hover { transform: scale(1.016); }
+  .tile-hover:hover { transform: scale(var(--card-element-scale, 1.016)); }
 }
 
 /* ------------------------------------------------------------------ staggered reveal (apple.com StaggeredFadeIn) */
-[data-reveal] > *,
-[data-reveal-self] {
+html.js [data-reveal] > *,
+html.js [data-reveal-self] {
   opacity: 0;
   transform: translateY(var(--reveal-y, 30px));
 }
-[data-reveal].is-in > *,
-[data-reveal-self].is-in {
+html.js [data-reveal].is-in > *,
+html.js [data-reveal-self].is-in {
   opacity: 1;
   transform: none;
+}
+html.js [data-reveal].is-in:not(.is-done) > *,
+html.js [data-reveal-self].is-in:not(.is-done) {
   transition:
-    opacity var(--reveal-fade, 0.9s) var(--ease) calc(var(--i, 0) * var(--reveal-step, 150ms)),
-    transform var(--reveal-rise, 0.7s) var(--ease-layout) calc(var(--i, 0) * var(--reveal-step, 150ms));
+    opacity var(--reveal-fade, 0.9s) var(--ease-in-out-quad) calc(var(--i, 0) * var(--reveal-step, 150ms)),
+    transform var(--reveal-rise, 0.7s) var(--ease-in-out-quad) calc(var(--i, 0) * var(--reveal-step, 150ms));
 }
 [data-reveal="fast"] { --reveal-y: 12px; --reveal-fade: 0.42s; --reveal-rise: 0.36s; --reveal-step: 60ms; }
 
