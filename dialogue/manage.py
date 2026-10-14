@@ -875,11 +875,11 @@ def _offer_plan(ctx: CallContext, t: VerifiedAppointment) -> GoalPlan:
         params = {"slot": first.spoken, "doctor": doctor} if exact else {"a": first.spoken, "doctor": doctor}
         return plan(Goal.OFFER_NEW_SLOTS, line, params)
     a, b = offered[0].spoken, offered[1].spoken
+    if offered[1].start.date() == first.start.date():
+        b = prompts.speak_slot(offered[1].start, with_day=False)   # "Monday the 5th at 2:30 or 3", as book.py says it
     if dc is not None and dc.exact and all(s.start.date() != dc.start for s in offered):
         day = prompts.speak_day(dc.start, today=clock.today())
         return plan(Goal.OFFER_NEW_SLOTS, "offer.later_days", {"day": day, "a": a, "b": b})
-    if offered[1].start.date() == first.start.date():
-        b = prompts.speak_slot(offered[1].start, with_day=False)   # "Monday the 5th at 2:30 or 3", as book.py says it
     if offered[1].doctor != doctor:
         doctor = f"{doctor} for the first and {offered[1].doctor} for the second"
     return plan(Goal.OFFER_NEW_SLOTS, "offer.two", {"a": a, "b": b, "doctor": doctor})

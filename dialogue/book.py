@@ -729,7 +729,33 @@ def _settled_when(b) -> bool:
         return False
     if b.time_c is not None and b.time_c.kind == "ambiguous":
         return False
+    if b.date_c.exact and _notes(b).get("closed_day") == b.date_c.start.isoformat():
+        return True                    # the branch is shut that day: no "morning or evening?" first
     return b.time_c is not None or b.any_time or b.date_c.kind == "earliest" or b.emergency
+
+
+async def _note_closed_day(ctx: CallContext, rt: Runtime) -> None:
+    """
+    A day the branch is closed (a holiday or a closure staff added) is said
+    straight away, with the next free times: asking "morning or evening?" for a
+    day the clinic is shut only to say so after (owner's phone call, 14 Oct).
+    """
+    b = ctx.book
+    if b.date_c is None or not b.date_c.exact or _settled_when(b):
+        return
+    if not b.branch and not b.branch_any:
+        return                          # the branch is asked first; the day is checked once it's known
+    catalog = rt.catalog
+    branches = [b.branch] if b.branch else offering_branches(ctx, catalog)
+    branch_ids = [catalog.branch(n).id for n in branches if catalog.branch(n) is not None]
+    if not branch_ids:
+        return
+    try:
+        closed = await rt.run(scheduling.closed_on, b.date_c.start, branch_ids)
+    except Exception:
+        return
+    if closed:
+        _notes(b)["closed_day"] = b.date_c.start.isoformat()
 
 
 def _search_ready(ctx: CallContext) -> bool:
@@ -887,18 +913,20 @@ def _offer_plan(b) -> GoalPlan:
     if len(slots) == 1:
         return _plan(Goal.OFFER_SLOTS, "offer.one", a=first.spoken, doctor=first.doctor)
     second = slots[1]
+    # Two times on one day name the day once: "Friday the 16th at 9 or 9:30", never the day twice
+    # (owner's phone call, 14 Oct).
+    _, b_spoken = _two_spoken(first, second)
     wanted = set(b.date_c.dates()) if b.date_c is not None and b.date_c.kind != "earliest" else set()
     if b.date_c is not None and b.date_c.exact and notes.get("full_day") == b.date_c.start.isoformat() \
             and not any(s.start.date() in wanted for s in slots):
         return _plan(Goal.OFFER_SLOTS, "offer.full_everywhere", day=prompts.speak_day(b.date_c.start),
-                     a=first.spoken, b=second.spoken)
+                     a=first.spoken, b=b_spoken)
     if b.date_c is not None and b.date_c.exact and not any(s.start.date() in wanted for s in slots):
         if notes.get("away_day") == b.date_c.start.isoformat():
             # "Dr Rao isn't in on Monday" was just said: the day isn't "fully booked", nobody else does it.
-            return _plan(Goal.OFFER_SLOTS, "offer.next_days", a=first.spoken, b=second.spoken)
+            return _plan(Goal.OFFER_SLOTS, "offer.next_days", a=first.spoken, b=b_spoken)
         return _plan(Goal.OFFER_SLOTS, "offer.later_days", day=prompts.speak_day(b.date_c.start),
-                     a=first.spoken, b=second.spoken)
-    _, b_spoken = _two_spoken(first, second)
+                     a=first.spoken, b=b_spoken)
     doctor = first.doctor if first.doctor == second.doctor \
         else f"{first.doctor} for the first and {second.doctor} for the second"
     return _plan(Goal.OFFER_SLOTS, "offer.two", a=first.spoken, b=b_spoken, doctor=doctor)
@@ -979,6 +1007,7 @@ async def advance(ctx: CallContext, u: Understanding, confirmation: Optional[str
 
     await _sync_holds(ctx, rt)
     await _run_checks(ctx, rt)
+    await _note_closed_day(ctx, rt)
 
     if _commit_ready(ctx, confirmation, catalog):
         await _commit(ctx, rt, result)
