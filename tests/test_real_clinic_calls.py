@@ -199,10 +199,27 @@ class ClosureTests(ClinicCallCase):
         self.assertEqual([c["reason"] for c in self.clinic.db.run_sync(scheduling.list_closures, date(2026, 10, 1))
                           if c["date"] == "2026-10-05"], ["Holiday"])
         call = Call()
-        call.run("", "I'd like a cleaning at Jayanagar.", "Priya Sharma", "9845012345", "yes", "Monday")
-        reply = call.say("Morning, please.").text
+        call.run("", "I'd like a cleaning at Jayanagar.", "Priya Sharma", "9845012345", "yes")
+        # Owner's phone call, 14 Oct: the closure is said as soon as the day is, not after
+        # "morning or evening?".
+        reply = call.say("Monday").text
         self.assertRegex(reply, r"closed on Monday")
         self.assertNotIn("full", reply)
+        self.assertNotRegex(reply.lower(), r"morning or|afternoon or|evening\?")
+        self.assertTrue(self.clinic.db.run_sync(scheduling.remove_closure, out["id"], "staff"))
+
+    def test_two_times_on_the_next_day_name_the_day_once(self):
+        import re
+        import scheduling
+        from datetime import date
+        out = self.clinic.db.run_sync(scheduling.add_closure, date(2026, 10, 5), None, "Holiday", "staff")
+        call = Call()
+        call.run("", "I'd like a cleaning at Jayanagar.", "Priya Sharma", "9845012345", "yes")
+        reply = call.say("Monday").text
+        # "Tuesday the 6th at 9 or 9:30", never "Tuesday the 6th at 9 or Tuesday the 6th at 9:30".
+        days = re.findall(r"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday) the \d+", reply)
+        offered = [d for d in days if "Monday" not in d]
+        self.assertEqual(len(offered), len(set(offered)), reply)
         self.assertTrue(self.clinic.db.run_sync(scheduling.remove_closure, out["id"], "staff"))
 
 

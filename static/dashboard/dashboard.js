@@ -438,6 +438,20 @@ function addCaption(st, who, text, final, turn) {
   else st.lines.push({ who: "caller", text, closed: false });
 }
 
+// The caller's turn as Emma took it (the stored transcript). On the phone a turn often ends
+// before speech-to-text sends a final caption, so the caption alone left only a passing
+// "hearing…" line and the caller's words vanished from the conversation (owner's call, 14 Oct).
+function commitCallerTurn(st, text) {
+  st.interim = "";
+  const last = st.lines[st.lines.length - 1];
+  if (last && last.who === "caller") {
+    last.text = text;                 // the words Emma acted on replace the live caption
+    last.closed = true;
+    return;
+  }
+  st.lines.push({ who: "caller", text, closed: true });
+}
+
 function handleEvent(event) {
   if (event.seq && event.seq <= lastSeq) return;
   if (event.seq) lastSeq = event.seq;
@@ -465,6 +479,7 @@ function handleEvent(event) {
       break;
     case "call_turn": {
       const meta = event.meta || {};
+      if (event.role === "caller" && event.text) commitCallerTurn(st, event.text);
       if (meta.goal_after) st.goal = meta.goal_after;
       if (meta.tier !== undefined && meta.tier !== null) st.tier = meta.tier;
       if (meta.entities && typeof meta.entities === "object") Object.assign(st.entities, meta.entities);
