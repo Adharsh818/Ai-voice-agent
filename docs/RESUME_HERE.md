@@ -11,9 +11,25 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 ## Pushing
 
-Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Pushed up to the WIP commit of 12 Oct.
+Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Pushed up to 182bd00 (15 Oct, ~01:45); the two RESUME_HERE commits after it are local only.
 
-## START HERE (written 15 Oct, ~01:00): the next session continues from this list
+## START HERE (written 15 Oct, ~02:00): the next session continues from this list
+
+**What happened in the session of 15 Oct, 01:00-02:00** (worktree `claude/continue-work-b9e1f9`, fast-forwarded into `A:\Voice-Agent`):
+- **Done:** the 44f15bd6 "change the branch" bug (0d9c4c5); the three 14 Oct test bookings cancelled; phone_up keep-alive replaced by WSL's own `instanceIdleTimeout=-1` (182bd00, tested); PR #6 closed; pushed. Details in items 1, 2, 6 and 7 of the list below.
+- **Emma still runs the old code:** restart her (`.\.venv\Scripts\python.exe server.py` in `A:\Voice-Agent`) to pick up the "change the branch" fix.
+- **Phones:** the "visible terminal" keep-alive tab below is no longer needed; running `phone_up` once is enough (it checks the `.wslconfig` setting). Both phones re-registered by themselves after a `wsl --shutdown`.
+- **Chariot TTS (owner's idea, dropped by the owner):** Chariot (platform.chariot.in, docs.chariot.in) is an Indian TTS service with 21 Indian female voices, HTTP streaming at 44.1 kHz PCM, 1 credit per character. The owner's key is `CHARIOT_API_KEY` in `A:\Voice-Agent\.env` (10,000 credits until 13 Nov; 1,704 used by the trial). Measured from this PC: first audio about 150-300 ms warm, the same as ElevenLabs (about 220 ms). The owner stopped the trial before the listening page was made and said "no need of Chariot": the ElevenLabs voice stays (NORTH_STAR). The trial script and clips were in the session's scratchpad only. The owner can delete the key line from `.env`.
+- **Open question from the owner: "launch the talk page on Vercel-like free platforms and talk to Emma from any device".** Answered, not decided yet:
+  - Vercel / Netlify / Cloudflare Pages can't host Emma: the talk page streams audio over a long-lived WebSocket (`/ws/voice`) to the Python server, which holds the SQLite database and runs up to 3 calls.
+  - **A (recommended first): Cloudflare Tunnel from this PC.** Free HTTPS address (the microphone needs HTTPS), no code change, about 15 minutes; works only while the PC is on.
+  - **B: Oracle Cloud Always Free VM** (Mumbai/Hyderabad) with `deploy/install.sh` (tested in WSL, docs/DEPLOY.md) and a free domain for the certificate; runs 24/7; about an hour; the owner opens the account.
+  - Either way keep the talk-page login: every call spends Deepgram, ElevenLabs (free tier 10,000 characters a month) and Gemini credits.
+  - Next step: ask the owner A or B (MCQ, A recommended), then set it up.
+
+**Still to do, in order:** the hosting choice above; then items 3 (Reject test, 09:00-20:00), 4 (design feedback list), 5 (network) and 8 (owner's accounts) below.
+
+## Previous list (written 15 Oct, ~01:00; items 1, 2, 6, 7 done since)
 
 **What happened on 14 Oct, evening:**
 - **Redesign live:** the Apple-style redesign of the talk page, sign-in and dashboard was built, click-tested and made live. The plan, the REA evidence ledger and the feature checklist are in [APPLE_DESIGN_PLAN.md](APPLE_DESIGN_PLAN.md) (sections 8-10). Owner's choices:
