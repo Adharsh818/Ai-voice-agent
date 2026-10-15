@@ -11,7 +11,7 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 ## Pushing
 
-Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Pushed up to 182bd00 (15 Oct, ~01:45); the two RESUME_HERE commits after it are local only.
+Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Pushed up to date on 15 Oct (afternoon); check `git status -sb` for anything newer.
 
 ## START HERE (written 15 Oct, ~02:00): the next session continues from this list
 
@@ -27,7 +27,7 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
   - Either way keep the talk-page login: every call spends Deepgram, ElevenLabs (free tier 10,000 characters a month) and Gemini credits.
   - Next step: ask the owner A or B (MCQ, A recommended), then set it up.
 
-**Still to do, in order:** the hosting choice above; then items 4 (design feedback list), 5 (network) and 8 (owner's accounts) below.
+**Still to do, in order:** item 9 (hosting the talk page); then items 4 (design feedback list), 5 (network), 8 (owner's accounts), and the owner deleting the old remote branch (item 7) below.
 
 ## Previous list (written 15 Oct, ~01:00; items 1, 2, 6, 7 done since)
 
@@ -75,8 +75,14 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
    - Don't raise `PHONE_PREBUFFER_MS` (250 ms) without measuring: it delays every reply.
    - Note: the "gaps" count in `line timing` includes the softphone pausing its audio during silence, so it isn't packet loss.
 6. ~~**phone_up keep-alive**~~ (done 15 Oct): WSL 3.0.3 has its own setting, `[general] instanceIdleTimeout=-1` (found in wslservice.exe). phone_up now adds it to `%USERPROFILE%\.wslconfig` when missing (old file kept as `.wslconfig.bak`); it is set on the owner's PC. Tested: after `wsl --shutdown` and a start with no keep-alive, Ubuntu was still running 5 minutes later with no WSL client at all (it used to stop in 1-4 minutes). Both phones re-registered by themselves. The WMI keep-alive stays as a backup (it had died again before this fix).
-7. **Optional:** ~~close PR #6~~ (closed 15 Oct with a "superseded" note). The remote branch `claude/dashboard-v2-apple-wip` stays on GitHub (owner's choice, 15 Oct). The REA residual unknown `unk_d588f18b` can't be resolved from a new session: REA's unknowns store was empty on 15 Oct, so it lived only in the 14 Oct REA session. Low severity, and our own pages were verified in the browser; it is dropped.
+7. **Optional:** ~~close PR #6~~ (closed 15 Oct with a "superseded" note). The remote branch `claude/dashboard-v2-apple-wip`: the owner asked to delete it (15 Oct, afternoon). Its tip ee63c26 (3 commits not in `main`) is kept as the tag `archive/dashboard-v2-apple-wip` (pushed). The branch deletion itself was blocked by the permission check again, so the owner deletes it by hand: `git push origin --delete claude/dashboard-v2-apple-wip` (or GitHub → Branches → delete). The REA residual unknown `unk_d588f18b` can't be resolved from a new session: REA's unknowns store was empty on 15 Oct, so it lived only in the 14 Oct REA session. Low severity, and our own pages were verified in the browser; it is dropped.
 8. **Still needs the owner's accounts:** a real Indian number (T1, docs/TRUNK.md) and a WhatsApp/SMS provider (T2, docs/NOTIFICATIONS.md).
+9. **Hosting the talk page (owner's request, 15 Oct): talk to Emma from any device.** Options and reasons are under "Open question" in the 15 Oct session notes above. Steps:
+   1. Ask the owner A or B (MCQ, A recommended).
+   2. **A, Cloudflare Tunnel:** install `cloudflared` on this PC, run a tunnel to `http://localhost:8000`, open the HTTPS address on a phone, sign in, and make one call from the phone's browser (microphone, audio both ways, a booking shows on the dashboard).
+   3. **B, Oracle Cloud VM:** the owner opens the Always Free account (Mumbai/Hyderabad); then `deploy/install.sh` per docs/DEPLOY.md, a free domain, Caddy's certificate, and the same one-call check.
+   4. Either way the talk-page login stays on, and the address isn't shared publicly (every call spends Deepgram, ElevenLabs and Gemini credits).
+   5. Write the result into docs/DEPLOY.md.
 
 ## TOMORROW (written 14 Oct, night): start here
 
