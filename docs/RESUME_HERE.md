@@ -110,6 +110,27 @@ Done today, afternoon: the Reject test on a recovery call passed (item 3 below);
    4. Either way the talk-page login stays on, and the address isn't shared publicly (every call spends Deepgram, ElevenLabs and Gemini credits).
    5. Write the result into docs/DEPLOY.md.
 
+   **State (15 Oct, evening): the owner chose B.** It's mainly for the owner's resume: recruiters open the link.
+   - **Decisions:**
+     - a copy of the PC's database (the owner kept this after being told it holds their phone number and test transcripts);
+     - Google Calendar sync on the PC only: `CALENDAR_SYNC_ENABLED=false` on the server, no `secrets/` copied;
+     - DuckDNS for the address;
+     - a `demo` staff login for recruiters (talk page stays behind the login, `TALK_PAGE_PUBLIC=false`);
+     - `TELEPHONY_ENABLED=false` on the server (phones stay on the PC).
+   - **Done:**
+     - Oracle account, home region India South (Hyderabad), tenancy `adharsh1001r`;
+     - SSH key on this PC at `~/.ssh/emma_oracle` (no passphrase), pasted into the create form;
+     - create form: Ubuntu 24.04 (not 26.04: Python 3.12), VM.Standard.A1.Flex 2 OCPU / 12 GB, new VCN plus a new public subnet, burstable off, shielded off.
+   - **Blocked: "Out of capacity" for A1 in AD-1** (Hyderabad has one AD). It failed at 2/12 and at 1/6. The owner retries tonight (option 2). If it keeps failing, upgrade to Pay As You Go (explained to the owner: free inside Always Free limits, set a ₹100 budget alert); a second account is against Oracle's terms.
+   - **Known console quirk:** the public IPv4 switch is greyed out when the form creates the VCN. Add an ephemeral public IP after creation (VNIC → IP administration → Edit).
+   - **After the owner sends the IP and DuckDNS name (Claude):**
+     1. `ssh -i ~/.ssh/emma_oracle ubuntu@<ip>`.
+     2. Open 80/443 in iptables: Oracle's Ubuntu image rejects all but 22 in iptables, so open them there as well as in the security list.
+     3. Copy the repo (git archive), the `.env` with calendar and telephony off, and `data/emma.db` (stop Emma or use `tools/backup.py`).
+     4. Run `sudo bash deploy/install.sh <name>.duckdns.org`.
+     5. Add the `demo` staff user.
+     6. Make one call from a phone browser, then write the result into DEPLOY.md.
+
 ## TOMORROW (written 14 Oct, night): start here
 
 Everything is committed and pushed (`day2-r2-engine` = `main`). Phone checks 1-8 were done 12-14 Oct
