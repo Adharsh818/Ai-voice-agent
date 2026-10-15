@@ -30,14 +30,14 @@ Done today, afternoon: the Reject test on a recovery call passed (item 3 below);
 **The owner's part:**
 - **O1.** Choose hosting option A (Cloudflare Tunnel, recommended) or B (Oracle Cloud VM). For B, also open the Oracle Always Free account.
 - **O2.** Send the list of design changes ("lots of changes").
-- **O3.** Delete the old remote branch: `git push origin --delete claude/dashboard-v2-apple-wip` (the tag keeps its commits; item 7).
+- ~~**O3.** Delete the old remote branch~~ (done by the owner, 15 Oct; the tag `archive/dashboard-v2-apple-wip` keeps its commits).
 - **O4. Network** (item 5): a Wi-Fi router; on the phone, Linphone battery Unrestricted, G.722 first, adaptive jitter on; change the hotspot password if it is "password". Optional: re-run phone check 6 on the router.
 - **O5. Accounts:**
   - a real Indian number (T1, docs/TRUNK.md); this also lets recovery calls ring the patient's own number (C2);
   - a WhatsApp/SMS provider (T2, docs/NOTIFICATIONS.md).
 
   Claude connects each one once the account exists.
-- **O6. Optional:** delete the `CHARIOT_API_KEY` line from `A:\Voice-Agent\.env` (Chariot was dropped).
+- ~~**O6.** Delete the `CHARIOT_API_KEY` line from `.env`~~ (done by the owner, 15 Oct).
 
 ## Session notes (written 15 Oct, ~02:00)
 
