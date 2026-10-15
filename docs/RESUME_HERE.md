@@ -13,7 +13,33 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Pushed up to date on 15 Oct (afternoon); check `git status -sb` for anything newer.
 
-## START HERE (written 15 Oct, ~02:00): the next session continues from this list
+## TASK LIST (written 15 Oct, afternoon): the next session starts here
+
+Done today, afternoon: the Reject test on a recovery call passed (item 3 below); the old v2 branch is kept as the tag `archive/dashboard-v2-apple-wip`. Everything is pushed (`day2-r2-engine` = `main`).
+
+**Claude's work, in order:**
+1. **Hosting the talk page** (details: item 9 below). Option A (Cloudflare Tunnel) is about 15 minutes once the owner picks it (O1). Installing `cloudflared` is a download, so ask first.
+2. **Latency re-measure (L1/L2).** The 12 Oct list said to re-measure after the Phase 3 phone calls, which are now done:
+   - re-run `tools\preflight.py` for Gemini's first-word time against `NLU_HEAD_DEADLINE_S` (2.2 s);
+   - recompute the endpoint and perceived p50 for phone turns from `logs/turns.jsonl` (main checkout);
+   - change `.env` only if the numbers say so (owner's rule: measure first).
+3. **The owner's design changes** (item 4 below), as soon as the owner sends the list (O2). Click-test each change in the browser, light only.
+4. **Final HANDOFF "state at the end".** The START HERE of docs/HANDOFF.md is still 14 Oct, and its "Still to do" line is stale. Then mark FINISH_PLAN Phase 7 closed and push.
+5. **Later (only if the owner wants it):** multi-tenancy with a shared `clinic_id` database (REAL_CLINIC_GAPS). Today it's one deployment per clinic with the name read from `.env`.
+
+**The owner's part:**
+- **O1.** Choose hosting option A (Cloudflare Tunnel, recommended) or B (Oracle Cloud VM). For B, also open the Oracle Always Free account.
+- **O2.** Send the list of design changes ("lots of changes").
+- **O3.** Delete the old remote branch: `git push origin --delete claude/dashboard-v2-apple-wip` (the tag keeps its commits; item 7).
+- **O4. Network** (item 5): a Wi-Fi router; on the phone, Linphone battery Unrestricted, G.722 first, adaptive jitter on; change the hotspot password if it is "password". Optional: re-run phone check 6 on the router.
+- **O5. Accounts:**
+  - a real Indian number (T1, docs/TRUNK.md); this also lets recovery calls ring the patient's own number (C2);
+  - a WhatsApp/SMS provider (T2, docs/NOTIFICATIONS.md).
+
+  Claude connects each one once the account exists.
+- **O6. Optional:** delete the `CHARIOT_API_KEY` line from `A:\Voice-Agent\.env` (Chariot was dropped).
+
+## Session notes (written 15 Oct, ~02:00)
 
 **What happened in the session of 15 Oct, 01:00-02:00** (worktree `claude/continue-work-b9e1f9`, fast-forwarded into `A:\Voice-Agent`):
 - **Done:** the 44f15bd6 "change the branch" bug (0d9c4c5); the three 14 Oct test bookings cancelled; phone_up keep-alive replaced by WSL's own `instanceIdleTimeout=-1` (182bd00, tested); PR #6 closed; pushed. Details in items 1, 2, 6 and 7 of the list below.
@@ -27,7 +53,7 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
   - Either way keep the talk-page login: every call spends Deepgram, ElevenLabs (free tier 10,000 characters a month) and Gemini credits.
   - Next step: ask the owner A or B (MCQ, A recommended), then set it up.
 
-**Still to do, in order:** item 9 (hosting the talk page); then items 4 (design feedback list), 5 (network), 8 (owner's accounts), and the owner deleting the old remote branch (item 7) below.
+**Still to do:** see TASK LIST at the top.
 
 ## Previous list (written 15 Oct, ~01:00; items 1, 2, 6, 7 done since)
 
