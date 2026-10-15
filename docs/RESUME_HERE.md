@@ -27,7 +27,7 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
   - Either way keep the talk-page login: every call spends Deepgram, ElevenLabs (free tier 10,000 characters a month) and Gemini credits.
   - Next step: ask the owner A or B (MCQ, A recommended), then set it up.
 
-**Still to do, in order:** the hosting choice above; then items 3 (Reject test, 09:00-20:00), 4 (design feedback list), 5 (network) and 8 (owner's accounts) below.
+**Still to do, in order:** the hosting choice above; then items 4 (design feedback list), 5 (network) and 8 (owner's accounts) below.
 
 ## Previous list (written 15 Oct, ~01:00; items 1, 2, 6, 7 done since)
 
@@ -66,11 +66,7 @@ Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origi
 **To do, in order:**
 1. ~~**Bug (talk-page call 44f15bd6)**~~ (done 15 Oct): "change the branch / service / day / time" with no new value now clears that detail in `book._reopen` and asks it again ("Sure. We also do cleanings at Indiranagar, Jayanagar or Whitefield. Which would you like?"; lines `ask.*.instead`). "Can we do a different day?" is the change, not a clinic question. Tests: `ChangeWithoutValueTests` in tests/test_real_clinic_calls.py. 1022 tests, 53/53 scenarios, seed-7 sim on target. Goes live at Emma's next restart.
 2. ~~**Cancel tonight's three test bookings**~~ (done 15 Oct, owner approved): Adharsh 9:00 and 9:30 (Dr Rao, Nagarbhavi) and Jimmy 9:30 (Dr Kulkarni, Jayanagar) on Fri 16 Oct cancelled through `scheduling.cancel` (actor "owner", reason "Test booking (owner, 15 Oct)"); the calendar removals went through the sync outbox.
-3. **Reject test on a recovery call (between 09:00 and 20:00):**
-   1. Block Dr Rao for a day that has a booking.
-   2. Start the campaign.
-   3. Press Reject on the phone.
-   4. The dashboard must show "declined".
+3. ~~**Reject test on a recovery call**~~ (passed 15 Oct, 14:46): a test booking (Adharsh, cleaning, Dr Rao, Tue 20 Oct 11:00), the owner blocked Dr Rao for that day on the dashboard and started campaign 9; Linphone (1001) rang and the owner pressed Reject. Linphone answered **SIP 603 Decline**; job 15 ended `failed` / `declined` after 1 attempt, no retry queued; the Recovery tab shows "Declined the call"; task 10 (`recovery_failed`, high) was created. Cleaned up afterwards: block 17 lifted, the booking cancelled (reason "Test booking (owner, 15 Oct)"), task 10 marked done.
 4. **Owner's design feedback.** The owner said there are "lots of changes"; ask for the list and work through it.
 5. **Network (owner's choice):** the voice breaks on Linphone calls came from the phone, which hosts the hotspot and runs Linphone at once. Emma's own audio left the PC clean (3 late frames per call). One MicroSIP call had a single "Emma's live audio ran dry" stall, caused by the ElevenLabs stream over mobile data.
    - The real fix is a Wi-Fi router.
