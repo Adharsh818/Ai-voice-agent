@@ -133,6 +133,12 @@ Done today, afternoon: the Reject test on a recovery call passed (item 3 below);
        - **Koyeb:** no free plan any more ($29/month Pro).
        - **Hugging Face Spaces:** Docker and Gradio Spaces now need a paid PRO plan to create. Not free.
        - **GitHub Student Pack:** no DigitalOcean any more; Heroku $13/month for 24 months (US/EU, ephemeral disk, so SQLite is lost); a free .TECH domain for 1 year.
+   - **16 Oct, decision: Azure for Students** (the owner is a full-time student). The plan:
+     - **VM:** free B2ats_v2 (x64, 2 vCPU, 1 GiB RAM, burstable; idle time banks CPU credit for calls). Ubuntu Server 24.04 LTS x64, Central India (or South India if a policy blocks it), user `azureuser`, the same `~/.ssh/emma_oracle` public key, 64 GiB Premium SSD (P6 is in the free amounts), inbound ports 22/80/443, auto-shutdown off.
+     - **Address:** the public IP's free DNS name label `<label>.centralindia.cloudapp.azure.com` (no DuckDNS needed).
+     - **Server setup:** add a 2 GB swapfile (1 GiB is tight for Emma plus the Piper backup voice).
+     - **No budget alert needed:** the Students subscription stops services when the credit runs out; it never charges a card.
+     - Oracle stays a fallback.
    - **Known console quirk:** the public IPv4 switch is greyed out when the form creates the VCN. Add an ephemeral public IP after creation (VNIC → IP administration → Edit).
    - **After the owner sends the IP and DuckDNS name (Claude):**
      1. `ssh -i ~/.ssh/emma_oracle ubuntu@<ip>`.
