@@ -122,6 +122,17 @@ Done today, afternoon: the Reject test on a recovery call passed (item 3 below);
      - SSH key on this PC at `~/.ssh/emma_oracle` (no passphrase), pasted into the create form;
      - create form: Ubuntu 24.04 (not 26.04: Python 3.12), VM.Standard.A1.Flex 2 OCPU / 12 GB, new VCN plus a new public subnet, burstable off, shielded off.
    - **Blocked: "Out of capacity" for A1 in AD-1** (Hyderabad has one AD). It failed at 2/12 and at 1/6. The owner retries tonight (option 2). If it keeps failing, upgrade to Pay As You Go (explained to the owner: free inside Always Free limits, set a ₹100 budget alert); a second account is against Oracle's terms.
+   - **16 Oct:**
+     - **Retries:** still out of capacity. Clicking Create too often gives "Too many requests" (wait about 5 minutes between tries).
+     - **Pay As You Go:** the "Upgrade your account" button is greyed out (Payment Method shows "-"). Retry in a day or two, or ask Oracle support.
+     - **Other free hosts, checked 16 Oct on the providers' own pages:**
+       - **Azure for Students:** no card; $100 credit for 12 months, renewable while a student; 750 h/month free B1s/B2pts v2/B2ats v2 (about 1 GiB RAM; tight for Emma, add swap). Needs a college email.
+       - **AWS Free plan:** up to $200 over 6 months; Mumbai region; card needed. The account closes after 6 months unless upgraded.
+       - **Google Cloud:** an always-free e2-micro (1 GB), US regions only, 1 GB of outbound data a month; $300 trial for 90 days.
+       - **Render free:** 512 MB; sleeps after 15 minutes idle (about 1 minute to wake); local files (SQLite) lost on every sleep or restart. Unsuitable.
+       - **Koyeb:** no free plan any more ($29/month Pro).
+       - **Hugging Face Spaces:** Docker and Gradio Spaces now need a paid PRO plan to create. Not free.
+       - **GitHub Student Pack:** no DigitalOcean any more; Heroku $13/month for 24 months (US/EU, ephemeral disk, so SQLite is lost); a free .TECH domain for 1 year.
    - **Known console quirk:** the public IPv4 switch is greyed out when the form creates the VCN. Add an ephemeral public IP after creation (VNIC → IP administration → Edit).
    - **After the owner sends the IP and DuckDNS name (Claude):**
      1. `ssh -i ~/.ssh/emma_oracle ubuntu@<ip>`.
