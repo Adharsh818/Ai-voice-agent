@@ -133,12 +133,13 @@ Done today, afternoon: the Reject test on a recovery call passed (item 3 below);
        - **Koyeb:** no free plan any more ($29/month Pro).
        - **Hugging Face Spaces:** Docker and Gradio Spaces now need a paid PRO plan to create. Not free.
        - **GitHub Student Pack:** no DigitalOcean any more; Heroku $13/month for 24 months (US/EU, ephemeral disk, so SQLite is lost); a free .TECH domain for 1 year.
-   - **16 Oct, decision: Azure for Students** (the owner is a full-time student). The plan:
-     - **VM:** free B2ats_v2 (x64, 2 vCPU, 1 GiB RAM, burstable; idle time banks CPU credit for calls). Ubuntu Server 24.04 LTS x64, Central India (or South India if a policy blocks it), user `azureuser`, the same `~/.ssh/emma_oracle` public key, 64 GiB Premium SSD (P6 is in the free amounts), inbound ports 22/80/443, auto-shutdown off.
-     - **Address:** the public IP's free DNS name label `<label>.centralindia.cloudapp.azure.com` (no DuckDNS needed).
-     - **Server setup:** add a 2 GB swapfile (1 GiB is tight for Emma plus the Piper backup voice).
-     - **No budget alert needed:** the Students subscription stops services when the credit runs out; it never charges a card.
-     - Oracle stays a fallback.
+   - **16 Oct: Oracle only** (owner's decision; the free-host list above is for reference, nothing else is being set up).
+   - **17 Oct, ~01:20: auto-retry running.**
+     - **Why:** the Pay As You Go upgrade failed (the owner's debit card was declined: insufficient funds for Oracle's verification hold), so the owner can't upgrade.
+     - **The script:** `tools/oracle_launch.py`, using Oracle's Python SDK in its own venv `%USERPROFILE%\oci-venv` (not Emma's .venv) and the API key in `%USERPROFILE%\.oci\` (`config`, `oci_api_key.pem`). It reuses the console's network `vcn-20261016-0134` / `subnet-20261016-0134`, and opened TCP 80/443 in its default security list. It makes one launch try every 240 s, alternating 2/12 and 1/6 (a second call within seconds gets 429).
+     - **When it succeeds:** it prints SERVER READY with the public IP and writes `%USERPROFILE%\.oci\emma_server.txt`.
+     - **To run it:** `C:\Users\adhar\oci-venv\Scripts\python.exe tools\oracle_launch.py`; add `--check` for read-only.
+     - **Afterwards:** only DuckDNS is left for the owner, then Claude's install steps above.
    - **Known console quirk:** the public IPv4 switch is greyed out when the form creates the VCN. Add an ephemeral public IP after creation (VNIC → IP administration → Edit).
    - **After the owner sends the IP and DuckDNS name (Claude):**
      1. `ssh -i ~/.ssh/emma_oracle ubuntu@<ip>`.
