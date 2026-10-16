@@ -234,7 +234,16 @@ def main():
         time.sleep(wait)
 
 
+def stay_awake():
+    """Ask Windows not to idle-sleep while this runs (like a video player; no setting changes, ends with the process)."""
+    if os.name == "nt":
+        import ctypes
+        ES_CONTINUOUS, ES_SYSTEM_REQUIRED = 0x80000000, 0x00000001
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+
+
 if __name__ == "__main__":
+    stay_awake()
     # A new API key reaches Oracle's services one by one: for a few minutes some calls
     # answer 401 (16 Oct). Those, 429 and 5xx outside a launch are waited out and retried.
     while True:
