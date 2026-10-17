@@ -87,6 +87,18 @@ class _Key:
             self.failures += 1
 
 
+# Full Flash and Pro models have no MINIMAL thinking level (Gemini 3.8 Flash: low, medium or
+# high); a request with it is refused, which would put every call on the fallback.
+_MINIMAL_UNSUPPORTED = re.compile(r"^(?:models/)?gemini-[\d.]+-(?:flash|pro)(?:-preview[\w-]*)?$")
+
+
+def thinking_for(model: str, value: str) -> str:
+    """The thinking setting to send to `model`: MINIMAL becomes LOW where the model has no MINIMAL."""
+    if value.upper() == "MINIMAL" and _MINIMAL_UNSUPPORTED.match(model or ""):
+        return "LOW"
+    return value
+
+
 def _thinking_config(value: str):
     if not value or not GENAI_AVAILABLE:
         return None
@@ -130,7 +142,8 @@ class GeminiNLU:
     def usable(self) -> bool:
         return GENAI_AVAILABLE and bool(self.keys) and bool(self.model) and self.available is not False
 
-    def _config(self, system: str, max_tokens: int, json_mode: bool, schema: dict | None = None):
+    def _config(self, system: str, max_tokens: int, json_mode: bool, schema: dict | None = None,
+                model: str | None = None):
         cfg = {
             "system_instruction": system,
             "temperature": 0.0,
@@ -141,7 +154,7 @@ class GeminiNLU:
             cfg["response_mime_type"] = "application/json"
         if schema:
             cfg["response_schema"] = _schema(schema)
-        thinking = _thinking_config(self.thinking)
+        thinking = _thinking_config(thinking_for(model or self.model, self.thinking))
         if thinking is not None:
             cfg["thinking_config"] = thinking
         return genai_types.GenerateContentConfig(**cfg)
@@ -171,7 +184,7 @@ class GeminiNLU:
                     self._client(key).aio.models.generate_content(
                         model=model,
                         contents=contents,
-                        config=self._config(system, max_tokens, json_mode=True),
+                        config=self._config(system, max_tokens, json_mode=True, model=model),
                     ),
                     timeout=remaining,
                 )
@@ -230,7 +243,7 @@ class GeminiNLU:
                     self._client(key).aio.models.generate_content_stream(
                         model=model,
                         contents=contents,
-                        config=self._config(system, max_tokens, json_mode=True, schema=schema),
+                        config=self._config(system, max_tokens, json_mode=True, schema=schema, model=model),
                     ),
                     timeout=remaining,
                 )
@@ -306,7 +319,7 @@ class GeminiNLU:
             else:
                 logger.error(
                     "Gemini model %r failed its startup check (%s). Calls will run on "
-                    "Tier-0 + templates until it recovers. Available Flash-Lite models: %s",
+                    "Tier-0 + templates until it recovers. Available Flash models: %s",
                     self.model, _short(exc), await self._flash_lite_models(key),
                 )
             return False
@@ -329,7 +342,7 @@ class GeminiNLU:
     async def _flash_lite_models(self, key) -> str:
         try:
             pager = await self._client(key).aio.models.list()
-            names = [m.name async for m in pager if "flash-lite" in (m.name or "")]
+            names = [m.name async for m in pager if "flash" in (m.name or "")]
             return ", ".join(sorted(names)) or "none"
         except Exception:
             return "unknown"

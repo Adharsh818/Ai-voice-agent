@@ -55,6 +55,17 @@ The owner continues from a cloud session. **Read the "cloud" note below first.**
 - ~~**Known failing test:** `test_operations ...test_check_finds_a_booking_without_its_slot_claims`~~ (fixed 17 Oct, cloud session): `tools/backup.py check()` used the wall clock while the test's bookings sit around the frozen 1 Oct clock, so it began failing once real time passed 2 Oct. It now uses the clinic clock.
 - **Oracle retry:** still running; about 95 tries by 10:04, all out of capacity.
 
+**Model trial (17 Oct, cloud session; owner: "keep 3.8 for some time as default, let's test and see which is faster"):**
+- **Gemini:** the default is now `gemini-3.8-flash`, with `gemini-3.5-flash-lite` as the retry model. 3.8 Flash has no MINIMAL thinking, so it is sent LOW (`llm.thinking_for`).
+  - The PC's and the server's `.env` still say `GEMINI_MODEL=gemini-3.5-flash-lite`, and `.env` wins over the default: change it there to start the trial.
+  - Compare the two with `python tools/preflight.py --compare-models` (Emma need not be running): first-words p50/p90 and how many land inside `NLU_HEAD_DEADLINE_S`.
+  - Reports put 3.8 Flash's first words at ~3.9 s typical, against Emma's 2.2 s wait; measure before keeping it.
+- **Deepgram Flux** is an option: `DEEPGRAM_MODEL=flux-general-en` (`stt_deepgram.FluxSTT`, `/v2/listen`). Nova-3 stays the default. Compare on the owner's recordings with `tools/replay.py --model flux-general-en`.
+- **ElevenLabs v4 Turbo** is an option: `ELEVENLABS_MODEL=eleven_v4_turbo` streams over HTTP text-to-dialogue (no WebSocket). Flash v2.5 stays the default (NORTH_STAR: the voice stays).
+  - A new model re-renders the whole prompt cache (~215 lines), which spends ElevenLabs characters; the free tier is 10,000 a month.
+- **The log:** every `logs/turns.jsonl` record now names its models (`models`), and `/metrics` has `by_model` (reply times per Gemini model, end-of-turn per recogniser).
+- **Not yet tried against the live services:** the cloud session can't reach Google's or Deepgram's API. The first run on the PC is the real check; watch the log for `Gemini model ... failed its startup check`, a Flux error, or `ElevenLabs HTTP 4xx`.
+
 **Updating the server after a code or design change** (a design change reaches the hosted page only after this): `bash tools/deploy_remote.sh`. By hand, it does:
 ```bash
 git archive --format=tar.gz -o emma.tar.gz HEAD

@@ -144,6 +144,23 @@ class LatencyDiagnosticsTests(unittest.TestCase):
         self.assertEqual(detection["complete"], {"turns": 2, "endpoint_p50_ms": 275.0})
         self.assertEqual(detection["unfinished"]["endpoint_p50_ms"], 1600.0)
 
+    def test_summary_compares_the_models_in_the_log(self):
+        # 17 Oct model trial: each record names its models; replies are compared per model.
+        import config
+        from unittest import mock
+        log = LatencyLog(None)
+        for i, (model, tier, audible) in enumerate([("gemini-3.8-flash", 1, 2.5), ("gemini-3.8-flash", 2, 2.4),
+                                                    ("gemini-3.5-flash-lite", 1, 1.5), ("gemini-3.5-flash-lite", 0, 0.9)]):
+            with mock.patch.object(config, "GEMINI_MODEL", model):
+                log.add(TurnTimer(call_id="c", turn=i, tier=tier, user_end=0.0, committed=0.3, audible=audible))
+        self.assertEqual(log.records[0]["models"]["llm"], "gemini-3.8-flash")
+        self.assertEqual(log.records[0]["models"]["stt"], config.DEEPGRAM_MODEL)
+        llm = log.summary()["by_model"]["llm"]
+        self.assertEqual((llm["gemini-3.8-flash"]["turns"], llm["gemini-3.8-flash"]["fallback_turns"]), (2, 1))
+        self.assertEqual(llm["gemini-3.8-flash"]["perceived_p50_ms"], 2450.0)
+        self.assertEqual(llm["gemini-3.5-flash-lite"]["turns"], 1)                  # the rules-only turn isn't counted
+        self.assertEqual(log.summary()["by_model"]["stt"][config.DEEPGRAM_MODEL]["turns"], 4)
+
 
 class DeepgramEndpointSourceTests(unittest.TestCase):
     def test_utterances_report_which_event_ended_them(self):

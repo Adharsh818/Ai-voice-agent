@@ -70,3 +70,42 @@ class DemoResetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CompareModelsTests(unittest.TestCase):
+    """preflight --compare-models (17 Oct): the same turn on each model, taken in turns."""
+
+    def test_times_each_model_without_the_fallback(self):
+        import contextlib
+        import io
+        from types import SimpleNamespace
+        from unittest import mock
+
+        import config
+        import llm
+        import preflight
+        from dialogue.testing import DemoClinic
+
+        seen = []
+
+        async def stream(self, contents, system, **kwargs):
+            seen.append((self.model, self.fallback_model))
+            if self.model == "slow-model":
+                yield '{"acts": []}'
+            else:
+                yield '{"acts": ["answer"]}'
+
+        brief = SimpleNamespace(contents="c", system="s", schema={})
+
+        async def build():
+            return brief
+
+        out = io.StringIO()
+        with DemoClinic(), mock.patch.object(config, "GEMINI_API_KEY", "k"), \
+                mock.patch.object(llm.GeminiNLU, "generate_json_stream", stream), \
+                mock.patch.object(preflight, "_brief", lambda: build), contextlib.redirect_stdout(out):
+            code = preflight.main(["--compare-models", "fast-model", "slow-model", "--runs", "2"])
+        self.assertEqual(code, 0)
+        self.assertEqual(seen, [("fast-model", None), ("slow-model", None)] * 2)
+        self.assertIn("fast-model", out.getvalue())
+        self.assertIn("2/2", out.getvalue())

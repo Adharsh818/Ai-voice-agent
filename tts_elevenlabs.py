@@ -14,6 +14,12 @@ cancelled mid-flight:
 PCM (not MP3) because the browser can play it with no decoder or MediaSource
 buffering, flushes are exact on barge-in, and the telephony path uses the same
 format (pcm_8000 for 8 kHz AudioSocket).
+
+Eleven v4 Turbo (17 Oct, an option to listen to; Flash v2.5 stays the default)
+is served only by ElevenLabs' text-to-dialogue API, which the text-to-speech
+WebSocket refuses. For such a model ElevenLabsTTS streams from
+/v1/text-to-dialogue/stream instead (one voice, one line), and server.py opens
+no WebSocket (needs_dialogue).
 """
 
 import asyncio
@@ -33,6 +39,14 @@ logger = logging.getLogger(__name__)
 
 ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
 ELEVENLABS_WS_URL = "wss://api.elevenlabs.io/v1/text-to-speech"
+ELEVENLABS_DIALOGUE_URL = "https://api.elevenlabs.io/v1/text-to-dialogue/stream"
+# Models the text-to-speech endpoints refuse: they speak through text-to-dialogue only.
+DIALOGUE_ONLY_MODELS = ("eleven_v4_turbo",)
+
+
+def needs_dialogue(model_id: str) -> bool:
+    """True for a model served only by text-to-dialogue (Eleven v4 Turbo)."""
+    return (model_id or "").startswith(DIALOGUE_ONLY_MODELS)
 
 # Voice tuning for a natural, warm receptionist: moderate stability keeps
 # intonation lively; similarity keeps the base voice's character.
@@ -128,9 +142,14 @@ class ElevenLabsTTS:
         if not text or not text.strip() or not self.api_key:
             return
         client = await self._get_client()
-        url = f"{ELEVENLABS_API_URL}/{self.voice_id}/stream"
         headers = {"xi-api-key": self.api_key, "Content-Type": "application/json"}
-        payload = {"text": text, "model_id": self.model_id, "voice_settings": self.voice_settings}
+        if needs_dialogue(self.model_id):
+            url = ELEVENLABS_DIALOGUE_URL
+            payload = {"inputs": [{"text": text, "voice_id": self.voice_id}], "model_id": self.model_id,
+                       "settings": {"stability": self.voice_settings.get("stability", 0.5)}}
+        else:
+            url = f"{ELEVENLABS_API_URL}/{self.voice_id}/stream"
+            payload = {"text": text, "model_id": self.model_id, "voice_settings": self.voice_settings}
         usage.add("tts_chars", len(text.strip()))
         params = {"output_format": self.output_format}
         try:

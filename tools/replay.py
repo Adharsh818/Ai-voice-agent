@@ -86,8 +86,8 @@ async def replay(path: str, flat_watchdog: float = None, model: str = None, lang
         if flat_watchdog is not None:
             callbacks.pop("watchdog_for", None)
             callbacks.pop("quiet_for", None)
-        return stt_deepgram.DeepgramSTT(
-            api_key=config.DEEPGRAM_API_KEY, model=model or config.DEEPGRAM_MODEL,
+        return stt_deepgram.make_stt(
+            model or config.DEEPGRAM_MODEL, api_key=config.DEEPGRAM_API_KEY,
             language=language or config.DEEPGRAM_LANGUAGE,
             endpointing_ms=config.DEEPGRAM_ENDPOINTING_MS, utterance_end_ms=config.DEEPGRAM_UTTERANCE_END_MS,
             keyterms=config.DEEPGRAM_KEYTERMS, watchdog_s=flat_watchdog or stt_deepgram.WATCHDOG_S, **callbacks)
@@ -167,7 +167,7 @@ def main():
     parser.add_argument("--show", action="store_true", help="print every turn")
     parser.add_argument("--provider", choices=("deepgram", "sarvam"), default="deepgram",
                         help="speech recogniser to replay through (sarvam needs SARVAM_API_KEY)")
-    parser.add_argument("--model", help="model (Deepgram: default DEEPGRAM_MODEL, e.g. nova-2; Sarvam: saaras:v4)")
+    parser.add_argument("--model", help="model (Deepgram: default DEEPGRAM_MODEL, e.g. nova-3 or flux-general-en; Sarvam: saaras:v4)")
     parser.add_argument("--language", help="Deepgram language (default DEEPGRAM_LANGUAGE), e.g. en-IN")
     args = parser.parse_args()
     if args.provider == "deepgram" and not config.DEEPGRAM_API_KEY:

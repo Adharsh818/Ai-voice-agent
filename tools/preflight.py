@@ -8,8 +8,17 @@ ElevenLabs and Deepgram how much credit is left (read-only account calls with
 the keys in .env) and checks the demo appointments are in place. Each line is
 OK, WARN (works, but look at it) or FAIL (fix before the demo). Exit code 1 if
 anything failed.
+
+Which Gemini model answers faster today (Emma need not be running):
+
+    .\\.venv\\Scripts\\python.exe tools\\preflight.py --compare-models
+    .\\.venv\\Scripts\\python.exe tools\\preflight.py --compare-models gemini-3.8-flash gemini-3.5-flash-lite --runs 10
+
+Each model gets the same real booking turn, one after the other, so a slow
+minute hits both. Default: GEMINI_MODEL and GEMINI_FALLBACK_MODEL, 8 runs each.
 """
 
+import argparse
 import json
 import os
 import sys
@@ -129,12 +138,9 @@ def check_model_speed():
     import time
 
     import llm
-    from dialogue import brief, context, engine
 
     async def measure():
-        ctx = context.new_context("preflight")
-        rt = await engine.build_runtime(ctx)
-        b = brief.build(ctx, "Hi, I'd like to book a cleaning on Monday afternoon.", rt.catalog, rt.kb)
+        b = await _brief()()
         client = llm.get_nlu()
         times = []
         for _ in range(3):
@@ -165,6 +171,71 @@ def check_model_speed():
                f"Set NLU_HEAD_DEADLINE_S={min(3.5, round(median + 0.6, 1))} in .env and restart if you'd rather wait")
 
 
+def _brief():
+    from dialogue import brief, context, engine
+
+    async def build():
+        ctx = context.new_context("preflight")
+        rt = await engine.build_runtime(ctx)
+        return brief.build(ctx, "Hi, I'd like to book a cleaning on Monday afternoon.", rt.catalog, rt.kb)
+    return build
+
+
+def compare_models(models: list, runs: int) -> int:
+    """First-words and whole-reply times per model, taken in turns (owner, 17 Oct: "test and see which is faster")."""
+    import asyncio
+    import statistics
+    import time
+
+    import llm
+    if not config.GEMINI_API_KEY:
+        print("No GEMINI_API_KEY in .env.")
+        return 1
+    limit = config.NLU_HEAD_DEADLINE_S
+    print(f"Gemini speed, {runs} runs per model, taken in turns (Emma waits up to {limit:.1f} s for first words)\n")
+
+    async def measure():
+        b = await _brief()()
+        clients = {m: llm.GeminiNLU(model=m) for m in models}
+        for c in clients.values():
+            c.fallback_model = None          # a retry on another model would hide this model's own time
+        out = {m: {"first": [], "whole": [], "failed": 0, "bad_json": 0} for m in models}
+        for _ in range(runs):
+            for m, client in clients.items():
+                started = time.monotonic()
+                first, text = None, ""
+                async for chunk in client.generate_json_stream(b.contents, b.system, schema=b.schema,
+                                                               deadline=time.monotonic() + 15):
+                    first = first or time.monotonic()
+                    text += chunk
+                if first is None:
+                    out[m]["failed"] += 1
+                    continue
+                out[m]["first"].append(first - started)
+                out[m]["whole"].append(time.monotonic() - started)
+                if not llm.parse_json_object(text):
+                    out[m]["bad_json"] += 1
+        return out
+
+    def pct(values, q):
+        values = sorted(values)
+        return values[min(len(values) - 1, int(q * len(values)))] if values else None
+
+    def fmt(v):
+        return "  -  " if v is None else f"{v:4.2f}s"
+
+    out = asyncio.run(measure())
+    print(f"  {'model':<26} {'first p50':>9} {'first p90':>9} {'whole p50':>9} {'in time':>8} {'failed':>6} {'bad JSON':>8}")
+    for m, r in out.items():
+        ok = sum(1 for t in r["first"] if t <= limit)
+        print(f"  {m:<26} {fmt(pct(r['first'], .5)):>9} {fmt(pct(r['first'], .9)):>9} {fmt(pct(r['whole'], .5)):>9} "
+              f"{ok:>4}/{runs:<3} {r['failed']:>6} {r['bad_json']:>8}")
+    ranked = sorted((statistics.median(r["first"]), m) for m, r in out.items() if r["first"])
+    if ranked:
+        print(f"\nFastest to first words today: {ranked[0][1]}. Put it in .env as GEMINI_MODEL and restart Emma.")
+    return 0
+
+
 def check_demo_data():
     print("Demo data")
     import db
@@ -192,8 +263,17 @@ def check_demo_data():
         conn.close()
 
 
-def main() -> int:
+def main(argv=None) -> int:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--compare-models", nargs="*", metavar="MODEL",
+                        help="time Gemini models against each other instead of the usual checks")
+    parser.add_argument("--runs", type=int, default=8, help="requests per model for --compare-models")
+    args = parser.parse_args(argv)
+    if args.compare_models is not None:
+        models = args.compare_models or [m for m in dict.fromkeys(
+            [config.GEMINI_MODEL, config.GEMINI_FALLBACK_MODEL]) if m]
+        return compare_models(models, max(1, args.runs))
     print(f"{config.CLINIC_SHORT_NAME} preflight\n")
     check_server()
     check_settings()

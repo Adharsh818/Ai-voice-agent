@@ -74,8 +74,8 @@ import tts_piper
 from call_session import CallSession, Services
 from latency import LatencyLog
 from speech import PromptCache
-from stt_deepgram import DeepgramSTT
-from tts_elevenlabs import ElevenLabsStreamTTS, ElevenLabsTTS
+from stt_deepgram import make_stt
+from tts_elevenlabs import ElevenLabsStreamTTS, ElevenLabsTTS, needs_dialogue
 
 logging.basicConfig(
     level=logging.INFO,
@@ -360,9 +360,9 @@ class BrowserTransport:
 
 def _services(app_state) -> Services:
     def stt_factory(**callbacks):
-        return DeepgramSTT(
+        return make_stt(
+            config.DEEPGRAM_MODEL,
             api_key=config.DEEPGRAM_API_KEY,
-            model=config.DEEPGRAM_MODEL,
             language=config.DEEPGRAM_LANGUAGE,
             endpointing_ms=config.DEEPGRAM_ENDPOINTING_MS,
             utterance_end_ms=config.DEEPGRAM_UTTERANCE_END_MS,
@@ -371,7 +371,8 @@ def _services(app_state) -> Services:
         )
 
     live_tts = None
-    if config.ELEVENLABS_API_KEY and config.TTS_TRANSPORT == "ws":
+    # Eleven v4 Turbo has no text-to-speech WebSocket: it streams over HTTP (tts_elevenlabs.needs_dialogue).
+    if config.ELEVENLABS_API_KEY and config.TTS_TRANSPORT == "ws" and not needs_dialogue(config.ELEVENLABS_MODEL):
         live_tts = ElevenLabsStreamTTS(
             api_key=config.ELEVENLABS_API_KEY,
             voice_id=config.ELEVENLABS_VOICE_ID,

@@ -458,6 +458,22 @@ class GeminiStreamTests(unittest.TestCase):
         self.assertEqual(chunks, ['{"ok": true}'])
         self.assertEqual([m for m, _ in models.calls], ["primary", "fallback"])
 
+    def test_each_model_gets_a_thinking_level_it_accepts(self):
+        # 17 Oct: gemini-3.8-flash has no MINIMAL level; sending it would fail the startup check.
+        g, models = gemini([ApiError(503), ['{"ok": true}']])
+        g.model, g.fallback_model, g.thinking = "gemini-3.8-flash", "gemini-3.5-flash-lite", "MINIMAL"
+        run(collect(g.generate_json_stream("c", "s", schema=SCHEMA)))
+        levels = [str(cfg.thinking_config.thinking_level).split(".")[-1] for _, cfg in models.calls]
+        self.assertEqual(levels, ["LOW", "MINIMAL"])
+
+    def test_thinking_for(self):
+        for model in ("gemini-3.8-flash", "models/gemini-3.8-flash", "gemini-3.5-pro", "gemini-3.9-flash-preview"):
+            self.assertEqual(llm.thinking_for(model, "MINIMAL"), "LOW", model)
+        for model in ("gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.8-flash-lite"):
+            self.assertEqual(llm.thinking_for(model, "minimal"), "minimal", model)
+        self.assertEqual(llm.thinking_for("gemini-3.8-flash", "HIGH"), "HIGH")
+        self.assertEqual(llm.thinking_for("gemini-3.8-flash", "128"), "128")
+
     def test_at_most_one_retry(self):
         g, models = gemini([ApiError(503), ApiError(503), ['{"never": 1}']])
         self.assertEqual(run(collect(g.generate_json_stream("c", "s", schema=SCHEMA))), [])
