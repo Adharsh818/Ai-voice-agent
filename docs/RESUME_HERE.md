@@ -1,4 +1,4 @@
-# Resume here (updated 15 Oct 2026)
+# Resume here (updated 17 Oct 2026)
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
@@ -13,12 +13,78 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 Push from `A:\Voice-Agent`: `git push origin day2-r2-engine` and `git push origin day2-r2-engine:main` (owner approved push + merge into main on 8 Oct). Pushed up to date on 15 Oct (afternoon); check `git status -sb` for anything newer.
 
-## TASK LIST (written 15 Oct, afternoon): the next session starts here
+## START HERE (written 17 Oct, ~09:45): Emma is online at https://pearl-emma.duckdns.org
+
+The owner continues from a cloud session. **Read the "cloud" note below first.**
+
+**What's live (17 Oct, ~09:40):** Emma runs on an AWS server, reachable from any device.
+- `https://pearl-emma.duckdns.org/` is the talk page (200).
+- `/dashboard` redirects to sign-in (307).
+- `/health` is refused from outside (404, as designed). Check it on the server at `http://127.0.0.1:8000/health`; on 17 Oct it showed Gemini, Deepgram and ElevenLabs all ok.
+- The certificate is from Let's Encrypt, obtained by Caddy.
+- It's for the owner's resume: recruiters open the link and sign in with the demo login.
+
+**Where it runs:**
+- **Account:** AWS **Free plan** (no card), project **"Emma"**, region **Sydney `ap-southeast-2`**. The Free plan pins a project to one region, and Mumbai needs "advanced features" (an upgrade), so don't click "Activate advanced features": it leaves the protected Free plan.
+- **Server:** EC2 `i-0bbb4d005a770fbb8`, **t4g.small** (ARM, 2 vCPU, 2 GB), Ubuntu 24.04, 20 GB gp3, plus a 2 GB swapfile; time zone Asia/Kolkata.
+  - Public IP **3.27.254.11**, ephemeral: it changes if the instance is stopped and started, and then the DuckDNS IP must be updated.
+  - Security group: 22/80/443 open; ufw off.
+- **Credit:** $100, and the Free plan ends **17 Apr 2027**; after that AWS suspends the account and deletes it 90 days later.
+  - At about $21/month (t4g.small $0.0212/h, public IPv4, disk), the $100 lasts about 4½-5 months.
+  - The owner can earn up to $100 more from the "earn credits" tasks on the AWS home page.
+  - Plan: move to Oracle before then (below).
+- **SSH:** `ssh -i ~/.ssh/emma_oracle ubuntu@3.27.254.11`. **That key exists only on the owner's PC** (`C:\Users\adhar\.ssh\emma_oracle`). The same public key is imported in AWS as `emma-key` and is the one Oracle will get.
+- **DuckDNS:** the owner's account (signed in with Google, adharsh1001r@gmail.com); sub-domain `pearl-emma`, IP set by hand. Its token is the owner's; never put it in the repo.
+
+**What's on the server (`/opt/emma`, installed by `deploy/install.sh pearl-emma.duckdns.org`):**
+- **Code:** a `git archive` of 06de9b8.
+- **`.env`:** the PC's keys with the following changes:
+  - set: `CALENDAR_SYNC_ENABLED=false` (calendar stays on the PC only, owner's choice), `TELEPHONY_ENABLED=false`, `TALK_PAGE_PUBLIC=false`, `DASHBOARD_COOKIE_SECURE=true`, `LOG_CALLER_TEXT=false`;
+  - removed: the SIP/AMI/trunk/Google lines;
+  - no `secrets/` folder.
+- **Database:** a **copy of the PC's database taken 17 Oct 09:34** (owner's choice: "copy of today's"). From then on the two databases are separate.
+- **Also there:** the `cache/` copy (215/215 sentences, so no ElevenLabs re-render) and the Piper voice `en_GB-cori-medium`, downloaded on the server.
+- **Logins:**
+  - the owner signs in with the same dashboard password as on the PC;
+  - a **`demo` staff login** for recruiters, whose password is in **`A:\Voice-Agent\secrets\demo_login.txt`** (git-ignored, on the owner's PC only).
+
+**Updating the server after a code or design change** (a design change reaches the hosted page only after this):
+```bash
+git archive --format=tar.gz -o emma.tar.gz HEAD
+scp -i ~/.ssh/emma_oracle emma.tar.gz ubuntu@3.27.254.11:~/
+ssh -i ~/.ssh/emma_oracle ubuntu@3.27.254.11 'rm -rf ~/emma-src/* && tar -xzf ~/emma.tar.gz -C ~/emma-src && cd ~/emma-src && sudo bash deploy/install.sh pearl-emma.duckdns.org'
+```
+`~/emma-src/.env` and `~/emma-src/models/` on the server must survive the update: `rm -rf ~/emma-src/*` keeps the dot-file `.env`, but re-download the Piper voice into `~/emma-src/models/piper` (see the 17 Oct session) or exclude `models` from the rm. The installer keeps `/opt/emma/.env`, the database and the backups.
+
+**Cloud note:** a cloud session has no SSH key and isn't on the owner's PC.
+- It **can** change code, run tests and push.
+- It **can't** deploy to AWS, read the PC's `logs/` or `.env`, or watch the Oracle script. Those need the owner's PC (a local session), or the owner adding a new key for the cloud session.
+
+**Oracle (free forever, no 6-month limit) is still being tried:**
+- The `tools/oracle_launch.py` loop runs on the owner's PC in a Terminal tab ("Oracle retry"), one try every 3 minutes, alternating 2/12 and 1/6.
+- By 17 Oct 09:30: about 75 tries, all "out of capacity".
+- It needs the PC on, plugged in and the Claude app open. It keeps the screen on, because Modern Standby paused it from 05:27 to 07:53.
+- When it prints SERVER READY (IP in `%USERPROFILE%\.oci\emma_server.txt`): install Emma there the same way (Oracle's Ubuntu also needs 80/443 opened in iptables), point DuckDNS at the new IP, then stop the AWS instance before the credit or the plan runs out.
+
+**Left, Claude:**
+1. **A test call on the hosted site** from a phone browser with the owner (microphone, audio both ways, a booking showing on the hosted dashboard). Not done yet: HTTPS went live at 09:40 and the session ended there.
+2. **Write the AWS hosting into docs/DEPLOY.md** ("Tested on AWS"): the results above, the update command, and the Free-plan region lock.
+3. **Optionally a `tools/deploy_remote.sh`** wrapping the three update commands, keeping `models/` (local session only, it needs the key).
+4. Then the task list below: latency re-measure (2), design changes (3), final HANDOFF (4).
+
+**Left, owner:**
+- Make the test call with Claude (above).
+- Put `https://pearl-emma.duckdns.org` and the demo login on the resume.
+- Optionally earn the extra AWS credits.
+- Keep the PC on for the Oracle script.
+- O2 (design list), O4 (network) and O5 (accounts) below.
+
+## TASK LIST (written 15 Oct, afternoon)
 
 Done today, afternoon: the Reject test on a recovery call passed (item 3 below); the old v2 branch is kept as the tag `archive/dashboard-v2-apple-wip`. Everything is pushed (`day2-r2-engine` = `main`).
 
 **Claude's work, in order:**
-1. **Hosting the talk page** (details: item 9 below). Option A (Cloudflare Tunnel) is about 15 minutes once the owner picks it (O1). Installing `cloudflared` is a download, so ask first.
+1. ~~**Hosting the talk page**~~ (live 17 Oct on AWS; see START HERE above; Oracle still being tried).
 2. **Latency re-measure (L1/L2).** The 12 Oct list said to re-measure after the Phase 3 phone calls, which are now done:
    - re-run `tools\preflight.py` for Gemini's first-word time against `NLU_HEAD_DEADLINE_S` (2.2 s);
    - recompute the endpoint and perceived p50 for phone turns from `logs/turns.jsonl` (main checkout);
@@ -28,7 +94,7 @@ Done today, afternoon: the Reject test on a recovery call passed (item 3 below);
 5. **Later (only if the owner wants it):** multi-tenancy with a shared `clinic_id` database (REAL_CLINIC_GAPS). Today it's one deployment per clinic with the name read from `.env`.
 
 **The owner's part:**
-- **O1.** Choose hosting option A (Cloudflare Tunnel, recommended) or B (Oracle Cloud VM). For B, also open the Oracle Always Free account.
+- ~~**O1.** Choose hosting~~ (done: Oracle chosen, out of capacity; AWS Free plan used meanwhile, 17 Oct).
 - **O2.** Send the list of design changes ("lots of changes").
 - ~~**O3.** Delete the old remote branch~~ (done by the owner, 15 Oct; the tag `archive/dashboard-v2-apple-wip` keeps its commits).
 - **O4. Network** (item 5): a Wi-Fi router; on the phone, Linphone battery Unrestricted, G.722 first, adaptive jitter on; change the hotspot password if it is "password". Optional: re-run phone check 6 on the router.
