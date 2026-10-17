@@ -803,9 +803,11 @@ def _finish_recording(session):
 
 
 @app.get("/client-config")
-async def client_config():
-    """Sound settings for the talk page (phone-line filter, clinic sound)."""
+async def client_config(request: Request):
+    """Sound settings for the talk page (phone-line filter, clinic sound), and whether a
+    call needs a staff sign-in first (/ws/voice refuses it otherwise; the page says so)."""
     return {
+        "signin_required": not config.TALK_PAGE_PUBLIC and auth.current_user(request) is None,
         "phone_line": config.PHONE_LINE_EFFECT,
         "ambience": {
             "enabled": config.AMBIENCE_ENABLED,

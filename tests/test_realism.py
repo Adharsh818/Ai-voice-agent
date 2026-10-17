@@ -218,9 +218,25 @@ class SoundRealismTests(unittest.TestCase):
         from starlette.testclient import TestClient
         import server
         body = TestClient(server.app).get("/client-config").json()
-        self.assertEqual(set(body), {"phone_line", "ambience", "typing"})
+        self.assertEqual(set(body), {"signin_required", "phone_line", "ambience", "typing"})
         self.assertLess(body["ambience"]["event_db"], -30)         # subtle, never loud
         self.assertNotIn("murmur_db", body["ambience"])            # no background bed (owner, 1 Oct)
+
+    def test_client_config_says_when_the_talk_page_needs_a_sign_in(self):
+        # On a server (TALK_PAGE_PUBLIC=false) a visitor who isn't signed in is told to sign
+        # in, not "Couldn't reach Emma" (17 Oct, hosted site); signed-in staff can call.
+        from unittest import mock
+        from starlette.testclient import TestClient
+        import auth
+        import server
+        client = TestClient(server.app)
+        with mock.patch.object(config, "TALK_PAGE_PUBLIC", True):
+            self.assertFalse(client.get("/client-config").json()["signin_required"])
+        with mock.patch.object(config, "TALK_PAGE_PUBLIC", False):
+            with mock.patch.object(auth, "current_user", return_value=None):
+                self.assertTrue(client.get("/client-config").json()["signin_required"])
+            with mock.patch.object(auth, "current_user", return_value="demo"):
+                self.assertFalse(client.get("/client-config").json()["signin_required"])
 
     def test_checking_pauses_with_typing_before_the_answer(self):
         import asyncio

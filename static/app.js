@@ -57,6 +57,7 @@ const MESSAGES = {
   busy: 'Emma is on another call right now. Try again in a minute.',
   lost: 'The line dropped.',
   unreachable: "Couldn't reach Emma. Check the server is running, then try again.",
+  signin: 'Sign in to talk to Emma.',
   blocked: 'Microphone blocked. Allow it from the icon in the address bar, then try again.',
   nomic: 'No microphone found. Plug in a headset, then try again.',
   audio: "Couldn't start audio in this browser.",
@@ -72,6 +73,7 @@ let opened = false;        // the socket opened (a later close is a dropped line
 let ending = false;        // we hung up, or Emma said goodbye
 let busyMessage = null;    // the server refused the call
 let callSeq = 0;           // bumped on hang-up, so a call still starting up stops quietly
+let needsSignin = false;   // a server that keeps the talk page for signed-in staff said no
 let typed = false;         // this call has no microphone: the caller types (the demo's backup)
 
 function setState(next) {
@@ -165,6 +167,15 @@ export async function startCall(path, options = {}) {
   opened = ending = false;
   busyMessage = null;
 
+  let cfg = {};
+  try { cfg = await (await fetch('/client-config', { cache: 'no-cache' })).json(); } catch (_) {}
+  if (cancelled()) return;
+  if (cfg.signin_required) {
+    needsSignin = true;
+    showProblem('lost', MESSAGES.signin, 'Sign in');
+    return;
+  }
+
   let source;
   if (typed) {
     // No microphone: Emma's side only. A click started this, so audio may play.
@@ -206,9 +217,6 @@ export async function startCall(path, options = {}) {
     }
   }
 
-  let cfg = {};
-  try { cfg = await (await fetch('/client-config', { cache: 'no-cache' })).json(); } catch (_) {}
-  if (cancelled()) return;
   // Everything Emma's side of the line produces goes through one output,
   // band-limited like a phone call when phone_line is on.
   const out = cfg.phone_line ? phoneLine(ctx, ctx.destination) : ctx.destination;
@@ -422,7 +430,8 @@ typedForm.addEventListener('submit', (e) => {
   typedText.value = '';
 });
 action.addEventListener('click', () => {
-  if (PATIENT_PAGE) { hideProblem(); setState('idle'); setCaption(''); } else startCall();
+  if (needsSignin) location.href = '/dashboard/login?next=' + encodeURIComponent(location.pathname);
+  else if (PATIENT_PAGE) { hideProblem(); setState('idle'); setCaption(''); } else startCall();
 });
 
 // Typed input for testing without a microphone: emma.say("book an appointment")

@@ -25,12 +25,19 @@ password.addEventListener("input", () => {
   if (!errorBox.hidden) showError("");
 });
 
+// After signing in, go back where the visitor came from (the talk page sends ?next=/),
+// but only to a page on this site.
+function afterLogin() {
+  const next = new URLSearchParams(location.search).get("next") || "";
+  return next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard/";
+}
+
 async function checkStatus() {
   try {
     const res = await fetch("/dashboard/api/auth", { credentials: "same-origin" });
     const status = await res.json();
     if (status.logged_in) {
-      location.replace("/dashboard/");
+      location.replace(afterLogin());
       return;
     }
     if (!status.configured) {
@@ -59,7 +66,7 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify({ username: form.username.value.trim(), password: form.password.value }),
     });
     if (res.ok) {
-      location.replace("/dashboard/");
+      location.replace(afterLogin());
       return;
     }
     const body = await res.json().catch(() => ({}));
