@@ -171,7 +171,7 @@ def main():
     ap.add_argument("--check", action="store_true", help="read-only: sign in and show the plan")
     ap.add_argument("--name", default="emma")
     ap.add_argument("--sizes", default="2:12,1:6", help="OCPU:GB, one per try, taking turns")
-    ap.add_argument("--interval", type=int, default=240, help="seconds between tries")
+    ap.add_argument("--interval", type=int, default=180, help="seconds between tries")
     args = ap.parse_args()
     sizes = parse_sizes(args.sizes)
 
