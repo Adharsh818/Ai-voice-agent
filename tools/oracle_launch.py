@@ -235,11 +235,15 @@ def main():
 
 
 def stay_awake():
-    """Ask Windows not to idle-sleep while this runs (like a video player; no setting changes, ends with the process)."""
+    """Ask Windows not to idle-sleep while this runs (like a video player; no setting changes, ends with the process).
+
+    The display flag matters: on a Modern Standby laptop the screen turning off puts the whole
+    machine in standby (17 Oct: tries stopped at 05:26 and resumed at 07:53).
+    """
     if os.name == "nt":
         import ctypes
-        ES_CONTINUOUS, ES_SYSTEM_REQUIRED = 0x80000000, 0x00000001
-        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)
+        ES_CONTINUOUS, ES_SYSTEM_REQUIRED, ES_DISPLAY_REQUIRED = 0x80000000, 0x00000001, 0x00000002
+        ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED)
 
 
 if __name__ == "__main__":
