@@ -329,13 +329,12 @@ NON_NAME_WORDS = {
     # 8 Oct calls: "Seven." taken as a name, "This is another one" as "Another One"
     "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
     "eleven", "twelve", "twenty", "thirty", "forty", "fifty", "hundred", "double", "triple",
-    "another", "other", "same", "first", "second", "last", "both", "none", "all", "any",
+    "another", "same", "first", "second", "last", "both", "none", "all", "any",
     "i",                                    # "My name is Rahul, I want..." -> not "Rahul I"
     # The audit (11 Oct): "I'm stuck in traffic" -> "Nice to meet you, Stuck"; "this is Dr Rao,
     # I'm not coming in" -> "Dr Rao I'M". States after "I'm", and a doctor or staff member calling.
     "i'm", "im", "i'll", "i've", "i'd", "dr", "stuck", "sick", "unwell", "running", "traffic", "coming",
-    "outside", "ready", "worried", "scared", "nervous", "pregnant", "diabetic", "available", "afraid",
-    "really", "very", "just", "also", "still", "already",
+    "outside", "scared", "nervous", "pregnant", "diabetic", "already",
 }
 # Titles said before a name ("this is Mr Sharma"): dropped, the name kept.
 _TITLES = re.compile(r"^(?:mr|mrs|ms|miss|shri|sri|smt|master)\.?\s+")
@@ -345,7 +344,7 @@ _GERUNDS = {
     "talking", "speaking", "asking", "saying", "telling", "waiting", "coming", "thinking",
     "wondering", "checking", "booking", "getting", "doing", "making", "taking", "hoping",
     "planning", "wanting", "needing", "driving", "working", "leaving", "listening", "hearing",
-    "saying", "phoning", "ringing", "sitting", "standing", "walking", "eating", "sleeping",
+    "phoning", "ringing", "sitting", "standing", "walking", "eating", "sleeping",
 }
 _NAME_LEADS = re.compile(
     r"^(?:(?:yes|yeah|yep|okay|ok|sure|hi|hello|so|um+|uh+|well|right|oh|ah|of course)[ ,]+)*"
@@ -561,7 +560,7 @@ _BRANCH_WORD_RE = re.compile(r"\b([a-z]+)\s+(?:branch|clinic|centre|center|side|
 _NOT_A_PLACE = {
     "your", "the", "which", "nearest", "closest", "main", "any", "other", "that", "this",
     "new", "a", "an", "dental", "pearl", "same", "one", "my", "our", "another", "different",
-    "each", "every", "which", "what", "big", "small", "best", "good", "nearby", "local",
+    "each", "every", "what", "big", "small", "best", "good", "nearby", "local",
 }
 
 

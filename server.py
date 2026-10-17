@@ -298,6 +298,9 @@ async def revalidate_page_assets(request, call_next):
     path = request.url.path
     if path == "/" or path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-cache"
+        if path == "/":
+            # The talk page opens the microphone: never inside another site's frame.
+            response.headers.update({k: DASHBOARD_HEADERS[k] for k in ("X-Frame-Options", "X-Content-Type-Options")})
     elif path.startswith("/dashboard") or path.startswith("/patient"):
         response.headers.update(DASHBOARD_HEADERS)
         response.headers.setdefault("Cache-Control", "no-store" if "/api/" in path else "no-cache")

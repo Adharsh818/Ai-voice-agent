@@ -31,6 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+import clock  # noqa: E402
 import config  # noqa: E402
 
 BACKUP_DIR = Path(os.getenv("BACKUP_DIR", str(ROOT / "backups")))
@@ -80,7 +81,8 @@ def check(path: str) -> list:
         if doubled:
             problems.append(f"{len(doubled)} pairs of bookings overlap for the same doctor")
         # Claims for cells over a day old are pruned (scheduling.prune): only newer bookings need them.
-        recent = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # The clinic clock, not the wall clock: tests freeze it, and seeded bookings sit around it.
+        recent = (clock.now().astimezone(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
         unclaimed = conn.execute(
             "SELECT COUNT(*) FROM appointments a WHERE a.status = 'booked' AND a.start_utc >= ? "
             "AND NOT EXISTS (SELECT 1 FROM slot_claims c WHERE c.appointment_id = a.id)", (recent,)).fetchone()[0]
