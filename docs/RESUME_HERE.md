@@ -48,7 +48,14 @@ The owner continues from a cloud session. **Read the "cloud" note below first.**
   - the owner signs in with the same dashboard password as on the PC;
   - a **`demo` staff login** for recruiters, whose password is in **`A:\Voice-Agent\secrets\demo_login.txt`** (git-ignored, on the owner's PC only).
 
-**Updating the server after a code or design change** (a design change reaches the hosted page only after this):
+**Since then (17 Oct, ~10:00):**
+- **Sign-in prompt (93c68f1, deployed):** the hosted talk page told signed-out visitors "Couldn't reach Emma" (`/ws/voice` refused them with 403). `/client-config` now reports `signin_required`, so the page says "Sign in to talk to Emma." with a Sign in button, and the sign-in page returns to `?next=`. Checked live in the browser.
+- **Update script:** `tools/deploy_remote.sh` now does the update below in one step. It keeps the server's `.env` and `models`, and refuses to run with uncommitted changes.
+- **Owner password:** the owner doesn't remember the dashboard password. Use the `demo` login for the test call. To reset the owner password: `tools/hash_password.py` gives the new hash; set it as `DASHBOARD_PASSWORD_HASH` on the PC and in `/opt/emma/.env`, then restart (the owner types the password).
+- **Known failing test:** `test_operations ...test_check_finds_a_booking_without_its_slot_claims` fails in this worktree on the code before 93c68f1 too. It depends on the worktree's own `data/emma.db`. Look at it later.
+- **Oracle retry:** still running; about 95 tries by 10:04, all out of capacity.
+
+**Updating the server after a code or design change** (a design change reaches the hosted page only after this): `bash tools/deploy_remote.sh`. By hand, it does:
 ```bash
 git archive --format=tar.gz -o emma.tar.gz HEAD
 scp -i ~/.ssh/emma_oracle emma.tar.gz ubuntu@3.27.254.11:~/
@@ -69,7 +76,7 @@ ssh -i ~/.ssh/emma_oracle ubuntu@3.27.254.11 'rm -rf ~/emma-src/* && tar -xzf ~/
 **Left, Claude:**
 1. **A test call on the hosted site** from a phone browser with the owner (microphone, audio both ways, a booking showing on the hosted dashboard). Not done yet: HTTPS went live at 09:40 and the session ended there.
 2. **Write the AWS hosting into docs/DEPLOY.md** ("Tested on AWS"): the results above, the update command, and the Free-plan region lock.
-3. **Optionally a `tools/deploy_remote.sh`** wrapping the three update commands, keeping `models/` (local session only, it needs the key).
+3. ~~`tools/deploy_remote.sh`~~ (done 17 Oct, 93c68f1; local session only, it needs the key).
 4. Then the task list below: latency re-measure (2), design changes (3), final HANDOFF (4).
 
 **Left, owner:**
