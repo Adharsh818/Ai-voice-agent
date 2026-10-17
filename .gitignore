@@ -60,3 +60,6 @@ telephony/build/
 
 # --- Database backups (patient data; tools/backup.py) ---
 backups/
+
+# Voice comparisons (tools/tts_compare.py)
+tts_compare/
