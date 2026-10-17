@@ -67,18 +67,23 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # transient quota or network blip at startup does not disable Gemini for good.
 GEMINI_REVERIFY_S = float(os.getenv("GEMINI_REVERIFY_S", "60"))
 
-# Gemini model for the real-time pipeline. Keep this a Flash-Lite model you have
-# verified: server.py checks it at startup and, if the check fails, runs the call
-# on the deterministic Tier-0 path and templates instead of a dead model.
-# gemini-3.5-flash-lite + thinking MINIMAL measured ~0.8-1.0 s per NLU turn.
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
-# Hard per-turn budget for the NLU call, including one bounded retry.
+# Gemini model for the real-time pipeline. server.py checks it at startup and,
+# if the check fails, runs the call on the deterministic Tier-0 path and
+# templates instead of a dead model.
+# 17 Oct (owner): gemini-3.8-flash is the default for a trial, to be compared
+# with gemini-3.5-flash-lite (thinking MINIMAL, ~0.8-1.0 s per NLU turn, 1.8 s
+# median to first words on 6 Oct) before deciding which stays:
+# `python tools/preflight.py --compare-models`. 3.8 Flash has no MINIMAL
+# thinking, so it is sent LOW (llm.thinking_for).
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 # Retried once on this model when the primary is overloaded (503). Tested
 # alongside the primary; leave empty to retry on the primary itself.
-GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-flash-lite-latest")
+GEMINI_FALLBACK_MODEL = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
+# Hard per-turn budget for the NLU call, including one bounded retry.
 GEMINI_TIMEOUT = float(os.getenv("GEMINI_TIMEOUT", "2.5"))
 # Thinking control: a level (MINIMAL/LOW/...), an integer token budget, or empty
-# to send nothing (models differ in which form they accept).
+# to send nothing (models differ in which form they accept). MINIMAL is sent as
+# LOW to models that have no MINIMAL level (full Flash and Pro).
 GEMINI_THINKING = os.getenv("GEMINI_THINKING", "MINIMAL").strip()
 
 # Tier-0: resolve short, unambiguous turns (yes/no, digits, a service, a date)
@@ -87,7 +92,14 @@ TIER0_ENABLED = os.getenv("TIER0_ENABLED", "true").lower() == "true"
 
 # Deepgram STT — used by the real-time pipeline (call_session.py)
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "")
+# nova-3, or flux-general-en for Deepgram Flux (stt_deepgram.FluxSTT, 17 Oct): the
+# model decides when the caller's turn is over. Nova-3 stays the default until
+# Flux is measured on the owner's recordings (tools/replay.py --model flux-general-en).
 DEEPGRAM_MODEL = os.getenv("DEEPGRAM_MODEL", "nova-3")
+# Flux only: how sure the model must be that the turn is over (0.5-0.9), and the
+# silence after which a turn ends anyway (500-10000 ms).
+DEEPGRAM_FLUX_EOT_THRESHOLD = float(os.getenv("DEEPGRAM_FLUX_EOT_THRESHOLD", "0.7"))
+DEEPGRAM_FLUX_EOT_TIMEOUT_MS = int(os.getenv("DEEPGRAM_FLUX_EOT_TIMEOUT_MS", "5000"))
 DEEPGRAM_LANGUAGE = os.getenv("DEEPGRAM_LANGUAGE", "en-IN")
 # Raw silence before Deepgram ends an utterance. turn_detector.py adds its own
 # wait from the words (complete answers commit at once, "and..." waits), so 200
@@ -115,6 +127,9 @@ DEEPGRAM_NAME_KEYTERMS = [
 # ElevenLabs TTS — used by the real-time pipeline (speech.py)
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")  # "Rachel"
+# eleven_flash_v2_5 is Emma's voice as the owner approved it (NORTH_STAR: it stays
+# exactly as it is). eleven_v4_turbo is an option to listen to (17 Oct): it speaks
+# over HTTP text-to-dialogue, and the prompt cache re-renders for a new model.
 ELEVENLABS_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5")
 # Raw 16 kHz PCM: no MP3 framing or MediaSource buffering in the browser, exact
 # flushes on barge-in, and the same format the telephony path will use.

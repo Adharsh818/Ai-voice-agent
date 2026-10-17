@@ -144,8 +144,9 @@ class RotationTests(unittest.TestCase):
                 log.add(timer)
             files = sorted(p.name for p in Path(d).iterdir())
             self.assertEqual(files, ["turns.jsonl", "turns.jsonl.1", "turns.jsonl.2"])
+            record = len(json.dumps(TurnTimer(call_id="c1", turn=39).to_record())) + 1
             for name in files:
-                self.assertLessEqual(os.path.getsize(os.path.join(d, name)), 600 + 400)
+                self.assertLessEqual(os.path.getsize(os.path.join(d, name)), 600 + record)   # one record over, at most
                 for line in Path(d, name).read_text(encoding="utf-8").splitlines():
                     json.loads(line)                    # whole records only, never split
 

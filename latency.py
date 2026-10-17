@@ -14,7 +14,8 @@ The summary splits the wait into its parts so a change can be measured before
 and after: end-of-turn detection (endpoint_ms, by detection event and by the
 turn detector's verdict), first audio sent, the deliberate typing pause
 (pause_ms), and whether the first sentence was streamed before the engine
-finished.
+finished. Each record names the models in use, so two models can be compared
+from the same log.
 """
 
 import bisect
@@ -25,6 +26,8 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Optional
+
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +124,8 @@ class TurnTimer:
             "streamed": self.streamed,
             "barge_in": self.barge_in,
             "barge_in_ms": None if self.barge_in_ms is None else round(self.barge_in_ms, 1),
+            # Which models served the turn, so a model trial can be compared from the log (17 Oct).
+            "models": {"llm": config.GEMINI_MODEL, "stt": config.DEEPGRAM_MODEL, "tts": config.ELEVENLABS_MODEL},
         }
 
 
@@ -237,6 +242,22 @@ class LatencyLog:
                 }
             return out
 
+        def by_model(rows):
+            """The model trial (17 Oct): replies that used Gemini, per model, and end-of-turn per recogniser."""
+            out = {"llm": {}, "stt": {}}
+            for model in sorted({(r.get("models") or {}).get("llm") for r in rows} - {None}):
+                subset = [r for r in rows if r["tier"] in (1, 2) and (r.get("models") or {}).get("llm") == model]
+                if subset:
+                    out["llm"][model] = {**stats(subset), "fallback_turns": sum(1 for r in subset if r["tier"] == 2),
+                                         "nlu_p50_ms": _percentile(values(subset, "nlu_ms"), 50)}
+            for model in sorted({(r.get("models") or {}).get("stt") for r in rows} - {None}):
+                subset = [r for r in rows if (r.get("models") or {}).get("stt") == model]
+                out["stt"][model] = {"turns": len(subset),
+                                     "endpoint_p50_ms": _percentile(values(subset, "endpoint_ms"), 50),
+                                     "stt_p50_ms": _percentile(values(subset, "stt_ms"), 50),
+                                     "perceived_p50_ms": _percentile(values(subset, "perceived_ms"), 50)}
+            return out
+
         rows = [r for r in self.records if r["tier"] is not None and r["tier"] >= 0]
         return {
             "all": stats(rows),
@@ -244,4 +265,5 @@ class LatencyLog:
             "tier1": stats([r for r in rows if r["tier"] == 1]),
             "endpointing": endpointing(rows),
             "detection": detection(rows),
+            "by_model": by_model(rows),
         }

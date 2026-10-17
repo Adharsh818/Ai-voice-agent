@@ -318,18 +318,7 @@ class DeepgramSTT:
         try:
             async for message in ws:
                 try:
-                    data = json.loads(message)
-                    msg_type = data.get("type", "")
-
-                    if msg_type == "Results":
-                        await self._handle_result(data)
-                    elif msg_type == "UtteranceEnd":
-                        await self._handle_utterance_end()
-                    elif msg_type == "SpeechStarted":
-                        if self.on_speech_started:
-                            await self.on_speech_started(data.get("timestamp"))
-                    elif msg_type == "Error":
-                        logger.error("Deepgram error: %s", data.get("description", ""))
+                    await self._handle_message(json.loads(message))
                 except json.JSONDecodeError:
                     logger.warning("Non-JSON message from Deepgram")
                 except Exception as e:
@@ -347,6 +336,18 @@ class DeepgramSTT:
                 self.is_connected = False
                 if not self._closing:
                     self._schedule_reconnect("socket closed")
+
+    async def _handle_message(self, data: dict):
+        msg_type = data.get("type", "")
+        if msg_type == "Results":
+            await self._handle_result(data)
+        elif msg_type == "UtteranceEnd":
+            await self._handle_utterance_end()
+        elif msg_type == "SpeechStarted":
+            if self.on_speech_started:
+                await self.on_speech_started(data.get("timestamp"))
+        elif msg_type == "Error":
+            logger.error("Deepgram error: %s", data.get("description", ""))
 
     def _drop_reported_words(self, words: list, transcript: str) -> tuple:
         """
@@ -531,3 +532,148 @@ class DeepgramSTT:
 
         self.is_connected = False
         logger.info("Deepgram STT closed")
+
+
+class FluxSTT(DeepgramSTT):
+    """
+    Deepgram Flux (17 Oct, owner: "build Flux as an option"): the same callbacks
+    as DeepgramSTT, over /v2/listen, where the model itself decides when the
+    caller's turn is over. Chosen with DEEPGRAM_MODEL=flux-general-en (or any
+    flux-* model); Nova-3 stays the default until Flux is measured on the
+    owner's recordings (tools/replay.py --model flux-general-en).
+
+    Flux sends TurnInfo messages instead of Results: StartOfTurn (the caller
+    began: the barge-in cue), Update / EagerEndOfTurn / TurnResumed (the whole
+    turn so far, as a live caption) and EndOfTurn (the finished turn). Each
+    carries the full transcript of the turn, not just the newest words.
+
+    Buffering, reconnects and the time offset across reconnects are
+    DeepgramSTT's. The words-stopped-changing watchdog is kept only as the
+    noise backstop (WATCHDOG_MAX_S), so Flux's own end-of-turn is what gets
+    measured. Flux has no KeepAlive message: when no audio has gone out for a
+    while (a typed call), a little silence is sent, and taken off the times
+    reported so the call's audio clock stays right.
+    """
+
+    DEEPGRAM_WS_URL = "wss://api.deepgram.com/v2/listen"
+    KEEPALIVE_SILENCE_S = 0.1
+
+    def __init__(self, *args, eot_threshold: float = 0.7, eot_timeout_ms: int = 5000, **kwargs):
+        kwargs.pop("endpointing_ms", None)      # Nova-3 settings; Flux has its own end-of-turn
+        kwargs.pop("utterance_end_ms", None)
+        kwargs.setdefault("model", "flux-general-en")
+        super().__init__(*args, **kwargs)
+        self.eot_threshold = eot_threshold
+        self.eot_timeout_ms = eot_timeout_ms
+        self._padding_sec = 0.0                  # silence this stream heard that the call never had
+        self._turn_index = None
+        self._turn_reported_words = 0            # words of this turn the watchdog already handed over
+
+    def _url(self, sample_rate: int) -> str:
+        params = [
+            ("model", self.model),
+            ("encoding", "linear16"),
+            ("sample_rate", sample_rate),
+            ("eot_threshold", self.eot_threshold),
+            ("eot_timeout_ms", self.eot_timeout_ms),
+        ]
+        params += [("keyterm", term) for term in self.keyterms[:MAX_KEYTERMS]]
+        return f"{self.DEEPGRAM_WS_URL}?{urlencode(params)}"
+
+    async def _open(self) -> bool:
+        self._padding_sec = 0.0
+        self._turn_index, self._turn_reported_words = None, 0
+        return await super()._open()
+
+    async def _keepalive_loop(self, ws):
+        silence = b"\x00\x00" * int(self._sample_rate * self.KEEPALIVE_SILENCE_S)
+        try:
+            while self.is_connected and ws is self._ws:
+                await asyncio.sleep(1.0)
+                if time.monotonic() - self._last_send > KEEPALIVE_AFTER_S and ws is self._ws:
+                    await ws.send(silence)
+                    self._padding_sec += self.KEEPALIVE_SILENCE_S
+                    self._last_send = time.monotonic()
+        except (asyncio.CancelledError, websockets.exceptions.ConnectionClosed):
+            pass
+        except Exception as e:
+            logger.debug("Flux keepalive stopped: %s", e)
+
+    def _call_time(self, stream_sec) -> Optional[float]:
+        if stream_sec is None:
+            return None
+        try:
+            return float(stream_sec) + self._offset_sec - self._padding_sec
+        except (TypeError, ValueError):
+            return None
+
+    def _watchdog_due(self, stable_s: float) -> bool:
+        return stable_s >= WATCHDOG_MAX_S
+
+    async def _handle_message(self, data: dict):
+        msg_type = data.get("type", "")
+        if msg_type == "TurnInfo":
+            await self._handle_turn(data)
+        elif msg_type == "Error":
+            logger.error("Deepgram Flux error: %s", data.get("description") or data.get("message") or data)
+
+    async def _handle_turn(self, data: dict):
+        event = data.get("event", "")
+        index = data.get("turn_index")
+        if index != self._turn_index:
+            self._turn_index, self._turn_reported_words = index, 0
+            self._utterance_start = None
+        words = data.get("words") or []
+        start = self._call_time(words[0].get("start") if words else None)
+        if start is None:
+            start = self._call_time(data.get("audio_window_start"))
+        end = self._call_time(words[-1].get("end") if words else None)
+        if end is None:
+            end = self._call_time(data.get("audio_window_end"))
+        transcript = (data.get("transcript") or "").strip()
+        # Words the watchdog already handed over for this turn are not heard twice.
+        if self._turn_reported_words:
+            transcript = " ".join(transcript.split()[self._turn_reported_words:])
+            words = words[self._turn_reported_words:]
+            start = self._call_time(words[0].get("start")) if words else None
+
+        if event == "StartOfTurn" and self.on_speech_started:
+            await self.on_speech_started(start)
+        if self._utterance_start is None and start is not None and transcript:
+            self._utterance_start = start
+
+        if event == "EndOfTurn":
+            self._interim_tail, self._interim_end = "", None
+            if not transcript:
+                return
+            self._current_utterance = transcript
+            self._last_word_end = end
+            if self.on_transcript:
+                await self.on_transcript(transcript, True)
+            self._turn_reported_words = 0
+            await self._emit_utterance("end_of_turn")
+            return
+
+        if not transcript or transcript == self._interim_tail:
+            return
+        self._interim_tail, self._interim_end = transcript, end
+        self._last_change = time.monotonic()
+        if self.on_transcript:
+            await self.on_transcript(transcript, False)
+
+    async def _emit_utterance(self, source: str):
+        if source == "watchdog" and self._interim_tail:
+            # The backstop handed over this turn's words so far; the rest of the turn, if
+            # Flux carries on with it, is only what comes after them.
+            self._turn_reported_words += len(self._interim_tail.split())
+        await super()._emit_utterance(source)
+
+
+def make_stt(model: str, **kwargs) -> DeepgramSTT:
+    """The recogniser for `model`: Flux for flux-* models, else the Nova (v1) client."""
+    if (model or "").startswith("flux"):
+        import config
+        kwargs.setdefault("eot_threshold", config.DEEPGRAM_FLUX_EOT_THRESHOLD)
+        kwargs.setdefault("eot_timeout_ms", config.DEEPGRAM_FLUX_EOT_TIMEOUT_MS)
+        return FluxSTT(model=model, **kwargs)
+    return DeepgramSTT(model=model, **kwargs)
