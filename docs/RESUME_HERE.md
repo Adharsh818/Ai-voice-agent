@@ -80,8 +80,12 @@ The owner continues from a cloud session. **Read the "cloud" note below first.**
   - Sarvam `bulbul:v4-flash`: first audio 410 ms against ElevenLabs flash 486 ms (HTTP, Sydney-free test from the PC).
   - Clips are in the worktree's `voice_samples/` (not committed).
   - **The owner listens and decides**; Sarvam's default voices are male.
+- **Speech-to-text re-test (20 Oct, `tools/replay.py` scoring, the owner's two 6 Oct recordings): Deepgram stays.**
+  - **Deepgram nova-3** with the name hints: word errors 16.8% / 17.3%, hears "Adharsh", end of speech noticed in p50 0.8-1.0 s and p90 1.0-1.1 s.
+  - **Sarvam `saaras:v4`:** 19.6% / 19.6%, hears "Adarsh", p90 2.2 s.
+  - **Sarvam `saaras:v3-realtime`** (the new default): 20.7% / 21.2%, p90 2.2 s.
+  - Sarvam waits about a second longer to end a turn, which callers would hear. Same verdict as 6 Oct.
 - **Still open from the audit:**
-  - Sarvam speech-to-text accuracy test (the owner said yes; not started).
   - A daily call limit for the demo login.
   - Mask phone numbers for the demo role: the server's database is a copy holding the owner's number.
   - Security headers on the talk page (the dashboard has them; only HSTS on `/`).
