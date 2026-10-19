@@ -74,6 +74,12 @@ class SarvamTTSTests(unittest.TestCase):
         self.assertEqual(other.said, ["Which day works best for you?"])
         self.assertEqual(transport.audio, 3200)
 
+    def test_pre_rendering_waits_out_a_rate_limit(self):
+        answers = [httpx.Response(429, content=b'{"error":"Rate limit exceeded"}'), httpx.Response(200, content=bytes(3200))]
+        tts = sarvam(lambda request: answers.pop(0))
+        with mock.patch.object(SarvamTTS, "RENDER_RETRY_WAITS_S", (0.0,)):
+            self.assertEqual(len(asyncio.run(tts.synthesize("No worries."))), 3200)
+
     def test_the_prompt_cache_is_keyed_on_the_sarvam_voice(self):
         a = sarvam(lambda r: httpx.Response(200), speaker="ishita_en_customer")
         b = sarvam(lambda r: httpx.Response(200), speaker="neha_en_customer")
