@@ -1747,6 +1747,14 @@ let me = null;
 async function loadMe() {
   try { me = await api("/dashboard/api/auth"); } catch { return null; }
   $("me-name").textContent = me.user ? `Signed in as ${me.user}` : "Staff dashboard";
+  if (me.role === "demo") {
+    // The resume login: say once that it's view-only, so a refused change isn't a surprise.
+    $("me-name").textContent = `Signed in as ${me.user} · view only`;
+    if (!recall("demo-noted")) {
+      toast("Demo login: look around and talk to Emma. Changes are switched off.");
+      store("demo-noted", "1");
+    }
+  }
   return me;
 }
 

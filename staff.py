@@ -19,7 +19,8 @@ import auth
 import db
 
 OWNER = "owner"
-ROLES = ("admin", "staff")
+# "demo" (19 Oct): look and talk to Emma, never change anything (auth.require_staff refuses it).
+ROLES = ("admin", "staff", "demo")
 _USERNAME = re.compile(r"^[a-z][a-z0-9._-]{1,31}$")
 MIN_PASSWORD = 10
 

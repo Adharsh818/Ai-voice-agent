@@ -240,8 +240,10 @@ class EngineAdapter:
                     stack.callback(setattr, r2, "HEAD_DEADLINE_S", saved_head)
                 stack.callback(setattr, config, "GEMINI_TIMEOUT", config.GEMINI_TIMEOUT)
                 config.GEMINI_TIMEOUT = max(config.GEMINI_TIMEOUT, LIVE_REPLY_TIMEOUT_S)
-                llm._nlu = None                      # a fresh client bound to this event loop
+                llm._nlu = None                      # fresh clients bound to this event loop
+                llm._sarvam = None
                 self._wrap_live(llm.get_nlu())
+                self._wrap_live(llm.get_sarvam())
 
                 def recording_ikp(exc):
                     self._last_exc = exc
@@ -261,6 +263,7 @@ class EngineAdapter:
                     uninstall()
             llm._is_key_problem = saved_ikp
             llm._nlu = saved_nlu
+            llm._sarvam = None
             llm_logger.setLevel(saved_level)
             if self._catcher is not None:
                 llm_logger.removeHandler(self._catcher)
@@ -290,13 +293,14 @@ class EngineAdapter:
         return text or None
 
     def _wrap_live(self, nlu):
-        """Record every Gemini request; wait and retry on a 429 instead of failing the turn."""
-        original = nlu.generate_json
+        """Record every model request (Gemini, Sarvam); wait and retry on a 429 instead of failing the turn."""
+        source = "sarvam" if type(nlu).__name__ == "SarvamNLU" else "gemini"
+        original = getattr(nlu, "generate_json", None)
 
         async def generate_json(contents, system, max_tokens=200):
             rec = self._turn_llm
             rec["called"] = True
-            rec["source"] = "gemini"
+            rec["source"] = source
             rec["calls"] = rec.get("calls", 0) + 1
             attempt = 0
             while True:
@@ -334,7 +338,8 @@ class EngineAdapter:
                     rec["error"] = f"error {code}" if code else "failed"
                 return None
 
-        nlu.generate_json = generate_json
+        if original is not None:
+            nlu.generate_json = generate_json
 
         original_stream = getattr(nlu, "generate_json_stream", None)
         if callable(original_stream):
@@ -344,7 +349,7 @@ class EngineAdapter:
             async def generate_json_stream(*args, **kwargs):
                 rec = self._turn_llm
                 rec["called"] = True
-                rec["source"] = "gemini"
+                rec["source"] = source
                 rec["calls"] = rec.get("calls", 0) + 1
                 if self._catcher is not None:
                     self._catcher.messages.clear()

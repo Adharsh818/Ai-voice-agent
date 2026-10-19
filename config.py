@@ -81,6 +81,22 @@ GEMINI_TIMEOUT = float(os.getenv("GEMINI_TIMEOUT", "2.5"))
 # to send nothing (models differ in which form they accept).
 GEMINI_THINKING = os.getenv("GEMINI_THINKING", "MINIMAL").strip()
 
+# Sarvam (an Indian provider) as the second model for the turn's one request (llm.SarvamNLU).
+# A different company from Gemini, so it isn't overloaded at the same moments (17 Oct: Gemini
+# and its own fallback model both answered 503). With reasoning off, sarvam-105b-conversations
+# answered a short structured request in ~0.36 s against Gemini Flash-Lite's ~1.25 s (19 Oct).
+SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
+SARVAM_MODEL = os.getenv("SARVAM_MODEL", "sarvam-105b-conversations")
+SARVAM_URL = os.getenv("SARVAM_URL", "https://api.sarvam.ai/v1/chat/completions")
+# Which model takes the turn first: "gemini" (default) or "sarvam". The other one, when it
+# has a key, is the turn's one retry (only before any token arrived; llm.py budget rules).
+NLU_PRIMARY = os.getenv("NLU_PRIMARY", "gemini").strip().lower()
+# Sarvam as Gemini's retry only when asked for ("sarvam"). Off by default: on the 53 scenarios
+# (19 Oct) Sarvam with Gemini's brief re-asked answered questions 38/405 times and looped in 6/52
+# calls, while the no-model fallback re-asked 3/387 and never looped, so a Gemini failure is
+# better caught by the fallback until the brief is tuned for Sarvam.
+NLU_BACKUP = os.getenv("NLU_BACKUP", "").strip().lower()
+
 # Tier-0: resolve short, unambiguous turns (yes/no, digits, a service, a date)
 # deterministically without an LLM round trip.
 TIER0_ENABLED = os.getenv("TIER0_ENABLED", "true").lower() == "true"

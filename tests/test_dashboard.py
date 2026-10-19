@@ -666,6 +666,33 @@ class StaffLoginTests(DashboardTestCase):
                                     json={"username": "anita", "password": "a-long-password"}).status_code, 401)
 
 
+class DemoLoginTests(DashboardTestCase):
+    """19 Oct: the resume login looks and talks to Emma, but every change is refused."""
+
+    def test_demo_login_can_look_and_call_but_not_change_anything(self):
+        appointment = self.book()
+        self.login()
+        r = self.client.post("/dashboard/api/staff", json={"username": "demo", "display_name": "Demo",
+                                                           "password": "a-long-password", "role": "demo"})
+        self.assertEqual(r.status_code, 200, r.text)
+        demo = TestClient(server.app)
+        self.addCleanup(demo.close)
+        self.assertEqual(demo.post("/dashboard/api/login",
+                                   json={"username": "demo", "password": "a-long-password"}).status_code, 200)
+        self.assertEqual(demo.get("/dashboard/api/auth").json()["role"], "demo")
+        self.assertEqual(demo.get("/dashboard/api/tasks").status_code, 200)              # looking is fine
+        refused = demo.post(f"/dashboard/api/appointments/{appointment}/cancel", json={"reason": "test"})
+        self.assertEqual(refused.status_code, 403)
+        self.assertIn("demo login", refused.json()["detail"])
+        self.assertEqual(demo.post("/dashboard/api/privacy/erase", json={"phone": "9876543210"}).status_code, 403)
+        self.assertEqual(self.rows("SELECT status FROM appointments WHERE id = ?", appointment)[0]["status"], "booked")
+        with patch.object(config, "TALK_PAGE_PUBLIC", False):                           # and can talk to Emma
+            with patch.object(server, "CallSession", FakeSession), patch.object(server, "_services", lambda s: None):
+                with demo.websocket_connect("/ws/voice") as ws:
+                    ws.send_json({"type": "end"})
+        self.assertEqual(demo.post("/dashboard/api/logout").status_code, 200)            # and sign out
+
+
 class TalkPageGateTests(DashboardTestCase):
     def test_deployed_talk_page_needs_a_staff_login(self):
         with patch.object(config, "TALK_PAGE_PUBLIC", False):
