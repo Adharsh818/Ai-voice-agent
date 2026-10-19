@@ -55,6 +55,39 @@ The owner continues from a cloud session. **Read the "cloud" note below first.**
 - **Known failing test:** `test_operations ...test_check_finds_a_booking_without_its_slot_claims` fails in this worktree on the code before 93c68f1 too. It depends on the worktree's own `data/emma.db`. Look at it later.
 - **Oracle retry:** still running; about 95 tries by 10:04, all out of capacity.
 
+**Audit and model tests (19 Oct, d15b429, deployed):**
+- **Checks:** 1033 tests and 53/53 offline scenarios pass; pyflakes and vulture clean.
+- **AWS server:** healthy; daily backups pass `--check`. A test booking call on the hosted site worked (17 Oct 10:02).
+- **Done:**
+  - **Demo role** (migration 007): the `demo` login can look and call, but every change is refused in `auth.require_staff`. The server's `demo` user was switched to it.
+  - **`constraints.txt`:** exact versions (the server's set; the PC venv was upgraded to it and the suite passes); `install.sh` uses `-c`.
+  - **Date-proof test:** the backup slot-claims test no longer depends on the demo bookings' dates.
+  - **Sarvam client:** `llm.SarvamNLU`, `llm.stream_turn`, **off by default**.
+- **Gemini:**
+  - `gemini-3.5-flash-lite` stays the best Gemini model: about 1.25 s for a short request, 2.35 s for first words with Emma's real brief (over the 2.2 s head deadline).
+  - 3.8 Flash: 4.7-5.7 s and mostly 503.
+  - The 2.5 models are retired (404).
+  - `GEMINI_FALLBACK_MODEL=gemini-flash-lite-latest` likely aliases the same model and failed at the same moments on 17 Oct. 3.6 Flash and 3.1 Flash-Lite measured slow or overloaded too, so it's unchanged.
+  - **The free daily quota ran out in the live scenario run** (22 of 75 requests were 429s): on a busy day Emma runs on the fallback.
+- **Second Gemini key:** the owner's `GEMINI_API_KEY_NEW` is also free, and rotating free keys breaks Google's terms, so it's unused. Remove it from `.env`; a paid key would replace the old one instead.
+- **Sarvam (two `SARVAM_API_KEY` lines in the PC `.env`; the last one wins, and both work):**
+  - With Emma's real brief, `sarvam-105b-conversations` (reasoning off, json_schema) gave first words in 0.72 s against Gemini's 2.35 s.
+  - On the 53 **live** scenarios (`NLU_PRIMARY=sarvam`), the safety checks Z1-Z7 stayed at 0, but it re-asked answered questions 38/405, looped in 6/52 calls, and completed 29/31 bookings.
+  - The no-model fallback scored 3/387, 0 loops and 31/31.
+  - So it's off; `NLU_BACKUP=sarvam` or `NLU_PRIMARY=sarvam` turns it on.
+  - Next step if wanted: tune the brief for Sarvam, then re-run the live scenarios.
+- **Voice:**
+  - Sarvam `bulbul:v4-flash`: first audio 410 ms against ElevenLabs flash 486 ms (HTTP, Sydney-free test from the PC).
+  - Clips are in the worktree's `voice_samples/` (not committed).
+  - **The owner listens and decides**; Sarvam's default voices are male.
+- **Still open from the audit:**
+  - Sarvam speech-to-text accuracy test (the owner said yes; not started).
+  - A daily call limit for the demo login.
+  - Mask phone numbers for the demo role: the server's database is a copy holding the owner's number.
+  - Security headers on the talk page (the dashboard has them; only HSTS on `/`).
+  - Off-machine copies of the server backups.
+  - The Oracle retry dies when the Claude app restarts: it was restarted 19 Oct 23:14.
+
 **Updating the server after a code or design change** (a design change reaches the hosted page only after this): `bash tools/deploy_remote.sh`. By hand, it does:
 ```bash
 git archive --format=tar.gz -o emma.tar.gz HEAD
