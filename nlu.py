@@ -748,16 +748,17 @@ class Backend(Protocol):
 
 
 class GeminiBackend:
-    """The real backend: llm.get_nlu().generate_json_stream(...), one request with the key and breaker rules."""
+    """The real backend: llm.stream_turn(...), the primary model (config.NLU_PRIMARY) and at most one
+    retry on the other provider, with the key and breaker rules (Gemini alone without a Sarvam key)."""
 
     @property
     def usable(self) -> bool:
         import llm
-        return llm.get_nlu().usable
+        return llm.turn_usable()
 
     def stream(self, system: str, contents: str, schema: dict, deadline: float) -> AsyncIterator[str]:
         import llm
-        return llm.get_nlu().generate_json_stream(contents, system, schema=schema, deadline=deadline)
+        return llm.stream_turn(contents, system, schema=schema, deadline=deadline)
 
 
 @dataclass

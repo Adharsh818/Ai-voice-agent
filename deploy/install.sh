@@ -56,7 +56,8 @@ chmod 600 "$DEST/.env"
 echo "== Python environment"
 sudo -u emma python3 -m venv "$DEST/.venv"
 sudo -u emma "$DEST/.venv/bin/pip" install -q --upgrade pip
-sudo -u emma "$DEST/.venv/bin/pip" install -q -r "$DEST/requirements.txt"
+# constraints.txt pins the tested versions (19 Oct: a bare install had pulled newer ones than the PC ran).
+sudo -u emma "$DEST/.venv/bin/pip" install -q -r "$DEST/requirements.txt" -c "$DEST/constraints.txt"
 
 echo "== Services"
 install -m 644 "$DEST/deploy/emma.service" /etc/systemd/system/emma.service

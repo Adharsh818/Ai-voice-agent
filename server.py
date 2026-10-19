@@ -258,22 +258,30 @@ async def warm_nlu():
     line), read to the end and thrown away, so a caller's first turn finds the
     connection and the model warm. Never raises.
     """
-    if not config.GEMINI_API_KEY:
+    models = [(name, client) for name, client in (("Gemini", llm.get_nlu()), ("Sarvam", llm.get_sarvam()))
+              if (config.GEMINI_API_KEY if name == "Gemini" else
+                  config.SARVAM_API_KEY and "sarvam" in (config.NLU_PRIMARY, config.NLU_BACKUP))]
+    if not models:
         return
     try:
         from dialogue import brief as brief_mod, context as context_mod, engine as engine_mod
         ctx = context_mod.new_context("warmup")
         rt = await engine_mod.build_runtime(ctx)
         b = brief_mod.build(ctx, "Hi, I'd like to book a cleaning next week.", rt.catalog, rt.kb)
-        started = asyncio.get_running_loop().time()
-        # Its own long allowance: a cold first request has taken over 4 s, and
-        # stopping it early would leave the model as cold as before.
-        deadline = time.monotonic() + 15
-        async for _ in llm.get_nlu().generate_json_stream(b.contents, b.system, schema=b.schema, deadline=deadline):
-            pass
-        logger.info("Gemini warm (%.0f ms)", (asyncio.get_running_loop().time() - started) * 1000)
     except Exception as exc:
-        logger.debug("Gemini warm-up skipped: %s", exc)
+        logger.debug("Model warm-up skipped: %s", exc)
+        return
+    for name, client in models:
+        try:
+            started = asyncio.get_running_loop().time()
+            # Its own long allowance: a cold first request has taken over 4 s, and
+            # stopping it early would leave the model as cold as before.
+            deadline = time.monotonic() + 15
+            async for _ in client.generate_json_stream(b.contents, b.system, schema=b.schema, deadline=deadline):
+                pass
+            logger.info("%s warm (%.0f ms)", name, (asyncio.get_running_loop().time() - started) * 1000)
+        except Exception as exc:
+            logger.debug("%s warm-up skipped: %s", name, exc)
 
 
 app = FastAPI(title=f"{config.CLINIC_NAME} — Emma Voice Agent", lifespan=lifespan)

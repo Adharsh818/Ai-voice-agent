@@ -191,7 +191,7 @@ class GeminiNLU:
         return None
 
     async def generate_json_stream(self, contents: str, system: str, *, schema: dict | None = None,
-                                   deadline: float | None = None, max_tokens: int = 400):
+                                   deadline: float | None = None, max_tokens: int = 400, retry: bool = True):
         """
         The R2 turn's one request, streamed (docs/R2_DESIGN.md, sections 5
         and 14): an async iterator of raw text chunks of a JSON object that
@@ -206,13 +206,14 @@ class GeminiNLU:
         token has been yielded there is never a second call; an error after
         that just ends the stream and the engine falls back for whatever is
         missing. Closing the iterator (aclose) closes the HTTP stream.
+        retry=False: one request only (stream_turn gives the retry to the other provider).
         """
         if not self.usable:
             return
         if deadline is None:
             deadline = time.monotonic() + self.timeout
         tried = []
-        for attempt in range(2):
+        for attempt in range(2 if retry else 1):
             remaining = deadline - time.monotonic()
             if remaining <= 0 or (attempt and remaining < MIN_RETRY_BUDGET_S):
                 break
@@ -351,6 +352,177 @@ class GeminiNLU:
         }
 
 
+class SarvamNLU:
+    """
+    Sarvam's chat model (OpenAI-shaped /v1/chat/completions) for the turn's one request,
+    with the same contract as GeminiNLU.generate_json_stream: raw text chunks of one JSON
+    object following `schema`, nothing yielded meaning "use the fallback", never past
+    `deadline`. Reasoning is off (it costs ~1 s and the model only extracts and phrases);
+    Structured Outputs keep the reply to the schema. One request, no retry of its own.
+    """
+
+    def __init__(self, key=None, model=None, url=None, timeout=None):
+        self.key = config.SARVAM_API_KEY if key is None else key
+        self.model = config.SARVAM_MODEL if model is None else model
+        self.url = config.SARVAM_URL if url is None else url
+        self.timeout = config.GEMINI_TIMEOUT if timeout is None else timeout
+        self.cooldown_until = 0.0
+        self.requests = self.failures = 0
+        self._client = None
+
+    @property
+    def usable(self) -> bool:
+        return bool(self.key and self.model) and self.cooldown_until <= time.monotonic()
+
+    def _http(self):
+        if self._client is None:
+            import httpx
+            self._client = httpx.AsyncClient()
+        return self._client
+
+    def _body(self, contents: str, system: str, schema: dict | None, max_tokens: int) -> dict:
+        body = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": contents}],
+            "temperature": 0.0,
+            "max_tokens": max_tokens,
+            "reasoning_effort": None,
+            "stream": True,
+        }
+        if schema:
+            body["response_format"] = {"type": "json_schema",
+                                       "json_schema": {"name": "turn", "schema": json_schema(schema)}}
+        else:
+            body["response_format"] = {"type": "json_object"}
+        return body
+
+    async def generate_json_stream(self, contents: str, system: str, *, schema: dict | None = None,
+                                   deadline: float | None = None, max_tokens: int = 400, retry: bool = False):
+        if not self.usable:
+            return
+        if deadline is None:
+            deadline = time.monotonic() + self.timeout
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        self.requests += 1
+        usage.add("sarvam_requests")
+        yielded = False
+        try:
+            async with self._http().stream("POST", self.url, json=self._body(contents, system, schema, max_tokens),
+                                           headers={"api-subscription-key": self.key},
+                                           timeout=remaining) as response:
+                if response.status_code != 200:
+                    raise RuntimeError(f"HTTP {response.status_code}: {(await response.aread())[:160]!r}")
+                lines = response.aiter_lines().__aiter__()
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise asyncio.TimeoutError
+                    try:
+                        line = await asyncio.wait_for(lines.__anext__(), timeout=remaining)
+                    except StopAsyncIteration:
+                        break
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        delta = json.loads(data)["choices"][0].get("delta") or {}
+                    except (ValueError, KeyError, IndexError, TypeError):
+                        continue
+                    text = delta.get("content")
+                    if text:
+                        yielded = True
+                        yield text
+        except asyncio.TimeoutError:
+            self.failures += 1
+            logger.warning("Sarvam NLU stream timed out (%s)%s", self.model, " mid-reply" if yielded else "")
+        except Exception as exc:  # quota, overload, auth, network
+            self.failures += 1
+            if not yielded:
+                self.cooldown_until = time.monotonic() + KEY_COOLDOWN_S
+            logger.warning("Sarvam NLU stream failed (%s)%s: %s", self.model, " mid-reply" if yielded else "",
+                           _short(exc))
+
+    def status(self) -> dict:
+        return {"model": self.model, "requests": self.requests, "failures": self.failures,
+                "cooling_down": self.cooldown_until > time.monotonic(), "configured": bool(self.key)}
+
+
+def json_schema(schema: dict) -> dict:
+    """Gemini's OpenAPI-style schema ("nullable": true) as plain JSON Schema (type lists, null in enums)."""
+    if not isinstance(schema, dict):
+        return schema
+    out = {}
+    nullable = bool(schema.get("nullable"))
+    for key, value in schema.items():
+        if key in ("nullable", "propertyOrdering"):
+            continue
+        if key == "properties":
+            out[key] = {name: json_schema(sub) for name, sub in value.items()}
+        elif key == "items":
+            out[key] = json_schema(value)
+        elif key == "type" and isinstance(value, str):
+            out[key] = value.lower()
+        else:
+            out[key] = value
+    if nullable:
+        if isinstance(out.get("type"), str):
+            out["type"] = [out["type"], "null"]
+        if isinstance(out.get("enum"), list) and None not in out["enum"]:
+            out["enum"] = out["enum"] + [None]
+    return out
+
+
+def _primary_and_backup():
+    """(first, second) model clients for a turn, per config.NLU_PRIMARY; second may be None."""
+    gemini, sarvam = get_nlu(), get_sarvam()
+    if config.NLU_PRIMARY == "sarvam" and sarvam.key:
+        return sarvam, gemini
+    return gemini, (sarvam if sarvam.key and config.NLU_BACKUP == "sarvam" else None)
+
+
+def turn_usable() -> bool:
+    first, second = _primary_and_backup()
+    return first.usable or bool(second and second.usable)
+
+
+async def stream_turn(contents: str, system: str, *, schema: dict | None = None, deadline: float | None = None):
+    """
+    The R2 turn's one request (nlu.GeminiBackend): the primary model, and, only if it gave
+    nothing and MIN_RETRY_BUDGET_S is still left, one retry on the other provider. Without a
+    Sarvam key this is exactly GeminiNLU.generate_json_stream with its own one retry.
+    """
+    first, second = _primary_and_backup()
+    if deadline is None:
+        deadline = time.monotonic() + config.GEMINI_TIMEOUT
+    if second is None:
+        async for text in first.generate_json_stream(contents, system, schema=schema, deadline=deadline):
+            yield text
+        return
+    yielded = False
+    if first.usable:
+        stream = first.generate_json_stream(contents, system, schema=schema, deadline=deadline, retry=False)
+        try:
+            async for text in stream:
+                yielded = True
+                yield text
+        finally:
+            await stream.aclose()
+    if yielded or not second.usable:
+        return
+    if first.usable and deadline - time.monotonic() < MIN_RETRY_BUDGET_S:
+        return
+    stream = second.generate_json_stream(contents, system, schema=schema, deadline=deadline, retry=False)
+    try:
+        async for text in stream:
+            yield text
+    finally:
+        await stream.aclose()
+
+
 def _schema(schema: dict):
     """The response schema as google-genai's Schema (validated up front); the dict if that fails."""
     try:
@@ -402,3 +574,14 @@ def get_nlu() -> GeminiNLU:
     if _nlu is None:
         _nlu = GeminiNLU()
     return _nlu
+
+
+_sarvam: SarvamNLU | None = None
+
+
+def get_sarvam() -> SarvamNLU:
+    """Process-wide Sarvam client (unusable without SARVAM_API_KEY)."""
+    global _sarvam
+    if _sarvam is None:
+        _sarvam = SarvamNLU()
+    return _sarvam
