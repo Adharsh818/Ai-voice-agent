@@ -76,6 +76,7 @@ from latency import LatencyLog
 from speech import PromptCache
 from stt_deepgram import DeepgramSTT
 from tts_elevenlabs import ElevenLabsStreamTTS, ElevenLabsTTS
+from tts_sarvam import SarvamTTS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -175,10 +176,20 @@ async def lifespan(app: FastAPI):
         output_format=config.ELEVENLABS_OUTPUT_FORMAT,
         client=app.state.http,
     )
-    app.state.cache = PromptCache(
-        config.CACHE_DIR, config.ELEVENLABS_VOICE_ID, config.ELEVENLABS_MODEL,
-        config.ELEVENLABS_OUTPUT_FORMAT, app.state.http_tts.voice_settings,
-    )
+    # Sarvam as Emma's voice (TTS_PROVIDER=sarvam): it renders the cache and speaks live;
+    # ElevenLabs stays as the fallback for a sentence Sarvam refuses.
+    app.state.sarvam_tts = (SarvamTTS(api_key=config.SARVAM_API_KEY, speaker=config.SARVAM_TTS_SPEAKER,
+                                      model=config.SARVAM_TTS_MODEL, sample_rate=config.TTS_SAMPLE_RATE,
+                                      pace=config.SARVAM_TTS_PACE, client=app.state.http)
+                            if config.TTS_PROVIDER == "sarvam" and config.SARVAM_API_KEY else None)
+    if config.TTS_PROVIDER == "sarvam" and app.state.sarvam_tts is None:
+        logger.warning("TTS_PROVIDER=sarvam but SARVAM_API_KEY is empty: Emma speaks with ElevenLabs")
+    voice = app.state.sarvam_tts or app.state.http_tts
+    app.state.cache = PromptCache(config.CACHE_DIR, voice.voice_id, voice.model_id, voice.output_format,
+                                  voice.voice_settings)
+    if app.state.sarvam_tts is not None:
+        logger.info("Emma's voice: Sarvam %s (%s); fallback ElevenLabs, then Piper",
+                    config.SARVAM_TTS_SPEAKER, config.SARVAM_TTS_MODEL)
     app.state.latency = LatencyLog(config.LOG_DIR)
     # Local backup voice for when ElevenLabs fails or runs out (loaded below, in the background).
     app.state.backup_tts = tts_piper.from_config()
@@ -195,7 +206,9 @@ async def lifespan(app: FastAPI):
     async def warm():
         await llm.get_nlu().verify_model()
         await warm_nlu()
-        if config.ELEVENLABS_API_KEY:
+        if app.state.sarvam_tts is not None:
+            await app.state.cache.warm(phrases.all_phrases(), app.state.sarvam_tts)
+        elif config.ELEVENLABS_API_KEY:
             await app.state.cache.warm(phrases.all_phrases(), app.state.http_tts)
         app.state.cache_ready = True
 
@@ -375,8 +388,8 @@ def _services(app_state) -> Services:
             **callbacks,
         )
 
-    live_tts = None
-    if config.ELEVENLABS_API_KEY and config.TTS_TRANSPORT == "ws":
+    live_tts = getattr(app_state, "sarvam_tts", None)
+    if live_tts is None and config.ELEVENLABS_API_KEY and config.TTS_TRANSPORT == "ws":
         live_tts = ElevenLabsStreamTTS(
             api_key=config.ELEVENLABS_API_KEY,
             voice_id=config.ELEVENLABS_VOICE_ID,
@@ -842,6 +855,7 @@ async def _service_health() -> dict:
         "gemini": bool(config.GEMINI_API_KEY) and llm.get_nlu().available is not False,
         "deepgram": bool(config.DEEPGRAM_API_KEY),
         "elevenlabs": bool(config.ELEVENLABS_API_KEY),
+        "voice": "sarvam" if getattr(app.state, "sarvam_tts", None) is not None else "elevenlabs",
     }
 
 
