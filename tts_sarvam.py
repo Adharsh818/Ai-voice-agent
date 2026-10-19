@@ -108,9 +108,20 @@ class SarvamTTS:
         finally:
             await response.aclose()
 
+    # Pre-rendering waits out Sarvam's rate limit (20 Oct, free tier: three renders at once got
+    # "429 Rate limit exceeded" for 89 of 215 sentences); a live sentence never waits, it moves on.
+    RENDER_RETRY_WAITS_S = (2.0, 5.0, 10.0)
+
     async def synthesize(self, text: str) -> Optional[bytes]:
-        """Complete audio for `text` (used to pre-render cached prompts)."""
-        chunks = [chunk async for chunk in self.synthesize_stream(text)]
+        """Complete audio for `text` (used to pre-render cached prompts), retrying a rate limit."""
+        for wait in (*self.RENDER_RETRY_WAITS_S, None):
+            try:
+                chunks = [chunk async for chunk in self.synthesize_stream(text)]
+                break
+            except SarvamTTSError as exc:
+                if wait is None or "429" not in str(exc):
+                    raise
+                await asyncio.sleep(wait)
         audio = b"".join(chunks)
         if len(audio) % 2:
             audio = audio[:-1]

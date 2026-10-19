@@ -207,7 +207,8 @@ async def lifespan(app: FastAPI):
         await llm.get_nlu().verify_model()
         await warm_nlu()
         if app.state.sarvam_tts is not None:
-            await app.state.cache.warm(phrases.all_phrases(), app.state.sarvam_tts)
+            # One at a time: Sarvam's free tier refuses three parallel renders (20 Oct).
+            await app.state.cache.warm(phrases.all_phrases(), app.state.sarvam_tts, concurrency=1)
         elif config.ELEVENLABS_API_KEY:
             await app.state.cache.warm(phrases.all_phrases(), app.state.http_tts)
         app.state.cache_ready = True
