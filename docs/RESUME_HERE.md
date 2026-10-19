@@ -85,6 +85,17 @@ The owner continues from a cloud session. **Read the "cloud" note below first.**
   - **Sarvam `saaras:v4`:** 19.6% / 19.6%, hears "Adarsh", p90 2.2 s.
   - **Sarvam `saaras:v3-realtime`** (the new default): 20.7% / 21.2%, p90 2.2 s.
   - Sarvam waits about a second longer to end a turn, which callers would hear. Same verdict as 6 Oct.
+- **Voice switched to Sarvam (owner, 20 Oct, 84fd983 and 25ba731).**
+  - **The setup:** `TTS_PROVIDER=sarvam` and `SARVAM_TTS_SPEAKER=ishita_en_customer` (Bulbul v4 Flash, linear16 16 kHz over HTTP streaming, `tts_sarvam.py`). ElevenLabs, then Piper, take a sentence Sarvam refuses.
+  - **Where:** the PC's `.env` only. **The hosted site still uses ElevenLabs.** It needs `SARVAM_API_KEY`, `TTS_PROVIDER` and `SARVAM_TTS_SPEAKER` in `/opt/emma/.env` plus a deploy; the owner wanted the PC first.
+  - **Cache:** pre-rendered one sentence at a time, because the free tier answered 429 to three in parallel; all 215 sentences in Ishita's voice (6,698 characters, about ₹13).
+  - **Speed:**
+    - On its own, first audio p50 0.62 s against ElevenLabs' WebSocket 0.33 s.
+    - In a real call (a3f6caa4), live-spoken replies took p50 1.14 s against 1.10 s with ElevenLabs, because the next sentence is prepared while one plays. The owner kept Sarvam.
+    - Idea if wanted: Sarvam's WebSocket TTS (`/text-to-speech/ws`) to cut the first-audio time.
+  - **Test calls:** 77dd115a (the Sarvam brain test) and a3f6caa4 (the Sarvam voice test) both booked, and both bookings were cancelled (owner).
+  - **Free-tier credits:** about ₹2 per call for the voice, ₹0.7 per call for the brain if switched on. The owner checks the balance on Sarvam's dashboard.
+  - **Gemini key:** a key isn't tied to a model, so the "3.8 key" question was moot. Use one free key at a time (Google's terms); the owner was shown how to create one in AI Studio and check its tier.
 - **Still open from the audit:**
   - A daily call limit for the demo login.
   - Mask phone numbers for the demo role: the server's database is a copy holding the owner's number.

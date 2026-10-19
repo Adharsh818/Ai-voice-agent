@@ -17,7 +17,7 @@ Every feature, fix and trade-off is judged against this. If a change works but m
   - An occasional door, chair or footsteps is heard only while Emma's line is active, meaning while she speaks or types, like a real headset with a noise gate.
   - When the caller gives her something to write down (name, number, date, what the visit is for), she types for a moment before answering.
   - While the caller talks, her side is silent.
-- **Voice.** The ElevenLabs voice stays exactly as it is.
+- **Voice.** Sarvam's Bulbul v4 Flash voice `ishita_en_customer` (owner, 20 Oct; it replaced the ElevenLabs voice). ElevenLabs, then Piper, only take a sentence Sarvam refuses.
 
 ### 2. Listen like a local
 - **Accent.** Speech recognition is chosen and tuned for Indian-accented English, measured on real recordings, not assumed.
