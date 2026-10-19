@@ -139,6 +139,14 @@ TTS_SAMPLE_RATE = 16000
 # "ws" = multi-context WebSocket (one socket per call); "http" = streaming POST.
 TTS_TRANSPORT = os.getenv("TTS_TRANSPORT", "ws").lower()
 
+# Emma's voice: "elevenlabs" (default) or "sarvam" (owner, 20 Oct: Sarvam's Bulbul v4 Flash replaces
+# ElevenLabs; the brain and the listening stay). With "sarvam", ElevenLabs (when it has a key) takes a
+# sentence Sarvam refuses, then the offline Piper voice; cached sentences are rendered in Sarvam's voice.
+TTS_PROVIDER = os.getenv("TTS_PROVIDER", "elevenlabs").strip().lower()
+SARVAM_TTS_SPEAKER = os.getenv("SARVAM_TTS_SPEAKER", "ishita_en_customer").strip()
+SARVAM_TTS_MODEL = os.getenv("SARVAM_TTS_MODEL", "bulbul:v4-flash").strip()
+SARVAM_TTS_PACE = float(os.getenv("SARVAM_TTS_PACE", "1.0"))
+
 # Turn-taking / latency tuning
 FILLER_AFTER_MS = int(os.getenv("FILLER_AFTER_MS", "450"))
 BARGE_IN_ENABLED = os.getenv("BARGE_IN_ENABLED", "true").lower() == "true"
