@@ -233,6 +233,15 @@ class LoginTests(DashboardTestCase):
         self.assertEqual(self.client.get("/dashboard/api/overview").headers["cache-control"], "no-store")
         self.assertEqual(self.client.get("/dashboard/static/dashboard.js").status_code, 200)
 
+    def test_talk_page_gets_protective_headers(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("frame-ancestors 'none'", response.headers["content-security-policy"])
+        self.assertEqual(response.headers["x-frame-options"], "DENY")
+        self.assertEqual(response.headers["x-content-type-options"], "nosniff")
+        self.assertIn("microphone=(self)", response.headers["permissions-policy"])
+        self.assertEqual(response.headers["cache-control"], "no-cache")
+
 
 class AppointmentApiTests(DashboardTestCase):
     def setUp(self):

@@ -407,7 +407,9 @@ class SarvamNLU:
             return
         self.requests += 1
         usage.add("sarvam_requests")
+        usage.add("sarvam_in_tokens", usage.tokens(system) + usage.tokens(contents))
         yielded = False
+        out_chars = 0
         try:
             async with self._http().stream("POST", self.url, json=self._body(contents, system, schema, max_tokens),
                                            headers={"api-subscription-key": self.key},
@@ -435,6 +437,7 @@ class SarvamNLU:
                     text = delta.get("content")
                     if text:
                         yielded = True
+                        out_chars += len(text)
                         yield text
         except asyncio.TimeoutError:
             self.failures += 1
@@ -445,6 +448,8 @@ class SarvamNLU:
                 self.cooldown_until = time.monotonic() + KEY_COOLDOWN_S
             logger.warning("Sarvam NLU stream failed (%s)%s: %s", self.model, " mid-reply" if yielded else "",
                            _short(exc))
+        finally:
+            usage.add("sarvam_out_tokens", (out_chars + 3) // 4)
 
     def status(self) -> dict:
         return {"model": self.model, "requests": self.requests, "failures": self.failures,

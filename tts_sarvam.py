@@ -90,7 +90,7 @@ class SarvamTTS:
             body = (await response.aread()).decode("utf-8", errors="replace")[:300]
             await response.aclose()
             raise SarvamTTSError(f"HTTP {response.status_code}: {body}")
-        usage.add("tts_chars", len(text.strip()))
+        usage.add("sarvam_tts_chars", len(text.strip()))
         return response
 
     async def synthesize_stream(self, text: str):

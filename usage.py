@@ -5,9 +5,9 @@ The call session starts a meter (begin); the services add to it from inside
 the call's tasks (add), wherever they are, through a context variable; at
 hang-up the totals are priced with the rates in config and stored on the call
 (calls.usage_json, shown on the dashboard). Estimates, not invoices: Gemini
-tokens are counted as characters / 4, Deepgram by call length (streaming bills
-the open socket), ElevenLabs by live characters (lines played from the prompt
-cache cost nothing).
+and Sarvam tokens are counted as characters / 4, Deepgram by call length
+(streaming bills the open socket), ElevenLabs and Sarvam voices by live
+characters (lines played from the prompt cache cost nothing).
 """
 
 import logging
@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 _meter: ContextVar[Optional[dict]] = ContextVar("call_usage", default=None)
 
-KINDS = ("gemini_requests", "gemini_in_tokens", "gemini_out_tokens", "tts_chars")
+KINDS = ("gemini_requests", "gemini_in_tokens", "gemini_out_tokens", "tts_chars",
+         "sarvam_requests", "sarvam_in_tokens", "sarvam_out_tokens", "sarvam_tts_chars")
 
 
 def begin(call_id: str) -> dict:
@@ -42,7 +43,7 @@ def add(kind: str, amount: float = 1) -> None:
 
 
 def tokens(text: str) -> int:
-    """A rough token count for Gemini (about four characters per token)."""
+    """A rough token count for Gemini or Sarvam's Gemma (about four characters per token)."""
     return (len(text or "") + 3) // 4
 
 
@@ -51,9 +52,12 @@ def price(meter: dict, seconds: float) -> dict:
     minutes = max(seconds, 0) / 60
     costs = {
         "stt": minutes * config.COST_DEEPGRAM_USD_PER_MIN,
-        "tts": meter.get("tts_chars", 0) / 1000 * config.COST_ELEVENLABS_USD_PER_1K_CHARS,
+        "tts": (meter.get("tts_chars", 0) * config.COST_ELEVENLABS_USD_PER_1K_CHARS
+                + meter.get("sarvam_tts_chars", 0) * config.COST_SARVAM_TTS_USD_PER_1K_CHARS) / 1000,
         "llm": (meter.get("gemini_in_tokens", 0) * config.COST_GEMINI_USD_PER_M_IN
-                + meter.get("gemini_out_tokens", 0) * config.COST_GEMINI_USD_PER_M_OUT) / 1_000_000,
+                + meter.get("gemini_out_tokens", 0) * config.COST_GEMINI_USD_PER_M_OUT
+                + meter.get("sarvam_in_tokens", 0) * config.COST_SARVAM_USD_PER_M_IN
+                + meter.get("sarvam_out_tokens", 0) * config.COST_SARVAM_USD_PER_M_OUT) / 1_000_000,
     }
     out = {k: int(meter.get(k, 0)) for k in KINDS}
     out.update(seconds=round(seconds, 1), cost_usd={k: round(v, 5) for k, v in costs.items()},

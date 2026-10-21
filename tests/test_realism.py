@@ -229,6 +229,18 @@ class GreetingTests(unittest.TestCase):
         self.assertTrue(all(a != b for a, b in zip(seen, seen[1:])))
         self.assertGreater(len(set(seen)), 2)
 
+    def test_no_good_morning_in_the_small_hours(self):
+        from datetime import datetime
+        import clock
+        timed = set(config.TIME_GREETINGS.values())
+        for hour in (0, 1, 3):
+            with clock.frozen(datetime(2026, 10, 22, hour, 30)):
+                seen = {phrases.next_greeting() for _ in range(30)}
+            self.assertFalse(seen & timed, hour)
+        with clock.frozen(datetime(2026, 10, 22, 4, 0)):
+            seen = {phrases.next_greeting() for _ in range(60)}
+        self.assertIn(config.TIME_GREETINGS["morning"], seen)
+
     def test_first_turn_is_a_rotated_natural_greeting(self):
         import asyncio
         import ai_engine

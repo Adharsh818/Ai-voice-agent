@@ -311,6 +311,8 @@ DASHBOARD_HEADERS = {
     "Content-Security-Policy": ("default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
                                 "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"),
 }
+# The talk page: the same, and only this page may ask for the microphone.
+TALK_PAGE_HEADERS = {**DASHBOARD_HEADERS, "Permissions-Policy": "microphone=(self), camera=(), geolocation=()"}
 
 
 @app.middleware("http")
@@ -320,6 +322,8 @@ async def revalidate_page_assets(request, call_next):
     path = request.url.path
     if path == "/" or path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-cache"
+        if path == "/":
+            response.headers.update(TALK_PAGE_HEADERS)
     elif path.startswith("/dashboard") or path.startswith("/patient"):
         response.headers.update(DASHBOARD_HEADERS)
         response.headers.setdefault("Cache-Control", "no-store" if "/api/" in path else "no-cache")
