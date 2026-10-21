@@ -79,13 +79,16 @@ def all_greetings() -> list:
 def next_greeting() -> str:
     """
     A greeting from config.GREETINGS or the one for this part of the day,
-    never the same one twice in a row (R1).
+    never the same one twice in a row (R1). Between midnight and 4 am no part
+    of the day fits ("Good morning" at 1 am sounds wrong), so only the plain ones.
     """
     global _last_greeting
     import clock                       # local: keep this module light to import
     hour = clock.now().hour
-    part = "morning" if hour < 12 else "afternoon" if hour < 16 else "evening"
-    pool = [*config.GREETINGS, config.TIME_GREETINGS[part]]
+    pool = list(config.GREETINGS)
+    if hour >= 4:
+        part = "morning" if hour < 12 else "afternoon" if hour < 16 else "evening"
+        pool.append(config.TIME_GREETINGS[part])
     choices = [g for g in pool if g != _last_greeting] or pool
     _last_greeting = random.choice(choices)
     return _last_greeting

@@ -23,7 +23,8 @@ GREETINGS = [
     f"Hi, Emma at {CLINIC_SHORT_NAME}. Would you like to book an appointment?",
     f"Hi, Emma at {CLINIC_SHORT_NAME}. Any questions about the clinic?",
 ]
-# Said instead when it suits the clinic clock (before 12, before 4, after 4).
+# Said instead when it suits the clinic clock (4 am-12, before 4 pm, after 4 pm;
+# none between midnight and 4 am, phrases.next_greeting).
 TIME_GREETINGS = {
     "morning": f"Good morning, this is Emma at {CLINIC_SHORT_NAME}. How can I help?",
     "afternoon": f"Good afternoon, Emma at {CLINIC_SHORT_NAME} here. How can I help?",
@@ -241,6 +242,11 @@ COST_DEEPGRAM_USD_PER_MIN = float(os.getenv("COST_DEEPGRAM_USD_PER_MIN", "0.0077
 COST_ELEVENLABS_USD_PER_1K_CHARS = float(os.getenv("COST_ELEVENLABS_USD_PER_1K_CHARS", "0.11"))
 COST_GEMINI_USD_PER_M_IN = float(os.getenv("COST_GEMINI_USD_PER_M_IN", "0.10"))
 COST_GEMINI_USD_PER_M_OUT = float(os.getenv("COST_GEMINI_USD_PER_M_OUT", "0.40"))
+# Sarvam (at about ₹88 to the dollar): Gemma 4 at ₹35 / ₹90 per million tokens in / out; the Bulbul voice
+# at about ₹2 per 1,000 characters (the 215-line cache, 6,698 characters, cost about ₹13).
+COST_SARVAM_USD_PER_M_IN = float(os.getenv("COST_SARVAM_USD_PER_M_IN", "0.40"))
+COST_SARVAM_USD_PER_M_OUT = float(os.getenv("COST_SARVAM_USD_PER_M_OUT", "1.02"))
+COST_SARVAM_TTS_USD_PER_1K_CHARS = float(os.getenv("COST_SARVAM_TTS_USD_PER_1K_CHARS", "0.022"))
 TRANSCRIPT_PURGE_HOURS = float(os.getenv("TRANSCRIPT_PURGE_HOURS", "6"))
 
 # Google Calendar one-way mirror (calendar_sync.py). A service account owns one

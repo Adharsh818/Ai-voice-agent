@@ -6,7 +6,8 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 **State now:**
 - `main` = `day2-r2-engine` = b112ae6, all pushed.
-- 1052 tests pass; scenarios are 53/53 offline and 53/53 with the model down.
+- 1056 tests pass; scenarios are 53/53 offline and 53/53 with the model down.
+- Items 5, 7 and 8 below were done on 22 Oct (night); the PC Emma picks them up at its next restart, the hosted site at the next deploy.
 - The PC Emma runs **Deepgram + Gemma 4 via Sarvam (Gemini as the retry) + ElevenLabs Rachel**, in a Terminal tab "Emma" from `A:\Voice-Agent`.
 - The hosted site (AWS) is still **Gemini + ElevenLabs** on 06de9b8 + d15b429 (19 Oct). The owner said to leave it as is for now.
 
@@ -33,10 +34,10 @@ When the owner says **"continue your work"**, start from this file. The full pla
 4. **Demo-login safety (from the 19 Oct audit):**
    - a daily call limit for the demo login;
    - mask phone numbers for the demo role (the server's database copy holds the owner's number).
-5. **Talk-page security headers** (only HSTS on `/` today; the dashboard has them all).
+5. ~~**Talk-page security headers**~~ (done 22 Oct): `/` now gets the dashboard's set plus `Permissions-Policy: microphone=(self)` (`server.TALK_PAGE_HEADERS`). Checked in the browser: no CSP errors, a typed call connected.
 6. **Off-machine copies of the server backups.**
-7. **Cost panel doesn't count Sarvam** (Gemma brain and Sarvam voice): add their per-call cost.
-8. **"Good morning" after midnight:** the greeting should say "Hello" (or "Good evening") between 00:00 and about 04:00.
+7. ~~**Cost panel doesn't count Sarvam**~~ (done 22 Oct): the meter counts `sarvam_in_tokens` / `sarvam_out_tokens` and `sarvam_tts_chars`, priced with `COST_SARVAM_USD_PER_M_IN` (0.40), `..._OUT` (1.02) and `COST_SARVAM_TTS_USD_PER_1K_CHARS` (0.022): estimates from ₹35/₹90 per million tokens and the cache's ~₹2 per 1,000 characters. Sarvam voice characters were counted as ElevenLabs before.
+8. ~~**"Good morning" after midnight**~~ (done 22 Oct): between 00:00 and 04:00 only the plain greetings ("Hi, this is Emma...", "Hello, Emma at...") are used (`phrases.next_greeting`); no new characters to render.
 9. **docs/DEPLOY.md:** an AWS write-up ("Tested on AWS"): the setup, the update command, and the Free-plan region lock.
 10. **Final HANDOFF "state at the end"** (docs/HANDOFF.md START HERE is still 14 Oct), then close FINISH_PLAN Phase 7.
 11. **Later, only if wanted:**
