@@ -197,7 +197,9 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 .view { animation: fade-slide var(--t-fast) var(--ease) both; }
 @keyframes fade-slide { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-/* iOS navigation bar: transparent at the top, glass with a small title once the large title scrolls away. */
+/* B15, iOS navigation bar: clear while it sits in place; once it is stuck it turns to glass with
+   a 1px keyline (background 320ms, after 240ms), and the small title arrives once the large
+   title has gone under it. */
 .view-bar {
   position: sticky;
   top: 0;
@@ -207,18 +209,18 @@ body.dash { background: var(--canvas); min-height: 100vh; }
   gap: 14px;
   height: var(--bar-h);
   padding: 0 var(--gutter);
-  background: transparent;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  border-bottom: 1px solid transparent;
-  transition: background-color var(--t) var(--ease), border-color var(--t) var(--ease),
-    -webkit-backdrop-filter var(--t) var(--ease), backdrop-filter var(--t) var(--ease);
+  background-color: rgba(250, 250, 252, 0);
+  -webkit-backdrop-filter: saturate(100%) blur(0px);
+  backdrop-filter: saturate(100%) blur(0px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0);
+  transition: background-color 320ms var(--ease) 240ms, box-shadow 320ms var(--ease) 240ms,
+    -webkit-backdrop-filter 320ms var(--ease) 240ms, backdrop-filter 320ms var(--ease) 240ms;
 }
 .view-bar.stuck {
-  background: var(--glass-bar);
+  background-color: rgba(250, 250, 252, 0.8);
   -webkit-backdrop-filter: var(--glass-filter);
   backdrop-filter: var(--glass-filter);
-  border-bottom-color: var(--hairline-soft);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.16);
 }
 .bar-title {
   font-weight: 600;
@@ -226,39 +228,51 @@ body.dash { background: var(--canvas); min-height: 100vh; }
   letter-spacing: -0.022em;
   opacity: 0;
   transform: translateY(4px);
-  transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  transition: opacity var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
-.view-bar.stuck .bar-title { opacity: 1; transform: none; }
+.view-bar.titled .bar-title { opacity: 1; transform: none; }
 .bar-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 
 .view-head { padding: 0 var(--gutter) 22px; max-width: 1200px; }
 .view-head h1 { margin: 0; }
+/* B23: the dashboard's page titles are 34/600 with a slight negative track. */
+.view-head .t-large-title, .cal-title { font-size: 34px; line-height: 1.17647; font-weight: 600; letter-spacing: -0.011em; }
 .view-head p { margin: 6px 0 0; max-width: 720px; }
 .eyebrow { margin: 0 0 2px !important; font-size: 14px; font-weight: 600; color: var(--red); letter-spacing: -0.016em; text-transform: none; }
 
 .view-tools { padding: 0 var(--gutter) 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 
-/* alerts: a glass banner at the top of the content */
-.alerts {
-  position: relative;
-  z-index: 1;
-  margin: 12px var(--gutter) 0;
-  display: grid;
-  gap: 6px;
-}
-.alert-line {
+/* B21, notices: a ribbon drops from the top edge in its accent colour (800ms), holds for 1.8s,
+   then calms to a tint. A notice already seen is shown calm. */
+.notices { margin: 0 var(--gutter); display: grid; gap: 6px; }
+.notices:has(> :not([hidden])) { margin-top: 12px; }
+.alerts { position: relative; z-index: 1; display: grid; gap: 6px; }
+.ribbon {
+  --accent: var(--orange);
+  --accent-ink: #fff;
+  --tint: rgba(255, 159, 10, 0.16);
+  --tint-ring: rgba(255, 159, 10, 0.4);
   margin: 0;
   padding: 12px 18px;
   border-radius: 14px;
   font-size: 14px;
   letter-spacing: -0.016em;
-  background: rgba(255, 159, 10, 0.16);
+  background: var(--tint);
   color: var(--ink);
-  box-shadow: inset 0 0 0 1px rgba(255, 159, 10, 0.4);
-  -webkit-backdrop-filter: var(--glass-filter);
-  backdrop-filter: var(--glass-filter);
+  box-shadow: inset 0 0 0 1px var(--tint-ring);
+  animation: ribbon-drop 800ms cubic-bezier(0.42, 0, 0.58, 1) both, ribbon-calm 600ms var(--ease-colour) 2600ms both;
 }
-.alert-line.error, .alert-line.critical { background: rgba(255, 59, 48, 0.14); box-shadow: inset 0 0 0 1px rgba(255, 59, 48, 0.42); }
+.ribbon.calm { animation: none; }
+.ribbon.error, .ribbon.critical { --accent: var(--red); --tint: rgba(255, 59, 48, 0.12); --tint-ring: rgba(255, 59, 48, 0.42); }
+.ribbon.demo-ribbon { --accent: var(--blue); --tint: var(--canvas-alt); --tint-ring: var(--hairline-soft); }
+@keyframes ribbon-drop {
+  from { transform: translateY(-100%); clip-path: inset(100% 0 0 0 round 14px); }
+  to { transform: none; clip-path: inset(0 0 0 0 round 14px); }
+}
+@keyframes ribbon-calm {
+  from { background: var(--accent); color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent); }
+  to { background: var(--tint); color: var(--ink); box-shadow: inset 0 0 0 1px var(--tint-ring); }
+}
 
 /* state pill (listening / thinking / speaking) */
 .state-pill {
@@ -364,7 +378,7 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 .tile-kicker { font-size: 14px; font-weight: 600; letter-spacing: -0.016em; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
 .tile-kicker .ico { width: 18px; height: 18px; color: var(--blue); }
 .tile-big { font-family: var(--font-display); font-size: 48px; line-height: 1.04; font-weight: 600; letter-spacing: -0.003em; font-variant-numeric: tabular-nums; }
-.tile-headline { font-family: var(--font-display); font-size: 28px; line-height: 1.14; font-weight: 600; letter-spacing: 0.007em; }
+.tile-headline { font-family: var(--font-display); font-size: 21px; line-height: 1.19048; font-weight: 600; letter-spacing: 0.011em; }
 .tile-sub { font-size: 14px; color: var(--ink-2); letter-spacing: -0.016em; }
 .tile-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; font-size: 14px; letter-spacing: -0.016em; }
 .tile-list li { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
@@ -431,7 +445,7 @@ body.dash { background: var(--canvas); min-height: 100vh; }
   gap: 3px;
   scroll-behavior: smooth;
 }
-.line { display: flex; flex-direction: column; max-width: 74%; animation: bubble-in var(--t-fast) var(--ease-layout) both; }
+.line { display: flex; flex-direction: column; max-width: 74%; animation: bubble-in 240ms var(--ease-out) both; }
 .line .who { font-size: 11px; color: var(--ink-3); margin: 10px 12px 3px; letter-spacing: -0.01em; }
 .line + .line.same .who { display: none; }
 .line .meta { font-size: 11px; color: var(--ink-3); margin: 3px 12px 0; }
@@ -453,8 +467,9 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 .line.operator .bubble { background: var(--green); color: #fff; border-bottom-right-radius: 6px; }
 .line.interim .bubble { opacity: 0.6; }
 .line.removed .bubble { font-style: italic; opacity: 0.6; }
-@keyframes bubble-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
-.typing { align-self: flex-end; display: inline-flex; gap: 4px; padding: 12px 14px; border-radius: 18px; background: var(--bubble-them); margin-top: 6px; animation: bubble-in var(--t-fast) var(--ease-layout) both; }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.line.settled, .typing.settled { animation: none; }
+.typing { align-self: flex-end; display: inline-flex; gap: 4px; padding: 12px 14px; border-radius: 18px; background: var(--bubble-them); margin-top: 6px; animation: bubble-in 240ms var(--ease-out) both; }
 .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); animation: typing 1.2s var(--ease) infinite; }
 .typing i:nth-child(2) { animation-delay: 0.15s; }
 .typing i:nth-child(3) { animation-delay: 0.3s; }
@@ -538,22 +553,16 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 }
 .entity b { font-weight: 600; color: var(--ink-2); text-transform: capitalize; }
 .operator { display: grid; gap: 8px; margin-top: 16px; }
-.disclosure summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-  list-style: none;
-}
-.disclosure summary::-webkit-details-marker { display: none; }
-.disclosure summary::after { content: "›"; font-size: 20px; color: var(--ink-3); transition: transform var(--t-fast) var(--ease); margin-left: 10px; }
-.disclosure[open] summary::after { transform: rotate(90deg); }
-.disclosure[open] .table-wrap { margin-top: 12px; }
+.disclosure { padding-top: 4px; padding-bottom: 4px; }
+.disclosure .e-acc-head { padding: 10px 0; font-weight: 400; }
+.disclosure .table-wrap { margin: 4px 0 12px; }
+.acc-label { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.acc-label .t-caption { font-weight: 400; }
+.disclosure .acc-label { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 
 /* ------------------------------------------------------------------ Appointments (Calendar) */
 .cal-toolbar { gap: 16px; }
 .cal-toolbar .bar-title { opacity: 1; transform: none; min-width: 0; }
-.view-calendar .view-bar { background: var(--glass-bar); -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter); border-bottom-color: var(--hairline-soft); }
 .search-field {
   display: inline-flex;
   align-items: center;
@@ -574,11 +583,10 @@ body.dash { background: var(--canvas); min-height: 100vh; }
   gap: 16px;
   padding: 22px var(--gutter) 10px;
 }
-.cal-title { margin: 0; font-family: var(--font-display); font-size: 34px; line-height: 1.18; font-weight: 700; letter-spacing: 0.007em; }
+.cal-title { margin: 0; font-family: var(--font-display); }
 .cal-title .ink-2 { font-weight: 400; }
 .cal-nav { display: flex; align-items: center; gap: 8px; }
 .cal-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 var(--gutter) 14px; }
-.cal-filters .segmented button { min-width: 0; }
 
 .cal-body { padding: 0 var(--gutter); }
 .list-view { padding: 0 var(--gutter); }
@@ -685,23 +693,14 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 .ydays button.has::after { content: ""; position: absolute; left: 50%; bottom: 0; width: 4px; height: 4px; border-radius: 50%; background: var(--ink-3); transform: translateX(-50%); }
 .ydays button.today { background: var(--red); color: #fff; font-weight: 600; }
 
-/* Calendar's event inspector */
-.popover {
-  position: fixed;
-  z-index: 40;
-  width: 320px;
-  padding: 18px 18px 16px 22px;
-  border-radius: 14px;
-  box-shadow: 0 0 0 0.5px var(--glass-glow), 0 18px 50px rgba(0, 0, 0, 0.2);
-  background: var(--glass-bar-open);
-  animation: pop-in 200ms var(--ease-layout) both;
-}
-.popover h2 { margin: 0; }
-.popover p { margin: 2px 0 12px; }
-.pop-bar { position: absolute; left: 0; top: 14px; bottom: 14px; width: 4px; border-radius: 0 3px 3px 0; background: var(--doc, var(--blue)); }
-.popover .kv { font-size: 13px; }
-.pop-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-@keyframes pop-in { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+/* Calendar's event inspector: the content of its sheet (see "sheets" below) */
+.pop-head { display: flex; align-items: center; gap: 14px; padding-right: 44px; }
+.pop-head .e-sheet-title { margin: 0; padding-right: 0; }
+.pop-bar { flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--doc, var(--blue)); }
+#appt-popover .e-sheet-body { margin: 6px 0 22px; }
+#appt-popover .kv { font-size: 17px; line-height: 1.47059; letter-spacing: -0.022em; gap: 10px 20px; padding: 18px 0; border-top: 1px solid var(--hairline-soft); border-bottom: 1px solid var(--hairline-soft); }
+.pop-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+#pop-actions .btn-pill.small { min-height: 44px; padding: 11px 21px; font-size: 17px; letter-spacing: -0.022em; }
 
 /* ------------------------------------------------------------------ Tasks (Reminders) */
 .reminders { list-style: none; margin: 0 var(--gutter); padding: 0; max-width: 900px; }
@@ -802,12 +801,15 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 .campaign-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .campaign-head h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.012em; flex: 1; min-width: 200px; }
 .campaign-progress { display: flex; align-items: center; gap: 18px; margin: 12px 0 6px; }
+.campaign-text { display: grid; gap: 10px; min-width: 0; }
+.campaign-text p { margin: 0; }
 .campaign-progress .ring { width: 64px; height: 64px; margin: 0; }
 .campaign-progress .ring::after { width: 50px; height: 50px; font-size: 13px; background: var(--tile-raised); }
-.settings-disclosure { margin: 22px var(--gutter) 0; max-width: 1100px; background: var(--tile); border-radius: var(--r-tile); padding: 20px 26px; }
-.settings-disclosure summary { display: grid; gap: 2px; cursor: pointer; list-style: none; }
-.settings-disclosure summary::-webkit-details-marker { display: none; }
-.settings-disclosure[open] summary { margin-bottom: 14px; }
+.settings-disclosure { margin: 22px var(--gutter) 0; max-width: 1100px; background: var(--tile); border-radius: var(--r-tile); padding: 8px 26px; }
+.settings-disclosure .e-acc-head { padding: 12px 0; font-weight: 400; }
+.settings-disclosure .e-acc-head .t-body { font-weight: 600; }
+.acc-body { padding: 4px 2px 18px; display: grid; gap: 12px; }
+.acc-body .group-form { padding: 0; }
 
 /* ------------------------------------------------------------------ System (Settings) */
 .settings { margin: 0 var(--gutter); max-width: 1100px; display: grid; gap: 30px; }
@@ -912,33 +914,26 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 #settings-panes > .settings-group[hidden] { display: none; }
 .settings-back { display: none; margin: 0 0 8px 4px; }
 
-/* ------------------------------------------------------------------ dialogs: sheets over the blurred curtain */
-dialog {
-  border: 0;
-  padding: 0;
-  border-radius: 20px;
-  background: var(--canvas);
-  color: var(--ink);
-  width: min(460px, calc(100vw - 32px));
-  max-height: calc(100vh - 48px);
-  box-shadow: 0 0 0 0.5px var(--hairline-soft), 0 24px 70px rgba(0, 0, 0, 0.24);
-  overflow: auto;
-}
-dialog#dlg-book { width: min(640px, calc(100vw - 32px)); }
-dialog[open] { animation: sheet-in var(--t) var(--ease-layout) both; }
-dialog::backdrop {
-  background: var(--curtain);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-  animation: curtain-in var(--t) var(--ease) 80ms both;
-}
-@keyframes sheet-in { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: none; } }
-@keyframes curtain-in { from { opacity: 0; } to { opacity: 1; } }
-.sheet { display: grid; gap: 14px; padding: 26px 26px 22px; }
+/* ------------------------------------------------------------------ sheets (B6, shared .e-sheet-*) */
+.sheet { display: grid; gap: 16px; }
 .sheet h2 { margin: 0; }
 .sheet p { margin: 0; }
+.sheet .e-sheet-title { margin: 0; }
 .sheet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
-.sheet-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+.sheet-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.e-sheet-close .ico { stroke-width: 2.6; }
+/* Override of the shared sheet: a closing sheet stays on screen for its exit, but must not
+   catch clicks meant for the page (or for the next sheet) while it fades. */
+.e-sheet-root:not(.is-open) { pointer-events: none; }
+/* Dashboard sheets are tasks, not product stories: narrower, with less padding than the
+   816px / 76px apple.com modal, and the 36px close kept at 20/20 from the corner. */
+@media (min-width: 735px) {
+  .dash-sheet .e-sheet { width: min(580px, 100%); padding: 56px 52px 44px; }
+  .dash-sheet.wide .e-sheet { width: min(760px, 100%); }
+  .dash-sheet .e-sheet-close-wrap { margin: -36px -32px 0 0; }
+  .dash-sheet .e-sheet-title { font-size: 32px; line-height: 1.125; letter-spacing: 0.004em; padding-right: 36px; }
+  .dash-sheet { padding-top: 9vh; }
+}
 .slot-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 .slot-grid:empty { display: none; }
 .slot {
@@ -952,10 +947,11 @@ dialog::backdrop {
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease-color), color var(--t-fast) var(--ease-color), border-color var(--t-fast) var(--ease-color), transform 160ms var(--ease);
+  transition: background-color 100ms linear, color 100ms linear, border-color 100ms linear;
 }
 .slot:hover { border-color: var(--blue); }
-.slot:active { transform: scale(0.96); }
+.slot:active { background: var(--solid-active); }
+.slot:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .slot[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
 
 /* ------------------------------------------------------------------ medium: icon rail */
@@ -979,51 +975,62 @@ dialog::backdrop {
   :root { --gutter: 16px; --bar-h: 48px; }
   .app { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }
-  .content { padding-bottom: calc(var(--tab-h) + 32px + env(safe-area-inset-bottom)); }
+  .content { padding-bottom: calc(var(--tab-h) + 44px + env(safe-area-inset-bottom)); }
+  /* A floating glass tab bar: one capsule of glass, inset from the edges, the content scrolling
+     under it. A tab answers on press (scale .92) and the chosen one sits on a soft platter. */
   .tabbar {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: 16px;
+    right: 16px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
     z-index: 30;
-    height: calc(var(--tab-h) + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
-    border-top: 1px solid var(--hairline-soft);
+    height: var(--tab-h);
+    padding: 4px;
+    border-radius: 32px;
+    background: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 0 1px var(--glass-capsule-ring), var(--shadow-tile);
   }
   .tab-item {
     position: relative;
     display: grid;
     justify-items: center;
     align-content: center;
-    gap: 2px;
+    gap: 1px;
+    min-height: 44px;
     border: 0;
-    background: none;
-    color: var(--ink-3);
+    border-radius: 28px;
+    background: transparent;
+    color: var(--ink-2);
     font: inherit;
     font-size: 10px;
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: 0;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 100ms linear, color 100ms linear, transform 100ms linear;
   }
   .tab-item .ico { width: 24px; height: 24px; }
-  .tab-item[aria-selected="true"] { color: var(--blue); }
-  .tab-dot { position: absolute; top: 8px; left: calc(50% + 8px); width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
-  .tab-badge { position: absolute; top: 5px; left: calc(50% + 6px); min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; line-height: 17px; }
+  .tab-item[aria-selected="true"] { color: var(--blue); background: rgba(118, 118, 128, 0.12); }
+  .tab-item:active { transform: scale(0.92); }
+  .tab-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+  .tab-dot { position: absolute; top: 6px; left: calc(50% + 8px); width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .tab-badge { position: absolute; top: 3px; left: calc(50% + 6px); min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; line-height: 17px; }
   .more-sheet:not([hidden]) {
     display: grid;
     gap: 2px;
     position: fixed;
-    right: 10px;
-    bottom: calc(var(--tab-h) + 10px + env(safe-area-inset-bottom));
+    right: 16px;
+    bottom: calc(var(--tab-h) + 20px + env(safe-area-inset-bottom));
     z-index: 31;
     width: 220px;
     padding: 8px;
-    border-radius: 16px;
-    box-shadow: 0 0 0 0.5px var(--glass-glow), 0 18px 50px rgba(0, 0, 0, 0.22);
+    border-radius: 22px;
+    box-shadow: 0 0 0 1px var(--glass-capsule-ring), var(--shadow-tile);
     background: var(--glass-bar-open);
-    animation: pop-in 200ms var(--ease-layout) both;
-    transform-origin: bottom right;
+    animation: more-in 240ms var(--ease-out) both;
+    transform-origin: calc(100% - 30px) 100%;
   }
   .more-sheet .side-item { min-height: 44px; font-size: 16px; }
 
@@ -1036,7 +1043,7 @@ dialog::backdrop {
   .cal-toolbar .bar-title { display: none; }
   .view-calendar .view-bar { position: relative; }
   .tgrid-head .col-head { top: 0; }
-  .cal-toolbar .segmented { order: 3; width: 100%; }
+  .cal-toolbar .e-tabnav { order: 3; width: 100%; }
   .search-field input { width: 100px; }
   .cal-title { font-size: 28px; }
   .tgrid { --hour: 56px; grid-template-columns: 44px repeat(var(--cols), minmax(0, 1fr)); }
@@ -1051,7 +1058,9 @@ dialog::backdrop {
   #view-system:not(.drilled) #settings-panes { display: none; }
   #view-system.drilled .settings-index { display: none; }
   .settings-back { display: inline-flex; }
-  .view-tools .segmented { width: 100%; overflow-x: auto; }
+  .view-tools .e-tabnav, .cal-toolbar .e-tabnav { width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .view-tools .e-tabnav::-webkit-scrollbar, .cal-toolbar .e-tabnav::-webkit-scrollbar { display: none; }
+  .e-tabnav > button { padding: 0 12px; }
   .mail-list { max-height: 50vh; border-right: 0; border-bottom: 1px solid var(--hairline-soft); }
   .table thead { display: none; }
   .table, .table tbody, .table tr, .table td { display: block; width: 100%; }
@@ -1060,17 +1069,117 @@ dialog::backdrop {
   .table td.actions { text-align: start; padding-top: 8px; }
   .kv-table thead { display: table-header-group; }
   .kv-table, .kv-table tbody, .kv-table tr, .kv-table td, .kv-table th { display: revert; width: auto; }
-  dialog { width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: 20px 20px 0 0; max-height: 92vh; }
-  dialog#dlg-book { width: 100vw; }
-  dialog[open] { animation: sheet-up var(--t) var(--ease-layout) both; }
-  .sheet { padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
-  .sheet::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--hairline); margin: -14px 0 4px; }
-  .popover { left: 8px !important; right: 8px; top: auto !important; bottom: calc(var(--tab-h) + 12px); width: auto; }
+  .sheet { gap: 14px; padding-top: 4px; }
+  .sheet-actions .btn-pill { flex: 1; }
+  .pop-head { padding-right: 36px; }
+  #appt-popover .kv { font-size: 15px; }
 }
-@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
 
 @media print {
   .sidebar, .tabbar, .view-bar, .alerts { display: none !important; }
   .app { display: block; }
 }
 .settings-row .li-main { flex: 1; min-width: 0; }
+
+/* ==================================================================
+   Motion, depth and interaction pass (docs/APPLE_DESIGN_PLAN.md 11.4).
+   Shared components come from emma-ui.css (.e-*); overrides of them are marked.
+   ================================================================== */
+
+/* B8: pills change colour only, 100ms linear, no lift and no press scale. */
+.dash .btn-pill { transition: background-color 100ms linear, color 100ms linear, border-color 100ms linear, opacity 100ms linear; }
+.dash .btn-pill:active { transform: none; background: var(--blue-active); }
+.dash .btn-pill.gray:hover { background: var(--solid-rest); }
+.dash .btn-pill.gray:active { background: var(--solid-active); }
+.dash .btn-pill.danger:active { background: #e0352b; }
+.dash .btn-pill.danger-text:active { background: rgba(255, 59, 48, 0.16); }
+.dash .btn-pill.text:active { background: transparent; color: var(--blue-active); }
+.dash .btn-pill.outline:active { background: var(--blue-active); color: #fff; }
+.dash .btn-pill:focus-visible, .dash .side-item:focus-visible, .dash .settings-row:focus-visible,
+.dash .mail-row:focus-visible, .dash .doc-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.call-switcher .chip { transition: background-color 100ms linear, color 100ms linear; }
+.call-switcher .chip:hover { background: var(--solid-rest); }
+.call-switcher .chip.active:hover { background: var(--blue-hover); }
+
+/* B9: Today tiles grow by 6px on hover (mouse) and on keyboard focus, with the B19 ring. */
+.today-tile:focus-visible { outline: none; transform: scale(var(--card-element-scale, 1.016)); box-shadow: var(--focus-ring); }
+
+/* B7: round icon buttons (shared .e-round) for Calendar's arrows and the +. */
+.cal-nav .e-round .ico, .bar-actions .e-round .ico { width: 16px; height: 16px; stroke-width: 2; }
+/* B22: the + turns 45 degrees while the New appointment sheet is open. */
+.plus-rot .ico { transition: transform 500ms cubic-bezier(0.66, 0, 0.2, 1); }
+.plus-rot[aria-expanded="true"] .ico { transform: rotate(45deg); }
+
+/* B4: the segmented controls (shared .e-tabnav). Override: a little tighter in the toolbars. */
+.cal-toolbar .e-tabnav, .cal-filters .e-tabnav { height: 40px; }
+.cal-toolbar .e-tabnav > button, .cal-filters .e-tabnav > button { height: 32px; padding: 0 14px; font-size: 13px; }
+
+/* B16: the sidebar's rows slide in once on first load, 40ms apart. */
+.sidebar.is-entering > .side-brand,
+.sidebar.is-entering > .side-nav > .side-item,
+.sidebar.is-entering > .side-foot {
+  animation: side-in 350ms ease both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+@keyframes side-in { from { opacity: 0; transform: translateX(-160px); } to { opacity: 1; transform: none; } }
+.sidebar { overflow-x: hidden; }
+
+/* B5: toasts pop in with the overshoot curve and leave fast, together. Override of the shared toast. */
+.dash .toast-stack { z-index: 120; bottom: calc(24px + env(safe-area-inset-bottom)); }
+.dash .toast-pill { animation: toast-pop 400ms var(--ease-pop) both; }
+.dash .toast-pill.leaving { animation: toast-leave 200ms ease-out both; }
+@keyframes toast-pop { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: none; } }
+@keyframes toast-leave { to { opacity: 0; transform: scale(0.5); } }
+.entity.e-pop, .call-switcher .chip.e-pop { transform-origin: 50% 50%; }
+
+/* B14: loading lines carry the 8-spoke spinner. */
+.loading { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--ink-2); font-size: 14px; letter-spacing: -0.016em; }
+.slot-grid .loading { justify-content: flex-start; }
+li.loading { list-style: none; padding: 40px 16px; }
+.mail-detail > .loading { height: 100%; }
+.group-box > .loading.pad { justify-content: flex-start; }
+
+/* B10: the recovery job meter, one dot per patient; the one being called is a 48px pill with a fill. */
+.job-meter { justify-content: flex-start; flex-wrap: wrap; height: auto; row-gap: 6px; }
+.job-meter > i { position: relative; overflow: hidden; background: var(--hairline); transition: width 300ms var(--ease-layout); }
+.job-meter > i.job-done { background: var(--green); }
+.job-meter > i.job-failed { background: var(--red); }
+.job-meter > i.job-skipped { background: var(--ink-3); }
+.job-meter > i.is-current { background: rgba(0, 113, 227, 0.22); }
+.job-meter > i.is-current::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--blue);
+  transform-origin: left center;
+  animation: job-fill 30s linear both;
+}
+@keyframes job-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+@keyframes more-in { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+
+/* Reduced transparency: every glass surface the dashboard adds becomes solid. */
+@media (prefers-reduced-transparency: reduce) {
+  .view-bar.stuck, .tabbar, .compose, .more-sheet, .tgrid-head .col-head, .sidebar, .ribbon {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .view-bar.stuck { background-color: var(--canvas-index); }
+  .tabbar, .more-sheet { background: #fff; }
+  .compose, .tgrid-head .col-head { background: var(--canvas-index); }
+  .sidebar { background: #f6f6f8; }
+}
+
+/* Reduced motion: end states only. Slides and pops become short fades (the shared rule also
+   shortens every duration). */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar.is-entering > * , .sidebar.is-entering > .side-nav > .side-item { animation: none; }
+  .ribbon { animation: none; }
+  .dash .toast-pill, .dash .toast-pill.leaving { animation-name: e-fade-in; }
+  .dash .toast-pill.leaving { animation-direction: reverse; }
+  .today-tile:focus-visible { transform: none; }
+  .tab-item:active { transform: none; }
+  .job-meter > i.is-current::after { animation: none; transform: scaleX(0.5); }
+  .plus-rot .ico { transition: none; }
+}
