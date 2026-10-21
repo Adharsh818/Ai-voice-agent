@@ -428,7 +428,6 @@ class ManageDraft:
 class GoalStats:
     asked: int = 0               # times Emma asked for it
     misses: int = 0              # replies that did not fill it (not counting questions or switches)
-    last_turn: int = 0           # turn number it was last asked
 
 
 @dataclass
@@ -437,7 +436,6 @@ class PromptMemory:
     used: dict = field(default_factory=dict)           # line id -> list of variant indexes used, in order
     recent: list = field(default_factory=list)         # Emma's last few sentences (similarity check)
     last_opener: Optional[str] = None
-    turns_since_umm: int = 99
     checking_used: list = field(default_factory=list)  # "let me just check" variants used
 
 

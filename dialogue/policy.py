@@ -635,7 +635,7 @@ def note_turn(ctx: CallContext, plan: GoalPlan, u: Optional[Understanding]) -> N
     Update the loop-breaker counters after a turn: a miss when Emma had
     asked ctx.pending, the caller's reply did not fill it, and it was not a
     question, correction, switch or global; then record plan as the new
-    pending goal (asked += 1, last_turn).
+    pending goal (asked += 1).
     """
     previous = ctx.pending
     if previous is not None and _declined(ctx, previous, u):
@@ -669,7 +669,6 @@ def note_turn(ctx: CallContext, plan: GoalPlan, u: Optional[Understanding]) -> N
     if plan.steer:
         stats = ctx.stats(plan.goal)
         stats.asked += 1
-        stats.last_turn = ctx.turn
         ctx.pending = plan.goal
         ctx.pending_params = {**plan.params, "_line": plan.line, "_rung": plan.rung}
     else:
