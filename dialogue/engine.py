@@ -287,6 +287,8 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
     sentences = compose(ctx, plan, notices, say, ask)
     if not sentences:
         sentences = _split(_render(ctx, plan.line, plan.params) or phrases.ERROR_REPLY)
+    # "Of course. Of course, I can book..." (21 Oct audit): the parts may open the same way.
+    sentences = prompts.no_double_opener(sentences, keep=len(streamed))
     reply = " ".join(sentences)
     if streamed and speech.split_sentences(reply)[:len(streamed)] != streamed:
         logger.warning("streamed sentences don't prefix the reply (turn %d)", ctx.turn)

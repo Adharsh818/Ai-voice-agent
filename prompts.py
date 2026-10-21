@@ -545,7 +545,9 @@ VARIANTS: dict[str, tuple] = {
     "ask.when.instead": ("Sure, which day would you like instead?", "No problem. What day would suit you better?"),
     "ack.when": ("Sure, {when}.", "Okay, {when}.", "{when}, got it."),
     "ack.request": ("Sure, {request}.", "Of course, {request}.", "Okay, {request}."),
-    "ask.time": ("Morning or evening?", "Any particular time for {day}?", "What time would suit you for {day}?",
+    # No {day}: the day was just said back ("Okay, Saturday the 24th."), and naming it again in the same
+    # breath sounded read out (21 Oct audit: "...Any particular time for Saturday the 24th?", 7 times).
+    "ask.time": ("Morning or evening?", "Any particular time?", "What time would suit you?",
                  "Would morning or evening suit you better?"),
     "ask.time.choices": ("Would morning, afternoon or evening be easier?",
                          "Is morning, afternoon or evening better for you?"),
@@ -774,6 +776,36 @@ def _starts_with_opener(text: str) -> bool:
     return bool(re.match(r"^\s*(okay|ok|sure|right|alright|all right|so|umm|no worries|no problem|sorry|done|"
                          r"all done|great|lovely|perfect|of course|mm-hmm|thanks|oh|yes|hmm|got it)\b",
                          text or "", re.I))
+
+
+# Openers a reply can start two neighbouring sentences with when it is put together from parts (the
+# model's say, a notice, the ask, a repeat prefix, the silence ladder).
+_DOUBLE_OPENERS = ("of course", "no problem", "no worries", "sure", "okay", "ok", "alright", "all right", "right",
+                   "sorry", "great", "perfect", "lovely", "got it", "thanks", "thank you")
+_OPENER_AT_START = re.compile(r"^(" + "|".join(sorted(map(re.escape, _DOUBLE_OPENERS), key=len, reverse=True))
+                              + r")\b[,.!]?\s*", re.I)
+
+
+def no_double_opener(sentences: list, keep: int = 0) -> list:
+    """
+    Never two neighbouring sentences opening with the same word: "Of course. Of course, I can book that"
+    -> "Of course. I can book that"; "Sorry, are you still there? Sorry, does 1 work?" -> "...? Does 1
+    work?" (21 Oct audit of 380 real lines). Only sentences from index `keep` on change, so ones already
+    streamed to the caller stay exactly as spoken. A sentence that was nothing but the opener is dropped.
+    """
+    out = list(sentences)
+    i = max(1, keep)
+    while i < len(out):
+        prev = _OPENER_AT_START.match(out[i - 1] or "")
+        cur = _OPENER_AT_START.match(out[i] or "")
+        if prev and cur and prev.group(1).lower() == cur.group(1).lower():
+            rest = out[i][cur.end():].strip()
+            if not rest or not re.search(r"[A-Za-z0-9]", rest):
+                del out[i]
+                continue
+            out[i] = rest[0].upper() + rest[1:]
+        i += 1
+    return out
 
 
 def with_opener(text: str, memory, rng=None) -> str:
