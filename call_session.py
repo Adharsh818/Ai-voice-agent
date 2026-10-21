@@ -73,6 +73,7 @@ import ai_engine
 import config
 import phones
 import phrases
+import prompts
 import turn_detector
 import usage
 import vad
@@ -1399,7 +1400,10 @@ class CallSession:
         if self._ladder_step == 1:
             question = self._last_question()
             line = self._pick(STILL_THERE_LINES)
-            await self._say_line(f"{line} {question}".strip() if question else line)
+            if question:
+                # "Sorry, are you still there? Sorry, does today at 1 work?" (13 Oct): one "sorry".
+                line = " ".join(prompts.no_double_opener([line, question]))
+            await self._say_line(line)
         elif self._ladder_step == 2:
             await self._say_line(self._pick(CANT_HEAR_LINES))
         else:

@@ -498,7 +498,9 @@ class GeminiStreamTests(unittest.TestCase):
         g, models = gemini([[ordered_text(OBJ)[:30], ordered_text(OBJ)[30:]]])
 
         async def go():
-            with mock.patch.object(llm, "_nlu", g), nlu.use_backend(nlu.GeminiBackend()):
+            # Gemini as the primary whatever the owner's .env says (21 Oct: NLU_PRIMARY=sarvam there).
+            with mock.patch.object(llm, "_nlu", g), mock.patch.object(llm.config, "NLU_PRIMARY", "gemini"), \
+                    mock.patch.object(llm.config, "NLU_BACKUP", ""), nlu.use_backend(nlu.GeminiBackend()):
                 stream = await nlu.understand_stream(brief_for("x"))
                 return await consume(stream)
 

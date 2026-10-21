@@ -189,6 +189,28 @@ class R2WordingTests(unittest.TestCase):
             self.check("I'm an AI, I can't do that.", "sample")
 
 
+class SpokenLikeAPersonTests(unittest.TestCase):
+    """21 Oct audit of 380 real lines: the tells that made Emma sound read out."""
+
+    def test_two_sentences_never_open_the_same_way(self):
+        import prompts
+        self.assertEqual(prompts.no_double_opener(["Of course.", "Of course, I can book that for you right away."]),
+                         ["Of course.", "I can book that for you right away."])
+        self.assertEqual(prompts.no_double_opener(["No problem, I can read those out again.", "No problem.",
+                                                   "What would work better?"]),
+                         ["No problem, I can read those out again.", "What would work better?"])
+        self.assertEqual(prompts.no_double_opener(["Sorry, are you still there?", "Sorry, does 1 work?"]),
+                         ["Sorry, are you still there?", "Does 1 work?"])
+        self.assertEqual(prompts.no_double_opener(["Sure, tomorrow.", "Surely not?"]), ["Sure, tomorrow.", "Surely not?"])
+        # Sentences already streamed to the caller stay as spoken.
+        self.assertEqual(prompts.no_double_opener(["Of course.", "Of course, yes."], keep=2), ["Of course.", "Of course, yes."])
+
+    def test_the_time_question_does_not_name_the_day_just_said_back(self):
+        import prompts
+        for variant in prompts.VARIANTS["ask.time"]:
+            self.assertNotIn("{day}", variant)
+
+
 class GreetingTests(unittest.TestCase):
     def test_greetings_are_short_and_never_repeat_back_to_back(self):
         for g in phrases.all_greetings():
