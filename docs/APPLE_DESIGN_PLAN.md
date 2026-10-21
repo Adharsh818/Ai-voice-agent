@@ -398,3 +398,462 @@ Nothing was executed; these are static facts from the shipped files.
 - Tests: 1,015 passed, 1 skipped.
 
 **Residual unknown, recorded in REA:** `unk_d588f18b…`. Static evidence can't prove that apple.com's runtime applies R1/R2 unchanged. The probe to settle it is `observe_web_execution` while scrolling a stagger group into view. It is low severity: the live DOM earlier showed the `staggered-start` classes being applied.
+
+## 11. Deep pass: motion, depth and interaction (22 Oct)
+
+**Why:** the owner wanted the redesign pushed much further, especially the motion and interaction details. Three researchers measured apple.com on 22 Oct 2026, each in its own browser tab. REA's MCP server timed out at the start, so the evidence comes from the built-in browser: computed styles, `document.styleSheets` rule text and `getAnimations()`.
+
+**Pages covered:**
+- AirPods: /airpods/, /airpods-pro/, /airpods-max/
+- iPhone: /iphone-18-pro/ (there is no plain "iPhone 18" page), /iphone-air/, /iphone-duo/ (it **exists**, first in the iPhone nav)
+- Apple Account sign-in: account.apple.com, with the form in an idmsa.apple.com iframe
+
+**How to read the values:**
+- O means observed: a computed style or Apple's shipped CSS rule. O(css) means the value comes from the CSS rule text rather than a live sample. I means inferred.
+- Background tabs kept Apple's pages in `html.no-js`. So the modal open/close keyframes, live scroll sampling and the bubble selector's X/Y squash were **not** measured at runtime; the declared CSS values are used instead.
+
+### 11.1 AirPods (A1-A28)
+
+Scope: /airpods/, /airpods-max/, /airpods-pro/. Things already in APPLE_DESIGN_PLAN.md sections 2 and 10 are not repeated here (type scale, ink colours, nav glass, `cubic-bezier(.4,0,.6,1)`, card hover `+6px` scale, StaggeredFadeIn).
+O = observed (computed style or a shipped CSS rule read from `document.styleSheets`), I = inferred.
+
+**Method caveat:** my browser tab was a background tab. The page's `<html>` kept `no-js` and CSS transitions finished instantly, so I couldn't sample runtime animations frame by frame. All motion values below are read from the shipped CSS rules (O-CSS), not timed at runtime.
+
+#### Page 1: /airpods/ (overview)
+
+**A1. "+" tile overlay (the in-card "modal").** O-CSS
+- It is not a page modal. A hidden checkbox `.tile-overlay-toggle` plus a `<label>` button flips the card in place.
+- `.tile-overlay-content` covers the card (absolute, 100%, `border-radius: inherit`), fill `#f5f5f7`, padding `var(--global-card-padding)` = 28px. It goes from `opacity:0; visibility:hidden` to 1 with `transition: opacity .5s ease-in-out`.
+- No backdrop and no scroll lock: body overflow stays visible. On narrow screens the overlay scrolls inside itself (`overflow-y: scroll` at <=734px).
+- The "+" button rotates 45deg into an "x": `transform .5s cubic-bezier(0.66,0,0.2,1)`, while its colour and background change over 100ms linear.
+- With reduced motion, transitions are set to none.
+- Overlay text: 19px / 600 / +0.012em.
+- Use on Emma: open an appointment's details inside its Today tile (a cross-fade over 0.5s, no scrim) rather than in a sheet; rotate the "+" to an "x" with `cubic-bezier(.66,0,.2,1)` 500ms.
+
+**A2. Round "+" tile button.** O-CSS
+- Sizes: wrapper 37px, button 33px at desktop; 34/30px at <=1068px; 29/25px at <=734px. Radius 50%, 16px from the bottom.
+- Dark variant: bg `rgb(51,51,54)`, hover `#37373a`, active `#2f2f32`; icon `#d6d6d7`, white on hover.
+- Solid light variant: bg `rgb(232,232,237)`, hover `#ececf0`, active `#dfdfe4`; icon `rgba(0,0,0,.56)`, `.64` on hover.
+- Every state change is `background-color 100ms linear`. There is no scale on hover. The wrapper is a larger hit area than the button.
+- Use on Emma: small round icon buttons in tiles and the transcript: 33px visual inside a 37px+ hit area, 100ms linear colour states, three greys (rest, hover lighter, active darker).
+
+**A3. Gallery ("consider" section).** O
+- `.scroll-container`: `scroll-snap-type: x mandatory`, `scroll-padding-inline: calc(50% - 0.5*min(1680px, 87.5%))`, which aligns snaps to the content column.
+- `.card-set` is a grid: `grid-auto-flow: column; grid-auto-columns: min-content`, gap 20px. Cards are 344 x 632 at desktop, `scroll-snap-align: start`, radius 18px (`--sk-tile-border-radius`), `overflow:hidden; isolation:isolate`, fill `#f5f5f7`, no shadow.
+- No dots on this gallery; paddles only.
+- Section padding: 150/150px at desktop, 130/120 at <=1068px, 76/90 at <=734px. Headline width 700px; gallery 52px below the headline.
+- Use on Emma: if the Today grid or the week strip scrolls sideways, use x-mandatory snap with scroll-padding equal to the content gutter, 20px gaps and 18px radius.
+
+**A4. Paddle-nav (gallery arrows).** O
+- Diameter 36px, fully round, placed 18px in from each edge, vertically centred.
+- bg `rgba(210,210,215,.64)`, hover `rgba(223,223,227,.6976)`, active `rgba(193,193,198,.6544)`; arrow `rgba(0,0,0,.56)`.
+- No `backdrop-filter`: the translucency is alpha only.
+- Transition `background .1s linear, color .1s linear, opacity .1s linear`. Disabled state: `opacity: var(--sk-link-disabled-opacity, .42)` with `pointer-events:none`.
+- Focus ring: 2px `#0071e3`, offset 3px. Variant `with-paddlenav-onhover` shows the arrows only while hovering on `no-touch` devices.
+- Use on Emma: Calendar's prev/next week buttons: 36px circles in translucent grey, disabled at .42 opacity.
+
+**A5. Media play/pause button.** O-CSS
+- 36px circle, 20px in from the bottom-right.
+- Light scrim: `rgba(210,210,215,.64)`, hover `rgba(223,223,227,.6976)`, active `rgba(193,193,198,.6544)`. Icon `rgba(0,0,0,.56)`, hover `.72`.
+- Press is `transform: scale(0.95)` plus the active colour. It is hidden (`opacity:0`) until the media has loaded.
+- Use on Emma: the recording play button in the call transcript: the same 36px translucent circle, `scale(.95)` on press, shown only after the audio is ready.
+
+**A6. Chapter nav (the product strip under the local nav).** O
+- Each item runs `@keyframes chapternav-slidein`: 350ms `ease`, `fill: backwards`. Opacity goes 0 to 1 while the item moves from `translateX(160px)` to 0 (the shift starts at the 1% keyframe).
+- Paddles are 34px wide. Chevron opacity is .8 at rest and 1 on hover, over 200ms linear. Disabled paddles get `opacity:0`.
+- Item padding 0 20px.
+- Use on Emma: when the sidebar or a segmented strip first appears, slide the items in from +160px with opacity over 350ms ease, once, never on later navigation.
+
+**A7. Sticky local nav, stuck state.** O-CSS
+- Stuck bg `rgba(250,250,252,.92)` without backdrop-filter support, `.8` with it; dark `rgba(22,22,23,.88)` / `.8`.
+- The background crossfades with `transition: background .24s cubic-bezier(.28,.11,.32,1)` when it sticks.
+- A JS fallback (`no-css-sticky`) switches it to `position:fixed` and adds a placeholder of `--r-localnav-height`.
+- Use on Emma: the dashboard top bar: transparent at scroll 0, then `rgba(250,250,252,.8)` with blur after it sticks, crossfading over 240ms.
+
+**A8. Buttons.** O-CSS
+- `.button-elevated`: 17px / 400, padding 12 x 22px, min-width basis 70px; the hover and active backgrounds come from `--sk-button-*-hover/active` variables (no transform).
+- An inline white pill: `.learn-more` white bg, black text, hover `rgba(255,255,255,.9)`.
+- Hero "learn more" link: 14px / 400 / -0.016em.
+- Use on Emma: the Call / Type-instead pills change background only on hover; press feedback is a colour change (any scale belongs to round icon buttons only, A5).
+
+**A9. Overview type.** O
+- Page title 34px / 600 / -0.011em / 50px. Hero headline 48px / 600 / -0.003em / 52px. Feature line 21px / 600 / +0.011em / 25px.
+- Compare headline 64px / 600 / -0.009em / 68px. Compare device name 21px / 600. Compare copy 14px / 400 / -0.016em / 18px.
+- Use on Emma: the dashboard page title can sit at 34px / 600 (rather than 40+) for an app-like density; tile titles 21px / 600 / +0.011em.
+
+**A10. Curves found on this page (excluding ones already in the plan).** O
+- `cubic-bezier(0.66,0,0.2,1)` (icon rotation, 500ms).
+- `ease-in-out` 0.5s (overlay fade).
+- `ease` 350ms (strip slide-in).
+- Also present: `cubic-bezier(.4,0,.6,1)` x28, `(.28,.11,.32,1)` x4, `(0,0,.5,1)` x1.
+- Use on Emma: limit ourselves to these four curves.
+
+#### Page 2: /airpods-pro/
+
+**A11. Page modal (`.ric-modal`, opened from the "+" `card-control` on story cards).** O-CSS / computed vars
+- Scrim: `::after` filled `rgba(0,0,0,.48)` plus `backdrop-filter: blur(20px)` (`ric-modal-scrim-blur`).
+- Panel: white, radius **28px** on all corners, **no box-shadow**. Width 816px at desktop, 692px at <=1068px, 100% at <=734px; a wide variant is 1029px.
+- Spacing: overlay padding-top 40px, content padding-top 76px.
+- Close button: 44px hit area holding a **36px dark circle** `rgb(29,29,31)` (hover `#272729`, active `#18181a`) with a white glyph. Colour/background change over `100ms linear`. The wrapper is `position:sticky; top:0`, so the close button stays in view while the modal content scrolls.
+- The modal root scrolls itself (`overflow:auto`), so the page behind doesn't scroll. That is a scroll lock by containment. `opacity:0` is the resting state.
+- The open/close keyframes are JS-driven (no transition rules exist in the CSS) and couldn't be timed in a background tab.
+- Use on Emma: appointment and patient sheets: a 48% black scrim with 20px blur, a white 28px panel with no shadow, a sticky 36px dark round close button inside a 44px target, and the panel scrolls itself.
+
+**A12. "+" card control on story cards.** O
+- A 44px wrapper holding a 36px `rgb(29,29,31)` circle (hover `#272729`) with a white plus. The card itself is the button (radius 28px).
+- On dark tiles it inverts to `#f5f5f7` with a black glyph (hover white).
+- Use on Emma: a "+" on a Today tile opens the detail sheet: a dark 36px disc, inverting on dark tiles.
+
+**A13. Floating all-access pass (glass pill) tokens.** O, adds to section 2
+- `--aap-stagger-fast:50` (ms per item), `--aap-stagger-slow:200`, `--aap-content-delay-fast:100ms`, `--aap-content-delay-slow:150ms`.
+- `--aap-min-height:56px`, `--aap-margin:32px` (sticky top), `--aap-bubble-gap:16px`, `--aap-blur:7px`. The background blur is `blur(calc(var(--aap-blur)*(2 - var(--alpha))))`, so it starts at 14px and settles to 7px as alpha reaches 1.
+- `--aap-accent-color:#0071e3`. Radius 28px.
+- The intro element starts as a 56px circle at `scale(0.01)` and grows; the background is `translate(-50%,-50%) scale(var(--scale))` with its width animated from 56px. This is the "materialize" effect.
+- At 678px wide: bg `rgba(232,232,237,.72)`, `blur(7px)` (computed).
+- Use on Emma: the talk page's Call / Type-instead pill group: enter as a 56px dot that scales up and widens, its blur easing 14px to 7px, 28px radius.
+
+**A14. Colour picker inside the pass (swatch expansion).** O-CSS
+- Collapsed, the pass shows one 24px active swatch, margin-end 14px (19px on phones). It has a conic-gradient `::after` shading overlay (black .08 to .48 to .08), which is a fake specular bevel.
+- Expanded, the swatch buttons go from `opacity:0; scale(<1)` to `opacity 1, scale(1)` over **400ms `cubic-bezier(0.3,2,0.5,1)`** (strong overshoot), delayed `index * 50ms`.
+- Row gap 8px; labels hidden (`opacity:0`).
+- Use on Emma: when the segmented control or reaction chips expand, pop items in with a 400ms (.3,2,.5,1) overshoot and a 50ms stagger. Overshoot only here, since it is a user-triggered expansion.
+
+**A15. The stretching-pill progress dot (media card gallery).** O-CSS
+- Dots are 8px (`--sk-dotnav-size`) with 8px inline margins, radius 10px.
+- The active dot widens to `--progress-bar-active-width` (**48px**, 32px on small screens). Its width is a continuous function: `min-width = (48-8) * (1 - |index - autoplayProgress|) + 8`, so neighbours morph while scrolling rather than snapping.
+- The current dot's `::after` fill bar grows from `min-width:15%` via `@keyframes aap-animate-progress` over `--animation-duration` (the autoplay length). It is paused when autoplay pauses.
+- Colours: rest `rgba(0,0,0,.42)`, hover `.54`, current `.8`; dark `rgba(255,255,255,.36/.48/.8)`. Inside the pass the track uses `--aap-dotnav-background` with `--aap-active-fill-color`.
+- Captions parallax: `translateX((p + 1.6p) * offset)`, `opacity = 1 - |p| * 3.2`, where p = progress minus the autoplay index, so a caption fades out within about 0.3 of a slide. With reduced motion: `transform:none; opacity:1`.
+- Use on Emma: the call-progress or "listening" indicator, or an onboarding carousel: 8px dots and a 48px active pill with a filling bar for the time remaining; widths interpolate continuously.
+
+**A16. Scroll-scrub sticky section ("audio performance").** O-CSS
+- `.sticky-container` height `calc(150vh + 100vh)` (`150lvh + 100lvh` on phones). The `.sticky-element` is `position:sticky; top:0; height:100lvh`, only under `html.enhanced`.
+- The image sequence is scrubbed by JS. The end frame is `opacity:0; visibility:hidden` until done, and without enhancement the static end frame shows.
+- There is no CSS scroll-timeline: the scrubbing is JS-driven (I).
+- Use on Emma: none needed. If the sign-in page gets a story, a 150vh sticky scrub is the pattern. Never on the dashboard.
+
+**A17. Other sticky elements.** O
+- The local nav uses `position:sticky` (`.css-sticky`).
+- The gallery paddlenav sits in a `.sticky-element` of `--sticky-paddlenav-container-height`, so the arrows ride along while a tall gallery scrolls.
+- On small screens the product-viewer close button is `sticky; top: 20px + localnav height`.
+- Use on Emma: Calendar's prev/next buttons can be sticky within a tall week view.
+
+**A18. Bevel and inner-glow shadows (glass edge).** O
+- `.control-item-bg`: `box-shadow: inset 0 0 .5px rgba(0,0,0,.11)` (a hairline inner edge, not a drop shadow), `transform-origin: center bottom`, background-colour transition 250ms linear.
+- Product-viewer close button: `inset 1.8px 1.8px .5px -1.4px #6e6e73, inset -1.5px -1.5px .5px -1.1px #6e6e73` (a two-sided bevel).
+- `.tile-shadow`: `8px 8px 16px rgba(0,0,0,.08)` is the only drop shadow token.
+- Toggle knob: `0 1px 3px rgba(0,0,0,.3)`, moving over `inset-inline-start 240ms (.4,0,.6,1)`.
+- Use on Emma: the glass orb and pills: inner 0.5px glow at .11 alpha instead of borders; the toggle knob in Settings 14px with `0 1px 3px rgba(0,0,0,.3)`, 240ms.
+
+**A19. New curves on Pro.** O
+- `cubic-bezier(0,0,0.2,1)` x35 (decelerate, the most common after .4,0,.6,1).
+- `(0.3,2,0.5,1)` and `(0.4,0,0.3,2)`: overshoot pops (swatches; a video DVR dot scale over 240ms after 80ms).
+- `(0.34,2.16,0.64,1)` 0.7s after 0.25s (3D viewer canvas fade).
+- `(0.33,1,0.68,1)` 300ms (gallery caption fade).
+- `(0.4,0.1,0.4,1)` 1s (video controls fade in on hover).
+- `(1,0.1,0,0.3)` 1s infinite (spinner bars, 7 x 18px, radius 27.5px).
+- Local-nav curtain: opacity and backdrop-filter over `320ms (.4,0,.6,1)` with a 240ms delay when closing, 0 when opening; size is cut at 560ms.
+- Use on Emma: `(0,0,.2,1)` for elements arriving (toasts, sheet content); delayed close and immediate open for scrims; video-control-style 1s fade for the orb caption idle state.
+
+**A20. Pro type (desktop / at 678px, the <=734px breakpoint).** O
+- Marquee eyebrow: 24/600/+0.009em/28, then 21/600/+0.011em/25.
+- Marquee headline: 56/600/-0.005em/60, then 32/600/+0.004em/36.
+- Section headline: 48/600/-0.003em/52 (max-width 75%), then 28/600/+0.007em/32.
+- Gallery headline: 17/600. Pass item body: 17/400/-0.022em/25, then 14/400/-0.016em/20.
+- On phones: content column 328px with 23.5px gutters; cards are radius 28px and 308px wide; section padding 96 / 196px.
+- Use on Emma: phone talk page: a headline at 32/600, a caption at 17/400, 24px side gutters (rather than 16).
+
+#### Page 3: /airpods-max/
+
+**A21. Segmented tab nav (`.tabnav`), the closest match to our segmented controls.** O-CSS
+- Track: a platter 44px high, padding 4px, bg `rgb(232,232,237)`, radius 999px, overflow hidden. Inner height 36px. Items have 16px side padding, 14px / 400 / -0.016em text.
+- The indicator is a separate absolutely-positioned pill (`top/bottom: 4px`, radius 999px, bg `rgb(29,29,31)`). It animates **`left, width` over 320ms ease-out**, positioned through `--tabnav-indicator-start` / `--tabnav-indicator-width` set by JS.
+- Item text colour goes black to white on the active item, with a **160ms delay, 160ms ease-in**, so the text flips as the dark pill arrives under it. Losing focus: 120ms ease-out. Link opacity .8 at rest (100ms ease-in-out).
+- If the strip overflows, the items scroll via `translateX(--tabnav-items-offset)` over 320ms ease-out, and the edges fade out with a 22px `mask-image` linear gradient behind 36px round paddles. A paddle shows over 80ms with a 40ms delay and hides after a 200ms delay.
+- `.tabnav-disable-transitions *` turns transitions off for the first layout.
+- Use on Emma: our segmented controls (Day/Week, transcript filters): a `#e8e8ed` 44px platter with 4px padding, a dark sliding pill moving left/width over 320ms ease-out, and the label colour flipping after 160ms. Turn transitions off on first paint.
+
+**A22. Glass "bubble" selector in the pass (size/toggle nav).** O-CSS
+- Options are 48px-high links (min-width 48px, radius 28px) inside a 56px pass with 3px padding.
+- One shared `__bubble` slides under the selected option: `transform 200ms ease-out`, 4px inset.
+- Its inner layer takes `translate3d(var(--x),0,0) scaleX(var(--scale-x)) scaleY(var(--scale-y)) scale(var(--scale))` with `will-change: transform` and width `var(--bubble-width)`. JS sets separate X/Y scale, which is the liquid stretch-and-squish while it moves.
+- Bubble colour `#1d1d1f` (dark theme `#f5f5f7`). Icon/label colour changes over `200ms cubic-bezier(0.53,-0.01,0.17,1)` (250ms to the checked state, 400ms for toggles). Label 16px / 600 / -0.35px.
+- Focus ring: `0 0 0 3px #fff, 0 0 0 5px #0071e3`.
+- Use on Emma: the Call / Type-instead switch on the talk page: one dark bubble sliding under the chosen pill, slightly stretched in X (about 1.1) and squashed in Y (about 0.92) mid-move, then settling. The label colour uses `(.53,-.01,.17,1)`.
+
+**A23. Colour-nav swatches (the Max colours).** O-CSS
+- Entering: `opacity 0 -> 1, scale(.5) -> 1` over 400ms `cubic-bezier(0.3,2,0.5,1)` with an `index * 50ms` stagger.
+- Leaving (`.inactive`): back to `.5` over **200ms ease-out**, with no stagger.
+- So entering is slower and bouncy, leaving is fast and plain.
+- Swatch ring: `colorindicator` uses a conic-gradient border (black .08, .48 at 64.8-115.2deg, .08) to fake a lit metal rim; dark uses white at the same alphas.
+- Use on Emma: dashboard chip/menu reveal: enter 400ms with overshoot and a stagger, exit 200ms ease-out together. A conic-gradient rim can give the orb a lit edge.
+
+**A24. Masked glass scrim over hero media.** O-CSS
+- `.marquee-scrim`: `background: rgb(255 255 255 / 56%)` (60% at <=734px, 50% at <=480px), `backdrop-filter: blur(20px) saturate(1)`.
+- `mask-image: linear-gradient(180deg, transparent, #000 100%)` (the stop moves to 50% on phones), so the blur fades in from nothing at the top to full at the bottom. It is a progressive blur behind the text, not a hard-edged panel.
+- Use on Emma: caption backing under the talk-page orb, and the dashboard's scroll-edge effect: white at 56% with 20px blur, masked by a 180deg gradient, instead of a solid card or a hairline.
+
+**A25. Pass blur on enhanced pages.** O-CSS
+- With `html.enhanced`, the per-element `__background` blur is unset and one `all-access-pass__global` layer carries `blur(var(--aap-blur))` (7px).
+- So a single glass layer sits behind several pills; a stack of separate blurs would cost more and look worse.
+- Use on Emma: put the Call and Type-instead pills on one shared glass layer, never blur on blur.
+
+**A26. Paddle-nav for a tall gallery.** O-CSS
+- `.scroll-gallery-paddlenav .sticky-element`: `position: sticky; top: calc(100% - var(--paddlenav-height, 60px))`, height `paddlenav-height + padding`.
+- The arrows stick to the bottom of the viewport while a tall gallery passes.
+- Use on Emma: on the phone Calendar, pin the prev/next arrows at the bottom of the viewport.
+
+**A27. Max type (desktop).** O
+- Marquee eyebrow: 28/600/+0.007em/32. Marquee headline: 64/600/-0.009em/68.
+- Subsection L1: **80/600/-0.012em/84** with a 24/600/+0.009em/28 subhead. Subsection L2 and section headline: 48/600/-0.0014em/52.
+- Gallery headline: 24/600/+0.009em/28. Body-large copy: 21/600/+0.0015em/29.
+- Use on Emma: the sign-in page hero could use 64/600/-0.009em; don't go past 80px anywhere.
+
+**A28. Spinner and loading.** O-CSS
+- The local `progress-indicator-animating` keyframe steps opacity 1, .9, .7, .6, .4, .3, .2, .13 across 8 segments: the classic 8-spoke iOS spinner.
+- The video loader bars are 7 x 18px, radius 27.5px, running `cubic-bezier(1,.1,0,.3)` over 1s, infinite.
+- Use on Emma: the "connecting" state on the talk page: an 8-spoke spinner with that opacity ladder, rather than a ring spinner.
+
+#### Gaps and unknowns
+- The modal (A11) open/close keyframes, the tile overlay's live timing and the bubble's X/Y squash values are set by JS at runtime. The background tab never ran Apple's enhancement JS (`<html>` stayed `no-js`), so I couldn't sample them. The next probe is the same pages in a foreground tab, reading `document.getAnimations()` during a click.
+- Sticky sampling (opacity/scale at scroll positions) wasn't possible for the same reason. The scroll-scrub sections are JS image sequences (A16).
+- The "375px" pass ran at an effective `innerWidth` of 678px, which is the <=734px breakpoint. Phone values are the CSS breakpoint values, not a true 375px render.
+
+### 11.2 iPhone 18 Pro, iPhone Air, iPhone Duo (P1-P35)
+
+Scope: /iphone-18-pro/, /iphone-air/, /iphone-duo/. Measured in the built-in browser at 1024px wide (desktop) and 375px.
+O = observed (computed style, CSS rule text or live DOM), I = inferred. Items already in APPLE_DESIGN_PLAN.md sections 2 and 10 are not repeated.
+
+**iPhone nav (from /iphone/):** the lineup links are /iphone-duo/, /iphone-18-pro/, /iphone-air/, /iphone-17/, /iphone-17e/. **iPhone Duo exists** and is first in the list. There is no plain "iPhone 18" page; the flagship page is iPhone 18 Pro (title "iPhone 18 Pro and iPhone 18 Pro Max"). (O)
+
+#### Page 1: /iphone-18-pro/ (dark-theme page; 6,606 rules in overview.built.css)
+
+| # | Element | Measured | Type | Use on Emma |
+|---|---|---|---|---|
+| P1 | Local chapter nav is now a **floating glass capsule**, not a full-width bar | `#localnav` sticky top 0, height = 52px min + 10px padding x2 = 72px. Inner `.localnav-wrap`: inset 10px from viewport edges, max-width 1024px, `margin-top:10px`, `padding-block:12px`, `backdrop-filter: blur(20px)`, bg `rgba(18,18,18,.8)` (dark), ring `box-shadow: 0 0 0 1px #282828` (no drop shadow), `border-radius: calc(32px - 14px*(1 - var(--progress)))`, i.e. 32px collapsed, 18px when expanded | O | Dashboard top bar / talk-page header as an inset floating capsule: 10px inset, radius 32px, 1px ring instead of a shadow |
+| P2 | Local nav show/hide | container `.theme-reveal-on-scroll`: wrap `transition: transform .23s`; the nav sits at `translateY(-72px)` (hidden) while scrolling down. Expand/collapse vars: `--localnav-anim-duration: .4s`, `--localnav-anim-fn: ease-out`, `--explore-in-duration .15s`, `--explore-out-duration .1s`; `html.reduced-motion` sets all to 0s | O (reveal-on-scroll-up direction: I) | Long Messages transcript / Calendar: hide the top capsule on scroll down, bring it back on scroll up, 230ms |
+| P3 | Local nav "Explore" expand overlay | `.localnav-overlay-background`: fixed full-screen, `backdrop-filter: blur(20px)`, no tint, opacity 0 to 1 over .4s ease-out | O | Behind an expanded menu: plain blur(20px) scrim, no grey tint, 400ms ease-out |
+| P4 | Local nav pills | "Explore" pill: radius 120px, 36px tall, bg = nav body, ring `0 0 0 1px #6e6e73`, hover bg `rgb(29,29,31)`; "Buy" pill `#0071e3`, radius 170px, padding 6px 10px, caption type | O | Secondary pill = 1px ring, primary = solid blue; both full radius |
+| P5 | Floating "all-access pass" (AAP) gallery control, new details | `position: sticky; bottom: 32px` (`--aap-margin`), 56px tall, radius 28px. Blur is **tied to an alpha variable**: `backdrop-filter: blur(calc(7px*(2 - var(--alpha))))`, bg `rgba(232 232 237 / calc(1 - alpha*.28))`, so as it settles blur goes 14px to 7px and fill goes solid to 72%. Dark fill `rgba(42,42,45,.72)`. Intro: `.all-access-pass__intro-element` starts `translateX(-50%) scale(.01)` and grows; children stagger by `--aap-stagger-fast: 50`ms / `--aap-stagger-slow: 200`ms, content delay 100/150ms. Hidden for no-JS unless it holds a real link | O | Talk page Call / Type-instead pill bar: sticky 32px from bottom, 56px, radius 28; materialise from a dot (scale .01) and let blur fall 14 to 7px as it settles |
+| P6 | Gallery progress indicator (the stretching pill) | Inside the AAP. Inactive dots 8px circles with 8px margins; current item stretches to a 48x8px pill, radius 10px, track `rgba(255,255,255,.36)` (dark); a `::after` fill runs `aap-animate-progress` (width 0 to 115%) **linear over 6.15s** (the slide's autoplay time), fill `#29292a` light / `rgb(245,245,247)` dark. Dot widths are computed from `--autoplay-progress` (`--item-expand-amount = min(1 - abs(index - progress), 1)`), so neighbours shrink/grow continuously | O | Onboarding/tips rotator: 8px dots, current one a 48px pill whose fill tracks time linearly |
+| P7 | Generic dotnav (sk) | `--sk-dotnav-size: 8px`, margin 8px, hover 120ms linear, collapse 380ms, stagger 40ms, variable duration 320ms; light dots `rgba(0,0,0,.42)` / hover .54 / current .8; dark `rgba(255,255,255,.36)` / .48 / .8. Scrim variant: 56px tall, `saturate(180%) blur(20px)`, light `rgba(210,210,215,.64)`, dark `rgba(66,66,69,.72)`. Timed variant: current dot expands 8px to 32px over 250ms ease-in, then fills | O | Page dots anywhere: these alphas for light |
+| P8 | Play/pause in the AAP | 56x56, radius 28px, hover `rgba(223,223,227,.698)`, active `rgba(193,193,198,.654)`; inline media play/pause `:active { transform: scale(.95) }` | O | Talk-page mute/pause control: 56px circle, these hover/active steps, press scale .95 |
+| P9 | Highlights gallery layout | container `overflow-x: scroll; scroll-snap-type: x mandatory`; items `scroll-snap-align: center`, flex gap 20px, card 896x576 at a 1024 viewport (56px side peek), card `.tile-rounded` radius 28px; 5 slides | O | Calendar week strip / onboarding cards: centre snap, 20px gap, 56px peek |
+| P10 | Paddle-nav buttons (sk) | 36px circle, `transition: background 100ms linear, color 100ms linear, opacity 100ms linear`; alpha light `rgba(210,210,215,.64)` / hover `rgba(223,223,227,.6976)` / active `rgba(193,193,198,.6544)`, arrow `rgba(0,0,0,.56)` / hover .64; solid `rgb(232,232,237)` / `#ececf0` / `#dfdfe4`; dark alpha `rgba(66,66,69,.72)`; **disabled opacity .42** + pointer-events none; `.with-paddlenav-onhover`: paddles opacity 0 until the gallery is hovered (only `hover:hover and pointer:fine`) | O | Calendar prev/next: 36px alpha circles, hidden until hover on mouse devices, .42 disabled |
+| P11 | "+" tile button | 36px circle, `transition: background-color .1s linear`; light `rgba(210,210,215,.64)` / hover `rgba(223,223,227,.6976)` / active `rgba(193,193,198,.6544)`, icon `rgba(0,0,0,.56)` / .64; solid `rgb(232,232,237)` / `#ececf0` / `#dfdfe4`; high-contrast `#1d1d1f` / `#272729` / `#18181a`. No scale on hover | O | "More" on a Today tile: 36px circle, these three steps, colour only, 100ms linear |
+| P12 | Hover/press inventory (31 hover and 24 active rules match visible elements) | Hover is almost always a background/colour step only, 100-120ms linear; transforms only on press (`scale(.95)` on play/pause). Button hover `#0077ed`, active `#006edb` (dark theme hover `#0076df`) | O | Hover = colour step 100ms linear; press = scale(.95) on round controls |
+| P13 | Modal (ric-modal "page overlay") | Scrim fixed full-screen, `--modal-scrim-blur: 20px`; panel radius 28px top and bottom, content padding 76px top/bottom/inline (phone: 6.25% inline, 60px bottom, max-width 480px, 10px side inset, 28px top); close button **sticky**, 20px from top and end, 44px target; dark close bg `rgb(51,51,54)` / hover `#37373a` / active `#2f2f32`, icon `rgba(255,255,255,.8)` to white | O | Appointment sheet: 28px radius, 76px padding desktop, sticky 44px close at 20/20, blur(20px) scrim |
+| P14 | Easing census (all sheets) | `cubic-bezier(.4,0,.6,1)` x155, `(0,0,.2,1)` x35, `(.25,.1,.3,1)` x13, `(0,0,.5,1)` x2, `(.33,1,.68,1)` (fade-gallery caption opacity 300ms), overshoot curves `(.3,2,.5,1)` (colour swatches expanding, 400ms, staggered by index x 50ms), `(.34,2.16,.64,1)` (product-viewer canvas fade .7s after .25s), `(.4,0,.3,2)` (video scrubber 240ms). Most common durations: 80ms, 240ms, .5s, .4s, 100ms, .3s, 320ms, .2s | O | Overshoot only for small pop-outs (swatches, chips): `cubic-bezier(.3,2,.5,1)` 400ms, 50ms stagger |
+| P15 | backdrop-filter census | `blur(20px)` x11, `saturate(180%) blur(20px)` x2, `blur(15px)` x1, variable blurs (AAP 7px, modal 20px, ribbon 20px, tab-nav platter 20px, hero gradient scrim 20px). Global-nav curtain over this dark page `rgba(0,0,0,.4)` + `blur(20px)` | O | Standardise on blur(20px); 7px only for the small floating pill |
+| P16 | Tab nav (sk tabnav, model/feature switcher) | 44px tall, inner 36px, platter padding 4px, platter `rgb(232,232,237)`, `--tabnav-platter-blur: 20px`; overflow edges masked with a 22px gradient; type 14px/400/-.016em | O | Segmented control: 44/36px, 4px platter padding, #e8e8ed, edge-fade mask when it scrolls |
+| P17 | Local nav product title | 32px / 600 / +0.384px (.012em) / 38.7px, SF Pro Display, `#f5f5f7` on dark | O | - |
+| P18 | Modal scrim colours and no-JS fallback | `--modal-scrim-fill: rgba(0,0,0,.48)`; light variant `.ric-modal-scrim-light` `rgba(232,232,237,.48)`; with `.ric-modal-scrim-blur` the scrim adds `backdrop-filter: blur(20px)`. Open state is `html.has-modal` (pointer cursor on close); `.modal-crossfade.modal-open { opacity:1; visibility:visible; transition-delay:0s }`. Without JS (`html.no-js`) every modal renders inline in the page, open, with its close button hidden. The second load of this page stayed `html.no-js` in the pane, so the open/close animation, scroll lock and focus move were **not observable** this run | O (animation: not measured) | Sheet scrim: light `rgba(232,232,237,.48)` + blur(20px) on the light dashboard; sheet content must stay readable inline without JS |
+| P19 | Type scale, desktop (1024) vs 375 | hero eyebrow 28/600/+.007em/32 to 24/600/+.009em/28; hero headline 64/600/-.009em/68 to 40/600/0/44; section header 40/600/0/44 (max-width 75%) to 32/600/+.004em/36; lockup XL headline 48/600/-.003em/52 (stays at 375 for some); stat headline 56/600/-.005em/60; gallery caption 24/600/+.009em/28 to 17/600/-.022em/21; callout title 21/600/+.011em/25 to 19/600/+.012em/23; modal headline 48/600/-.003em/52, modal topic label 19/600/+.012em/27, modal body 19/400/+.012em/27; footnote body 14/400/-.016em/20; stat caption 12/400/-.01em/16 | O | Modal/sheet body at 19px (not 17) with +.012em is a new size for our sheets; section headers 40 desktop / 32 phone |
+| P20b | Run caveat | On the first load of /iphone-18-pro/ JavaScript ran (the progress animation `aap-animate-progress` 6150ms linear was live in `document.getAnimations()`); later loads in this pane stayed `html.no-js`, so live scroll sampling, gallery positions (all items reported at the same x) and modal timing came from CSS rule text, not runtime | O | Treat P5/P6 numbers as CSS-declared, not runtime-sampled |
+| P20 | Section padding and tiles | section padding-top 120px desktop, 112px at 375 (highlights bottom 176 to 144); tile radii seen 28px (cards) and 15px (small product tiles); highlights card 896px at 1024, 308px at 375 with 20px gap | O | Dashboard section rhythm 120/112px is page-scale; for in-app use half of it. 15px radius for small tiles |
+
+#### Page 2: /iphone-air/ (light-theme page; 10,466 rules; uses BOTH the new floating localnav and the older ac-localnav bar CSS)
+
+| # | Element | Measured | Type | Use on Emma |
+|---|---|---|---|---|
+| P21 | Floating localnav capsule, **light** values | `--localnav-body: #fff`, `--localnav-body-alpha: rgba(255,255,255,.8)`, ring `--localnav-outline: #e6e6e8`, Explore ring `rgb(134,134,139)`, Explore hover `#f2f2f2`, overlay blur bg `rgba(255,255,255,.4)`, paddle shadow `rgba(134,134,139,.07)`, disabled link `rgb(134,134,139)` | O | Our light glass header/sidebar: white at .8 + blur(20px) + 1px `#e6e6e8` ring, no drop shadow |
+| P22 | Older bar-style local nav (ac-localnav), when stuck | `--localnav-background` transparent until it sticks; scrim state `rgba(250,250,252,.8)` + `saturate(180%) blur(20px)`; dark `rgba(22,22,23,.8)` (.88 variant); keyline `rgba(0,0,0,.16)` as an `::after` 1px line; background transition `background .24s cubic-bezier(.28,.11,.32,1)` and, for collapsible sizes, `320ms cubic-bezier(.4,0,.6,1) 240ms` (delayed so the glass appears just after it sticks); min-height 48px | O | Sticky section headers in Calendar/Messages: go glass only once stuck, 320ms with a 240ms delay, 16% black keyline |
+| P23 | Promo ribbon entrance | ribbon drops `translateY(-100%) to 0` over .8s `cubic-bezier(.42,0,.58,1)` (plain ease-in-out); after 1.8s its background cross-fades from blue `#0071e3` to `#f5f5f7` and text from white to `#1d1d1f`, links to `#06c`, each over 1s | O | One-off "new" banner (e.g. a dashboard notice): drop in 800ms, then calm from accent colour to neutral after ~2s |
+| P24 | Scroll gallery (feature cards) | `.scroll-container`: `overflow-x: scroll; scrollbar-width: none; scroll-snap-type: x mandatory; scroll-padding: var(--responsive-gutter-width)`, computed `scroll-padding-inline: calc(50% - .5*min(1260px, 87.5%))` (aligns the first card to the content column); vertical padding `10px 0 30px` with matching negative margin so card lift/hover never clips; items `scroll-snap-align: start`, last item `start end`; card width 883px at 1024 | O | Calendar day/week strip: snap start, scroll-padding equal to the content gutter, hide scrollbar, pad 10px top so hover lift is not clipped |
+| P25 | Sticky paddle-nav for scroll galleries | `.scroll-gallery-paddlenav .sticky-element`: `position: sticky; bottom: 0`, container height 104px (`--sticky-paddlenav-container-height`); paddles stay in view while a tall gallery scrolls | O | Long Messages list: a sticky bottom control strip (104px zone) for prev/next or "jump to latest" |
+| P26 | Pinned scroll section | `html.fusion-enhanced .section-cameras .subsection-fusion-camera .sticky-element { position: sticky; top: 10vh; height: 1000px; overflow: hidden }` (only with JS enhancement) | O | Not needed in-app; the orb hero on the talk page could pin at 10vh if we ever add a scroll story |
+| P27 | Product tile image hover | `transform: scale(1.0161)` over `.3s cubic-bezier(0,0,.5,1)`, also on `:focus`; plus the known `.card-hover` `scale(var(--card-element-scale))` | O | Matches our 6px-grow tile hover; apply the same on keyboard focus |
+| P28 | Air easing census differences | same top curves as 18 Pro plus `cubic-bezier(.42,0,.58,1)` x26 (ribbon) and `(.28,.11,.32,1)` x4; no CSS scroll-driven animations (`animation-timeline` only appears as empty longhands) | O | No CSS scroll-timeline needed; IntersectionObserver is what Apple uses |
+| P29 | Air type (desktop 1024) | welcome eyebrow 34/600/-.011em/50 (`#1d1d1f`); welcome headline is **regular weight** 24/400/+.009em/28; section header 32/400/+.004em/36 (regular, not semibold); a tinted eyebrow 19/400/+.012em/23 in a product colour (`rgb(73,88,97)`) | O | A light, regular-weight headline (400) reads calmer than 600 for the sign-in subtitle and Today greeting |
+
+#### Page 3: /iphone-duo/ (EXISTS: title "iPhone Duo - Apple", light theme, 11,211 rules, 19 sections incl. section-immersive, section-versatility, section-faq)
+
+| # | Element | Measured | Type | Use on Emma |
+|---|---|---|---|---|
+| P30 | Page system | Same component kit as 18 Pro (identical backdrop-filter census and top easing curves; extra `cubic-bezier(.4,.1,.4,1)` x2 and `(.33,1,.68,1)` x2). Hero 64/600/-.009em/68, hero eyebrow 21/600/+.011em/21, section header 40/600/0/44, gallery caption 24/600/+.009em/28 in `rgba(0,0,0,.88)` (alpha ink, not `#1d1d1f`) | O | Captions over tinted tiles in `rgba(0,0,0,.88)` |
+| P31 | Product-viewer colour picker (collapsed to expanded) | Collapsed shows one 24px active swatch (margin-end 14px) with a conic-gradient ring `::after` (`rgba(0,0,0,.08)` to `.48`). Expanding: each swatch button goes `opacity 0, scale <1` to `opacity 1, scale(1)` over **400ms `cubic-bezier(.3,2,.5,1)`** (overshoot), delayed `index x 50ms` (`--aap-stagger-fast`). Swatch 28px (24px reduced); swatch border is a 1.5px ring drawn by a radial-gradient mask; selected ring is a separate 32px `::after`, `2px solid #0071e3` (neutral variant `#1d1d1f`), animated via `--selector-scale` / `--selector-opacity`; the colour name label sits under the current swatch, 100px centred | O | Segmented control / status picker on appointment sheet: selected item gets a separate ring that scales in; options pop out with 50ms stagger and the .3,2,.5,1 overshoot |
+| P32 | Product-viewer floating controls ("beats") | pills `rgb(232 232 237 / .72)` (dark `rgb(42 42 45 / .72)`), hover raises alpha to .92; bg change 250ms linear (`--app-pv-background-transition-duration`); phone close button 36px circle, `backdrop-filter: blur(20px)`, inner hairline `inset 0 0 .5px rgba(0,0,0,.11)`, sticky `top: 20px + nav`, `right: 20px`; it hides with `visibility 0ms linear 300ms` (after the fade) and shows with 0ms delay | O | Glass chips on the talk page: .72 alpha resting, .92 on hover, 250ms linear; 0.5px inset hairline instead of a border |
+| P33 | FAQ accordion | `.accordion-tray` animates `height` over 400ms (`--accordion-transition-duration`) ease-in-out; off under `prefers-reduced-motion`; dividers `1px rgb(210,210,215)`; button padding 1em top/bottom; icon colour 100ms linear; title 28/600/+.007em/1.143 (24/600/+.009em at <=1068px) | O | Dashboard settings/help disclosure rows: 400ms ease-in-out height, 1px `#d2d2d7` dividers, no transition when reduced motion |
+| P34 | Immersive video caption | `.section-immersive .hero-caption`: opacity 0 + visibility hidden, `.show-caption` fades in over .5s `cubic-bezier(.33,1,.68,1)` (easeOutCubic); only under `html.enhanced.inline-media.no-reduced-motion`; video container `transform-origin: center top` | O | Talk-page live caption under the orb: fade each new caption in over 500ms easeOutCubic; show instantly with reduced motion |
+| P35 | Duo-specific motion | No fold/hinge/split-screen CSS: selectors with fold/hinge/split/duo returned nothing; the device story is told with video (`section-versatility` start-frame swap). No sticky pinned sections beyond the shared localnav/AAP/modal close | O | Nothing Duo-specific to copy for the web; for the dual-pane layout guidance use the HIG via apple-look |
+
+#### Cross-page summary of curves and durations (O)
+
+| Curve | Where | Duration |
+|---|---|---|
+| `cubic-bezier(.4,0,.6,1)` | default everywhere (143-171 uses per page) | 240-320ms |
+| `cubic-bezier(0,0,.2,1)` | ease-out decelerate (35 uses) | 200-400ms |
+| `cubic-bezier(.25,.1,.3,1)` | layout/transform (13) | 300ms |
+| `cubic-bezier(.28,.11,.32,1)` | colour/background (ac-localnav) | 240ms |
+| `cubic-bezier(0,0,.5,1)` | tile image hover scale | 300ms |
+| `cubic-bezier(.33,1,.68,1)` | caption fades | 300-500ms |
+| `cubic-bezier(.3,2,.5,1)` | swatch pop-out (overshoot) | 400ms, 50ms stagger |
+| `cubic-bezier(.34,2.16,.64,1)` | product viewer canvas | 700ms after 250ms |
+| `cubic-bezier(.42,0,.58,1)` | ribbon drop / colour calm-down | 800ms / 1s after 1.8s |
+| `linear` | hovers on dots, paddles, tile "+" buttons, close buttons; progress fill | 100-120ms; 6.15s |
+| `ease-out` | floating localnav expand, overlay blur | 400ms (150/100ms for Explore in/out) |
+| `ease-in-out` | accordion height | 400ms |
+
+Not observed this run: live modal open/close keyframes, scroll lock, focus move (page JS stayed off after the first load; see P20b).
+
+### 11.3 Apple Account sign-in (S1-S20)
+
+Measured 22 Oct 2026, built-in browser, viewport 1024 wide (desktop) and 375x812 (mobile).
+O = observed (computed style / rect), I = inferred.
+The form lives in a cross-origin iframe `#aid-auth-widget-iFrame` from
+`https://idmsa.apple.com/appleauth/auth/authorize/signin?...&skVersion=7&authVersion=8.0.2`.
+Outer page measured on account.apple.com; form measured by opening the iframe src directly.
+
+#### Outer page (account.apple.com)
+
+**S1. Page shell and stacking** (O)
+- body bg `rgb(255,255,255)`; base text 17px / 25px line-height, letter-spacing -0.374px (-0.022em), colour `rgb(29,29,31)` (#1d1d1f), font "SF Pro Text", "Myriad Set Pro", "SF Pro Icons", "Apple Legacy"...
+- Global nav 44px tall (y 0-44), then sticky local nav `.ac-localnav` 52px (y 44-96), content padding `.landing` 60px top. Document height 950px at 1024 wide.
+- Use on Emma: white page, 17/25 body at -0.022em, #1d1d1f text; a single 52px top bar, content starts ~60px below it.
+
+**S2. Local nav bar** (O)
+- `.ac-localnav-content` padding 0 22px, height 52px; title "Apple Account" left (~21px semibold, I from screenshot), right side links "Sign In", "Create Your Apple Account", "FAQ" at ~12px.
+- `.ac-localnav-background` transition `background 0.5s cubic-bezier(0.28, 0.11, 0.32, 1)` (Apple's standard "ease" curve for chrome).
+- Use on Emma: 52px bar with "Pearl Dental" name left; animate its background with 0.5s cubic-bezier(0.28,0.11,0.32,1) if it ever changes.
+
+**S3. Brand mark area** (O)
+- `.landing__animation` 180x180px, centred (x 414 of 1009), margin-bottom -78px (the mark overlaps the column below), transition `transform 2s ease-in-out`. Behind it `.landing__rings` an SVG 828x971 of faint concentric rings (decorative, masked image).
+- Visible logo glyph about 28px tall in the centre of the 180px box (I, screenshot).
+- Column below: `.landing__top` padding 0 90px; `.landing__interaction` 829px wide; `.sign-in__auth` max-width 980px, margin 0 22px 50px; iframe 980 x 438px.
+- Use on Emma: 180px square brand area with Emma's own small mark (~28-40px) centred, -78px bottom margin so the title tucks up under it; no rings needed (or a very faint static one).
+
+**S4. Footer** (O)
+- `footer` bg `rgb(245,245,247)` (#f5f5f7), text 12px / 16px, letter-spacing -0.12px (-0.01em), colour `rgb(110,110,115)` (#6e6e73); height 83px at desktop.
+- Use on Emma: thin #f5f5f7 footer, 12/16 #6e6e73 text ("Pearl Dental staff only" + copyright).
+
+#### The form (idmsa.apple.com iframe)
+
+Method note: opening the iframe src directly loads Apple's stylesheets but the widget never renders standalone (it waits for a postMessage handshake from account.apple.com; body text stays "."). So the form was measured two ways:
+(a) screenshots of the rendered iframe on account.apple.com (screenshot frame 799px for a 1024px viewport, so pixel sizes x1.28), and
+(b) probe markup built with Apple's own class names (`form-textbox`, `form-textbox-input`, `form-textbox-label`, `button`, `tk-*`; class names confirmed in their identityWidget JS) inside the idmsa page, read with getComputedStyle. Values from (b) are Apple's live CSS, so marked O(css); which class the live widget uses is I unless stated.
+There is no "Keep me signed in" checkbox and no "Forgot password?" link on the first step: the page is email-first (field, privacy note, Continue + Sign in with iPhone). Those appear only after Continue, which was not pressed.
+
+**S5. Column width** (O screenshot, I exact)
+- Field and button row span ~466px in the 1024 viewport; buttons are two equal ~228px blocks with a ~10px gap. Title/subtitle centred; privacy note left-aligned.
+- Use on Emma: one centred 460px column (max-width 460px; full width minus 16px gutters on phones).
+
+**S6. Title** (O screenshot + O(css) `.tk-headline`)
+- "Apple Account": 40px, weight 600, line-height 44px (1.1), letter-spacing normal (0), #1d1d1f, "SF Pro Display". (`.tk-headline-elevated` = 48/52, 600, -0.144px; not used here.)
+- Gap brand mark to title ~50px; title to subtitle ~12px (screenshot).
+- Use on Emma: "Staff sign in" at 40/44 semibold, tracking 0, #1d1d1f, centred.
+
+**S7. Subtitle** (I from screenshot, O(css) for the scale)
+- "Manage your Apple Account": about 17px regular (renders ~220px wide), #1d1d1f, centred, i.e. body style 17/25, -0.022em. (`.tk-intro` would be 21/29 +0.011em, too wide for what is shown.)
+- Use on Emma: one 17/25 line ("Pearl Dental dashboard"), #1d1d1f or #6e6e73 if it should recede.
+
+**S8. Text field** (O(css), matches screenshot)
+- `.form-textbox-input`: height 56px (3.294rem), width 100%, radius 12px, border 1px solid #86868b, background rgba(255,255,255,0.8), padding 18px 16px 0 (text sits low, leaving room for the floated label), 17px / 21px, weight 400, -0.374px (-0.022em), #1d1d1f, margin-bottom 14px, appearance none. No transition on the field itself.
+- Focus (`:focus` / `.focused`): border-width 2px, colour #0071e3, padding-left 15px (compensates the thicker border so text does not shift); box-shadow none. The "ring" is the 2px border itself, not an outer shadow.
+- Error (`.form-textbox.is-error`): border 1px #e30000, background #fff2f4, label #e30000.
+- Use on Emma: 56px fields, 12px radius, 1px #86868b border; focus = 2px #0071e3 border with padding-left reduced 1px; error = #e30000 border on #fff2f4.
+
+**S9. Floating label** (O(css); focused state O screenshot)
+- Rest: absolute, top 18px, left 17px (1rem + 1px border), 17px / 21px, -0.374px, #6e6e73, pointer-events none, max-width calc(100% - 32px), nowrap + overflow hidden.
+- Floated (input `:focus`, `.focused` or `.form-textbox-entered`, i.e. has a value): top 10px, 12px / 16px, -0.12px, colour stays #6e6e73 (#e30000 in error).
+- Transition: `0.125s ease-in` on all properties (top, font-size, letter-spacing animate; no transform).
+- The live page autofocuses the field on load, so the label is already floated and the blue border shows when the form appears.
+- Use on Emma: floating labels "User name (optional)" / "Password": rest top 18px at 17px, floated top 10px at 12px, 125ms ease-in; autofocus the first field.
+
+**S10. Primary button (Continue)** (O screenshot + O(css))
+- Screenshot: ~228 x 38px, radius ~8px (block button, not a pill), pale blue while the field is empty.
+- `.button` base: 17px / 20px, weight 400, -0.374px, padding 8px 15px, 1px transparent border (= 38px tall), min-width 30px, radius 980px (pill). `.button-block`: width 100%, radius 8px, height 38px, which matches the live Continue.
+- Colours: rest #0071e3 with white text; hover and keyboard focus #0077ed; active #006edb; disabled = #0071e3 at opacity 0.42 (`--sk-link-disabled-opacity`), cursor default, pointer-events none.
+- Focus ring (keyboard only; suppressed when `data-focus-method=mouse|touch`): `box-shadow: 0 0 0 3px #fff, 0 0 0 5px #0071e3` (3px white gap, then a 2px blue ring).
+- No transition on the button (state changes are instant).
+- Use on Emma: 38px, 8px-radius #0071e3 "Sign in" button, full column width; opacity 0.42 until the password has text; hover #0077ed, active #006edb; keyboard ring 3px white + 2px #0071e3.
+
+**S11. Dark secondary button (Sign in with iPhone)** (O screenshot + O(css) `.button-neutral`)
+- Same size/shape as Continue (~228 x 38, 8px radius), #1d1d1f, white text with a small glyph before the label; hover/focus #272729, active #18181a, disabled #1d1d1f at reduced opacity. Under it a centred 12px caption "Requires a device with iOS 17 or later."
+- Other variants in CSS: `.button-secondary` #757579 (hover #79797d, active #747478, disabled opacity 0.56); outline variant 1px #06c border + #06c text.
+- Use on Emma: not needed (one primary action). If a second action ever appears, #1d1d1f with the same metrics.
+
+**S12. Arrow button inside the field** (O, from JS)
+- The widget JS still ships the older round arrow control: SVG `#sign-in-button`, 50x50 viewBox (circle + arrow), as a bare `.continue.button` inside the field (`form-textbox-with-button`). On this account.apple.com flow it is NOT shown; the separate Continue button is used instead (O screenshot).
+- Use on Emma: skip the in-field arrow; use a separate Sign in button.
+
+**S13. Privacy note with icon** (O screenshot, I sizes)
+- Left-aligned block ~30px under the field: a ~36px two-person "data and privacy" pictogram (blue + light blue) on its own line, then a paragraph ~12px / 16px #1d1d1f (matches `.tk-caption` 12/16, -0.12px) ending in an inline link "See how your data is managed..." in #06c. Gap note to buttons ~30px.
+- Use on Emma: one 12/16 #6e6e73 line under the button ("Staff only. Sign-ins are recorded.") with a 16-20px lock glyph; no big pictogram.
+
+**S14. Links** (O(css))
+- #0066cc, no underline at rest, underline on hover (`a:hover, .link:hover {text-decoration: underline}`), no colour change. 17px in body, 12px in captions/footer.
+- Use on Emma: any link (e.g. "Forgot password? Ask the clinic owner.") #06c, underline on hover only.
+
+**S15. Error line** (O(css) `.form-message-wrapper`)
+- 12px / 16px, -0.12px (-0.01em), #e30000, margin 8px 0 12px under the field, preceded by an SF Pro Icons exclamation glyph (::before/::after). Field goes red at the same time (S8). display none until there is an error.
+- Use on Emma: "That password is not right." as a 12/16 #e30000 line with a small (!) icon, 8px under the password field, plus the red field state; aria-live polite.
+
+**S16. "Keep me signed in", "Forgot password?", step transition** (not observed)
+- Not on the email step, and the password step cannot be reached without submitting, so checkbox styling and the email-to-password reveal (height/opacity) were not measured. Apple's CSS has `.form-choice-checkbox` with a custom `.form-choice-indicator` (checked/mixed fill #06c, white glyph) and labels padded 26px left (O(css); my probe markup only partly matched).
+- Use on Emma: show user name and password together (no two-step reveal, so no transition). If a "remember this device" box is added: 17px label, 26px left padding, custom indicator filled #06c when checked.
+
+**S17. "Locked" notice** (I; no direct Apple equivalent on this page)
+- Nearest pattern: the same 12/16 #e30000 message line, or the caption style for a neutral notice.
+- Use on Emma: "Too many tries. Locked for 15 minutes." in 12/16 with a lock glyph, button at opacity 0.42, fields disabled.
+
+#### Motion and mobile
+
+**S18. Page-load sequence** (O)
+- The page shows a centred spinner first, then the brand mark alone, then the form. Caught mid-load at 375px: the title, subtitle and field were at very low opacity, i.e. the form fades in (the fade lives inside the cross-origin iframe, so its duration/easing could not be read; I: roughly 0.5-1s).
+- `.landing__animation` (brand area) has `transition: transform 2s ease-in-out` and settles at `matrix(0.6,0,0,0.6,0,-58.8)`: the mark starts large and centred, then scales to 0.6 and rises ~59px as the form arrives. The coloured dot ring (`.landing__rings`, a masked sprite image translated by -644px, i.e. a sprite sheet frame) appears around it after load. `.landing` carries a `landing--transition` class during this.
+- Use on Emma: optional and subtle. Emma's mark can arrive at scale 1 and ease to 0.6 / -60px as the form fades in, but use a 0.4-0.6s critically damped ease (Apple's 2s is slow for a staff tool), and under prefers-reduced-motion show the end state with a 200ms fade only.
+
+**S19. Email -> password step** (not observed)
+- Could not be triggered without pressing Continue (which submits the account name), so the password field's reveal (height/opacity values) is unmeasured.
+- Use on Emma: not needed; both fields are shown at once.
+
+**S20. 375px layout** (O rects; I for inner sizes from screenshot)
+- Global nav 48px, local nav 48px (y 48-96), local nav collapses its links into a chevron menu.
+- `.landing__top` padding 0 30px (was 0 90px at 1024). Brand area 168x168 (was 180) with margin-bottom -80px. Iframe spans the full 375px width, 469px tall; inside it the field and button row have ~24px side gutters (field ~327px wide, still 56px tall, 12px radius), the two buttons stay side by side at ~146px each with a ~10px gap. Title still large (~32px, I), subtitle 17px; privacy paragraph wraps to ~8 lines.
+- Footer grows to 184px; document 1060px tall.
+- Use on Emma: at phone width keep the same 56px field and 38px button, column = 100% with 24px gutters, title can step down to ~32px; nothing else changes.
+
+#### Summary for Emma's staff sign-in
+
+White page, 52px top bar, 180px brand area (Emma's own mark) overlapping the column by -78px, 40/44 semibold title, 17/25 subtitle, 460px column. Fields: 56px, 12px radius, 1px #86868b border on rgba(255,255,255,.8), focus = 2px #0071e3 border (no outer shadow), floating label 17px at top 18px -> 12px at top 10px in 125ms ease-in, #6e6e73. Sign in button: 38px, 8px radius, #0071e3, hover #0077ed, active #006edb, disabled opacity .42, keyboard ring `0 0 0 3px #fff, 0 0 0 5px #0071e3`. Error: 12/16 #e30000 line 8px under the field + red field on #fff2f4. Links #06c, underline on hover. Footer #f5f5f7 with 12/16 #6e6e73.
+
+### 11.4 Build checklist (ranked)
+
+These are the patterns most worth building, as specs. Every one stays CSP-clean: no inline style or script, everything same-origin. Every one has a `prefers-reduced-motion` fallback, which is either the end state shown at once or a 200ms opacity fade.
+
+| # | Pattern | Spec | Source | Where on Emma |
+|---|---|---|---|---|
+| B1 | Floating glass capsule nav | sticky, 10px inset from the edges, radius 32px, `rgba(255,255,255,.8)` + `blur(20px)`, 1px `#e6e6e8` ring (`box-shadow:0 0 0 1px`), no drop shadow; hides with `translateY(-100%)` over 230ms when scrolling down and returns on scroll up | P1, P2, P21 | Talk page header, sign-in header |
+| B2 | Materialising pill bar | the Call and Type-instead group enters as a 56px dot at `scale(.01)`, grows, then widens to its natural width; children fade in 50ms apart after a 100ms delay; one shared glass layer `rgba(232,232,237,.72)`, blur easing from 14px to 7px; radius 28px; sticky 32px from the bottom on phones | P5, A13, A25 | Talk page CTA |
+| B3 | Sliding bubble selector | one dark `#1d1d1f` bubble slides under the active option (`transform 200ms ease-out`, or a spring), stretching to `scaleX(1.08) scaleY(.92)` mid-move and settling to 1; label colour `200ms cubic-bezier(.53,-.01,.17,1)` | A22 | Talk page Call / Type switch, dashboard segmented controls |
+| B4 | Segmented tab nav | platter 44px, 4px padding, `#e8e8ed`, radius 999px; the indicator pill animates `left,width` over 320ms ease-out; the label flips to white after a 160ms delay; no transitions on first layout | A21, P16 | Calendar Day/Week/Month/Year/List, Tasks Open/Done/All, Calls filters |
+| B5 | Overshoot pop-in for small things | `opacity 0 to 1, scale(.5) to 1` over 400ms `cubic-bezier(.3,2,.5,1)`, `index x 50ms` stagger; exit 200ms ease-out, all together | A14, A23, P31 | Free-time slot pills, filter chips, toasts |
+| B6 | Modal / sheet | scrim `rgba(232,232,237,.48)` + `blur(20px)` (light); white panel, radius 28px, no shadow, 76px padding on desktop (24px on phones); a sticky 36px dark round close button in a 44px target at 20/20; the panel scrolls itself; it enters rising 16px and fading in over 320ms `(0,0,.2,1)`; on phones it becomes a bottom sheet with a grab handle that can be dragged down to close | A11, P13, P18 | Appointment inspector, book/move sheet, confirms |
+| B7 | Round icon buttons | 36px circle; alpha steps rest `rgba(210,210,215,.64)` / hover `rgba(223,223,227,.6976)` / active `rgba(193,193,198,.6544)`; icon `rgba(0,0,0,.56)` to .64; `100ms linear`; press `scale(.95)`; disabled opacity .42 | A2, A4, A5, P10, P11 | Calendar prev/next, close buttons, transcript play |
+| B8 | Colour-only hover | buttons and pills change background only: `#0071e3` to `#0077ed`, active `#006edb`, 100-120ms linear; no lift. Scale is kept for round controls on press and for tiles on hover | P12, A8 | Every pill |
+| B9 | Tile hover | `scale((w+6)/w)` over 300ms `cubic-bezier(0,0,.5,1)`, also on `:focus-visible`, mouse only | P27, section 10 R4 | Today tiles |
+| B10 | Stretching progress pill | 8px dots; the current one is a 48x8 pill with a fill that runs linearly; neighbouring widths interpolate | P6, A15 | Talk page listening/speaking meter; Recovery progress |
+| B11 | Masked progressive-blur scrim | `rgb(255 255 255/56%)` + `blur(20px)`, `mask-image:linear-gradient(180deg,transparent,#000)` | A24 | Talk page caption backing, dashboard scroll edge under the toolbar |
+| B12 | Glass edge without borders | `inset 0 0 .5px rgba(0,0,0,.11)`; the only drop shadow token is `8px 8px 16px rgba(0,0,0,.08)` | A18 | Orb, pills, glass panels |
+| B13 | Caption fade | each new caption line fades in over 500ms `cubic-bezier(.33,1,.68,1)` | P34 | Talk page caption |
+| B14 | 8-spoke spinner | 8 bars with opacity steps 1, .9, .7, .6, .4, .3, .2, .13, rotating in steps over 1s | A28 | Talk page connecting state, sign-in submit, dashboard loading |
+| B15 | Sticky header goes glass only once stuck | transparent at the top, then `rgba(250,250,252,.8)` + `saturate(180%) blur(20px)` + a 1px `rgba(0,0,0,.16)` keyline, background 320ms `(.4,0,.6,1)` with a 240ms delay | P22, A7 | Dashboard section toolbars |
+| B16 | Strip slide-in | items go from `translateX(160px)`, opacity 0, to 0 over 350ms ease, staggered, on first paint only | A6 | Dashboard sidebar rows on load |
+| B17 | Accordion | height over 400ms ease-in-out, 1px `#d2d2d7` dividers, a rotating chevron | P33 | System settings disclosures, Recovery settings |
+| B18 | Sign-in field | 56px, radius 12px, 1px `#86868b` on `rgba(255,255,255,.8)`, padding 18px 16px 0; focus 2px `#0071e3` border (padding-left 15px), no shadow; floating label 17px/top 18 to 12px/top 10, 125ms ease-in, `#6e6e73`; error border `#e30000` on `#fff2f4` | S8, S9, S15 | Sign-in page |
+| B19 | Sign-in button | block button, 38px, radius 8px, `#0071e3`, hover `#0077ed`, active `#006edb`, disabled opacity .42; keyboard ring `0 0 0 3px #fff,0 0 0 5px #0071e3` | S10 | Sign-in page (and keyboard focus everywhere) |
+| B20 | Sign-in brand arrival | a 180px brand area with a -78px bottom margin; the mark arrives at scale 1 and eases to .6 and up 58px as the form fades in (shortened from Apple's 2s to about 600ms) | S3, S18 | Sign-in page |
+| B21 | Ribbon drop and calm | a banner drops `translateY(-100%)` to 0 over 800ms `(.42,0,.58,1)`, then cross-fades from the accent colour to neutral after 1.8s | P23 | Dashboard notice (alerts, the demo role) |
+| B22 | Rotating plus | 45 degrees over 500ms `cubic-bezier(.66,0,.2,1)` | A1 | New appointment and any plus that opens a sheet |
+| B23 | Type scale additions | sheet body 19/400/+.012em/27; section headers 40 on desktop, 32 on phones; tile titles 21/600/+.011em; dashboard page title 34/600/-.011em | P19, A9, A20 | All |
+
+**Easing set (only these):**
+- `--ease: cubic-bezier(.4,0,.6,1)`, the default
+- `--ease-out: cubic-bezier(0,0,.2,1)`, for arrivals
+- `--ease-layout: cubic-bezier(.25,.1,.3,1)`
+- `--ease-colour: cubic-bezier(.28,.11,.32,1)`
+- `--ease-hover: cubic-bezier(0,0,.5,1)`
+- `--ease-caption: cubic-bezier(.33,1,.68,1)`
+- `--ease-pop: cubic-bezier(.3,2,.5,1)`
+- `--ease-label: cubic-bezier(.53,-.01,.17,1)`
+- `linear` for hover colour steps
