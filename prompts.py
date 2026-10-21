@@ -335,8 +335,6 @@ LINES: dict[str, LineSpec] = {
 # Openers (R6): at most one per reply, never the same as the last one, only on
 # replies without a model `say`, never before a summary or a read-back.
 OPENERS = ("Okay,", "Sure,", "Right,", "Alright,")
-# Light "umm" / "so": at most once every 4 turns, never in summaries or numbers.
-SOFTENERS = ("So,", "Umm,")
 # The first checking variant is phrases.CHECKING (the cached one the old engine plays).
 CHECKING_FIRST = "Let me just check that for you."
 
@@ -824,19 +822,6 @@ def with_opener(text: str, memory, rng=None) -> str:
     opener = (rng or random).choice(choices)
     memory.last_opener = opener
     return f"{opener} {_lower_first(text)}"
-
-
-def with_softener(text: str, memory, rng=None) -> str:
-    """
-    A light "So," or "Umm," at most once every 4 turns (the engine bumps
-    memory.turns_since_umm each turn). Never onto numbers, read-backs or a
-    reply that already has an opener.
-    """
-    if (not text or memory.turns_since_umm < 4 or _starts_with_opener(text) or re.search(r"\d", text)
-            or re.match(r"^\s*(so )?that's\b", text, re.I)):
-        return text
-    memory.turns_since_umm = 0
-    return f"{(rng or random).choice(SOFTENERS)} {_lower_first(text)}"
 
 
 def checking_phrase(memory, rng=None) -> str:

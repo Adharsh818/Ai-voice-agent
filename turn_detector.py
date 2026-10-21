@@ -428,10 +428,6 @@ class TurnDetector:
     def holding(self) -> bool:
         return self._held is not None
 
-    @property
-    def held_text(self) -> str:
-        return self._held.text if self._held else ""
-
     def activity(self):
         self._last_activity = self.now()
 

@@ -576,7 +576,6 @@ class NLUStream:
         self.head_deadline = self.started + (HEAD_DEADLINE_S if head_deadline_s is None else head_deadline_s)
         self.deadline = self.started + (_total_budget() if total_s is None else total_s)
         self.head_deadline = min(self.head_deadline, self.deadline)
-        self.head_ms: Optional[float] = None       # time to a usable head (logs, TurnTrace.nlu_ms)
         self.error: Optional[str] = None            # why the stream ended early, for logs
         self._ended = backend is None
         self._changed = asyncio.Event()
@@ -657,7 +656,6 @@ class NLUStream:
         raw = caller_words(getattr(self.brief, "contents", "") or "")
         self._head = from_json(data, raw_text=raw, schema=getattr(self.brief, "schema", None))
         self._head.say, self._head.ask = "", ""
-        self.head_ms = (time.monotonic() - self.started) * 1000
         return self._head
 
     async def sentences(self, key: str) -> AsyncIterator[str]:

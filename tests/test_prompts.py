@@ -204,13 +204,6 @@ class OpenerTests(unittest.TestCase):
         out = prompts.with_opener("I can do that.", PromptMemory())
         self.assertTrue(out.endswith("I can do that."))
 
-    def test_softener_at_most_every_four_turns_and_never_on_numbers(self):
-        memory = PromptMemory()
-        self.assertRegex(prompts.with_softener("what would you like to do?", memory), r"^(So|Umm), ")
-        self.assertEqual(prompts.with_softener("What would you like to do?", memory), "What would you like to do?")
-        memory.turns_since_umm = 5
-        self.assertEqual(prompts.with_softener("That's 5:30 on Monday.", memory), "That's 5:30 on Monday.")
-
     def test_checking_phrase_varies_and_never_repeats_back_to_back(self):
         memory = PromptMemory()
         seen = [prompts.checking_phrase(memory) for _ in range(12)]
