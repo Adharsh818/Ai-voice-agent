@@ -26,6 +26,7 @@
     <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol>
     <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l4-4-4-4M14 12H4"/></symbol>
     <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   </svg>
 
   <div class="app">
@@ -90,7 +91,10 @@
     </div>
 
     <main class="content" id="content">
-      <div class="alerts" id="alerts" role="status" aria-live="polite" hidden></div>
+      <div class="notices">
+        <p class="ribbon demo-ribbon" id="demo-ribbon" role="status" hidden>Demo login: look around and talk to Emma. Changes are switched off.</p>
+        <div class="alerts" id="alerts" role="status" aria-live="polite" hidden></div>
+      </div>
 
       <!-- Today ----------------------------------------------------------------->
       <section class="view" id="view-today" role="tabpanel" aria-labelledby="h-today">
@@ -153,15 +157,18 @@
                 <button class="btn-pill block danger" type="button" id="op-end">End call + task</button>
               </div>
             </div>
-            <details class="inspector-card disclosure">
-              <summary><span class="t-body">Turn timings</span><span class="t-caption ink-2">ms</span></summary>
-              <div class="table-wrap">
-                <table class="table compact">
-                  <thead><tr><th>Turn</th><th>Tier</th><th title="Caller stopped → Emma audible">Heard</th><th>End of speech</th><th>Understanding</th><th>First audio</th></tr></thead>
-                  <tbody id="live-turns"></tbody>
-                </table>
-              </div>
-            </details>
+            <div class="inspector-card disclosure" id="live-timings">
+              <button class="e-acc-head" type="button" aria-expanded="false" aria-controls="live-timings-tray">
+                <span class="acc-label"><span class="t-body">Turn timings</span><span class="t-caption ink-2">ms</span></span></button>
+              <div class="e-acc-tray" id="live-timings-tray"><div>
+                <div class="table-wrap">
+                  <table class="table compact">
+                    <thead><tr><th>Turn</th><th>Tier</th><th title="Caller stopped → Emma audible">Heard</th><th>End of speech</th><th>Understanding</th><th>First audio</th></tr></thead>
+                    <tbody id="live-turns"></tbody>
+                  </table>
+                </div>
+              </div></div>
+            </div>
           </aside>
         </div>
       </section>
@@ -170,7 +177,7 @@
       <section class="view view-calendar" id="view-appointments" role="tabpanel" aria-labelledby="h-appointments" hidden>
         <header class="view-bar glass-bar cal-toolbar">
           <span class="bar-title">Appointments</span>
-          <div class="segmented" id="cal-view" role="group" aria-label="Calendar view">
+          <div class="e-tabnav" id="cal-view" role="group" aria-label="Calendar view">
             <button type="button" data-view="day" aria-pressed="true">Day</button>
             <button type="button" data-view="week" aria-pressed="false">Week</button>
             <button type="button" data-view="month" aria-pressed="false">Month</button>
@@ -180,15 +187,15 @@
           <span class="bar-actions">
             <label class="search-field"><svg class="ico"><use href="#i-search"/></svg>
               <input type="search" id="appt-search" placeholder="Search" aria-label="Search name, phone or ID"></label>
-            <button class="icon-btn" type="button" id="appt-new" aria-label="New appointment" title="New appointment"><svg class="ico"><use href="#i-plus"/></svg></button>
+            <button class="e-round solid plus-rot" type="button" id="appt-new" aria-label="New appointment" title="New appointment" aria-expanded="false" aria-controls="dlg-book"><svg class="ico"><use href="#i-plus"/></svg></button>
           </span>
         </header>
         <div class="cal-head">
           <h1 class="cal-title" id="h-appointments"><span id="cal-title-main">Appointments</span> <span class="ink-2" id="cal-title-sub"></span></h1>
           <div class="cal-nav">
-            <button class="icon-btn" type="button" id="appt-prev" aria-label="Previous"><svg class="ico"><use href="#i-chev-l"/></svg></button>
+            <button class="e-round" type="button" id="appt-prev" aria-label="Previous"><svg class="ico"><use href="#i-chev-l"/></svg></button>
             <button class="btn-pill small gray" type="button" id="appt-today">Today</button>
-            <button class="icon-btn" type="button" id="appt-next" aria-label="Next"><svg class="ico"><use href="#i-chev-r"/></svg></button>
+            <button class="e-round" type="button" id="appt-next" aria-label="Next"><svg class="ico"><use href="#i-chev-r"/></svg></button>
           </div>
         </div>
         <div class="cal-filters">
@@ -202,7 +209,7 @@
             <option value="completed">Completed</option>
             <option value="no_show">No-show</option>
           </select>
-          <span class="list-only segmented" id="appt-scope" role="group" aria-label="Which appointments" hidden>
+          <span class="list-only e-tabnav" id="appt-scope" role="group" aria-label="Which appointments" hidden>
             <button type="button" data-scope="upcoming" aria-pressed="true">Upcoming</button>
             <button type="button" data-scope="past" aria-pressed="false">Past</button>
             <button type="button" data-scope="all" aria-pressed="false">All</button>
@@ -236,7 +243,7 @@
           <p class="t-small ink-2">Every "someone will call you back" Emma promises is here.</p>
         </div>
         <div class="view-tools">
-          <div class="segmented" id="task-filter" role="group" aria-label="Which tasks">
+          <div class="e-tabnav" id="task-filter" role="group" aria-label="Which tasks">
             <button type="button" data-status="open" aria-pressed="true">Open</button>
             <button type="button" data-status="done" aria-pressed="false">Done</button>
             <button type="button" data-status="all" aria-pressed="false">All</button>
@@ -253,7 +260,7 @@
           <p class="t-small ink-2" id="calls-retention">Transcripts only, no audio.</p>
         </div>
         <div class="view-tools">
-          <div class="segmented" id="call-filter" role="group" aria-label="Which calls">
+          <div class="e-tabnav" id="call-filter" role="group" aria-label="Which calls">
             <button type="button" data-filter="all" aria-pressed="true">All</button>
             <button type="button" data-filter="changes" aria-pressed="false">Booked or changed</button>
             <button type="button" data-filter="hungup" aria-pressed="false">Hung up</button>
@@ -316,17 +323,22 @@
           </li>
         </ol>
 
-        <details class="settings-disclosure">
-          <summary><span class="t-body">Patients' calling hours</span>
-            <span class="t-caption ink-2">Recovery calls to a number only ring inside its hours (and the clinic's).</span></summary>
-          <form class="group-form inline" id="window-form">
-            <input type="tel" id="window-phone" class="input" placeholder="Phone number" aria-label="Phone number" required>
-            <label class="t-small">After <input type="time" id="window-after" class="input" aria-label="Call after"></label>
-            <label class="t-small">Before <input type="time" id="window-before" class="input" aria-label="Call before"></label>
-            <button class="btn-pill small" type="submit">Save</button>
-          </form>
-          <ul class="grouped-list" id="window-rows"></ul>
-        </details>
+        <div class="settings-disclosure" id="window-acc">
+          <button class="e-acc-head" type="button" aria-expanded="false" aria-controls="window-tray">
+            <span class="acc-label"><span class="t-body">Patients' calling hours</span>
+              <span class="t-caption ink-2">Recovery calls to a number only ring inside its hours (and the clinic's).</span></span></button>
+          <div class="e-acc-tray" id="window-tray"><div>
+            <div class="acc-body">
+              <form class="group-form inline" id="window-form">
+                <input type="tel" id="window-phone" class="input" placeholder="Phone number" aria-label="Phone number" required>
+                <label class="t-small">After <input type="time" id="window-after" class="input" aria-label="Call after"></label>
+                <label class="t-small">Before <input type="time" id="window-before" class="input" aria-label="Call before"></label>
+                <button class="btn-pill small" type="submit">Save</button>
+              </form>
+              <ul class="grouped-list" id="window-rows"></ul>
+            </div>
+          </div></div>
+        </div>
       </section>
 
       <!-- System (Settings style) ------------------------------------------------>
@@ -339,7 +351,7 @@
         <div class="settings" id="settings-panes">
           <section class="settings-group">
             <h2 class="group-title">How Emma is doing <span>real calls, last 7 days</span></h2>
-            <div class="group-box" id="perf-body"><p class="ink-2 pad">Loading…</p></div>
+            <div class="group-box" id="perf-body"><div class="loading pad" role="status"><span class="e-spinner" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>Loading…</span></div></div>
           </section>
 
           <section class="settings-group">
@@ -446,67 +458,87 @@
     </main>
   </div>
 
-  <!-- Appointment inspector (Calendar's event popover) -->
-  <div class="popover glass-bar" id="appt-popover" role="dialog" aria-modal="false" aria-labelledby="pop-title" hidden>
-    <div class="pop-bar" id="pop-bar"></div>
-    <h2 class="t-section" id="pop-title"></h2>
-    <p class="t-small ink-2" id="pop-when"></p>
-    <dl class="kv" id="pop-details"></dl>
-    <div class="pop-actions" id="pop-actions"></div>
+  <!-- Sheets (B6): a white panel over the blurred light scrim; a bottom sheet with a grab handle on phones.
+       Later sheets sit above earlier ones, so a sheet opened from another one is on top. -->
+  <!-- Appointment inspector (Calendar's event inspector) -->
+  <div class="e-sheet-root dash-sheet" id="appt-popover" hidden>
+    <div class="e-sheet-scrim"></div>
+    <div class="e-sheet" role="dialog" aria-modal="true" aria-labelledby="pop-title" tabindex="-1">
+      <div class="e-sheet-handle" aria-hidden="true"></div>
+      <div class="e-sheet-close-wrap"><button class="e-sheet-close" type="button" aria-label="Close"><svg class="ico"><use href="#i-close"/></svg></button></div>
+      <div class="pop-head"><span class="pop-bar" id="pop-bar" aria-hidden="true"></span><h2 class="e-sheet-title" id="pop-title"></h2></div>
+      <p class="e-sheet-body ink-2" id="pop-when"></p>
+      <dl class="kv" id="pop-details"></dl>
+      <div class="pop-actions" id="pop-actions"></div>
+    </div>
   </div>
 
-  <!-- Dialogs (sheets over the blurred curtain) -->
-  <dialog id="dlg-cancel" aria-labelledby="dlg-cancel-title">
-    <form method="dialog" class="sheet" id="cancel-form">
-      <h2 class="t-section" id="dlg-cancel-title">Cancel appointment</h2>
-      <p class="t-small ink-2" id="cancel-what"></p>
-      <div class="field-float">
-        <input id="cancel-reason" maxlength="200" placeholder=" ">
-        <label for="cancel-reason">Reason (optional)</label>
-      </div>
-      <p class="field-error" id="cancel-error" hidden></p>
-      <div class="sheet-actions">
-        <button class="btn-pill gray" value="close" type="button" data-close>Keep it</button>
-        <button class="btn-pill danger" type="submit" id="cancel-confirm">Cancel appointment</button>
-      </div>
-    </form>
-  </dialog>
+  <div class="e-sheet-root dash-sheet" id="dlg-cancel" hidden>
+    <div class="e-sheet-scrim"></div>
+    <div class="e-sheet" role="dialog" aria-modal="true" aria-labelledby="dlg-cancel-title" tabindex="-1">
+      <div class="e-sheet-handle" aria-hidden="true"></div>
+      <div class="e-sheet-close-wrap"><button class="e-sheet-close" type="button" aria-label="Close"><svg class="ico"><use href="#i-close"/></svg></button></div>
+      <form class="sheet" id="cancel-form">
+        <h2 class="e-sheet-title" id="dlg-cancel-title">Cancel appointment</h2>
+        <p class="e-sheet-body ink-2" id="cancel-what"></p>
+        <div class="field-float">
+          <input id="cancel-reason" maxlength="200" placeholder=" ">
+          <label for="cancel-reason">Reason (optional)</label>
+        </div>
+        <p class="field-error" id="cancel-error" hidden></p>
+        <div class="sheet-actions">
+          <button class="btn-pill gray" type="button" data-sheet-close>Keep it</button>
+          <button class="btn-pill danger" type="submit" id="cancel-confirm">Cancel appointment</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-  <dialog id="dlg-book" aria-labelledby="dlg-book-title">
-    <form method="dialog" class="sheet wide" id="book-form">
-      <h2 class="t-section" id="dlg-book-title">New appointment</h2>
-      <p class="t-small ink-2" id="book-what" hidden></p>
-      <div class="sheet-grid">
-        <label class="row-field" id="book-service-field"><span>Service</span><select id="book-service" class="select" required></select></label>
-        <label class="row-field" id="book-branch-field"><span>Branch</span><select id="book-branch" class="select"></select></label>
-        <label class="row-field"><span>Doctor</span><select id="book-doctor" class="select"></select></label>
-        <label class="row-field"><span>Day</span><input type="date" id="book-day" class="input" required></label>
-      </div>
-      <div><button class="btn-pill small gray" type="button" id="book-find">Find free times</button></div>
-      <div class="slot-grid" id="book-slots"></div>
-      <div class="sheet-grid" id="book-patient">
-        <div class="field-float"><input id="book-name" maxlength="80" autocomplete="off" placeholder=" "><label for="book-name">Patient name</label></div>
-        <div class="field-float"><input id="book-phone" type="tel" maxlength="20" autocomplete="off" placeholder=" "><label for="book-phone">Phone</label></div>
-        <div class="field-float"><input id="book-age" type="number" min="0" max="120" placeholder=" "><label for="book-age">Age (optional)</label></div>
-      </div>
-      <p class="field-error" id="book-error" hidden></p>
-      <div class="sheet-actions">
-        <button class="btn-pill gray" type="button" data-close>Close</button>
-        <button class="btn-pill" type="submit" id="book-confirm" disabled>Book</button>
-      </div>
-    </form>
-  </dialog>
+  <div class="e-sheet-root dash-sheet wide" id="dlg-book" hidden>
+    <div class="e-sheet-scrim"></div>
+    <div class="e-sheet" role="dialog" aria-modal="true" aria-labelledby="dlg-book-title" tabindex="-1">
+      <div class="e-sheet-handle" aria-hidden="true"></div>
+      <div class="e-sheet-close-wrap"><button class="e-sheet-close" type="button" aria-label="Close"><svg class="ico"><use href="#i-close"/></svg></button></div>
+      <form class="sheet" id="book-form">
+        <h2 class="e-sheet-title" id="dlg-book-title">New appointment</h2>
+        <p class="e-sheet-body ink-2" id="book-what" hidden></p>
+        <div class="sheet-grid">
+          <label class="row-field" id="book-service-field"><span>Service</span><select id="book-service" class="select" required></select></label>
+          <label class="row-field" id="book-branch-field"><span>Branch</span><select id="book-branch" class="select"></select></label>
+          <label class="row-field"><span>Doctor</span><select id="book-doctor" class="select"></select></label>
+          <label class="row-field"><span>Day</span><input type="date" id="book-day" class="input" required></label>
+        </div>
+        <div><button class="btn-pill small gray" type="button" id="book-find">Find free times</button></div>
+        <div class="slot-grid" id="book-slots"></div>
+        <div class="sheet-grid" id="book-patient">
+          <div class="field-float"><input id="book-name" maxlength="80" autocomplete="off" placeholder=" "><label for="book-name">Patient name</label></div>
+          <div class="field-float"><input id="book-phone" type="tel" maxlength="20" autocomplete="off" placeholder=" "><label for="book-phone">Phone</label></div>
+          <div class="field-float"><input id="book-age" type="number" min="0" max="120" placeholder=" "><label for="book-age">Age (optional)</label></div>
+        </div>
+        <p class="field-error" id="book-error" hidden></p>
+        <div class="sheet-actions">
+          <button class="btn-pill gray" type="button" data-sheet-close>Close</button>
+          <button class="btn-pill" type="submit" id="book-confirm" disabled>Book</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-  <dialog id="dlg-confirm" aria-labelledby="dlg-confirm-title">
-    <form method="dialog" class="sheet">
-      <h2 class="t-section" id="dlg-confirm-title">Are you sure?</h2>
-      <p class="t-small ink-2" id="confirm-text"></p>
-      <div class="sheet-actions">
-        <button class="btn-pill gray" type="button" data-close>Go back</button>
-        <button class="btn-pill danger" type="submit" id="confirm-ok">Confirm</button>
-      </div>
-    </form>
-  </dialog>
+  <div class="e-sheet-root dash-sheet" id="dlg-confirm" hidden>
+    <div class="e-sheet-scrim"></div>
+    <div class="e-sheet" role="alertdialog" aria-modal="true" aria-labelledby="dlg-confirm-title" aria-describedby="confirm-text" tabindex="-1">
+      <div class="e-sheet-handle" aria-hidden="true"></div>
+      <div class="e-sheet-close-wrap"><button class="e-sheet-close" type="button" aria-label="Close"><svg class="ico"><use href="#i-close"/></svg></button></div>
+      <form class="sheet" id="confirm-form">
+        <h2 class="e-sheet-title" id="dlg-confirm-title">Are you sure?</h2>
+        <p class="e-sheet-body ink-2" id="confirm-text"></p>
+        <div class="sheet-actions">
+          <button class="btn-pill gray" type="button" data-sheet-close>Go back</button>
+          <button class="btn-pill danger" type="submit" id="confirm-ok">Confirm</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div class="toast-stack" id="toasts" aria-live="polite"></div>
   <script type="module" src="/dashboard/static/dashboard.js"></script>

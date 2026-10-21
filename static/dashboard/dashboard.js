@@ -8,7 +8,11 @@
 // caller who gives "<script>" as their name stays plain text. All times are shown in the
 // clinic's timezone, whatever the browser's is.
 
-import { reveal, replay, segmented, cardHover, toast as glassToast } from "/static/ui/emma-ui.js";
+import {
+  reveal, replay, cardHover, toast as glassToast, tabnav, sheet, popIn, spinner, accordion,
+} from "/static/ui/emma-ui.js";
+
+const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 let TZ = "Asia/Kolkata";
 const $ = (id) => document.getElementById(id);
@@ -206,30 +210,54 @@ function callOutcome(outcome) {
   return outcome.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
-// ------------------------------------------------------------------ dialogs
-document.querySelectorAll("dialog [data-close]").forEach((button) => {
-  button.addEventListener("click", () => button.closest("dialog").close());
-});
-// A click on the blurred curtain (outside the sheet) closes it, like a sheet on the Mac.
-document.querySelectorAll("dialog").forEach((dialog) => {
-  dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
-});
+// ------------------------------------------------------------------ sheets (B6)
+// Each sheet rises 16px and fades in over the blurred light scrim; on a phone it is a bottom
+// sheet with a grab handle. The close button, the scrim, Escape and [data-sheet-close] close it,
+// and focus goes back to whatever opened it.
+const sheetClosed = {};
+function syncSheetLock() {
+  // One sheet can close while the next opens (inspector → Move): keep the page behind locked.
+  document.documentElement.classList.toggle("e-sheet-open", Boolean(document.querySelector(".e-sheet-root.is-open")));
+}
+function makeSheet(id) {
+  const ctl = sheet($(id), {
+    onClose: () => {
+      setTimeout(syncSheetLock, reducedMotion() ? 220 : 620);
+      const done = sheetClosed[id];
+      sheetClosed[id] = null;
+      if (done) done();
+    },
+  });
+  return {
+    open(onClose) { sheetClosed[id] = onClose || null; ctl.open(); },
+    close: ctl.close,
+    get isOpen() { return $(id).classList.contains("is-open"); },
+  };
+}
+const sheets = {
+  inspector: makeSheet("appt-popover"),
+  cancel: makeSheet("dlg-cancel"),
+  book: makeSheet("dlg-book"),
+  confirm: makeSheet("dlg-confirm"),
+};
 
+let confirmAnswer = false;
 function confirmAction(title, text, okLabel = "Confirm") {
-  const dialog = $("dlg-confirm");
   $("dlg-confirm-title").textContent = title;
   $("confirm-text").textContent = text;
   $("confirm-ok").textContent = okLabel;
-  return new Promise((resolve) => {
-    const done = () => {
-      dialog.removeEventListener("close", done);
-      resolve(dialog.returnValue === "ok");
-    };
-    dialog.returnValue = "";
-    $("confirm-ok").value = "ok";
-    dialog.addEventListener("close", done);
-    dialog.showModal();
-  });
+  confirmAnswer = false;
+  return new Promise((resolve) => sheets.confirm.open(() => resolve(confirmAnswer)));
+}
+$("confirm-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  confirmAnswer = true;
+  sheets.confirm.close();
+});
+
+// B14: the 8-spoke spinner beside a short line, for anything still loading.
+function loadingNode(text = "Loading…", tag = "div") {
+  return el(tag, { class: "loading", role: "status" }, spinner(16), el("span", { text }));
 }
 
 function showError(box, message) {
@@ -298,11 +326,19 @@ async function refreshOverview() {
 }
 
 // Problems the server found (alerts.py): a speech service down, calendar sync stuck, a call line stuck.
+// B21: a new notice drops in from the top edge in its accent colour, then calms to a tint.
+// One already shown stays calm when the overview refreshes.
+const seenAlerts = new Set();
 function renderAlerts(alerts) {
   const box = $("alerts");
   box.hidden = alerts.length === 0;
-  box.replaceChildren(...alerts.map((a) => el("p", { class: `alert-line ${a.level}`,
-    text: `${a.text} (since ${fmtDateTime(a.since)})` })));
+  box.replaceChildren(...alerts.map((a) => {
+    const key = `${a.level}|${a.text}|${a.since}`;
+    const fresh = !seenAlerts.has(key);
+    seenAlerts.add(key);
+    return el("p", { class: `alert-line ribbon ${a.level}${fresh ? "" : " calm"}`,
+      text: `${a.text} (since ${fmtDateTime(a.since)})` });
+  }));
 }
 
 let callBusy = false;
@@ -341,6 +377,9 @@ function showTab(name) {
   for (const key of Object.keys(loaders)) $(`view-${key}`).hidden = key !== name;
   $("side-calendar").hidden = name !== "appointments";
   store("tab", name);
+  // A section that was hidden lays its segmented controls out from nothing: place the
+  // indicator without sliding it in from the left (apple.com's first-layout rule).
+  if (changed) settleTabnavs();
   if (location.hash !== `#${name}`) history.pushState(null, "", `#${name}`);
   document.title = `${{ today: "Today", live: "Live call", appointments: "Appointments", tasks: "Tasks", calls: "Calls",
     recovery: "Recovery", system: "System" }[name]} · ${document.title.split(" · ").slice(-1)[0]}`;
@@ -349,7 +388,6 @@ function showTab(name) {
   updateBars();
   loaders[name]();
   if (name === "today" && changed) replay($("today-grid"));
-  requestAnimationFrame(() => segmentPlacers.forEach((place) => place()));
 }
 
 document.querySelectorAll(".side-item[data-tab]").forEach((item) => item.addEventListener("click", () => showTab(item.dataset.tab)));
@@ -368,12 +406,31 @@ document.addEventListener("click", (event) => {
 });
 window.addEventListener("popstate", () => showTab(location.hash.slice(1)));
 
-// iOS navigation bar: the large title scrolls away and the bar turns to glass with a small title.
-function updateBars() {
-  const stuck = window.scrollY > 36;
-  document.querySelectorAll(".view-bar").forEach((bar) => bar.classList.toggle("stuck", stuck));
+function settleTabnavs() {
+  const navs = [...document.querySelectorAll(".e-tabnav")];
+  navs.forEach((nav) => nav.classList.add("e-no-anim"));
+  requestAnimationFrame(() => {
+    segmentPlacers.forEach((place) => place());
+    requestAnimationFrame(() => navs.forEach((nav) => nav.classList.remove("e-no-anim")));
+  });
 }
-window.addEventListener("scroll", updateBars, { passive: true });
+
+// B15, iOS navigation bar: the section toolbar is clear while it sits in place and turns to
+// glass (with a 1px keyline) only once it is stuck, with content scrolling under it; the small
+// title appears once the large title has gone under the bar.
+let barQueued = false;
+function updateBars() {
+  barQueued = false;
+  const view = document.querySelector(".view:not([hidden])");
+  if (!view) return;
+  const bar = view.querySelector(".view-bar");
+  const top = view.getBoundingClientRect().top;      // the bar's own place, before it sticks
+  bar.classList.toggle("stuck", top < -1);
+  bar.classList.toggle("titled", top < -40);
+}
+window.addEventListener("scroll", () => {
+  if (!barQueued) { barQueued = true; requestAnimationFrame(updateBars); }
+}, { passive: true });
 
 // ------------------------------------------------------------------ live call
 // Up to MAX_CONCURRENT_CALLS calls can be on at once (11 Oct): each has its own state, and the
@@ -545,11 +602,17 @@ function renderCallSwitcher() {
   const box = $("live-calls");
   const active = [...liveCalls.values()].filter((st) => !st.ended || st === live);
   box.hidden = active.length < 2;
-  box.replaceChildren(...active.map((st, i) => el("button", {
-    type: "button", class: `chip${st === live ? " active" : ""}`, title: st.callId,
+  const chips = active.map((st, i) => el("button", {
+    type: "button", class: `chip${st === live ? " active" : ""}`, title: st.callId, "aria-pressed": String(st === live),
     text: `Call ${i + 1}${st.ended ? " (ended)" : ""}`, onclick: () => followCall(st.callId),
-  })));
+  }));
+  box.replaceChildren(...chips);
+  // A call that has just come in pops its chip in (B5).
+  const fresh = chips.filter((_, i) => !switcherShown.has(active[i].callId));
+  if (!box.hidden && fresh.length) popIn(fresh);
+  switcherShown = new Set(box.hidden ? [] : active.map((st) => st.callId));
 }
+let switcherShown = new Set();
 
 const STATE_LABEL = { idle: "Idle", listening: "Listening", thinking: "Thinking", speaking: "Speaking", ended: "Call ended" };
 
@@ -571,6 +634,9 @@ function bubbleLines(lines, interim) {
 }
 
 let renderedLineCount = 0;
+let renderedFor = null;
+let typingShown = false;
+const entityShown = new WeakMap();      // live state -> entity keys already on screen
 function renderLive() {
   renderCallSwitcher();
   const hasCall = Boolean(live.callId);
@@ -595,11 +661,20 @@ function renderLive() {
   const box = $("live-transcript");
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
   const nodes = bubbleLines(live.lines, live.interim);
-  if (active && live.state === "thinking") nodes.push(el("div", { class: "typing", "aria-label": "Emma is thinking" }, el("i"), el("i"), el("i")));
-  // Only the newest bubble animates in; re-rendered older ones don't replay it.
+  // Messages: only a bubble that wasn't on screen before springs in (opacity and an 8px rise).
+  // One that is re-rendered, such as Emma's line growing sentence by sentence, stays put.
   const total = live.lines.length + (live.interim ? 1 : 0);
-  nodes.forEach((node, i) => { if (i < Math.min(renderedLineCount, total) - 1) node.style.animation = "none"; });
+  const sameCall = renderedFor === live;
+  nodes.forEach((node, i) => { if (sameCall && i < renderedLineCount) node.classList.add("settled"); });
   renderedLineCount = total;
+  renderedFor = live;
+  const typing = active && live.state === "thinking";
+  if (typing) {
+    const dots = el("div", { class: `typing${typingShown && sameCall ? " settled" : ""}`, role: "img", "aria-label": "Emma is thinking" },
+      el("i"), el("i"), el("i"));
+    nodes.push(dots);
+  }
+  typingShown = typing;
   box.replaceChildren(...nodes);
   if (nearBottom) {
     box.scrollTop = box.scrollHeight;
@@ -608,9 +683,15 @@ function renderLive() {
     $("live-jump").hidden = false;
   }
 
+  // What Emma has collected: a chip pops in (B5) the moment a new detail arrives.
   const entities = Object.entries(live.entities).filter(([, v]) => v !== null && v !== "" && v !== undefined);
-  $("live-entities").replaceChildren(...entities.map(([k, v]) => el("span", { class: "entity" },
-    el("b", { text: k.replace(/_/g, " ") }), typeof v === "object" ? JSON.stringify(v) : String(v))));
+  const shownBefore = entityShown.get(live) || new Set();
+  const chips = entities.map(([k, v]) => el("span", { class: "entity" },
+    el("b", { text: k.replace(/_/g, " ") }), typeof v === "object" ? JSON.stringify(v) : String(v)));
+  $("live-entities").replaceChildren(...chips);
+  const fresh = chips.filter((_, i) => !shownBefore.has(entities[i][0]));
+  if (fresh.length && entityShown.has(live)) popIn(fresh);
+  entityShown.set(live, new Set(entities.map(([k]) => k)));
 
   const rows = [...live.turns.values()].sort((a, b) => b.turn - a.turn).slice(0, 30).map((t) => el("tr", {},
     el("td", { class: "num", text: t.turn }),
@@ -773,7 +854,7 @@ function paintToday() {
     next.length ? el("ul", { class: "tile-list" }, ...next.map((r) => el("li", {},
       el("span", { class: "t", text: r.time }),
       el("span", { class: "x", text: `${r.patient_name} · ${r.service} · ${r.doctor}` })))) : el("span", { class: "tile-sub", text: "Nothing else booked today." }),
-    upcoming.length > next.length ? el("span", { class: "tile-sub", text: `${upcoming.length - next.length} more` }) : null,
+    upcoming.length > next.length ? el("span", { class: "tile-sub", text: `${upcoming.length - next.length} more` }) : "",
     el("span", { class: "tile-foot", text: "Open calendar" }));
 
   // Tasks.
@@ -1178,16 +1259,11 @@ function apptActions(r, small = false) {
   return [];
 }
 
-// Calendar's event inspector, a glass popover beside the event.
-let popoverFor = null;
-let popoverAnchor = null;
+// Calendar's event inspector, as a sheet (B6): the details and what can be done next.
 function openPopover(r, anchor) {
-  popoverAnchor = anchor;
   const pop = $("appt-popover");
-  if (popoverFor === r.id && !pop.hidden) { closePopover(); return; }
   document.querySelectorAll(".event.selected").forEach((n) => n.classList.remove("selected"));
   anchor.classList.add("selected");
-  popoverFor = r.id;
   pop.style.setProperty("--doc", doctorColor(r.doctor_id));
   $("pop-title").textContent = r.patient_name + (r.patient_age ? `, ${r.patient_age}` : "");
   $("pop-when").textContent = `${prettyDay(r.date)}, ${r.time}–${r.end_time}`;
@@ -1208,32 +1284,20 @@ function openPopover(r, anchor) {
       onclick: () => { closePopover(); showTab("calls"); openCall(r.created_by_call_id); } }));
   }
   $("pop-actions").replaceChildren(...actions);
-  pop.hidden = false;
-  const box = anchor.getBoundingClientRect();
-  const w = 320;
-  let left = box.right + 10;
-  if (left + w > window.innerWidth - 12) left = Math.max(12, box.left - w - 10);
-  let top = Math.min(window.innerHeight - pop.offsetHeight - 12, Math.max(12, box.top - 8));
-  pop.style.left = `${left}px`;
-  pop.style.top = `${top}px`;
+  $("pop-actions").hidden = !actions.length;
+  sheets.inspector.open(() => {
+    document.querySelectorAll(".event.selected").forEach((n) => n.classList.remove("selected"));
+  });
 }
-function closePopover(restoreFocus = false) {
-  const pop = $("appt-popover");
-  if (pop.hidden) return;
-  pop.hidden = true;
-  popoverFor = null;
-  if (restoreFocus && popoverAnchor && popoverAnchor.isConnected) popoverAnchor.focus();
-  document.querySelectorAll(".event.selected").forEach((n) => n.classList.remove("selected"));
+// Close the inspector (when an action in it opens the next sheet, or the section changes).
+// The sheet returns focus to the event that opened it.
+function closePopover() {
+  if (sheets.inspector.isOpen) sheets.inspector.close();
 }
-document.addEventListener("click", (event) => {
-  if (!event.target.closest("#appt-popover") && !event.target.closest(".event")) closePopover();
-});
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  closePopover(true);
   if (!$("more-sheet").hidden) { $("more-sheet").hidden = true; $("tab-more").focus(); }
 });
-window.addEventListener("scroll", () => closePopover(), { passive: true });
 
 // Calendar's sidebar: a mini month and the doctors as show/hide "calendars".
 let miniMonthOf = null;
@@ -1319,7 +1383,8 @@ $("appt-export").addEventListener("click", () => {
 });
 $("appt-new").addEventListener("click", () => openBook("book"));
 document.addEventListener("keydown", (event) => {
-  if (currentTab !== "appointments" || event.target.closest("input, select, textarea, dialog")) return;
+  if (currentTab !== "appointments" || event.target.closest("input, select, textarea, .e-sheet-root")
+    || document.querySelector(".e-sheet-root.is-open")) return;
   if (event.key === "ArrowLeft") step(-1);
   else if (event.key === "ArrowRight") step(1);
   else if (event.key.toLowerCase() === "t") $("appt-today").click();
@@ -1345,7 +1410,7 @@ function openCancel(r) {
   $("cancel-what").textContent = describe(r);
   $("cancel-reason").value = "";
   showError($("cancel-error"), "");
-  $("dlg-cancel").showModal();
+  sheets.cancel.open();
 }
 
 $("cancel-form").addEventListener("submit", async (event) => {
@@ -1356,7 +1421,7 @@ $("cancel-form").addEventListener("submit", async (event) => {
     await api(`/dashboard/api/appointments/${encodeURIComponent(cancelTarget.id)}/cancel`, {
       method: "POST", body: { reason: $("cancel-reason").value, version: cancelTarget.version, idem_key: newKey() },
     });
-    $("dlg-cancel").close();
+    sheets.cancel.close();
     toast("Appointment cancelled.");
     loadAppointments();
   } catch (err) {
@@ -1436,7 +1501,9 @@ function openBook(mode, target = null) {
   }
   showError($("book-error"), "");
   clearSlots();
-  $("dlg-book").showModal();
+  // B22: the + turns 45 degrees while its sheet is open.
+  if (!moving) $("appt-new").setAttribute("aria-expanded", "true");
+  sheets.book.open(() => $("appt-new").setAttribute("aria-expanded", "false"));
 }
 
 async function findSlots() {
@@ -1446,7 +1513,7 @@ async function findSlots() {
   if ($("book-doctor").value) params.set("doctor_id", $("book-doctor").value);
   if (booking.mode === "move") params.set("ignore_appointment", booking.target.id);
   const box = $("book-slots");
-  box.replaceChildren(el("span", { class: "ink-2 t-small", text: "Looking…" }));
+  box.replaceChildren(loadingNode("Looking…", "span"));
   booking.slot = null;
   updateBookButton();
   try {
@@ -1456,7 +1523,7 @@ async function findSlots() {
       return;
     }
     const anyDoctor = !$("book-doctor").value;
-    box.replaceChildren(...slots.map((slot) => {
+    const pills = slots.map((slot) => {
       const button = el("button", {
         class: "slot", type: "button", "aria-pressed": "false",
         text: anyDoctor ? `${slot.time} · ${slot.doctor}` : slot.time,
@@ -1469,7 +1536,11 @@ async function findSlots() {
         updateBookButton();
       });
       return button;
-    }));
+    });
+    box.replaceChildren(...pills);
+    // B5: the free times pop in, 50ms apart (capped so a long day doesn't keep popping).
+    popIn(pills);
+    pills.slice(12).forEach((pill) => pill.style.setProperty("--i", "12"));
   } catch (err) {
     box.replaceChildren();
     showError($("book-error"), err.message);
@@ -1507,7 +1578,7 @@ $("book-form").addEventListener("submit", async (event) => {
       });
       toast("Appointment booked.");
     }
-    $("dlg-book").close();
+    sheets.book.close();
     if (currentTab === "appointments") loadAppointments();
     if (currentTab === "today") renderToday();
   } catch (err) {
@@ -1523,6 +1594,7 @@ let taskStatus = "open";
 async function loadTasks() {
   document.querySelectorAll("#task-filter button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.status === taskStatus)));
   const list = $("task-rows");
+  if (!list.querySelector(".reminder")) list.replaceChildren(loadingNode("Loading tasks…", "li"));
   let tasks;
   try {
     tasks = (await api(`/dashboard/api/tasks?status=${taskStatus}`)).tasks;
@@ -1596,6 +1668,7 @@ const CALL_FILTERS = {
 async function loadCalls() {
   document.querySelectorAll("#call-filter button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.filter === callFilter)));
   const list = $("call-rows");
+  if (!list.querySelector(".mail-row")) list.replaceChildren(loadingNode("Loading calls…", "li"));
   try {
     callList = (await api("/dashboard/api/calls?limit=100")).calls;
   } catch (err) {
@@ -1661,13 +1734,20 @@ async function openCall(callId) {
   }
 
   const box = $("call-detail");
+  // A different call: show the spinner if its transcript takes more than a moment.
+  const shown = box.dataset.call;
+  const slow = shown !== callId ? setTimeout(() => box.replaceChildren(loadingNode("Loading the call…")), 180) : null;
   let call;
   try {
     call = await api(`/dashboard/api/calls/${encodeURIComponent(callId)}`);
+    clearTimeout(slow);
   } catch (err) {
+    clearTimeout(slow);
     box.replaceChildren(el("p", { class: "field-error", text: err.message }));
     return;
   }
+  if (selectedCall !== callId) return;       // another call was picked meanwhile
+  box.dataset.call = callId;
   const kept = call.recording_consent !== 0;
   let prev = null;
   const turns = call.turns.map((t) => {
@@ -1750,8 +1830,12 @@ async function loadMe() {
   if (me.role === "demo") {
     // The resume login: say once that it's view-only, so a refused change isn't a surprise.
     $("me-name").textContent = `Signed in as ${me.user} · view only`;
-    if (!recall("demo-noted")) {
-      toast("Demo login: look around and talk to Emma. Changes are switched off.");
+    // A ribbon at the top says so for as long as they're signed in. It drops in the first
+    // time and is calm after that.
+    const ribbon = $("demo-ribbon");
+    if (ribbon.hidden) {
+      ribbon.classList.toggle("calm", Boolean(recall("demo-noted")));
+      ribbon.hidden = false;
       store("demo-noted", "1");
     }
   }
@@ -2323,6 +2407,22 @@ function jobCallLabel(j) {
   return JOB_LABEL[j.status] || j.status;
 }
 
+// B10: one dot per patient, coloured by how their call went; the patient being called now is
+// a 48px pill whose fill runs while the phone rings. Long campaigns keep the ring alone.
+const JOB_DOT = { done: "done", failed: "failed", skipped: "skipped", ringing: "now", in_call: "now" };
+function jobMeter(jobs) {
+  if (!jobs.length || jobs.length > 24) return null;
+  const meter = el("div", { class: "e-meter job-meter", role: "img",
+    "aria-label": jobs.map((j) => `${j.name || "Patient"}: ${jobCallLabel(j)}`).join("; ") });
+  for (const j of jobs) {
+    const kind = JOB_DOT[j.status] || "queued";
+    const dot = el("i", { class: `job-${kind}${kind === "now" ? " is-current" : ""}`, title: `${j.name || "Patient"}: ${jobCallLabel(j)}` });
+    if (kind === "now") dot.style.setProperty("--w", "48px");
+    meter.append(dot);
+  }
+  return meter;
+}
+
 function renderCampaigns(campaigns) {
   const box = $("campaign-list");
   if (!campaigns.length) {
@@ -2362,7 +2462,8 @@ function renderCampaigns(campaigns) {
       }) : "–")));
     const header = ["Patient", "Phone", "Appointments", "Call", "Result", ""].map((h) => el("th", { text: h }));
     return el("div", { class: "campaign" }, head,
-      el("div", { class: "campaign-progress" }, ring, el("p", { class: "ink-2 t-small", text: summaryText(c) })),
+      el("div", { class: "campaign-progress" }, ring,
+        el("div", { class: "campaign-text" }, jobMeter(c.jobs), el("p", { class: "ink-2 t-small", text: summaryText(c) }))),
       el("div", { class: "table-wrap" }, el("table", { class: "table" },
         el("thead", {}, el("tr", {}, ...header)), el("tbody", {}, ...rows))));
   }));
@@ -2403,8 +2504,23 @@ async function logout() {
 $("logout").addEventListener("click", logout);
 document.querySelector('#more-sheet [data-action="logout"]').addEventListener("click", logout);
 
+// B16: on first load the sidebar's rows slide in once, one after another.
+function sidebarEntrance() {
+  const side = $("sidebar");
+  if (reducedMotion() || getComputedStyle(side).display === "none") return;
+  const rows = [side.querySelector(".side-brand"), ...side.querySelectorAll(".side-nav > .side-item"), side.querySelector(".side-foot")];
+  rows.forEach((row, i) => row.style.setProperty("--i", String(i)));
+  side.classList.add("is-entering");
+  setTimeout(() => side.classList.remove("is-entering"), 350 + rows.length * 40 + 80);
+}
+
 async function start() {
-  for (const id of ["cal-view", "task-filter", "appt-scope", "call-filter"]) segmentPlacers.push(segmented($(id)));
+  sidebarEntrance();
+  // B4: segmented controls with a sliding indicator. The page sets aria-pressed itself.
+  for (const id of ["cal-view", "task-filter", "appt-scope", "call-filter"]) segmentPlacers.push(tabnav($(id), { manage: false }));
+  // B17: disclosures open and close with a height change and a turning chevron.
+  accordion($("live-timings"));
+  accordion($("window-acc"));
   await refreshOverview();
   try { await loadCatalog(); } catch (err) { toast(err.message, "error"); }
   loadMe();
