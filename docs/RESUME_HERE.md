@@ -1,6 +1,61 @@
-# Resume here (updated 17 Oct 2026)
+# Resume here (updated 22 Oct 2026)
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
+
+## LEFT WORK (written 22 Oct, ~01:00): start here
+
+**State now:**
+- `main` = `day2-r2-engine` = b112ae6, all pushed.
+- 1052 tests pass; scenarios are 53/53 offline and 53/53 with the model down.
+- The PC Emma runs **Deepgram + Gemma 4 via Sarvam (Gemini as the retry) + ElevenLabs Rachel**, in a Terminal tab "Emma" from `A:\Voice-Agent`.
+- The hosted site (AWS) is still **Gemini + ElevenLabs** on 06de9b8 + d15b429 (19 Oct). The owner said to leave it as is for now.
+
+**Done on 21-22 Oct (not in the sections below):**
+- Sounds less read out (d227507):
+  - no doubled openers ("Of course. Of course, ...");
+  - the day said once before the time question.
+- A question asked again is worded differently; a light "Ah" / "Oh" / "Hmm" on some bad-news lines (118b32a).
+- Unused code removed (adf3c70).
+- The 3 model-down scenarios fixed (b112ae6). One of the fixes is a live-call bug: a spelled name that came in already joined ("PRIYA") was dropped, so Emma asked for the spelling again.
+- **Indian voice: not now (owner, 22 Oct).** The free ElevenLabs plan can't use library voices through the API (402 `paid_plan_required`). The owner keeps Rachel. The sample clips were moved out of the repo.
+
+**Left, Claude (in order):**
+1. **ElevenLabs free allowance is nearly used up:** 8,977 of 10,000 characters, resetting **12 Nov 10:05**.
+   - Cached sentences cost nothing; every live sentence (names, days, times) does.
+   - When it runs out, live sentences switch to Piper, an audibly different voice.
+   - Options for the owner: Sarvam as the live voice (already built, `TTS_PROVIDER=sarvam`), or ElevenLabs Starter ($5/month).
+   - The hosted site uses the same key, so it is affected too.
+2. **Oracle retry has stopped:** `tools/oracle_launch.py` crashed on `oci.exceptions.ConnectTimeout` (Hyderabad endpoint) instead of retrying. Catch connection errors in the loop, then restart it in the "Oracle retry" tab if the owner still wants Oracle.
+3. **Hosted site update (only when the owner says):** deploy the 19-22 Oct code (`bash tools/deploy_remote.sh`, from the PC).
+   - Optionally switch it to Gemma 4: add `SARVAM_API_KEY`, `NLU_PRIMARY=sarvam`, `SARVAM_URL=https://api.sarvam.ai/v2/chat/completions` and `SARVAM_MODEL=gemma4` to `/opt/emma/.env`.
+4. **Demo-login safety (from the 19 Oct audit):**
+   - a daily call limit for the demo login;
+   - mask phone numbers for the demo role (the server's database copy holds the owner's number).
+5. **Talk-page security headers** (only HSTS on `/` today; the dashboard has them all).
+6. **Off-machine copies of the server backups.**
+7. **Cost panel doesn't count Sarvam** (Gemma brain and Sarvam voice): add their per-call cost.
+8. **"Good morning" after midnight:** the greeting should say "Hello" (or "Good evening") between 00:00 and about 04:00.
+9. **docs/DEPLOY.md:** an AWS write-up ("Tested on AWS"): the setup, the update command, and the Free-plan region lock.
+10. **Final HANDOFF "state at the end"** (docs/HANDOFF.md START HERE is still 14 Oct), then close FINISH_PLAN Phase 7.
+11. **Later, only if wanted:**
+    - Sarvam's WebSocket voice (faster first audio);
+    - tuning the brief for Gemma;
+    - multi-tenancy (one database, `clinic_id`).
+
+**Left, owner:**
+- **Decide the voice before the ElevenLabs characters run out** (item 1 above).
+- **O2:** send the design-change list.
+- **O4:** a Wi-Fi router for phone calls. The hotspot caused 479 audio gaps on 21 Oct; the PC's Wi-Fi address changes on every hotspot.
+- **O5 accounts:** a real Indian phone number (docs/TRUNK.md) and a WhatsApp/SMS provider (docs/NOTIFICATIONS.md).
+- **Clean the PC `.env`:**
+  - remove the duplicate `SARVAM_API_KEY` line (the last one wins);
+  - remove the unused `GEMINI_API_KEY_NEW` (rotating free keys breaks Google's terms).
+- Put `https://pearl-emma.duckdns.org` and the demo login on the resume; optionally earn the extra AWS credits.
+- **Keep these test bookings:**
+  - Jimmy, Sat 24 Oct 9:30, Dr Menon at Indiranagar;
+  - Adharsh, root canal, Wed 21 Oct 1 pm, Dr Shetty.
+
+The sections below are older history; where they disagree with this list, this list wins.
 
 ## Where everything is
 
