@@ -729,6 +729,8 @@ def _mark_question(u: Understanding, text: str) -> None:
         asked = bool(_QUESTION_FALLBACK.search(text))
     if asked and (safe_call(match.asks_nothing, text, default=False) or u.name_spelled):
         asked = False                            # mumbling, or a spelling said with a rising voice
+    if asked and u.intent == Intent.CHECK and match.ASKS_APPT_TIME_RE.search(text.lower()):
+        asked = False                            # "Can you tell me when my appointment is?": the request itself
     if asked:
         u.acts = list(u.acts) + [Act.QUESTION.value]
         u.question = u.question or text

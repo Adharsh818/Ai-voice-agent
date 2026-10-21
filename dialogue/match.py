@@ -290,6 +290,8 @@ def join_spelled(text: str) -> Optional[str]:
         if tok in _SPELL_FILLERS:
             i += 1
             continue
+        if i == len(toks) - 1 and tok == "".join(letters):
+            break                             # "P R I Y A, Priya": the letters, then the name said whole
         return None
     word = "".join(letters)
     singles = sum(1 for tok in toks if len(tok) == 1)
@@ -844,6 +846,10 @@ HEAR_CHECK_RE = re.compile(
     r"^(?:(?:hello|hi|hey|sorry|um+|uh+|ma'?am|madam|emma)[ ,.?!]+)*(?:can|could) you hear me(?: now| okay| ok)?|"
     r"^(?:(?:hello|hi|hey)[ ,.?!]+)*(?:are you there|are you still there|you there|is anyone there|"
     r"anybody there|is this working)$")
+# "When is my appointment?", "can you tell me when my appointment is?", "what time my booking is"
+# (no-model scenarios, 22 Oct: only "when is my..." was read, so the caller was booked instead).
+ASKS_APPT_TIME_RE = re.compile(r"\b(?:when|what time|what day)(?:'?s| is| was)?\s+(?:is\s+)?(?:my|the|our)\s+"
+                               r"(?:appointment|booking)\b|\b(?:check|confirm)\s+(?:my|the)\s+(?:appointment|booking)\b")
 # A bare "Hello?" (once or repeated) mid-call is a line check, not an answer (21 Oct: it sent 20+ turns
 # to the model, after the name, the slots, "anything else", at ~2 s each). At the greeting it is a greeting.
 BARE_HELLO_RE = re.compile(r"^(?:hello|hallo)(?:[ ,.?!]+(?:hello|hallo))*[ ,.?!]*$")

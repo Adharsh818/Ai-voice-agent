@@ -361,6 +361,8 @@ def _apply_name(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
     spelled = None
     if u.name_spelled:
         spelled = safe_call(match.join_spelled, u.name_spelled, default=None) or _letters(u.name_spelled)
+        if not spelled and re.fullmatch(r"[A-Za-z]{2,}", u.name_spelled.strip()):
+            spelled = u.name_spelled.strip().capitalize()   # already joined ("PRIYA", tier0's "Priya")
     elif u.name and ctx.pending == Goal.SPELL_NAME and _SPELLED_RE.search(u.raw_text or ""):
         spelled = _clean_name(u.name)                   # "P R I Y A, Priya": the letters, said back as a word
     name = spelled or (_clean_name(u.name) if u.name else None)

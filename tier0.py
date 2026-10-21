@@ -984,6 +984,8 @@ _ABOUT_A_PLACE = re.compile(
 _SUGGEST_RE = re.compile(r"\b(what do you suggest|what would you suggest|you suggest|you tell me|"
                          r"whatever (?:you have|is free|is available|suits you)|anything is fine|"
                          r"what(?:'s| is) (?:free|available)|i don'?t know)\b")
+_VAGUE_WHEN_RE = re.compile(r"\b(?:busy|hectic|swamped|packed|not sure|no idea|depends|hard to say|"
+                            r"let me (?:think|see|check)|my schedule|my (?:work|office) timings?)\b")
 _MOVE_APPT_RE = re.compile(
     r"\b(change|move|shift)\s+(?:my|the|our|her|his)\s+(?:(?:existing|current|old|booked|upcoming|next|dental|"
     r"cleaning|check-?up)\s+)*(appointment|booking)\b")
@@ -1066,7 +1068,7 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
     elif re.search(r"\b(reschedule|postpone|prepone)\b", t) or moving or \
             (_APPT_NOUN_RE.search(t) and re.search(r"\b(change|move|shift)\s+(?:the|it to another)\s+(day|date|time)\b", t)):
         u.intent = Intent.RESCHEDULE         # "I have an appointment but I need to change the day"
-    elif re.search(r"\b(when is|what time is|check|confirm)\s+(?:my|the)\s+(appointment|booking)\b", t):
+    elif match.ASKS_APPT_TIME_RE.search(t):
         u.intent = Intent.CHECK
     elif re.search(r"\b(book|appointment)\b", t) and pending in _INTENT_GOALS:
         u.intent = Intent.BOOK
@@ -1074,6 +1076,8 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
     question = match.looks_like_question(raw)
     if question and match.asks_nothing(raw):
         question = False                      # "I mean, what what is... Okay.": nothing asked (8 Oct)
+    if question and u.intent == Intent.CHECK and match.ASKS_APPT_TIME_RE.search(t):
+        question = False                      # "Can you tell me when my appointment is?": the request itself
     if question and exp == "spelling" and match.join_spelled(raw):
         question = False                      # "s r I r a n j a n I?": the "?" is the voice going up
     if question:
@@ -1163,6 +1167,19 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         if not m and pending in (Goal.GREET, Goal.ASK_INTENT):
             m = re.match(r"^(?:(?:hi|hello|hey|yes|yeah|okay|ok|good morning|good afternoon|good evening)"
                          r"[ ,.!]+)*(?:this is|i am|i'm)\s+([a-z][a-z' -]*)", t)
+        fixing = None
+        if not m and view.names_heard:
+            # "No, it's Priya Sharma." just after "Thanks, Priya Sarma.": the name said again, put right
+            # (no-model scenarios, 22 Oct: taken as a missed phone number). Only a name close to the one heard.
+            fixing = re.match(r"^(?:no|nope|sorry|actually)[ ,.!]+(?:(?:it'?s|its|it is|that'?s|i said|my name is|"
+                              r"the name is)\s+)?([a-z][a-z' -]*)$", t)
+        if fixing:
+            name = match.clean_name(" ".join(fixing.group(1).split()[:3]))
+            if name and name.lower() != view.names_heard[-1].lower() \
+                    and match.name_similarity(name, view.names_heard[-1]) >= 0.6:
+                for k, v in _name_fields(name, view).items():
+                    setattr(u, k, v)
+                u.correction = True
         if m:
             cand = " ".join(m.group(1).split()[:3])
             name = match.clean_name(cand)
@@ -1276,6 +1293,11 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         u.for_someone_else, u.relation = True, m.group(1)
     if _CORRECTION_RE.search(t):
         u.correction = True
+    if exp == "date" and not filled_expected and not question and not (u.date_phrase or u.time_phrase) \
+            and _VAGUE_WHEN_RE.search(t):
+        # "I've been really busy lately" to "When's good for you?": not a day, so Emma offers this week
+        # or next (no-model scenarios, 22 Oct: she asked the same thing again in other words).
+        u.acts.append(Act.NON_ANSWER.value)
 
     if filled_expected:
         u.acts.insert(0, Act.ANSWER.value)
