@@ -192,6 +192,13 @@ class R2WordingTests(unittest.TestCase):
 class SpokenLikeAPersonTests(unittest.TestCase):
     """21 Oct audit of 380 real lines: the tells that made Emma sound read out."""
 
+    def test_a_question_asked_again_is_put_differently(self):
+        from types import SimpleNamespace
+        from dialogue import recovery
+        ctx = SimpleNamespace(used=set())
+        asks = ["Sorry, does Friday at 9 work for you?", "Would Friday at 9 be okay for you?"]
+        self.assertEqual([recovery._again(ctx, asks) for _ in range(3)], [asks[0], asks[1], asks[1]])
+
     def test_two_sentences_never_open_the_same_way(self):
         import prompts
         self.assertEqual(prompts.no_double_opener(["Of course.", "Of course, I can book that for you right away."]),
