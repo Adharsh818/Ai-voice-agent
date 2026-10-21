@@ -25,7 +25,9 @@ When the owner says **"continue your work"**, start from this file. The full pla
    - When it runs out, live sentences switch to Piper, an audibly different voice.
    - Options for the owner: Sarvam as the live voice (already built, `TTS_PROVIDER=sarvam`), or ElevenLabs Starter ($5/month).
    - The hosted site uses the same key, so it is affected too.
-2. **Oracle retry has stopped:** `tools/oracle_launch.py` crashed on `oci.exceptions.ConnectTimeout` (Hyderabad endpoint) instead of retrying. Catch connection errors in the loop, then restart it in the "Oracle retry" tab if the owner still wants Oracle.
+2. ~~**Oracle retry**~~ **dropped (owner, 22 Oct): stay on AWS.**
+   - The loop had crashed on `oci.exceptions.ConnectTimeout`, and its tab is closed. `tools/oracle_launch.py` stays in the repo, unused.
+   - Before the AWS credit or the Free plan runs out (the plan ends 17 Apr 2027), decide where Emma moves next.
 3. **Hosted site update (only when the owner says):** deploy the 19-22 Oct code (`bash tools/deploy_remote.sh`, from the PC).
    - Optionally switch it to Gemma 4: add `SARVAM_API_KEY`, `NLU_PRIMARY=sarvam`, `SARVAM_URL=https://api.sarvam.ai/v2/chat/completions` and `SARVAM_MODEL=gemma4` to `/opt/emma/.env`.
 4. **Demo-login safety (from the 19 Oct audit):**
