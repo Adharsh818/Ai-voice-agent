@@ -119,6 +119,7 @@ The owner continues from a cloud session. **Read the "cloud" note below first.**
     - **Reliability on free tiers:** 35/42 Gemma requests answered (7 too slow or refused); the Gemini backup refused 15 (per-minute quota, not daily: it answered again an hour later).
     - **Cost:** about ₹0.2 per thinking turn (₹35/₹90 per million tokens, a ~5.8k-token brief), so ₹1-1.5 per call.
     - **To switch:** in `.env` set `NLU_PRIMARY=sarvam`, `SARVAM_URL=https://api.sarvam.ai/v2/chat/completions` and `SARVAM_MODEL=gemma4` (no code change). Gemini stays as the retry.
+    - **Done on the PC, 21 Oct 23:48 (owner):** warm-up was Gemma 0.95 s against Gemini 6.5 s. The PC Emma is now **Deepgram + Gemma 4 (Gemini retry) + ElevenLabs**. **The hosted site is still on Gemini**; it would need `SARVAM_API_KEY` plus the three lines above in `/opt/emma/.env`, then `bash tools/deploy_remote.sh`.
 - **Still open from the audit:**
   - A daily call limit for the demo login.
   - Mask phone numbers for the demo role: the server's database is a copy holding the owner's number.
