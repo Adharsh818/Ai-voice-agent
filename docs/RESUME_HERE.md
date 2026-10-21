@@ -96,6 +96,13 @@ The owner continues from a cloud session. **Read the "cloud" note below first.**
   - **Test calls:** 77dd115a (the Sarvam brain test) and a3f6caa4 (the Sarvam voice test) both booked, and both bookings were cancelled (owner).
   - **Free-tier credits:** about ₹2 per call for the voice, ₹0.7 per call for the brain if switched on. The owner checks the balance on Sarvam's dashboard.
   - **Gemini key:** a key isn't tied to a model, so the "3.8 key" question was moot. Use one free key at a time (Google's terms); the owner was shown how to create one in AI Studio and check its tier.
+- **21 Oct: back to the fastest combination: Deepgram + Gemini 3.5 Flash-Lite + ElevenLabs** (owner: "as fast as possible, no lag"). The PC's `.env` now has `TTS_PROVIDER=elevenlabs`, and the ElevenLabs cache was still on disk.
+  - **Three-calls test** (typed, 3 at once, 66 replies at normal and 1 s pace): zero Sarvam 429s and zero fallbacks; first audio p50 0.42 s / 0.51 s. Passed.
+  - **Phone call 0dcb18d4** (MicroSIP, Sarvam voice) didn't book:
+    - Gemini took 1.8-2.25 s per thinking turn, hitting the 2.2 s head deadline 6 times; those replies were heard after 3.2-4.3 s.
+    - End of speech was noticed in 0.9-1.4 s.
+    - The line log showed **479 received-audio gaps, the worst 2.2 s** (the phone hotspot), so Deepgram misheard: "Others" for the name, "A pickup" for check-up, "brand" for branch.
+  - **The lag on the phone is Gemini's speed plus the network, not the voice.** The PC's Wi-Fi address changes on every hotspot (10.137.250.171 on 21 Oct); the firewall rule needs the owner's admin PowerShell, not cmd.
 - **Still open from the audit:**
   - A daily call limit for the demo login.
   - Mask phone numbers for the demo role: the server's database is a copy holding the owner's number.
