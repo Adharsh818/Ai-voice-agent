@@ -103,6 +103,16 @@ The owner continues from a cloud session. **Read the "cloud" note below first.**
     - End of speech was noticed in 0.9-1.4 s.
     - The line log showed **479 received-audio gaps, the worst 2.2 s** (the phone hotspot), so Deepgram misheard: "Others" for the name, "A pickup" for check-up, "brand" for branch.
   - **The lag on the phone is Gemini's speed plus the network, not the voice.** The PC's Wi-Fi address changes on every hotspot (10.137.250.171 on 21 Oct); the firewall rule needs the owner's admin PowerShell, not cmd.
+- **21 Oct, speed work (owner: "as fast as possible", "max 0.9 s").**
+  - **More Tier-0 (879a437):** hello, the service list, day filler and misspellings, branch changes, the number check, a service given before the name, and the old after-a-repeat bug. 39 of 154 past model turns now go to rules (12 before).
+  - **End-of-speech, measured on the owner's two recordings, `tools/replay.py` scoring:** today's settings (`DEEPGRAM_ENDPOINTING_MS=200` already in both `.env` files) gave p50 0.88 s and p90 1.06-1.19 s (run-to-run noise about 0.1 s).
+    - Shorter safety steps (complete 0.25, stable 0.15, margin 0.2) gave no gain.
+    - **Deepgram Flux** (`/v2/listen`, `flux-general-en`; the key has access): p50 1.00 s, p90 1.90 s; it merged lines (15 turns instead of 30) and heard "Adash".
+    - **Nothing changed.** The floor is Deepgram returning the last words (about 0.9 s on the recordings; browser calls about 0.6-0.8 s).
+  - **The 0.9 s cap can't be guaranteed:** rule replies are about 1.1 s heard in the browser (about 1.4 s on the phone line).
+  - **Brain candidate: Gemma 4 via Sarvam** (`SARVAM_URL=https://api.sarvam.ai/v2/chat/completions`, `SARVAM_MODEL=gemma4`, `NLU_PRIMARY=sarvam`). Head ready in p50 0.74 s against Gemini's about 1.74 s. On 25 of the 53 live scenarios (the run stopped on Gemini quota): 0 re-asks out of 151, 15/15 bookings.
+    - **Next:** a full one-at-a-time run (`--concurrency 1`) once the Gemini quota resets.
+    - **The Gemini free daily quota was used up on 21 Oct by the tests.**
 - **Still open from the audit:**
   - A daily call limit for the demo login.
   - Mask phone numbers for the demo role: the server's database is a copy holding the owner's number.
