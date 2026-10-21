@@ -601,5 +601,34 @@ class SmallTalkTests(ClinicCallCase):
         self.assertNotIn("know what you mean", reply)
 
 
+class ModelDownScenarioTests(ClinicCallCase):
+    """22 Oct: the three scenarios that failed with the model down (the model is down in these tests too)."""
+
+    def test_when_my_appointment_is_is_a_check_not_a_question(self):
+        reply = Call().run("", "Hi, can you tell me when my appointment is?").text
+        self.assertNotIn("know that", reply)
+        self.assertIn("number", reply)
+
+    def test_no_its_and_the_name_puts_the_name_right(self):
+        call = Call()
+        call.run("", "I want to book a check-up.", "My name is Priya Sarma.")
+        call.say("No, it's Priya Sharma.")
+        self.assertEqual(call.s.caller.name, "Priya Sharma")
+
+    def test_letters_then_the_name_said_whole_is_a_spelling(self):
+        from dialogue import match
+        self.assertEqual(match.join_spelled("P R I Y A, Priya."), "Priya")
+        self.assertIsNone(match.join_spelled("P R I Y A, Sharma."))
+        call = Call()
+        call.run("", "I want to book a check-up.", "My name is Priya Sarma.", "No, it's Priya Sharma.")
+        self.assertIn("number", call.say("P R I Y A, Priya.").text)    # taken, on to the number
+
+    def test_busy_lately_gets_this_week_or_next(self):
+        call = Call()
+        call.run("", "Hi, I'd like to book a cleaning.", "Priya Sharma.", "It's 98450 12345.", "Yes.",
+                 "Jayanagar.")
+        self.assertRegex(call.say("I've been really busy lately.").text, r"this week|next week")
+
+
 if __name__ == "__main__":
     unittest.main()
