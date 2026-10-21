@@ -111,8 +111,14 @@ The owner continues from a cloud session. **Read the "cloud" note below first.**
     - **Nothing changed.** The floor is Deepgram returning the last words (about 0.9 s on the recordings; browser calls about 0.6-0.8 s).
   - **The 0.9 s cap can't be guaranteed:** rule replies are about 1.1 s heard in the browser (about 1.4 s on the phone line).
   - **Brain candidate: Gemma 4 via Sarvam** (`SARVAM_URL=https://api.sarvam.ai/v2/chat/completions`, `SARVAM_MODEL=gemma4`, `NLU_PRIMARY=sarvam`). Head ready in p50 0.74 s against Gemini's about 1.74 s. On 25 of the 53 live scenarios (the run stopped on Gemini quota): 0 re-asks out of 151, 15/15 bookings.
-    - **Next:** a full one-at-a-time run (`--concurrency 1`) once the Gemini quota resets.
-    - **The Gemini free daily quota was used up on 21 Oct by the tests.**
+    - **Full run, 21 Oct 23:40 (`--concurrency 1`), all 53:**
+      - head ready p50 0.70 s and p90 0.88 s;
+      - M2 1/200, M3 0/32, M5 1/231, M7 20/20, T5 8;
+      - Z1-Z7 all 0.
+      - **Better than Sarvam 105B (38 re-asks, 6 loops), and as good as the no-model rules on quality, with model understanding.**
+    - **Reliability on free tiers:** 35/42 Gemma requests answered (7 too slow or refused); the Gemini backup refused 15 (per-minute quota, not daily: it answered again an hour later).
+    - **Cost:** about ₹0.2 per thinking turn (₹35/₹90 per million tokens, a ~5.8k-token brief), so ₹1-1.5 per call.
+    - **To switch:** in `.env` set `NLU_PRIMARY=sarvam`, `SARVAM_URL=https://api.sarvam.ai/v2/chat/completions` and `SARVAM_MODEL=gemma4` (no code change). Gemini stays as the retry.
 - **Still open from the audit:**
   - A daily call limit for the demo login.
   - Mask phone numbers for the demo role: the server's database is a copy holding the owner's number.
