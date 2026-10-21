@@ -1,10 +1,10 @@
-/* Talk page, styled like an apple.com product hero (docs/APPLE_DESIGN_PLAN.md 4.2):
-   a glass bar, "Emma." as the headline, the orb as a glass sphere that moves with the voice,
-   and pill buttons. Light only, exactly like apple.com. The orb's states and ids are the
-   ones app.js drives; the patient page keeps app.css. */
+/* Talk page on the 22 Oct ledger (docs/APPLE_DESIGN_PLAN.md 11.4): a floating glass capsule (B1),
+   "Emma." as the hero, the orb as a lit glass sphere (A23, B12), a stretching-pill level meter (B10),
+   the caption on a progressive blur (B11) fading in line by line (B13), and Call / Type instead
+   as one materialising glass pill bar with a sliding bubble (B2, B3). Light only.
+   The orb's ids and data-state values are the ones app.js drives; the patient page keeps app.css. */
 
 body.talk {
-  --lvl: 0;
   --tint: #9aa6bd;
   --t-idle: #9aa6bd;
   --t-listening: #34c759;
@@ -19,48 +19,32 @@ body.talk {
   overflow-x: hidden;
 }
 
-/* ------------------------------------------------------------------ glass bar */
-.talk-nav {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  height: 44px;
-  border-bottom: 1px solid var(--hairline-soft);
-}
-.talk-nav-inner {
-  max-width: 1024px;
-  height: 100%;
-  margin: 0 auto;
-  padding: 0 22px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.talk-nav .pearl { --size: 18px; }
-.talk-nav-name { font-weight: 600; font-size: 14px; letter-spacing: -0.016em; }
-.talk-nav-link {
-  margin-left: auto;
-  font-size: 12px;
-  letter-spacing: -0.01em;
-  color: var(--ink);
-  opacity: 0.8;
-  transition: opacity var(--t) var(--ease);
-}
-.talk-nav-link:hover { opacity: 1; text-decoration: none; }
-
 /* ------------------------------------------------------------------ hero */
 .talk-main {
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 0;
-  padding: clamp(36px, 7vh, 80px) 16px 40px;
+  padding: clamp(28px, 6vh, 72px) 16px 40px;
   text-align: center;
 }
 
-.hero { display: grid; justify-items: center; gap: 6px; transition: opacity var(--t) var(--ease), transform var(--t) var(--ease); }
-.hero-title { margin: 0; }
-.hero-sub { margin: 0; color: var(--ink-2); }
+.hero { display: grid; justify-items: center; gap: 8px; transition: opacity var(--t) var(--ease), transform var(--t) var(--ease); }
+.hero-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 64px;
+  line-height: 68px;
+  font-weight: 600;
+  letter-spacing: -0.009em;
+}
+.hero-sub {
+  margin: 0;
+  color: var(--ink-2);
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 28px;
+  letter-spacing: 0.009em;
+}
 
 /* In a call the headline steps back and a status line takes its place (cross-fade). */
 .hero-stack { display: grid; place-items: center; }
@@ -69,27 +53,25 @@ body.talk {
   margin: 0;
   opacity: 0;
   color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 600;
   transform: translateY(8px);
   transition: opacity var(--t) var(--ease), transform var(--t) var(--ease);
 }
 body:not([data-call="idle"]) .call-status { opacity: 1; transform: none; }
 body:not([data-call="idle"]) .hero { opacity: 0; transform: translateY(-8px); pointer-events: none; }
-body[data-call="busy"] .call-status,
-body[data-call="lost"] .call-status,
-body[data-call="blocked"] .call-status,
-body[data-call="error"] .call-status { opacity: 0; }
-body[data-call="busy"] .hero,
-body[data-call="lost"] .hero,
-body[data-call="blocked"] .hero,
-body[data-call="error"] .hero { opacity: 1; transform: none; }
+body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-call="error"]) .call-status { opacity: 0; }
+body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-call="error"]) .hero { opacity: 1; transform: none; }
 
-/* ------------------------------------------------------------------ the orb: a glass sphere */
+/* ------------------------------------------------------------------ the orb: a lit glass sphere */
 #orb {
   --size: min(52vmin, 300px);
   position: relative;
   width: var(--size);
   height: var(--size);
-  margin: clamp(34px, 6vh, 64px) 0 clamp(26px, 4vh, 40px);
+  margin: clamp(30px, 5.5vh, 60px) 0 0;
   border: 0;
   padding: 0;
   border-radius: 50%;
@@ -99,43 +81,53 @@ body[data-call="error"] .hero { opacity: 1; transform: none; }
   transition: transform 200ms var(--ease);
 }
 #orb:active { transform: scale(0.96); }
-#orb:focus-visible { outline: 2px solid var(--focus); outline-offset: 14px; }
+#orb:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-#orb .core, #orb .halo, #orb .ring, #orb .gloss {
+#orb .core, #orb .halo, #orb .ring, #orb .gloss, #orb .rim {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   pointer-events: none;
 }
 
-/* Frosted glass with the state colour glowing from inside. */
+/* Frosted glass with the state colour glowing from inside; a 0.5px inner edge, no border (B12). */
 #orb .core {
   background:
-    radial-gradient(circle at 50% 62%, color-mix(in srgb, var(--tint) 58%, transparent) 0%, transparent 62%),
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.92) 0%, rgba(246, 247, 250, 0.86) 48%, rgba(222, 226, 235, 0.9) 100%);
+    radial-gradient(circle at 50% 64%, color-mix(in srgb, var(--tint) 56%, transparent) 0%, transparent 62%),
+    radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 0.94) 0%, rgba(246, 247, 250, 0.88) 50%, rgba(220, 224, 233, 0.92) 100%);
   box-shadow:
-    inset 0 -18px 40px color-mix(in srgb, var(--tint) 28%, transparent),
+    var(--edge),
+    inset 0 -18px 40px color-mix(in srgb, var(--tint) 26%, transparent),
     inset 0 2px 1px rgba(255, 255, 255, 0.9),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
     0 30px 60px -24px color-mix(in srgb, var(--tint) 55%, transparent),
     0 2px 6px rgba(0, 0, 0, 0.06);
-  transform: scale(calc(0.92 + var(--lvl) * 0.16));
+  transform: scale(calc(0.92 + var(--lvl, 0) * 0.16));
   transition: background 480ms var(--ease), box-shadow 480ms var(--ease), transform 70ms linear;
 }
-/* the specular highlight that sells the glass */
+/* A23: a conic-gradient rim, light catching the top-left edge like a polished swatch ring. */
+#orb .rim {
+  background: conic-gradient(from 200deg,
+    rgba(0, 0, 0, 0.08) 0deg, rgba(0, 0, 0, 0.22) 64.8deg, rgba(0, 0, 0, 0.08) 115.2deg,
+    rgba(255, 255, 255, 0.95) 160deg, rgba(255, 255, 255, 0.6) 230deg, rgba(0, 0, 0, 0.08) 300deg, rgba(0, 0, 0, 0.08) 360deg);
+  -webkit-mask: radial-gradient(circle, transparent calc(70.6% - 1.5px), #000 calc(70.6% - 1px), #000 70.6%, transparent calc(70.6% + 0.5px));
+          mask: radial-gradient(circle, transparent calc(70.6% - 1.5px), #000 calc(70.6% - 1px), #000 70.6%, transparent calc(70.6% + 0.5px));
+  transform: scale(calc(0.92 + var(--lvl, 0) * 0.16));
+  transition: transform 70ms linear;
+  opacity: 0.9;
+}
 #orb .gloss {
   inset: 6% 18% 52% 18%;
   border-radius: 50% / 46%;
   background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
   opacity: 0.9;
-  transform: scale(calc(0.92 + var(--lvl) * 0.16));
+  transform: scale(calc(0.92 + var(--lvl, 0) * 0.16));
   transform-origin: 50% 160%;
   transition: transform 70ms linear;
 }
 #orb .halo {
   inset: -22%;
   background: radial-gradient(circle, color-mix(in srgb, var(--tint) 70%, transparent) 0%, transparent 62%);
-  opacity: calc(0.18 + var(--lvl) * 0.65);
+  opacity: calc(0.18 + var(--lvl, 0) * 0.65);
   filter: blur(14px);
   transition: opacity 90ms linear, background 480ms var(--ease);
 }
@@ -147,12 +139,23 @@ body[data-call="error"] .hero { opacity: 1; transform: none; }
           mask: radial-gradient(circle, transparent 67%, #000 68%, #000 70%, transparent 71%);
   transition: opacity var(--t) var(--ease);
 }
+/* B14: connecting shows the 8-spoke spinner in the sphere */
+#orb .orb-spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  --spinner-size: 28px;
+  --spinner-ink: #6e6e73;
+  opacity: 0;
+  transition: opacity 200ms var(--ease);
+  pointer-events: none;
+}
+#orb[data-state="connecting"] .orb-spinner { opacity: 1; }
 
 #orb[data-state="idle"] { --tint: var(--t-idle); }
 #orb[data-state="idle"] .core { animation: float 6s var(--ease) infinite; }
 #orb[data-state="idle"]:hover .core { transform: scale(0.95); }
 #orb[data-state="connecting"] { --tint: var(--t-idle); }
-#orb[data-state="connecting"] .core { animation: pulse 1.4s var(--ease) infinite; }
 #orb[data-state="listening"] { --tint: var(--t-listening); }
 #orb[data-state="listening"] .halo { animation: breathe 4s var(--ease) infinite; }
 #orb[data-state="thinking"] { --tint: var(--t-thinking); }
@@ -160,16 +163,39 @@ body[data-call="error"] .hero { opacity: 1; transform: none; }
 #orb[data-state="speaking"] { --tint: var(--t-speaking); }
 #orb[data-state="error"], #orb[data-state="lost"], #orb[data-state="blocked"] { --tint: var(--t-error); }
 #orb[data-state="busy"] { --tint: var(--t-busy); }
+body.needs-signin #orb { --tint: var(--t-speaking); }   /* an invitation, not an alarm */
 
 @keyframes float { 50% { transform: scale(0.94) translateY(-4px); } }
-@keyframes pulse { 50% { transform: scale(0.86); opacity: 0.75; } }
 @keyframes breathe { 50% { transform: scale(1.06); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ------------------------------------------------------------------ caption */
+/* ------------------------------------------------------------------ B10 level meter */
+.meter-slot {
+  display: grid;
+  place-items: center;
+  height: 8px;
+  margin: clamp(22px, 3.5vh, 34px) 0 clamp(10px, 2vh, 18px);
+  opacity: 0;
+  transition: opacity var(--t) var(--ease);
+}
+body:is([data-call="listening"], [data-call="speaking"], [data-call="thinking"]) .meter-slot { opacity: 1; }
+body[data-call="listening"] .e-meter { --meter-ink: rgba(52, 199, 89, 0.42); --meter-ink-current: #34c759; }
+body[data-call="speaking"] .e-meter { --meter-ink: rgba(0, 113, 227, 0.42); --meter-ink-current: #0071e3; }
+
+/* ------------------------------------------------------------------ caption on a progressive blur (B11, B13) */
+.caption-wrap {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  width: min(100%, 720px);
+  padding: 10px 20px;
+}
+.caption-wrap .e-blur-scrim { inset: -8px -10%; opacity: 0; transition: opacity 500ms var(--ease-caption); }
+.caption-wrap:has(#caption:not(:empty)) .e-blur-scrim { opacity: 1; }
 #caption {
   margin: 0;
-  max-width: min(88vw, 680px);
+  max-width: 680px;
   min-height: 2.4em;
   color: var(--ink);
   font-family: var(--font-display);
@@ -181,57 +207,49 @@ body[data-call="error"] .hero { opacity: 1; transform: none; }
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  animation: caption-in var(--t) var(--ease) both;
 }
-#caption:empty { animation: none; }
+#caption.is-new { animation: caption-in 500ms var(--ease-caption) both; }
 #caption.user { color: var(--ink-2); font-weight: 400; }
-#caption.notice { color: var(--ink-2); font-weight: 400; font-size: 19px; }
-#caption.error { color: var(--red-ink); font-weight: 400; font-size: 19px; }
-@keyframes caption-in { from { opacity: 0.4; } to { opacity: 1; } }
+#caption.notice { color: var(--ink-2); font-weight: 400; font-size: 19px; letter-spacing: 0.012em; }
+#caption.error { color: var(--red-ink); font-weight: 400; font-size: 19px; letter-spacing: 0.012em; }
+body.needs-signin #caption.error { color: var(--ink); }
+@keyframes caption-in { from { opacity: 0; } to { opacity: 1; } }
 
-/* ------------------------------------------------------------------ buttons */
+/* ------------------------------------------------------------------ B2 + B3: the call pill bar */
 .cta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 22px;
-  min-height: 44px;
+  --bubble-fill: var(--blue);
+  margin-top: 18px;
+  z-index: 5;
 }
-body[data-call="connecting"] #call-button,
-body[data-call="listening"] #call-button,
-body[data-call="thinking"] #call-button,
-body[data-call="speaking"] #call-button { background: var(--red); }
-body[data-call="connecting"] #call-button:hover,
-body[data-call="listening"] #call-button:hover,
-body[data-call="thinking"] #call-button:hover,
-body[data-call="speaking"] #call-button:hover { background: #ff453a; }
+.cta > button { min-width: 112px; }
+body:is([data-call="connecting"], [data-call="listening"], [data-call="thinking"], [data-call="speaking"]) .cta { --bubble-fill: var(--red); }
 /* A problem shows its own "Try again"; the call button steps aside. */
-body[data-call="busy"] #call-button,
-body[data-call="lost"] #call-button,
-body[data-call="blocked"] #call-button,
-body[data-call="error"] #call-button { display: none; }
+body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-call="error"]) #call-button { display: none; }
 
-/* ------------------------------------------------------------------ typed backup: a floating glass pill */
+/* ------------------------------------------------------------------ typed backup: a glass pill under the call bar */
 .typed {
-  position: fixed;
-  left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom));
-  z-index: 20;
+  position: relative;
+  z-index: 6;
   display: flex;
   align-items: center;
   gap: 8px;
-  width: min(92vw, 600px);
+  width: min(100%, 600px);
   height: 56px;
+  margin-top: 14px;
   padding: 0 8px 0 22px;
-  transform: translateX(-50%);
-  animation: pill-in var(--t) var(--ease-layout) both;
+  border-radius: 28px;
+  background: var(--glass-pass);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  box-shadow: var(--edge);
+  animation: pill-in 400ms var(--ease-out) both;
 }
 .typed[hidden] { display: none; }
+.typed:focus-within { background: var(--glass-pass-hover); }
 .typed input {
   flex: 1;
   min-width: 0;
-  height: 40px;
+  height: 44px;
   border: 0;
   background: transparent;
   color: var(--ink);
@@ -239,35 +257,56 @@ body[data-call="error"] #call-button { display: none; }
   font-size: 17px;
   outline: none;
 }
+.typed input::placeholder { color: var(--ink-2); }
 .typed-send {
+  display: grid;
+  place-items: center;
+  flex: none;
   width: 40px;
   height: 40px;
   border: 0;
   border-radius: 50%;
   background: var(--blue);
   color: #fff;
-  font-size: 19px;
-  font-weight: 700;
   cursor: pointer;
-  transition: background-color var(--t-fast) var(--ease-color), transform 160ms var(--ease);
+  transition: background-color 100ms linear, transform 100ms linear;
+  -webkit-tap-highlight-color: transparent;
 }
+.typed-send svg { width: 16px; height: 16px; }
 .typed-send:hover { background: var(--blue-hover); }
-.typed-send:active { transform: scale(0.92); }
-@keyframes pill-in { from { opacity: 0; transform: translate(-50%, 16px) scale(0.96); } to { opacity: 1; transform: translateX(-50%); } }
+.typed-send:active { background: var(--blue-active); transform: scale(0.95); }
+.typed-send:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@keyframes pill-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  to { opacity: 1; transform: none; }
+}
 
 .talk-footer { padding: 16px 22px 22px; text-align: center; }
-.talk-footer p { margin: 0; }
-body:has(.typed:not([hidden])) .talk-footer { visibility: hidden; }
-body:has(.typed:not([hidden])) .talk-main { padding-bottom: 104px; }
-
+.talk-footer p { margin: 0; font-size: 12px; line-height: 16px; letter-spacing: -0.01em; color: var(--ink-2); }
 
 @media (max-width: 734px) {
-  .talk-main { padding-top: 32px; }
-  #caption { font-size: 21px; }
+  .talk-main { padding: 24px 16px 32px; }
+  .hero-title { font-size: 40px; line-height: 44px; letter-spacing: 0; }
+  .hero-sub { font-size: 19px; line-height: 23px; letter-spacing: 0.012em; }
+  .call-status { font-size: 32px; line-height: 36px; letter-spacing: 0.004em; }
+  #caption { font-size: 21px; line-height: 25px; letter-spacing: 0.011em; }
+  #orb { --size: min(62vw, 280px); }
+  /* the pill bar rides 32px above the bottom edge on phones (P5) */
+  .cta { position: sticky; bottom: calc(32px + env(safe-area-inset-bottom)); }
+  body:has(.typed:not([hidden])) .cta { position: relative; bottom: auto; }
+  .cta > button { padding: 0 18px; min-width: 104px; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .typed { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--solid-rest); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #orb .core, #orb .halo, #orb .ring, #orb .gloss { animation: none !important; }
-  #orb .core, #orb .gloss { transform: none; }
+  #orb .core, #orb .halo, #orb .ring, #orb .gloss, #orb .rim { animation: none !important; }
+  #orb .core, #orb .gloss, #orb .rim { transform: none; }
+  #orb:active { transform: none; }
   #orb[data-state="thinking"] .ring { opacity: 0.6; }
+  .typed { animation: none; }
+  #caption.is-new { animation: none; }
+  .e-meter > i { width: 8px !important; }
 }

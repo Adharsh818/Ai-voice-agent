@@ -10,47 +10,72 @@
   <link rel="stylesheet" href="/dashboard/static/login.css">
 </head>
 <body class="signin">
-  <header class="signin-nav glass-bar">
-    <div class="signin-nav-inner">
-      <span class="pearl" aria-hidden="true"></span>
-      <span class="signin-nav-name">Pearl Dental</span>
-      <span class="signin-nav-section">Staff</span>
-    </div>
-  </header>
+  <div class="e-capsule-wrap" id="signin-capsule">
+    <header class="e-capsule">
+      <a class="e-capsule-brand" href="/" aria-label="Pearl Dental home">
+        <span class="pearl" aria-hidden="true"></span>
+        <span>Pearl Dental</span>
+      </a>
+      <div class="e-capsule-end">
+        <span class="e-capsule-meta">Staff</span>
+      </div>
+    </header>
+  </div>
 
   <main class="signin-main">
-    <div class="signin-column" data-reveal>
-      <span class="pearl signin-mark" aria-hidden="true"></span>
-      <h1 class="t-title signin-title">Staff sign in</h1>
-      <p class="t-body ink-2 signin-sub">Pearl Dental dashboard</p>
+    <div class="signin-brand" aria-hidden="true">
+      <span class="pearl signin-mark"></span>
+    </div>
 
-      <div id="locked" class="signin-locked glass-pill" hidden>
-        <strong>The dashboard is locked.</strong>
-        <span id="locked-reason" class="t-small ink-2"></span>
+    <div class="signin-column">
+      <h1 class="signin-title">Staff sign in</h1>
+      <p class="signin-sub">Pearl Dental dashboard</p>
+
+      <div id="locked" class="signin-locked" role="status" hidden>
+        <svg class="signin-lock" viewBox="0 0 16 20" aria-hidden="true" focusable="false">
+          <path d="M4 8V5.5a4 4 0 0 1 8 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <rect x="1.5" y="8" width="13" height="10.5" rx="2.5" fill="currentColor"/>
+        </svg>
+        <div>
+          <p class="signin-locked-title">The dashboard is locked.</p>
+          <p id="locked-reason" class="signin-locked-reason"></p>
+        </div>
       </div>
 
       <form id="login-form" class="signin-form" autocomplete="on" hidden novalidate>
-        <div class="field-group" id="field-group">
-          <div class="field-float">
-            <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder=" ">
-            <label for="username">User name</label>
+        <div class="signin-fields" id="field-group">
+          <div class="e-field">
+            <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder=" " aria-describedby="username-help">
+            <label for="username">User name (optional)</label>
           </div>
-          <div class="field-float">
-            <input id="password" name="password" type="password" autocomplete="current-password" required placeholder=" ">
+          <div class="e-field">
+            <input id="password" name="password" type="password" autocomplete="current-password" required placeholder=" " aria-describedby="login-error">
             <label for="password">Password</label>
           </div>
         </div>
-        <p class="field-help" id="username-help">Leave the user name empty to use the clinic password.</p>
-        <p id="login-error" class="field-error" role="alert" hidden></p>
-        <button class="btn-pill block signin-button" type="submit" id="login-button" disabled>Sign in</button>
+        <p id="login-error" class="e-error-line" role="alert" aria-live="polite" hidden></p>
+        <p class="signin-help" id="username-help">Leave the user name empty to use the clinic password.</p>
+        <button class="e-block-btn signin-button" type="submit" id="login-button" disabled>
+          <span class="e-btn-label">Sign in</span>
+          <span class="e-spinner" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        </button>
       </form>
 
-      <p class="t-caption ink-2 signin-note">For Pearl Dental staff only. Every sign-in is recorded in the audit log.</p>
+      <p class="signin-note">
+        <svg class="signin-lock small" viewBox="0 0 16 20" aria-hidden="true" focusable="false">
+          <path d="M4 8V5.5a4 4 0 0 1 8 0V8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <rect x="1.5" y="8" width="13" height="10.5" rx="2.5" fill="currentColor"/>
+        </svg>
+        <span>For Pearl Dental staff only. Every sign-in is recorded in the audit log.</span>
+      </p>
     </div>
   </main>
 
   <footer class="signin-footer">
-    <p class="t-caption ink-2">Pearl Dental · Staff dashboard</p>
+    <div class="signin-footer-inner">
+      <p>Pearl Dental · Staff dashboard</p>
+      <p>Forgot the password? Ask the clinic owner.</p>
+    </div>
   </footer>
   <script type="module" src="/dashboard/static/login.js"></script>
 </body>
