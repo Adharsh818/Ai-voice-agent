@@ -49,7 +49,7 @@ import clock
 import config
 import prompts
 from dateparse import DateConstraint
-from dialogue import book, manage
+from dialogue import book, manage, match
 from dialogue.context import (
     Act, CallContext, CLOSING_GOALS, Expect, FieldState, GOAL_SPECS, Goal, GoalPlan, Intent,
     MANAGE_INTENTS, RUNG_ASK, RUNG_CHOICES, RUNG_EXIT, Understanding,
@@ -491,14 +491,9 @@ def plan_hint(ctx: CallContext, catalog=None) -> GoalPlan:
 # ---------------------------------------------------------------- loop breaker
 
 
-# "Tell me the services, I'll choose one", "what treatments do you do?", "which branches are there?":
-# the caller wants the options read out (owner's phone call, 14 Oct: it was taken as a miss twice and
-# ended in a callback offer instead of the list).
-_ASKS_OPTIONS = re.compile(
-    r"\b(?:what|which|tell me|list|say|read|name|go through)\b.{0,30}?"
-    r"\b(?:services?|treatments?|options?|choices?|branches|branch|locations?|times|slots)\b"
-    r"|\bwhat (?:do|can) you (?:do|offer|have)\b|\bwhat (?:are|is) (?:there|available)\b",
-    re.IGNORECASE)
+# "Tell me the services, I'll choose one": the caller wants the options read out (owner's phone call,
+# 14 Oct: it was taken as a miss twice and ended in a callback offer). Shared with tier0.
+_ASKS_OPTIONS = match.ASKS_OPTIONS_RE
 
 
 def asks_for_options(ctx: CallContext, goal: Goal, u: Optional[Understanding]) -> bool:
@@ -666,6 +661,11 @@ def note_turn(ctx: CallContext, plan: GoalPlan, u: Optional[Understanding]) -> N
     else:
         ctx.__dict__.pop("_open_question", None)
 
+    if plan.goal == Goal.REPEAT and ctx.pending not in (None, Goal.REPEAT):
+        # "Sorry?" / "Hello?" / "Can you hear me?": Emma re-spoke the very same question, so she is
+        # still waiting for its answer (21 Oct: "Adharsh" after "Yes, I'm here. ...your name?" wasn't
+        # taken as the name, and she asked again).
+        return
     if plan.steer:
         stats = ctx.stats(plan.goal)
         stats.asked += 1

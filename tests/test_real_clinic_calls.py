@@ -239,6 +239,66 @@ class AskForOptionsTests(ClinicCallCase):
         self.assertIn("Nagarbhavi", call.say("Cleaning.").text)   # on to the branch
 
 
+class FasterRuleTurnsTests(ClinicCallCase):
+    """21 Oct: replies that went to the model (~2 s each) on the owner's calls, now answered by Tier-0
+    (the model is down in these tests, so tier 2 here would mean the rules didn't take the turn)."""
+
+    BOOK = ("", "I'd like to book an appointment.")
+    TO_DAY = BOOK + ("Adharsh", "9845012345", "yes", "Cleaning.", "Jayanagar.")
+
+    def turn(self, call, text):
+        r = call.say(text)
+        self.assertEqual(r.tier, 0, f"{text!r} went past the rules: {r.text}")
+        return r.text
+
+    def test_hello_repeats_the_question_and_the_next_answer_still_counts(self):
+        call = Call()
+        call.run(*self.BOOK)
+        self.assertRegex(self.turn(call, "Hello?"), r"(?i)here|hear you")
+        self.assertIn("number", self.turn(call, "Adharsh"))        # taken as the name, on to the number
+
+    def test_asking_for_the_services_reads_the_list(self):
+        call = Call()
+        call.run(*self.BOOK, "Adharsh", "9845012345", "yes")
+        self.assertIn("root canals", self.turn(call, "Services available."))
+
+    def test_a_day_with_filler_or_a_misspelling(self):
+        for said in ("I want tomorrow, actually.", "tommorow."):
+            call = Call()
+            call.run(*self.TO_DAY)
+            self.assertIn("tomorrow", self.turn(call, said).lower())
+
+    def test_change_the_brand_reopens_the_branch(self):
+        call = Call()
+        call.run(*self.TO_DAY)
+        reply = self.turn(call, "Change the brand.")
+        self.assertIn("Whitefield", reply)
+        self.assertNotIn("Jayanagar", reply)                        # the others, not the one just given
+
+    def test_a_branch_named_while_asked_for_the_day(self):
+        call = Call()
+        call.run(*self.BOOK, "Adharsh", "9845012345", "yes", "Cleaning.", "Nagarbhavi.")
+        self.turn(call, "I want Jayanagar.")
+        self.assertEqual(call.s.book.branch, "Jayanagar")
+
+    def test_another_number_at_the_read_back(self):
+        call = Call()
+        call.run(*self.BOOK, "Adharsh", "9845012345")
+        self.assertIn("number", self.turn(call, "No. It's another number."))
+        self.assertIn("9 8 9 9 3", self.turn(call, "9899375620"))
+        call = Call()
+        call.run(*self.BOOK, "Adharsh", "9845012345")
+        self.assertIn("9 8 9 9 3, 7 5 6 2 0", self.turn(call, "No. 9899375620"))
+
+    def test_a_service_given_before_the_name(self):
+        call = Call()
+        call.run(*self.BOOK)
+        self.assertIn("name", self.turn(call, "For cleaning."))
+        call.run("Adharsh", "9845012345", "yes")
+        self.assertIn("Nagarbhavi", call.lines[-1])                 # straight to the branch: the service stuck
+        self.assertEqual(call.s.book.service, "Teeth Cleaning")
+
+
 class ChangeWithoutValueTests(ClinicCallCase):
     """Talk-page call 44f15bd6 (14 Oct): "No. Change the branch." got "What day works for you?" twice."""
 

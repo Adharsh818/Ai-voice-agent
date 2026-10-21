@@ -261,6 +261,9 @@ _WHEN_VOCAB = {
     "o'clock", "clock", "hours", "hour", "sharp", "exactly", "nd", "st", "rd", "th", "o",
 }
 _WHEN_VOCAB |= set(dateparse.WEEKDAYS) | set(dateparse.MONTHS)
+# 21 Oct: "I want tomorrow, actually." and "tommorow." went to the model (~2 s) though dateparse reads
+# them; the misspellings are the ones dateparse knows, the rest is filler a date answer can carry.
+_WHEN_VOCAB |= {"tmrw", "tomorow", "tommorow", "tommorrow", "want", "wanna", "need", "actually", "i'll", "ill"}
 _ORDINAL_WORD_RE = re.compile(
     r"\d+(?:st|nd|rd|th)|(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|"
     r"twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|"
@@ -562,6 +565,8 @@ def _globals(t: str, raw: str, words: list, view: Tier0View, source: str):
     if _NON_LATIN_RE.search(raw or "") or _LANGUAGE_RE.match(t):
         return _u(raw, source, [Act.OTHER_LANGUAGE])
     if _REPEAT_RE.match(t) or match.HEAR_CHECK_RE.match(t):
+        return _u(raw, source, [Act.REPEAT])
+    if match.BARE_HELLO_RE.match(t) and view.pending not in (None, Goal.GREET, Goal.ASK_INTENT):
         return _u(raw, source, [Act.REPEAT])
     if _WAIT_RE.match(t):
         return _u(raw, source, [Act.WAIT])
@@ -882,6 +887,44 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
     if g is not None:
         return g
 
+    # "No. Change the branch." / "Actually change the brand." with nothing else: a correction with no new
+    # value; book._reopen clears that detail and asks it again (15 Oct). 21 Oct: these went to the model.
+    if view.intent == Intent.BOOK and _CHANGE_FIELD_RE.match(t):
+        return _u(raw, "tier0", [Act.CORRECTION], correction=True)
+    # A branch named on its own while Emma asks for the day or time ("I want Jayanagar."): the branch.
+    if view.intent == Intent.BOOK and view.pending in (Goal.ASK_WHEN, Goal.ASK_TIME) and len(words) <= 5:
+        br = match.match_branch(raw, _catalog_part(view, "branches"))
+        rest = _BRANCH_LEAD_RE.sub("", t)
+        if br.value and not br.options and rest and match.match_branch(rest, _catalog_part(view, "branches")).value \
+                == br.value and len(_tokens(rest)) <= 2 and _parse_when(raw).empty \
+                and not _other_slots(raw, view, branch=False):
+            return _u(raw, "tier0", [Act.CORRECTION], correction=True, branch=br.value)
+
+    # "For cleaning." when Emma asked for the name (21 Oct, twice to the model): the service, given early;
+    # nothing is taken as the name, so Emma notes the service and asks for the name again.
+    if view.pending == Goal.ASK_NAME and len(words) <= 4:
+        said = _SERVICE_LEAD_RE.sub("", t)
+        svc = match.match_service(said, _catalog_part(view, "services"), asked=True) if said else None
+        if svc is not None and svc.value and not svc.options and len(_tokens(said)) <= 2 \
+                and not _other_slots(raw, view, service=False):
+            return _u(raw, "tier0", [Act.INFO], service=svc.value, service_phrase=said)
+
+    # At the number read-back (21 Oct, all went to the model): "No. (789) 937-7567." is the corrected
+    # number, as the lenient reading takes it; "No, it's another number" / "No, I'll tell you the number"
+    # is a plain no, so Emma asks for it.
+    if view.pending == Goal.CONFIRM_PHONE and _NO_LEAD_RE.match(t):
+        run = match.extract_digits(raw)
+        if run.complete and not run.too_many:
+            return _u(raw, "tier0", [Act.ANSWER], phone_digits=run.digits)
+        if not run.digits and _OTHER_NUMBER_RE.search(t) and len(words) <= 10:
+            return _u(raw, "tier0", [Act.ANSWER], confirmation="no")
+
+    # "Tell me the services" / "which branches are there?" at that very question: Emma reads the list
+    # (policy.asks_for_options). No slot is taken, so a reply that also names one goes to the model.
+    if view.pending in (Goal.ASK_SERVICE, Goal.ASK_BRANCH) and len(words) <= 12 \
+            and match.ASKS_OPTIONS_RE.search(t) and not _other_slots(raw, view):
+        return _u(raw, "tier0", [Act.ANSWER])
+
     if emergency == Emergency.URGENT:
         # Short and plain only ("I have severe tooth pain"); details go to the model.
         if len(words) <= 12 and not match.looks_like_question(raw) and _parse_when(raw).empty \
@@ -959,6 +1002,18 @@ _ASKS_TO_BOOK = re.compile(r"\b(book|appointment|come in|(can|could|may) (i|we) 
                            r"i'?d like|i want|i need)\b")
 
 
+_SERVICE_LEAD_RE = re.compile(r"^(?:(?:it'?s|its|it is|for|for a|for an|a|an|the|just|um+|uh+)[\s,.]+)+")
+_NO_LEAD_RE = re.compile(r"^(?:no|nope|nah|not this|not that)\b")
+_OTHER_NUMBER_RE = re.compile(r"\b(?:another|different|other|new|wrong)\s+(?:number|one|mobile)\b|"
+                              r"\b(?:i'?ll|i will|let me)\s+(?:tell|give)\s+(?:you\s+)?(?:the|a|my|another)?\s*"
+                              r"(?:number|one)\b")
+_CHANGE_FIELD_RE = re.compile(
+    r"^(?:(?:no|nope|actually|um+|uh+|ok|okay|wait|sorry|so|please|i want to|i wanna|i'?d like to|"
+    r"can you|could you|can we|let'?s)[\s,.]+)*(?:change|switch|swap)\s+(?:the\s+|my\s+|that\s+|this\s+)?"
+    r"(?:branch|brand|location|clinic|centre|center|service|treatment|day|date|time|timing)(?:\s+please)?$")
+# Lead-in words before a branch named on its own ("I want Jayanagar", "No, make it Whitefield").
+_BRANCH_LEAD_RE = re.compile(r"^(?:(?:no|actually|um+|uh+|ok|okay|i want|i wanna|i'?d like|make it|at|the|"
+                             r"please|in|branch)[\s,.]+)*")
 _MOVE_IT_RE = re.compile(r"\b(?:move|shift|change|make|push|bring) (?:it|that|this)\b|\binstead\b")
 # A change asked for without a new time yet ("change that one", "I want to move it").
 _CHANGE_IT_RE = re.compile(r"\b(?:change|move|shift|reschedule|postpone|prepone) (?:it|that|this|that one|"
