@@ -844,6 +844,18 @@ HEAR_CHECK_RE = re.compile(
     r"^(?:(?:hello|hi|hey|sorry|um+|uh+|ma'?am|madam|emma)[ ,.?!]+)*(?:can|could) you hear me(?: now| okay| ok)?|"
     r"^(?:(?:hello|hi|hey)[ ,.?!]+)*(?:are you there|are you still there|you there|is anyone there|"
     r"anybody there|is this working)$")
+# A bare "Hello?" (once or repeated) mid-call is a line check, not an answer (21 Oct: it sent 20+ turns
+# to the model, after the name, the slots, "anything else", at ~2 s each). At the greeting it is a greeting.
+BARE_HELLO_RE = re.compile(r"^(?:hello|hallo)(?:[ ,.?!]+(?:hello|hallo))*[ ,.?!]*$")
+# "Tell me the services, I'll choose one", "what treatments do you do?", "which branches are there?":
+# the caller wants the options read out (owner's phone call, 14 Oct). policy.asks_for_options reads the
+# list; tier0 answers it without the model (21 Oct: "Services available." went to the model, ~2 s).
+ASKS_OPTIONS_RE = re.compile(
+    r"\b(?:what|which|tell me|list|say|read|name|go through)\b.{0,30}?"
+    r"\b(?:services?|treatments?|options?|choices?|branches|branch|locations?|times|slots)\b"
+    r"|\bwhat (?:do|can) you (?:do|offer|have)\b|\bwhat (?:are|is) (?:there|available)\b"
+    r"|\b(?:services?|treatments?|branches|locations?)\s+(?:available|offered|you (?:have|do|offer))\b",
+    re.IGNORECASE)
 # "Hello? Yes, I'm still here." answers "are you still there?"; the "?" is the line, not a question.
 _HELLO_RE = re.compile(r"^\s*(hello|hi|hey|hallo)\s*\?+\s*")
 

@@ -94,6 +94,7 @@ _REOPEN_RE = re.compile(
     r"|\b(?:the\s+)?(?P<c>\w+)\s+(?:is|was|'s)\s+wrong\b", re.I)
 _REOPEN_FIELDS = {
     "branch": "branch", "location": "branch", "clinic": "branch", "centre": "branch", "center": "branch",
+    "brand": "branch",                              # Deepgram's usual mishearing of it (phone call, 21 Oct)
     "service": "service", "treatment": "service", "procedure": "service",
     "day": "date", "date": "date", "time": "time", "timing": "time",
 }

@@ -450,7 +450,8 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
         return _stop(out, _statement(Goal.CLOSE, _closing_line(ctx), closes_call=True))
     if u.has(Act.REPEAT) and ctx.last_emma and not u.carries_details:
         # The engine speaks repeat.prefix + ctx.last_emma (asked for, so not a loop).
-        hearing = match.HEAR_CHECK_RE.match(" ".join(re.sub(r"[^a-z' ]+", " ", text.lower()).split()))
+        plain = " ".join(re.sub(r"[^a-z' ]+", " ", text.lower()).split())
+        hearing = match.HEAR_CHECK_RE.match(plain) or match.BARE_HELLO_RE.match(plain)
         return _stop(out, _statement(Goal.REPEAT, "repeat.hear" if hearing else "repeat.prefix"))
     if u.has(Act.WAIT) and not u.carries_details:
         return _stop(out, _statement(Goal.HOLD_ON, "hold_on"))
