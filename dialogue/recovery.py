@@ -271,6 +271,14 @@ def _pick(ctx: RecoveryContext, options) -> str:
     return line
 
 
+def _again(ctx: RecoveryContext, options) -> str:
+    """The first wording not yet said in this call: a question asked again is put differently."""
+    options = list(options)
+    line = next((o for o in options if o not in ctx.used), options[-1])
+    ctx.used.add(line)
+    return line
+
+
 def _day(d) -> str:
     return prompts.speak_day(d)
 
@@ -587,8 +595,10 @@ def _identity(ctx, text, t, run, emit) -> Reply:
         return _wrong_person(ctx)
     if _tick(ctx) > 2:
         return _wrong_person(ctx)
-    return _say(ctx, f"Sorry, I just want to make sure I've got the right person. Is this {first}?" if first
-                else "Sorry, who am I speaking with?", "yes_no")
+    # Never the same sentence twice in a call (owner, 21 Oct: "as human as possible").
+    return _say(ctx, _again(ctx, [f"Sorry, I just want to make sure I've got the right person. Is this {first}?",
+                                 f"Just to check, am I speaking with {first}?"]) if first
+                else _again(ctx, ["Sorry, who am I speaking with?", "Sorry, may I know who's speaking?"]), "yes_no")
 
 
 def _wrong_person(ctx: RecoveryContext) -> Reply:
@@ -712,8 +722,11 @@ def _find_and_offer(ctx: RecoveryContext, run, emit, lead: str = "") -> Reply:
                 # Nagarbhavi was closed that day for staff training. Say why, as booking calls do.
                 return _say(ctx, f"{lead} {closed} Is there another day that would work, or shall I just "
                                  f"find the earliest?".strip(), "open")
-            return _say(ctx, f"{lead} I'm sorry, I don't have anything then. Is there another day that would "
-                             f"work, or shall I just find the earliest?".strip(), "open")
+            return _say(ctx, f"{lead} " + _again(ctx, [
+                "I'm sorry, I don't have anything then. Is there another day that would work, or shall I just "
+                "find the earliest?",
+                "Hmm, that's full as well, I'm afraid. Would another day suit you, or shall I find the earliest?"]),
+                "open")
         return _no_slots(ctx, run, lead)
     ctx.state = "offer"
     ctx.offered = 1
@@ -826,8 +839,10 @@ def _offer(ctx, text, t, run, emit) -> Reply:
     if _tick(ctx) >= 2:
         return _say(ctx, f"Sorry, would {_slot_words(ctx.offers[0].start)} work for you? Just say yes or no.",
                     "yes_no")
-    return _say(ctx, "Sorry, which time would you like?" if ctx.offered > 1
-                else f"Sorry, does {_slot_words(ctx.offers[0].start)} work for you?", "choice")
+    slot = _slot_words(ctx.offers[0].start)
+    return _say(ctx, _again(ctx, ["Sorry, which time would you like?", "Sorry, which of those would suit you?"])
+                if ctx.offered > 1 else _again(ctx, [f"Sorry, does {slot} work for you?",
+                                                     f"Would {slot} be okay for you?"]), "choice")
 
 
 def _to_recap(ctx: RecoveryContext, slot: scheduling.Slot) -> Reply:
