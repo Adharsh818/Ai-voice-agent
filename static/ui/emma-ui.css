@@ -75,6 +75,46 @@
   --t: 320ms;
   --t-layout: 300ms;
 
+  /* motion: the ledger's easing set (docs/APPLE_DESIGN_PLAN.md 11.4), and only these */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);          /* arrivals */
+  --ease-colour: cubic-bezier(0.28, 0.11, 0.32, 1);
+  --ease-hover: cubic-bezier(0, 0, 0.5, 1);
+  --ease-caption: cubic-bezier(0.33, 1, 0.68, 1);  /* easeOutCubic */
+  --ease-pop: cubic-bezier(0.3, 2, 0.5, 1);        /* overshoot, small user-triggered pop-outs only */
+  --ease-label: cubic-bezier(0.53, -0.01, 0.17, 1);
+
+  /* glass recipes (11.1-11.2) */
+  --blur: blur(20px);
+  --glass-capsule: rgba(255, 255, 255, 0.8);       /* B1 floating capsule nav */
+  --glass-capsule-ring: #e6e6e8;
+  --glass-pass: rgba(232, 232, 237, 0.72);         /* B2 floating pill bar */
+  --glass-pass-hover: rgba(232, 232, 237, 0.92);
+  --scrim-light: rgba(232, 232, 237, 0.48);        /* B6 sheet scrim on light pages */
+  --scrim-dark: rgba(0, 0, 0, 0.48);
+  --scrim-progressive: rgb(255 255 255 / 56%);     /* B11 */
+  --edge: inset 0 0 0.5px rgba(0, 0, 0, 0.11);     /* B12 glass edge without borders */
+  --shadow-tile: 8px 8px 16px rgba(0, 0, 0, 0.08); /* the only drop shadow token */
+  --shadow-knob: 0 1px 3px rgba(0, 0, 0, 0.3);
+
+  /* alpha steps for round controls (B7) */
+  --alpha-rest: rgba(210, 210, 215, 0.64);
+  --alpha-hover: rgba(223, 223, 227, 0.6976);
+  --alpha-active: rgba(193, 193, 198, 0.6544);
+  --solid-rest: #e8e8ed;
+  --solid-hover: #ececf0;
+  --solid-active: #dfdfe4;
+  --dark-rest: #1d1d1f;
+  --dark-hover: #272729;
+  --dark-active: #18181a;
+  --icon-ink: rgba(0, 0, 0, 0.56);
+  --icon-ink-hover: rgba(0, 0, 0, 0.64);
+  --disabled-opacity: 0.42;
+
+  /* sign-in states (11.3) */
+  --error: #e30000;
+  --error-fill: #fff2f4;
+  --focus-ring: 0 0 0 3px #fff, 0 0 0 5px #0071e3; /* B19 keyboard ring */
+
   color-scheme: light;
 }
 
@@ -396,6 +436,675 @@ html.js [data-reveal-self].is-in:not(.is-done) {
     radial-gradient(circle at 50% 50%, #ffffff 0%, #eef0f5 46%, #d9dde6 78%, #c7ccd8 100%);
   box-shadow: inset 0 -2px 6px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 1px 2px rgba(0, 0, 0, 0.12);
   flex: none;
+}
+
+/* ==================================================================
+   Components from the 22 Oct ledger (docs/APPLE_DESIGN_PLAN.md 11.4).
+   Every class is prefixed e- so it never collides with the dashboard's own names.
+   ================================================================== */
+
+/* ------------------------------------------------------------------ B19 keyboard focus ring */
+.e-focus-ring:focus-visible,
+.e-block-btn:focus-visible,
+.e-pill:focus-visible,
+.e-round:focus-visible,
+.e-tabnav > button:focus-visible,
+.e-bubbles > button:focus-visible,
+.e-bubbles > a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ------------------------------------------------------------------ B12 glass edge */
+.e-glass-edge { box-shadow: var(--edge); }
+
+/* ------------------------------------------------------------------ B1 floating glass capsule nav */
+.e-capsule-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 10px 10px 0;
+  pointer-events: none;
+  transition: transform 230ms var(--ease);
+}
+.e-capsule-wrap.is-hidden { transform: translateY(calc(-100% - 2px)); }
+.e-capsule {
+  pointer-events: auto;
+  max-width: 1024px;
+  min-height: 52px;
+  margin: 0 auto;
+  padding: 0 8px 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 32px;
+  background: var(--glass-capsule);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  box-shadow: 0 0 0 1px var(--glass-capsule-ring);
+}
+.e-capsule-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+}
+.e-capsule-brand:hover { text-decoration: none; }
+.e-capsule-brand .pearl { --size: 22px; }
+.e-capsule-end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.e-capsule-meta { padding: 0 10px; font-size: 12px; line-height: 16px; letter-spacing: -0.01em; color: var(--ink-2); }
+/* a secondary pill in the capsule: a 1px ring, colour-only hover (P4) */
+.e-capsule-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 980px;
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  box-shadow: 0 0 0 1px var(--ink-3);
+  transition: background-color 100ms linear;
+}
+.e-capsule-link::before { content: ""; position: absolute; inset: -6px -2px; }   /* 44px target */
+.e-capsule-link:hover { background: #f2f2f2; text-decoration: none; }
+.e-capsule-link:active { background: var(--solid-active); }
+.e-capsule-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ------------------------------------------------------------------ B8 colour-only pills */
+.e-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 11px 21px;
+  border: 0;
+  border-radius: 980px;
+  background: var(--blue);
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1.17648;
+  letter-spacing: -0.022em;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 100ms linear, color 100ms linear;
+  -webkit-tap-highlight-color: transparent;
+}
+.e-pill:hover { background: var(--blue-hover); text-decoration: none; }
+.e-pill:active { background: var(--blue-active); }
+.e-pill.dark { background: var(--dark-rest); }
+.e-pill.dark:hover { background: var(--dark-hover); }
+.e-pill.dark:active { background: var(--dark-active); }
+.e-pill.ring { background: transparent; color: var(--link); box-shadow: inset 0 0 0 1px var(--link); }
+.e-pill.ring:hover { background: rgba(0, 102, 204, 0.06); }
+.e-pill.ring:active { background: rgba(0, 102, 204, 0.12); }
+.e-pill:disabled, .e-pill[aria-disabled="true"] { opacity: var(--disabled-opacity); pointer-events: none; }
+
+/* B19 block button (sign-in): 38px, 8px radius, instant state changes */
+.e-block-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 38px;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--blue);
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  line-height: 20px;
+  letter-spacing: -0.022em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.e-block-btn:hover, .e-block-btn:focus-visible { background: var(--blue-hover); }
+.e-block-btn:active { background: var(--blue-active); }
+.e-block-btn:disabled { opacity: var(--disabled-opacity); cursor: default; pointer-events: none; }
+.e-block-btn .e-spinner { position: absolute; inset: 0; margin: auto; --spinner-ink: #fff; opacity: 0; }
+.e-block-btn.is-busy { opacity: 1; }
+.e-block-btn.is-busy .e-btn-label { opacity: 0; }
+.e-block-btn.is-busy .e-spinner { opacity: 1; }
+
+/* ------------------------------------------------------------------ B7 round icon buttons */
+.e-round {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--alpha-rest);
+  color: var(--icon-ink);
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 100ms linear, color 100ms linear, opacity 100ms linear, transform 100ms linear;
+  -webkit-tap-highlight-color: transparent;
+}
+.e-round::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }   /* 44px target */
+.e-round:hover { background: var(--alpha-hover); color: var(--icon-ink-hover); }
+.e-round:active { background: var(--alpha-active); transform: scale(0.95); }
+.e-round:disabled, .e-round[aria-disabled="true"] { opacity: var(--disabled-opacity); pointer-events: none; }
+.e-round.solid { background: var(--solid-rest); }
+.e-round.solid:hover { background: var(--solid-hover); }
+.e-round.solid:active { background: var(--solid-active); }
+.e-round.dark { background: var(--dark-rest); color: rgba(255, 255, 255, 0.8); }
+.e-round.dark:hover { background: var(--dark-hover); color: #fff; }
+.e-round.dark:active { background: var(--dark-active); }
+.e-round svg { width: 14px; height: 14px; }
+
+/* ------------------------------------------------------------------ B4 segmented tab nav */
+.e-tabnav {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  height: 44px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--solid-rest);
+  overflow: hidden;
+  isolation: isolate;
+  max-width: 100%;
+}
+.e-tabnav > button {
+  position: relative;
+  z-index: 1;
+  flex: 1 0 auto;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: -0.016em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease-out;           /* losing the indicator */
+  -webkit-tap-highlight-color: transparent;
+}
+.e-tabnav > button[aria-pressed="true"],
+.e-tabnav > button[aria-selected="true"] {
+  color: #fff;
+  transition: color 160ms ease-in 160ms;      /* flips as the dark pill arrives under it */
+}
+.e-tabnav-indicator {
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  bottom: 4px;
+  left: var(--tab-x, 4px);
+  width: var(--tab-w, 0px);
+  border-radius: 999px;
+  background: var(--dark-rest);
+  transition: left 320ms ease-out, width 320ms ease-out;
+}
+.e-tabnav.e-no-anim, .e-tabnav.e-no-anim * { transition: none !important; }
+
+/* ------------------------------------------------------------------ B3 sliding bubble selector */
+.e-bubbles {
+  --bubble-fill: var(--dark-rest);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 28px;
+  isolation: isolate;
+}
+.e-bubbles > button, .e-bubbles > a {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 48px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 24px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 200ms var(--ease-label), background-color 100ms linear;
+  -webkit-tap-highlight-color: transparent;
+}
+.e-bubbles > :is(button, a):hover { background: rgba(0, 0, 0, 0.04); text-decoration: none; }
+.e-bubbles > :is(button, a):is(.is-selected, [aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]) {
+  color: #fff;
+  background: transparent;
+  transition: color 250ms var(--ease-label);
+}
+.e-bubble {
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  left: 0;
+  height: 48px;
+  width: var(--bubble-w, 0px);
+  transform: translate3d(var(--bubble-x, 0px), 0, 0);
+  transition: transform 200ms ease-out, width 200ms ease-out, opacity 200ms ease-out;
+  will-change: transform;
+  pointer-events: none;
+}
+.e-bubble::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  background: var(--bubble-fill);
+  transform: scaleX(var(--bubble-sx, 1)) scaleY(var(--bubble-sy, 1));
+  transition: transform 260ms var(--ease-out), background-color 240ms var(--ease-colour);
+}
+.e-bubbles.is-moving .e-bubble::before { transition: transform 110ms var(--ease-out), background-color 240ms var(--ease-colour); }
+.e-bubble.is-empty { opacity: 0; }
+.e-bubbles.e-no-anim .e-bubble, .e-bubbles.e-no-anim .e-bubble::before { transition: none !important; }
+
+/* ------------------------------------------------------------------ B2 materialising pill bar (one shared glass layer) */
+.e-pillbar {
+  position: relative;
+  isolation: isolate;
+  min-height: 56px;
+  border-radius: 28px;
+}
+.e-pillbar::after {          /* the single glass layer behind every pill (A25: never blur on blur) */
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100%;
+  border-radius: 28px;
+  background: var(--glass-pass);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  box-shadow: var(--edge);
+  transform: translateX(-50%);
+}
+html.js .e-pillbar::after { animation: e-materialise 720ms var(--ease-layout) both; }
+html.js .e-pillbar > :not(.e-bubble) { animation: e-fade-in 360ms var(--ease-out) both; animation-delay: calc(380ms + var(--i, 0) * 50ms); }
+html.js .e-pillbar > :nth-child(2) { --i: 0; }
+html.js .e-pillbar > :nth-child(3) { --i: 1; }
+html.js .e-pillbar > :nth-child(4) { --i: 2; }
+html.js .e-pillbar > :nth-child(5) { --i: 3; }
+html.js .e-pillbar > .e-bubble { animation: e-fade-in 360ms var(--ease-out) 380ms both; }
+html.js .e-pillbar.is-settled > * { animation-delay: 0ms; animation-duration: 240ms; }
+@keyframes e-materialise {
+  0% { width: 56px; transform: translateX(-50%) scale(0.01); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  38% { width: 56px; transform: translateX(-50%) scale(1); }
+  100% { width: 100%; transform: translateX(-50%) scale(1); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); }
+}
+@keyframes e-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ------------------------------------------------------------------ B5 overshoot pop-in */
+.e-pop { opacity: 0; transform: scale(0.5); }
+.e-pop.is-in {
+  opacity: 1;
+  transform: none;
+  transition: opacity 200ms var(--ease-out) calc(var(--i, 0) * 50ms), transform 400ms var(--ease-pop) calc(var(--i, 0) * 50ms);
+}
+.e-pop.is-out {
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;   /* exit: fast, plain, together */
+}
+
+/* ------------------------------------------------------------------ B11 progressive-blur masked scrim */
+.e-blur-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--scrim-progressive);
+  -webkit-backdrop-filter: blur(20px) saturate(1);
+  backdrop-filter: blur(20px) saturate(1);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 100%);
+  mask-image: linear-gradient(180deg, transparent, #000 100%);
+}
+.e-blur-scrim.up { -webkit-mask-image: linear-gradient(0deg, transparent, #000 100%); mask-image: linear-gradient(0deg, transparent, #000 100%); }
+.e-blur-scrim.soft {
+  -webkit-mask-image: radial-gradient(closest-side, #000 40%, transparent);
+  mask-image: radial-gradient(closest-side, #000 40%, transparent);
+}
+
+/* ------------------------------------------------------------------ B14 8-spoke spinner */
+.e-spinner {
+  --spinner-size: 20px;
+  --spinner-ink: var(--ink-2);
+  position: relative;
+  display: inline-block;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
+  animation: e-spin 1s steps(8, end) infinite;
+}
+.e-spinner > i {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 9.5%;
+  height: 29%;
+  margin-left: -4.75%;
+  border-radius: 999px;
+  background: var(--spinner-ink);
+  transform-origin: 50% 172%;
+}
+.e-spinner > i:nth-child(1) { transform: rotate(0deg); opacity: 1; }
+.e-spinner > i:nth-child(2) { transform: rotate(-45deg); opacity: 0.9; }
+.e-spinner > i:nth-child(3) { transform: rotate(-90deg); opacity: 0.7; }
+.e-spinner > i:nth-child(4) { transform: rotate(-135deg); opacity: 0.6; }
+.e-spinner > i:nth-child(5) { transform: rotate(-180deg); opacity: 0.4; }
+.e-spinner > i:nth-child(6) { transform: rotate(-225deg); opacity: 0.3; }
+.e-spinner > i:nth-child(7) { transform: rotate(-270deg); opacity: 0.2; }
+.e-spinner > i:nth-child(8) { transform: rotate(-315deg); opacity: 0.13; }
+@keyframes e-spin { to { transform: rotate(360deg); } }
+
+/* ------------------------------------------------------------------ B10 stretching-pill meter */
+.e-meter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 8px;
+}
+.e-meter > i {
+  display: block;
+  width: var(--w, 8px);
+  height: 8px;
+  border-radius: 10px;
+  background: var(--meter-ink, rgba(0, 0, 0, 0.42));
+}
+.e-meter > i.is-current { background: var(--meter-ink-current, rgba(0, 0, 0, 0.8)); }
+
+/* ------------------------------------------------------------------ B18 sign-in field with a floating label */
+.e-field { position: relative; display: block; margin-bottom: 14px; }
+.e-field input {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin: 0;
+  padding: 18px 16px 0;
+  border: 1px solid var(--field-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+  line-height: 21px;
+  letter-spacing: -0.022em;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.e-field input:focus { border-width: 2px; border-color: var(--blue); padding-left: 15px; }
+.e-field label {
+  position: absolute;
+  top: 18px;
+  left: 17px;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink-2);
+  font-size: 17px;
+  line-height: 21px;
+  letter-spacing: -0.022em;
+  pointer-events: none;
+  transition: all 0.125s ease-in;
+}
+.e-field input:focus + label,
+.e-field input:not(:placeholder-shown) + label {
+  top: 10px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: -0.01em;
+}
+.e-field.is-error input { border-color: var(--error); background: var(--error-fill); }
+.e-field.is-error input:focus { border-color: var(--error); }
+.e-field.is-error label { color: var(--error); }
+.e-field input:disabled { opacity: 0.6; }
+
+/* B15 / S15 error line with an icon */
+.e-error-line {
+  position: relative;
+  margin: -6px 0 12px;
+  padding-left: 20px;
+  color: var(--error);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: -0.01em;
+}
+.e-error-line::before {
+  content: "!";
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--error);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  letter-spacing: 0;
+}
+
+/* horizontal shake (wrong password): a damped sideways nudge */
+@keyframes e-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-10px); }
+  30% { transform: translateX(9px); }
+  45% { transform: translateX(-6px); }
+  60% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
+}
+.e-shake { animation: e-shake 420ms var(--ease-out); }
+
+/* ------------------------------------------------------------------ B6 sheet / modal */
+.e-sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  padding: 40px 10px 40px;
+  overflow: auto;             /* the sheet scrolls itself; the page behind stays put */
+  overscroll-behavior: contain;
+}
+.e-sheet-root[hidden] { display: none !important; }
+.e-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim-light);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  opacity: 0;
+  transition: opacity 320ms var(--ease) 240ms;   /* closing: just after the panel */
+}
+.e-sheet {
+  position: relative;
+  width: min(816px, 100%);
+  padding: 76px;
+  border-radius: 28px;
+  background: #fff;
+  color: var(--ink);
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 240ms var(--ease), transform 240ms var(--ease);
+  outline: none;
+}
+.e-sheet-root.is-open .e-sheet-scrim { opacity: 1; transition: opacity 320ms var(--ease) 0ms; }
+.e-sheet-root.is-open .e-sheet { opacity: 1; transform: none; transition: opacity 320ms var(--ease-out), transform 320ms var(--ease-out); }
+.e-sheet.is-dragging { transition: none !important; }
+.e-sheet-close-wrap {
+  position: sticky;
+  top: 20px;
+  z-index: 2;
+  height: 0;
+  display: flex;
+  justify-content: flex-end;
+  margin: -56px -56px 0 0;
+}
+.e-sheet-close {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  isolation: isolate;
+  -webkit-tap-highlight-color: transparent;
+}
+.e-sheet-close::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--dark-rest);
+  transition: background-color 100ms linear, transform 100ms linear;
+}
+.e-sheet-close:hover::before { background: var(--dark-hover); }
+.e-sheet-close:active::before { background: var(--dark-active); transform: scale(0.95); }
+.e-sheet-close:focus-visible { outline: none; }
+.e-sheet-close:focus-visible::before { box-shadow: var(--focus-ring); }
+.e-sheet-close svg { position: relative; width: 12px; height: 12px; }
+.e-sheet-handle { display: none; }
+.e-sheet-title { margin: 0 0 12px; font-family: var(--font-display); font-size: 40px; line-height: 1.1; font-weight: 600; }
+.e-sheet-body { font-size: 19px; line-height: 27px; letter-spacing: 0.012em; }   /* B23 */
+html.e-sheet-open { overflow: hidden; }
+
+/* On phones the sheet is a bottom sheet with a grab handle, dragged down to dismiss. */
+@media (max-width: 734px) {
+  .e-sheet-root { align-items: end; padding: 0; overflow: hidden; }
+  .e-sheet {
+    width: 100%;
+    max-height: calc(100dvh - 28px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 8px 24px calc(28px + env(safe-area-inset-bottom));
+    border-radius: 28px 28px 0 0;
+    transform: translateY(100%);
+    opacity: 1;
+    transition: transform 280ms var(--ease);
+  }
+  .e-sheet-root.is-open .e-sheet { transform: translateY(var(--drag-y, 0px)); transition: transform 380ms var(--ease-out); }
+  .e-sheet-handle {
+    display: grid;
+    place-items: center;
+    position: sticky;
+    top: -8px;
+    z-index: 3;
+    height: 28px;
+    margin: -8px -24px 0;
+    touch-action: none;
+    cursor: grab;
+    background: #fff;
+  }
+  .e-sheet-handle::before { content: ""; width: 36px; height: 5px; border-radius: 3px; background: rgba(60, 60, 67, 0.3); }
+  .e-sheet-close-wrap { top: 0; margin: 0 -14px 0 0; }
+  .e-sheet-title { font-size: 28px; line-height: 32px; letter-spacing: 0.007em; padding-right: 44px; }
+}
+
+/* ------------------------------------------------------------------ B17 accordion */
+.e-accordion { border-top: 1px solid var(--hairline); }
+.e-acc-item { border-bottom: 1px solid var(--hairline); }
+.e-acc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 44px;
+  padding: 1em 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  text-align: start;
+  cursor: pointer;
+}
+.e-acc-head::after {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-right: 4px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 400ms ease-in-out, color 100ms linear;
+  color: var(--ink-2);
+}
+.e-acc-head[aria-expanded="true"]::after { transform: translateY(2px) rotate(-135deg); }
+.e-acc-head:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
+.e-acc-tray {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition: grid-template-rows 400ms ease-in-out, visibility 0s linear 400ms;
+}
+.e-acc-tray > * { min-height: 0; overflow: hidden; }
+.e-acc-head[aria-expanded="true"] + .e-acc-tray { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows 400ms ease-in-out, visibility 0s; }
+.e-acc-body { padding-bottom: 20px; color: var(--ink-2); }
+
+/* ------------------------------------------------------------------ reduced transparency: solid surfaces */
+@media (prefers-reduced-transparency: reduce) {
+  .e-capsule, .e-pillbar::after, .e-sheet-scrim, .e-blur-scrim {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .e-capsule { background: #fff; }
+  .e-pillbar::after { background: var(--solid-rest); }
+  .e-sheet-scrim { background: rgba(232, 232, 237, 0.92); }
+  .e-blur-scrim { background: #fff; }
+}
+
+/* ------------------------------------------------------------------ reduced motion: end states, no slide/scale/overshoot */
+@media (prefers-reduced-motion: reduce) {
+  .e-capsule-wrap.is-hidden { transform: none; }
+  .e-pop, .e-pop.is-out { transform: none; }
+  .e-bubble::before { transform: none !important; }
+  .e-sheet, .e-sheet-root.is-open .e-sheet { transform: none !important; }
+  .e-sheet-root.is-open .e-sheet, .e-sheet-root.is-open .e-sheet-scrim { transition: opacity 200ms linear !important; }
+  html.js .e-pillbar::after, html.js .e-pillbar > * { animation: none; }
+  /* a stepped spinner is not vestibular motion: it keeps turning */
+  .e-spinner { animation-duration: 1s !important; animation-iteration-count: infinite !important; }
 }
 
 /* ------------------------------------------------------------------ reduced motion: everything instant */

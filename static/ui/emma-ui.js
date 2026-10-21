@@ -113,9 +113,332 @@ export function toast(message, kind = "") {
 }
 
 // Restart the shake animation on an element (a wrong password).
-export function shake(node) {
+export function shake(node, className = "shake") {
   if (!node) return;
-  node.classList.remove("shake");
+  node.classList.remove(className);
   void node.offsetWidth;
-  node.classList.add("shake");
+  node.classList.add(className);
+}
+
+// Restart the stronger horizontal shake from the 22 Oct ledger (the sign-in page).
+export function shakeX(node) { shake(node, "e-shake"); }
+
+/* ==================================================================
+   Components from the 22 Oct ledger (docs/APPLE_DESIGN_PLAN.md 11.4). Each one pairs with
+   the e-* classes in emma-ui.css. Everything is CSS transitions (interruptible: a new target
+   starts from the on-screen value) except the sheet drag, which follows the finger.
+   ================================================================== */
+
+const px = (n) => `${Math.round(n * 100) / 100}px`;
+const isShown = (el) => Boolean(el) && !el.hidden && el.offsetWidth > 0;
+
+// Turn transitions off for the first layout (apple.com's tabnav-disable-transitions).
+function withoutAnimation(control, fn) {
+  control.classList.add("e-no-anim");
+  fn();
+  void control.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(() => control.classList.remove("e-no-anim")));
+}
+
+// B1: a floating capsule nav that slides away while scrolling down and comes back on the way up.
+export function capsuleNav(wrap) {
+  if (!wrap) return;
+  let last = window.scrollY;
+  let queued = false;
+  const update = () => {
+    queued = false;
+    const y = window.scrollY;
+    if (y > last + 4 && y > 80) wrap.classList.add("is-hidden");
+    else if (y < last - 4 || y <= 80) wrap.classList.remove("is-hidden");
+    last = y;
+  };
+  window.addEventListener("scroll", () => {
+    if (!queued) { queued = true; requestAnimationFrame(update); }
+  }, { passive: true });
+  wrap.addEventListener("focusin", () => wrap.classList.remove("is-hidden"));
+}
+
+// B4: segmented tab nav. Buttons carry aria-pressed (or aria-selected); a dark indicator
+// slides under the chosen one (left/width, 320ms ease-out) and its label flips after 160ms.
+// Clicking a button selects it unless { manage: false }; onSelect(button) is told either way.
+export function tabnav(control, { onSelect, manage = true } = {}) {
+  if (!control) return () => {};
+  let indicator = control.querySelector(":scope > .e-tabnav-indicator");
+  if (!indicator) {
+    indicator = document.createElement("span");
+    indicator.className = "e-tabnav-indicator";
+    indicator.setAttribute("aria-hidden", "true");
+    control.prepend(indicator);
+  }
+  const buttons = () => [...control.querySelectorAll(":scope > button")];
+  const chosen = () => buttons().find((b) => b.getAttribute("aria-pressed") === "true" || b.getAttribute("aria-selected") === "true");
+  const place = () => {
+    const b = chosen();
+    control.style.setProperty("--tab-x", px(b ? b.offsetLeft : 4));
+    control.style.setProperty("--tab-w", px(b ? b.offsetWidth : 0));
+  };
+  withoutAnimation(control, place);
+  control.addEventListener("click", (event) => {
+    const b = event.target.closest("button");
+    if (!b || b.parentElement !== control) return;
+    if (manage) {
+      const attr = b.hasAttribute("aria-selected") ? "aria-selected" : "aria-pressed";
+      buttons().forEach((other) => other.setAttribute(attr, String(other === b)));
+    }
+    if (onSelect) onSelect(b);
+  });
+  new MutationObserver(place).observe(control, { attributes: true, subtree: true, attributeFilter: ["aria-pressed", "aria-selected", "hidden"] });
+  if ("ResizeObserver" in window) new ResizeObserver(place).observe(control);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => withoutAnimation(control, place));
+  return place;
+}
+
+// B3: one shared bubble slides under the selected option (.is-selected, aria-pressed,
+// aria-checked or aria-selected), stretching in X and squashing in Y while it travels.
+// It also follows a press, so the choice answers on pointer-down.
+const SELECTED = ':scope > .is-selected, :scope > [aria-pressed="true"], :scope > [aria-checked="true"], :scope > [aria-selected="true"]';
+export function bubbles(control) {
+  if (!control) return { place() {} };
+  let bubble = control.querySelector(":scope > .e-bubble");
+  if (!bubble) {
+    bubble = document.createElement("span");
+    bubble.className = "e-bubble is-empty";
+    bubble.setAttribute("aria-hidden", "true");
+    control.prepend(bubble);
+  }
+  let pressed = null;
+  let shown = false;
+  let lastX = null, lastW = null;
+  let settle;
+  const target = () => (isShown(pressed) ? pressed : [...control.querySelectorAll(SELECTED)].find(isShown));
+
+  function place() {
+    const el = target();
+    if (!el) {
+      bubble.classList.add("is-empty");
+      shown = false;
+      return;
+    }
+    const x = el.offsetLeft, w = el.offsetWidth;
+    if (x === lastX && w === lastW && shown) return;
+    const set = () => {
+      bubble.style.setProperty("--bubble-x", px(x));
+      bubble.style.setProperty("--bubble-w", px(w));
+    };
+    if (!shown) {
+      withoutAnimation(control, set);     // appear in place, never slide in from 0
+    } else {
+      set();
+      if (lastX !== null && Math.abs(x - lastX) > 1 && !reducedMotion()) {
+        control.classList.add("is-moving");
+        bubble.style.setProperty("--bubble-sx", "1.08");
+        bubble.style.setProperty("--bubble-sy", "0.92");
+        clearTimeout(settle);
+        settle = setTimeout(() => {
+          control.classList.remove("is-moving");
+          bubble.style.setProperty("--bubble-sx", "1");
+          bubble.style.setProperty("--bubble-sy", "1");
+        }, 120);
+      }
+    }
+    bubble.classList.remove("is-empty");
+    shown = true;
+    lastX = x;
+    lastW = w;
+  }
+
+  control.addEventListener("pointerdown", (event) => {
+    const item = event.target.closest("button, a");
+    if (!item || item.parentElement !== control || item.disabled) return;
+    pressed = item;
+    place();
+  });
+  const release = () => { pressed = null; requestAnimationFrame(place); };
+  control.addEventListener("pointerleave", release);
+  control.addEventListener("pointercancel", release);
+  control.addEventListener("click", release);
+
+  const watch = new MutationObserver((records) => {
+    if (records.every((r) => r.target === bubble || (r.target === control && r.attributeName === "class"))) return;
+    observeChildren();
+    place();
+  });
+  watch.observe(control, { attributes: true, subtree: true, childList: true, characterData: true,
+    attributeFilter: ["class", "hidden", "aria-pressed", "aria-checked", "aria-selected"] });
+  const sizes = "ResizeObserver" in window ? new ResizeObserver(() => place()) : null;
+  function observeChildren() {
+    if (!sizes) return;
+    sizes.disconnect();
+    sizes.observe(control);
+    [...control.children].forEach((c) => c !== bubble && sizes.observe(c));
+  }
+  observeChildren();
+  place();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(place);
+  return { place };
+}
+
+// B2: mark a materialising pill bar settled once its entrance has played, so pills shown
+// later fade in at once instead of waiting for the entrance delay.
+export function materialise(bar) {
+  if (!bar) return;
+  setTimeout(() => bar.classList.add("is-settled"), reducedMotion() ? 0 : 1000);
+}
+
+// B5: overshoot pop-in, index x 50ms apart; popOut leaves fast and all together.
+export function popIn(nodes) {
+  const list = [...(nodes instanceof Element ? [nodes] : nodes)];
+  list.forEach((node, i) => {
+    node.style.setProperty("--i", String(i));
+    node.classList.add("e-pop");
+    node.classList.remove("is-out", "is-in");
+  });
+  if (list.length) void list[0].offsetWidth;
+  list.forEach((node) => node.classList.add("is-in"));
+}
+export function popOut(nodes) {
+  const list = [...(nodes instanceof Element ? [nodes] : nodes)];
+  list.forEach((node) => { node.classList.remove("is-in"); node.classList.add("e-pop", "is-out"); });
+  return new Promise((resolve) => setTimeout(resolve, reducedMotion() ? 0 : 200));
+}
+
+// B14: an 8-spoke spinner element.
+export function spinner(size) {
+  const el = document.createElement("span");
+  el.className = "e-spinner";
+  el.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 8; i++) el.append(document.createElement("i"));
+  if (size) el.style.setProperty("--spinner-size", px(size));
+  return el;
+}
+
+// B10: a stretching-pill level meter. The middle dot stretches toward a 48px pill with the
+// level, and its neighbours follow continuously. Returns update(level 0..1, active).
+export function levelMeter(el, count = 5) {
+  if (!el) return () => {};
+  el.classList.add("e-meter");
+  el.replaceChildren(...Array.from({ length: count }, () => document.createElement("i")));
+  const dots = [...el.children];
+  const centre = (count - 1) / 2;
+  dots[Math.round(centre)].classList.add("is-current");
+  return (level, active = true) => {
+    const amount = active ? 0.22 + 0.78 * Math.min(1, Math.max(0, level)) : 0;
+    dots.forEach((dot, i) => {
+      const near = Math.max(0, 1 - Math.abs(i - centre) / 1.6);
+      dot.style.setProperty("--w", px(8 + 40 * amount * near));
+    });
+  };
+}
+
+// B17: accordion. Heads are .e-acc-head buttons followed by an .e-acc-tray.
+export function accordion(root, { single = false } = {}) {
+  if (!root) return;
+  root.addEventListener("click", (event) => {
+    const head = event.target.closest(".e-acc-head");
+    if (!head || !root.contains(head)) return;
+    const open = head.getAttribute("aria-expanded") !== "true";
+    if (single && open) root.querySelectorAll('.e-acc-head[aria-expanded="true"]').forEach((h) => h.setAttribute("aria-expanded", "false"));
+    head.setAttribute("aria-expanded", String(open));
+  });
+}
+
+// B6: sheet / modal. Markup:
+//   <div class="e-sheet-root" hidden><div class="e-sheet-scrim"></div>
+//     <div class="e-sheet" role="dialog" aria-modal="true" tabindex="-1">
+//       <div class="e-sheet-handle"></div>
+//       <div class="e-sheet-close-wrap"><button class="e-sheet-close" aria-label="Close">...</button></div>
+//       ...content...</div></div>
+// On phones it is a bottom sheet: drag the handle down to dismiss. The sheet follows the
+// finger 1:1, a flick is projected forward the way iOS does, and its speed carries into the close.
+export function sheet(root, { onClose } = {}) {
+  if (!root) return { open() {}, close() {} };
+  const panel = root.querySelector(".e-sheet");
+  const handle = root.querySelector(".e-sheet-handle");
+  const phone = window.matchMedia("(max-width: 734px)");
+  let opener = null;
+  let hideTimer;
+
+  function open(from = document.activeElement) {
+    clearTimeout(hideTimer);
+    opener = from;
+    panel.style.removeProperty("--drag-y");
+    panel.style.removeProperty("transition-duration");
+    root.hidden = false;
+    document.documentElement.classList.add("e-sheet-open");
+    void root.offsetWidth;
+    root.classList.add("is-open");
+    const first = panel.querySelector("[autofocus]") || panel;
+    first.focus({ preventScroll: true });
+  }
+
+  function close() {
+    if (!root.classList.contains("is-open")) return;
+    root.classList.remove("is-open");
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+      root.hidden = true;
+      document.documentElement.classList.remove("e-sheet-open");
+      panel.style.removeProperty("--drag-y");
+      panel.style.removeProperty("transition-duration");
+    }, reducedMotion() ? 200 : 600);
+    if (opener && opener.focus) opener.focus({ preventScroll: true });
+    if (onClose) onClose();
+  }
+
+  root.addEventListener("click", (event) => {
+    if (event.target.closest(".e-sheet-close, [data-sheet-close]") || event.target.classList.contains("e-sheet-scrim")
+      || event.target === root) close();
+  });
+  root.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.stopPropagation(); close(); return; }
+    if (event.key !== "Tab") return;
+    const focusable = [...panel.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => el.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === panel)) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+
+  if (handle) {
+    let startY = 0, y = 0, history = [], dragging = false;
+    const rubber = (over, size) => (over * size * 0.55) / (size + 0.55 * Math.abs(over));
+    handle.addEventListener("pointerdown", (event) => {
+      if (!phone.matches || !root.classList.contains("is-open")) return;
+      dragging = true;
+      startY = event.clientY;
+      y = 0;
+      history = [{ y: 0, t: event.timeStamp }];
+      handle.setPointerCapture(event.pointerId);
+      panel.classList.add("is-dragging");
+    });
+    handle.addEventListener("pointermove", (event) => {
+      if (!dragging) return;
+      const dy = event.clientY - startY;
+      y = dy >= 0 ? dy : rubber(dy, panel.offsetHeight);
+      panel.style.setProperty("--drag-y", px(y));
+      history.push({ y, t: event.timeStamp });
+      if (history.length > 6) history.shift();
+    });
+    const end = () => {
+      if (!dragging) return;
+      dragging = false;
+      panel.classList.remove("is-dragging");
+      const a = history[0], b = history[history.length - 1];
+      const v = a && b && b.t > a.t ? ((b.y - a.y) / (b.t - a.t)) * 1000 : 0;   // px/s
+      const projected = y + ((v / 1000) * 0.998) / (1 - 0.998) * 0.25;          // iOS projection, softened
+      const h = panel.offsetHeight;
+      if (projected > h * 0.4 || v > 900) {
+        const remaining = Math.max(0, h - y);
+        const ms = Math.min(320, Math.max(140, (remaining / Math.max(v, 600)) * 1000));
+        panel.style.setProperty("transition-duration", `${Math.round(ms)}ms`);
+        close();
+      } else {
+        panel.style.removeProperty("--drag-y");    // settles back from where the finger left it
+      }
+    };
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  }
+  return { open, close };
 }

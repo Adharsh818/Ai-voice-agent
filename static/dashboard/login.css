@@ -1,79 +1,145 @@
-/* Staff sign-in, laid out like Apple's account sign-in: one centred column on white,
-   a glass bar on top, floating-label fields and a full-width blue pill. */
+/* Staff sign-in on the Apple Account sign-in pattern (docs/APPLE_DESIGN_PLAN.md 11.3, B18-B20):
+   a floating glass capsule, a 180px brand area whose mark eases to .6 as the form fades in,
+   a 40/44 title, a 460px column, 56px floating-label fields and a 38px block button. */
 
 body.signin {
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  overflow-x: hidden;
 }
-
-.signin-nav {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  height: 44px;
-  border-bottom: 1px solid var(--hairline-soft);
-}
-.signin-nav-inner {
-  max-width: 1024px;
-  height: 100%;
-  margin: 0 auto;
-  padding: 0 22px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  letter-spacing: -0.01em;
-}
-.signin-nav .pearl { --size: 18px; }
-.signin-nav-name { font-weight: 600; font-size: 14px; letter-spacing: -0.016em; }
-.signin-nav-section { margin-left: auto; color: var(--ink-2); }
 
 .signin-main {
   display: grid;
-  place-items: start center;
-  padding: clamp(40px, 10vh, 96px) 16px 48px;
+  justify-items: center;
+  align-content: start;
+  padding: 48px 24px 72px;
 }
+
+/* ------------------------------------------------------------------ B20 brand arrival */
+.signin-brand {
+  display: grid;
+  place-items: center;
+  width: 180px;
+  height: 180px;
+  margin-bottom: -78px;
+}
+.signin-mark {
+  --size: 96px;
+  transform: translateY(-58px) scale(0.6);       /* the end state (no JS, reduced motion) */
+  transition: transform 600ms var(--ease-out);
+}
+html.js body.signin:not(.is-ready) .signin-mark { transform: none; }
 
 .signin-column {
   width: min(100%, 460px);
   display: grid;
   justify-items: center;
   text-align: center;
+  transition: opacity 600ms var(--ease-out) 80ms, transform 600ms var(--ease-out) 80ms;
 }
-.signin-mark { --size: 96px; margin-bottom: 26px; }
-.signin-title { margin: 0; }
-.signin-sub { margin: 8px 0 32px; }
+html.js body.signin:not(.is-ready) .signin-column { opacity: 0; transform: translateY(12px); }
 
+/* ------------------------------------------------------------------ type (S6, S7) */
+.signin-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.signin-sub {
+  margin: 12px 0 36px;
+  font-size: 17px;
+  line-height: 25px;
+  letter-spacing: -0.022em;
+  color: var(--ink-2);
+}
+
+/* ------------------------------------------------------------------ form */
 .signin-form { width: 100%; text-align: start; }
-
-/* Two fields joined into one rounded group, like Apple's stacked inputs. */
-.field-group {
-  display: grid;
-  border-radius: var(--r-control);
+.signin-fields { display: block; }
+.signin-fields .e-field:last-child { margin-bottom: 14px; }
+#login-error { margin-top: -6px; }
+.signin-help {
+  margin: -4px 0 20px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: -0.01em;
+  color: var(--ink-2);
 }
-.field-group .field-float:first-child input { border-radius: var(--r-control) var(--r-control) 0 0; }
-.field-group .field-float:last-child input { border-radius: 0 0 var(--r-control) var(--r-control); margin-top: -1px; }
-.field-group .field-float input:focus { position: relative; z-index: 1; }
+.signin-button { margin-top: 0; }
+.signin-button .e-spinner { --spinner-size: 18px; }
 
-.signin-button { margin-top: 22px; }
-
+/* ------------------------------------------------------------------ S17 locked notice */
 .signin-locked {
-  display: grid;
-  gap: 4px;
-  padding: 18px 24px;
-  border-radius: var(--r-card);
   width: 100%;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 20px 22px;
+  border-radius: 18px;
+  background: var(--canvas-alt);
+  text-align: start;
+}
+.signin-locked p { margin: 0; }
+.signin-locked-title { font-size: 17px; line-height: 21px; font-weight: 600; letter-spacing: -0.022em; }
+.signin-locked-reason { margin-top: 4px !important; font-size: 12px; line-height: 16px; letter-spacing: -0.01em; color: var(--ink-2); }
+.signin-locked-reason:empty { display: none; }
+.signin-lock { flex: none; width: 16px; height: 20px; margin-top: 1px; color: var(--ink-2); }
+.signin-lock.small { width: 11px; height: 14px; margin: 1px 0 0; }
+
+/* ------------------------------------------------------------------ S13 note */
+.signin-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: center;
+  max-width: 380px;
+  margin: 28px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: -0.01em;
+  color: var(--ink-2);
   text-align: start;
 }
 
-.signin-note { margin: 28px 0 0; max-width: 360px; }
-
-.signin-footer {
-  padding: 18px 22px 22px;
-  border-top: 1px solid var(--hairline-soft);
-  background: var(--canvas-index);
-  text-align: center;
+/* ------------------------------------------------------------------ S4 footer */
+.signin-footer { background: var(--canvas-alt); }
+.signin-footer-inner {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 17px 22px 21px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 24px;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: -0.01em;
+  color: var(--ink-2);
 }
 .signin-footer p { margin: 0; }
+
+/* ------------------------------------------------------------------ phones (S20) */
+@media (max-width: 734px) {
+  .signin-main { padding: 28px 24px 56px; }
+  .signin-brand { width: 168px; height: 168px; margin-bottom: -80px; }
+  .signin-mark { --size: 88px; transform: translateY(-54px) scale(0.6); }
+  .signin-title { font-size: 32px; line-height: 36px; letter-spacing: 0.004em; }
+  .signin-sub { margin-bottom: 28px; }
+  .signin-footer-inner { justify-content: center; text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signin-mark { transition: none; }
+  html.js body.signin:not(.is-ready) .signin-mark { transform: translateY(-58px) scale(0.6); }
+  .signin-column { transition: opacity 200ms linear !important; }
+  html.js body.signin:not(.is-ready) .signin-column { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) and (max-width: 734px) {
+  html.js body.signin:not(.is-ready) .signin-mark { transform: translateY(-54px) scale(0.6); }
+}

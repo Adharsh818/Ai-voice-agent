@@ -10,46 +10,59 @@
   <link rel="stylesheet" href="/static/talk.css">
 </head>
 <body class="talk" data-call="idle">
-  <header class="talk-nav glass-bar">
-    <div class="talk-nav-inner">
-      <span class="pearl" aria-hidden="true"></span>
-      <span class="talk-nav-name">Pearl Dental</span>
-      <a class="talk-nav-link" id="staff-link" href="/dashboard/" hidden>Staff</a>
-    </div>
-  </header>
+  <div class="e-capsule-wrap" id="talk-capsule">
+    <header class="e-capsule">
+      <a class="e-capsule-brand" href="/" aria-label="Pearl Dental">
+        <span class="pearl" aria-hidden="true"></span>
+        <span>Pearl Dental</span>
+      </a>
+      <div class="e-capsule-end">
+        <a class="e-capsule-link" id="staff-link" href="/dashboard/" hidden>Staff</a>
+      </div>
+    </header>
+  </div>
 
   <main class="talk-main">
     <div class="hero-stack">
       <div class="hero" data-reveal>
-        <h1 class="t-hero hero-title">Emma.</h1>
-        <p class="t-subhead hero-sub">Pearl Dental's front desk. Tap to talk.</p>
+        <h1 class="hero-title">Emma.</h1>
+        <p class="hero-sub">Pearl Dental's front desk. Tap to talk.</p>
       </div>
-      <p class="call-status t-headline" id="call-status" aria-hidden="true"></p>
+      <p class="call-status" id="call-status" aria-hidden="true"></p>
     </div>
 
     <button id="orb" data-state="idle" aria-label="Start call" aria-pressed="false">
       <span class="halo" aria-hidden="true"></span>
       <span class="ring" aria-hidden="true"></span>
       <span class="core" aria-hidden="true"></span>
+      <span class="rim" aria-hidden="true"></span>
       <span class="gloss" aria-hidden="true"></span>
+      <span class="e-spinner orb-spinner" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
     </button>
 
-    <p id="caption" aria-live="polite"></p>
+    <div class="meter-slot" aria-hidden="true"><span class="e-meter" id="level-meter"></span></div>
 
-    <div class="cta" data-reveal-self>
-      <button class="btn-pill" id="call-button" type="button">Call Emma</button>
-      <button class="btn-pill outline" id="type-instead" type="button">Type instead</button>
-      <button class="btn-pill" id="action" type="button" hidden>Try again</button>
+    <div class="caption-wrap">
+      <span class="e-blur-scrim soft" aria-hidden="true"></span>
+      <p id="caption" aria-live="polite"></p>
     </div>
 
-    <form id="typed" class="typed glass-pill" hidden autocomplete="off">
+    <div class="cta e-pillbar e-bubbles" id="call-bar">
+      <button id="call-button" type="button" class="is-selected">Call Emma</button>
+      <button id="type-instead" type="button">Type instead</button>
+      <button id="action" type="button" class="is-selected" hidden>Try again</button>
+    </div>
+
+    <form id="typed" class="typed" hidden autocomplete="off">
       <input id="typed-text" type="text" placeholder="Type what the caller says" aria-label="What the caller says">
-      <button type="submit" class="typed-send" aria-label="Send">↑</button>
+      <button type="submit" class="typed-send" aria-label="Send">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 13V3.5M3.5 7.5 8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </form>
   </main>
 
   <footer class="talk-footer">
-    <p class="t-caption ink-2">Pearl Dental</p>
+    <p>Pearl Dental</p>
   </footer>
   <script type="module" src="/static/app.js"></script>
   <script type="module" src="/static/talk.js"></script>
