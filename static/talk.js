@@ -6,7 +6,7 @@
 // - a call that ends leaves a short "Call ended" moment instead of snapping back;
 // - the level meter follows the voice, and the pill bar glides when its pills change.
 
-import { capsuleNav, bubbles, materialise, flip, levelMeter } from "/static/ui/emma-ui.js";
+import { capsuleNav, bubbles, materialise, flip, levelMeter, liquid } from "/static/ui/emma-ui.js";
 
 const body = document.body;
 const orb = document.getElementById("orb");
@@ -252,16 +252,28 @@ materialise(bar);                   // before flip(), so a leaving pill is held 
 bubbles(bar);
 flip(dock, { selector: ":scope > *" });   // only the bar as a whole glides; its labels cross-fade
 
+// Liquid Glass (section 13 map): a lens on the capsule, the call bar and the typed box; the orb
+// is content and stays its own painted sphere. The bar's lens ramps up as its glass lands.
+liquid(document.getElementById("talk-capsule-glass"), { press: false });
+const barGlass = liquid(bar);
+if (barGlass.lens) {
+  barGlass.lens.set(0);
+  setTimeout(() => barGlass.lens.to(1, 380), reduced() ? 0 : 300);
+}
+const typedGlass = liquid(typedForm, { press: false });
+
 // At the end of a call the typed box fades out before it leaves the dock (then the bar glides).
 let typedShown = !typedForm.hidden;
 new MutationObserver(() => {
   if (typedForm.hidden && typedShown && !reduced()) {
+    typedGlass.vanish(200);
     typedForm.classList.add("is-leaving");
     clearTimeout(typedForm._leave);
     typedForm._leave = setTimeout(() => typedForm.classList.remove("is-leaving"), 200);
   } else if (!typedForm.hidden) {
     clearTimeout(typedForm._leave);
     typedForm.classList.remove("is-leaving");
+    if (!typedShown) { typedGlass.refresh(); typedGlass.materialize(); }
   }
   typedShown = !typedForm.hidden;
 }).observe(typedForm, { attributes: true, attributeFilter: ["hidden"] });
