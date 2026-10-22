@@ -857,3 +857,92 @@ These are the patterns most worth building, as specs. Every one stays CSP-clean:
 - `--ease-pop: cubic-bezier(.3,2,.5,1)`
 - `--ease-label: cubic-bezier(.53,-.01,.17,1)`
 - `linear` for hover colour steps
+
+## 12. As built: the deep pass (22 Oct)
+
+**Process:** four roles, run as agents in rounds: researcher, builder, Apple web-head reviewer and consumer tester.
+- **Research:** three researchers, one each for AirPods, iPhone and sign-in, wrote section 11.
+- **Building:** two builders. One did the shared components, the talk page and the sign-in page; the other did the dashboard.
+- **Rounds:**
+
+| Page | Rounds | Reviewer | Tester |
+|---|---|---|---|
+| Talk | 3 | approved | 6 → 8 → 9/10 |
+| Sign-in | 3 | approved | 7.5 → 8.5 → 9/10 |
+| Dashboard | 3 | approved | 6.5 → 8.5 → 9/10 |
+
+**What was copied from where (pattern and values, never assets):**
+- **iPhone 18 Pro and Air:**
+  - the floating glass capsule nav (B1; P1, P21);
+  - the materialising pill bar with its 14px to 7px blur (B2; P5);
+  - the sticky toolbar that turns glass once stuck, with a keyline (B15; P22);
+  - the round alpha-step controls (B7; P10, P11);
+  - the modal recipe: blurred light scrim, 28px panel, sticky 36px close (B6; P13, P18);
+  - the overshoot pop-in at `cubic-bezier(.3,2,.5,1)` with a 50ms stagger (B5; P14, P31);
+  - the caption fade (B13; P34);
+  - the ribbon drop and calm (B21; P23);
+  - the accordion (B17; P33).
+- **AirPods Max:**
+  - the segmented tab nav with a sliding pill and a 160ms label flip (B4; A21);
+  - the bubble selector's stretch and squash (B3; A22);
+  - the progressive-blur scrim (B11; A24);
+  - one shared glass layer behind the pills (A25).
+- **AirPods and AirPods Pro:**
+  - the stretching progress pill, used as the talk-page level meter (B10; A15);
+  - the inner 0.5px glass edge (B12; A18);
+  - the 8-spoke spinner (B14; A28);
+  - the strip slide-in (B16; A6);
+  - the rotating plus (B22; A1).
+- **Apple Account sign-in:**
+  - the 56px floating-label fields with a 2px focus border (B18; S8, S9);
+  - the 38px block button, its colours and the keyboard ring (B19; S10);
+  - the error line and red field state (S15);
+  - the brand-area arrival (B20; S3, S18);
+  - the 52px bar and #f5f5f7 footer (S1, S4).
+
+**What the reviewers rejected along the way, and how it was fixed:**
+- **Talk page:**
+  - It didn't fit the viewport. It is now a 100dvh grid, with the orb sized from the viewport height.
+  - The pill bar snapped widths and showed clipped or squashed labels. The glass now glides; labels cross-fade in place, and a leaving pill fades out first.
+  - The materialise steps overlapped. They now run in order: dot, then widen, then labels.
+  - There was no hover or press feedback on the selected pill.
+  - The caller's typed line vanished after 7ms. A two-line transcript now keeps it.
+  - Captions were truncated on phones, and the page was 394px wide at 375.
+  - The thinking ring flashed, the status headline flickered, and there was no thinking state. Statuses are now held for at least 700ms and cross-faded.
+  - The error state was alarm-red. It is now calm amber.
+  - "Call Emma" briefly showed on red. The red now arrives with the "End call" words.
+  - The "Call ended" dimming never showed. Now it does, and the lines fade on out.
+- **Sign-in:**
+  - The placeholder-looking grey ball was replaced by a still 40px mark. A 28-dot ring that read as a spinner was tried and then removed.
+  - The error line pushed the layout down. It now takes the help line's slot.
+  - The empty user name field turned red. Now only the field at fault does.
+  - The entrance took 4s to become readable.
+- **Dashboard:**
+  - Raw internal keys reached the screen ("Emma is ask name", "ask_intent", "tier0"). Plain labels replaced them.
+  - Staff lines looked like Emma's. They are now green "You" bubbles, and the status reads "You're on the call".
+  - The full-width red End pill is now tinted red text.
+  - A two-line confirm used a full sheet. It is now a 360px alert, and the page behind it is inert.
+  - The Calendar lost its date navigation on scroll and on phones. The toolbar is now sticky, and the hour grid scrolls in its own box.
+  - The book sheet grew to 66 ragged pills. Slots are now grouped by time of day, with a sticky footer on desktop.
+  - The forms mixed native and floating-label fields. There is now one field style.
+  - The toolbar overlapped at 735-1068px. Below 1068px it has two rows.
+  - Recovery was 390px wide on phones.
+  - A grid class clash broke the "You're on the call" pill.
+  - The System reply counts didn't add up. This was a labelling fix only.
+  - Shadows on the tab bar and on event hover were removed.
+
+**Left out on purpose:**
+- Drag-to-move for appointments, so every booking change still goes through Python's checks.
+- Apple's 2s brand animation, shortened to about 600ms.
+- The B11 progressive blur under the dashboard toolbars, so the bars stay restrained.
+
+**Follow-ups outside this redesign:**
+- A talk-page call ended by staff with no phone number still creates an uncallable callback task.
+- One greeting variant ("Hi, Emma at Pearl Dental. Would you like to book an appointment?") reads oddly.
+- Emma doesn't say goodbye when a typed call is ended.
+- The demo-role ribbon was checked by forcing it into view, not by signing in as a demo user, because the permission check stops agents from typing test passwords.
+
+**Verified:**
+- In the built-in browser at 1280x800, 1024, 900, 800x600 and 375x812, light theme, with the pane visible so the motion ran at real speed.
+- No CSP violations; the only 404s are the ambience mp3s, which worktrees don't have.
+- Tests: 1,056 OK, 1 skipped.
