@@ -1117,6 +1117,129 @@ html.e-sheet-open { overflow: hidden; }
 .e-acc-head[aria-expanded="true"] + .e-acc-tray { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows 400ms ease-in-out, visibility 0s; }
 .e-acc-body { padding-bottom: 20px; color: var(--ink-2); }
 
+/* ==================================================================
+   Liquid Glass (docs/APPLE_DESIGN_PLAN.md section 13, recipes R1-R9).
+   One material for the floating functional layer only (LG1): never on content, never glass on
+   glass (LG18). Layers, bottom to top (LG13):
+     1. the backdrop: frosted blur everywhere; in Chromium with .lens, a real lens at the rim
+        (an SVG feDisplacementMap that liquid() builds per surface, LG27/LG31);
+     2. a translucent fill;
+     3. a specular rim lit top-left and bottom-right (LG24 geometry in white) + a .5px hairline;
+     4. a soft highlight that follows the pointer (pointer:fine only), and a press glow;
+     5. an adaptive drop shadow, deeper over text (LG14).
+   Use:   <div class="e-liquid">           regular glass
+          <div class="e-liquid lens">      + refraction in Chromium (at most ~3 on screen, small surfaces)
+          <button class="e-liquid tint">   stained glass for the one primary action (LG17)
+          .over-text                       denser fill + deeper shadow (liquid() sets it for you)
+   JS:    liquid(el, options) from emma-ui.js wires the lens, highlight, press and materialize.
+   ================================================================== */
+@property --lg-glow-a { syntax: "<number>"; inherits: true; initial-value: 0; }
+
+:root {
+  --lg-fill: rgba(255, 255, 255, 0.62);           /* lighter than the old .8: the rim now does the separating */
+  --lg-fill-dense: rgba(255, 255, 255, 0.8);
+  --lg-blur: blur(16px) saturate(150%);
+  --lg-rim:
+    inset 1.5px 1.5px 0.5px -1px rgba(255, 255, 255, 0.95),
+    inset -1px -1px 0.5px -0.5px rgba(255, 255, 255, 0.65),
+    inset 0 0 0.5px rgba(0, 0, 0, 0.11);
+  --lg-ring: 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  --lg-drop: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --lg-drop-over-text: 0 8px 28px rgba(0, 0, 0, 0.16);
+  --lg-spring: cubic-bezier(0.3, 1.6, 0.5, 1);    /* the press swell's gel-like give (LG12) */
+  /* concentric radii (LG6): an inner shape's radius = the outer radius - the inset between them */
+  --r-outer: 28px;
+  --inset: 3px;
+  --r-inner: max(calc(var(--r-outer) - var(--inset)), 6px);
+}
+
+.e-liquid {
+  --lg-surface: var(--lg-fill);
+  background:
+    radial-gradient(130px circle at var(--px, 50%) var(--py, 50%), rgba(255, 255, 255, calc(0.55 * var(--lg-glow-a))), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(180px circle at var(--lx, 24%) var(--ly, -10%), rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 65%),
+    var(--lg-surface);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-rim), var(--lg-ring), var(--lg-shadow, var(--lg-drop));
+  transition: --lg-glow-a 400ms ease-out, transform 320ms var(--lg-spring), box-shadow 300ms var(--ease), filter 200ms ease-out;
+}
+html.lg-refract .e-liquid.lens { -webkit-backdrop-filter: var(--lg-filter, blur(16px)) saturate(150%); backdrop-filter: var(--lg-filter, blur(16px)) saturate(150%); }
+.e-liquid.over-text { --lg-surface: var(--lg-fill-dense); --lg-shadow: var(--lg-drop-over-text); }
+/* press: swell on a spring and light up from under the finger (LG12) */
+.e-liquid.is-pressed { --lg-glow-a: 1; transform: scale(var(--lg-swell, 1.03)); filter: brightness(1.05); transition: --lg-glow-a 0ms, transform 320ms var(--lg-spring), filter 0ms; }
+.e-liquid.no-swell.is-pressed { transform: none; }
+/* materialize (LG11): the surface arrives as the lensing ramps up (liquid() ramps the lens), not as a plain fade */
+.e-liquid.is-materialising { animation: e-liquid-in 320ms var(--ease-out) both; }
+@keyframes e-liquid-in {
+  from { opacity: 0; transform: scale(0.96); -webkit-backdrop-filter: blur(0) saturate(100%); backdrop-filter: blur(0) saturate(100%); }
+}
+/* stained glass for the one primary action: the accent stays solid enough for white text (4.7:1),
+   with a soft top sheen and the specular rim at half strength */
+.e-liquid.tint {
+  --lg-surface: var(--lg-tint, var(--blue));
+  color: #fff;
+  box-shadow:
+    inset 0 14px 16px -12px rgba(255, 255, 255, 0.3),
+    inset 1px 1px 0.5px -0.5px rgba(255, 255, 255, 0.6),
+    inset -1px -1px 0.5px -0.5px rgba(255, 255, 255, 0.3),
+    0 4px 14px color-mix(in srgb, var(--lg-tint, var(--blue)) 30%, transparent);
+}
+
+/* The pill bar keeps its glass on ::after (so the width can glide); the material moves there. */
+.e-pillbar.e-liquid { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; filter: none; }
+.e-pillbar.e-liquid::after {
+  background:
+    radial-gradient(130px circle at var(--px, 50%) var(--py, 50%), rgba(255, 255, 255, calc(0.55 * var(--lg-glow-a))), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(180px circle at var(--lx, 24%) var(--ly, -10%), rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 65%),
+    var(--lg-pass-fill, rgba(232, 232, 237, 0.6));
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-rim), var(--lg-ring), var(--lg-shadow, var(--lg-drop));
+  transition: width 400ms var(--ease-layout), filter 200ms ease-out;
+}
+html.lg-refract .e-pillbar.e-liquid.lens::after { -webkit-backdrop-filter: var(--lg-filter, blur(16px)) saturate(150%); backdrop-filter: var(--lg-filter, blur(16px)) saturate(150%); }
+/* brightness goes on the glass layer, never the host: a filter on the host would cut the glass off from the page (LG30) */
+.e-pillbar.e-liquid.is-pressed { filter: none; }
+.e-pillbar.e-liquid.is-pressed::after { filter: brightness(1.05); transition: width 400ms var(--ease-layout), filter 0ms; }
+/* the bubble inside is a fill, not a second glass (LG18): stained by the accent, with a sheen and a rim */
+.e-pillbar.e-liquid .e-bubble::before {
+  box-shadow:
+    inset 0 14px 16px -12px rgba(255, 255, 255, 0.28),
+    inset 1px 1px 0.5px -0.5px rgba(255, 255, 255, 0.55),
+    inset -1px -1px 0.5px -0.5px rgba(255, 255, 255, 0.25),
+    0 3px 10px color-mix(in srgb, var(--bubble-fill) 30%, transparent);
+}
+
+/* the capsule keeps its 1px #e6e6e8 ring (P21) as the outer edge of the glass */
+.e-capsule.e-liquid { --lg-ring: 0 0 0 1px var(--glass-capsule-ring); --lg-surface: rgba(255, 255, 255, 0.7); }
+
+/* The hidden home of the lens filters (no style="": CSP). */
+.e-svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .e-liquid.is-pressed { transform: none; }
+  .e-liquid.is-materialising { animation: e-fade-in 150ms linear both; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .e-liquid, .e-pillbar.e-liquid::after {
+    background: var(--canvas-alt) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: 0 0 0 1px var(--hairline) !important;
+  }
+  .e-liquid.tint { background: var(--lg-tint, var(--blue)) !important; box-shadow: none !important; }
+}
+@media (prefers-contrast: more) {
+  .e-liquid, .e-pillbar.e-liquid::after {
+    background: #fff !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: 0 0 0 1px var(--ink-3) !important;
+  }
+  .e-liquid.tint { background: var(--lg-tint, var(--blue)) !important; }
+}
+
 /* ------------------------------------------------------------------ reduced transparency: solid surfaces */
 @media (prefers-reduced-transparency: reduce) {
   .e-capsule, .e-pillbar::after, .e-sheet-scrim, .e-blur-scrim {

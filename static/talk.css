@@ -13,9 +13,9 @@ body.talk {
   --t-speaking: #3d8ae6;
   --t-problem: #e8b45c;       /* calm amber for anything that went wrong */
   --t-busy: #e8b45c;
-  --end-call: #eb4d3d;
-  --end-call-hover: #f0604f;
-  --end-call-active: #d8432f;
+  --end-call: #d7382a;        /* white on it is 4.7:1 (AA), like the blue */
+  --end-call-hover: #cf3527;
+  --end-call-active: #c43224;
   height: 100vh;
   height: 100dvh;
   display: grid;
@@ -318,18 +318,13 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
   gap: 8px;
   height: 56px;
   padding: 0 8px 0 20px;
-  border-radius: 28px;
-  background: var(--glass-pass);
-  -webkit-backdrop-filter: blur(7px);
-  backdrop-filter: blur(7px);
-  box-shadow: var(--edge);
-  transition: background-color 250ms linear;
-  animation: pill-in 360ms var(--ease-out) 80ms backwards;
+  border-radius: 28px;          /* concentric: the 40px send button sits 8px in, radius 20 */
+  /* the material is .e-liquid.lens (emma-ui.css); talk.js materializes it as the lens ramps up */
 }
 .typed[hidden] { display: none; }
 /* at the end of a call the box fades out (200ms) before it leaves, then the bar glides back */
 .typed[hidden].is-leaving { display: flex !important; pointer-events: none; animation: e-fade-out 200ms ease-out forwards; }
-.typed:focus-within { background: var(--glass-pass-hover); }
+.typed:focus-within { --lg-surface: var(--lg-fill-dense); }
 .typed input {
   flex: 1;
   width: 0;          /* the field's built-in width (about 20 characters) must not size the dock */
@@ -394,7 +389,6 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .typed { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--solid-rest); }
 }
 
 @media (prefers-reduced-motion: reduce) {

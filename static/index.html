@@ -10,8 +10,10 @@
   <link rel="stylesheet" href="/static/talk.css">
 </head>
 <body class="talk" data-call="idle">
+  <!-- Liquid Glass lens filters live here (liquid() in emma-ui.js adds one per surface). -->
+  <svg class="e-svg-defs" id="e-lg-defs" aria-hidden="true" focusable="false"></svg>
   <div class="e-capsule-wrap" id="talk-capsule">
-    <header class="e-capsule">
+    <header class="e-capsule e-liquid lens" id="talk-capsule-glass">
       <a class="e-capsule-brand" href="/" aria-label="Pearl Dental">
         <span class="pearl" aria-hidden="true"></span>
         <span>Pearl Dental</span>
@@ -45,7 +47,7 @@
     <!-- What was said: the caller's last line above, Emma's line below. app.js writes the live
          caption into #caption, which stays out of sight and out of the accessibility tree; talk.js
          draws it here, and Emma's line is the one live region screen readers hear. -->
-    <div class="transcript" id="transcript">
+    <div class="transcript" id="transcript" data-under="text">
       <span class="e-blur-scrim soft" aria-hidden="true"></span>
       <p class="line-caller" id="line-caller" aria-hidden="true"></p>
       <p class="line-emma" id="line-emma" aria-live="polite"></p>
@@ -53,12 +55,12 @@
     <div class="caption-source" hidden><p id="caption"></p></div>
 
     <div class="dock" id="dock">
-      <div class="cta e-pillbar e-bubbles" id="call-bar">
+      <div class="cta e-pillbar e-bubbles e-liquid lens" id="call-bar">
         <button id="action" type="button" class="is-selected" hidden>Try again</button>
         <button id="call-button" type="button" class="is-selected">Call Emma</button>
         <button id="type-instead" type="button">Type instead</button>
       </div>
-      <form id="typed" class="typed" hidden autocomplete="off">
+      <form id="typed" class="typed e-liquid lens" hidden autocomplete="off">
         <input id="typed-text" type="text" placeholder="Type your message" aria-label="Your message to Emma" enterkeyhint="send">
         <button type="submit" class="typed-send" aria-label="Send">
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 13V3.5M3.5 7.5 8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>

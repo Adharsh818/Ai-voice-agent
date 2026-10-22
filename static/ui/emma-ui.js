@@ -512,3 +512,210 @@ export function sheet(root, { onClose } = {}) {
   }
   return { open, close };
 }
+
+/* ==================================================================
+   Liquid Glass (docs/APPLE_DESIGN_PLAN.md section 13). Pairs with .e-liquid in emma-ui.css.
+   liquid(el, options) -> { refresh(), materialize(), vanish() }
+     lens         build a real lens for this surface (Chromium only: html.lg-refract). Default:
+                  el has the "lens" class.
+     track        the highlight follows the pointer (pointer:fine, not reduced motion). Default true.
+     press        swell and light up from under the finger. Default true.
+     under        a selector for content that makes the glass go denser and cast a deeper shadow
+                  when it sits over it (LG14). Default '[data-under="text"]'.
+     materialize  play the entrance now: the lensing ramps up instead of a plain fade.
+   ================================================================== */
+const SVG_NS = "http://www.w3.org/2000/svg";
+const lensOn = () => document.documentElement.classList.contains("lg-refract");
+let lgCount = 0;
+let lgDefs = null;
+function lgDefsHost() {
+  if (lgDefs && lgDefs.isConnected) return lgDefs;
+  lgDefs = document.getElementById("e-lg-defs");
+  if (!lgDefs) {
+    lgDefs = document.createElementNS(SVG_NS, "svg");
+    lgDefs.id = "e-lg-defs";
+    lgDefs.setAttribute("class", "e-svg-defs");
+    lgDefs.setAttribute("aria-hidden", "true");
+    lgDefs.setAttribute("focusable", "false");
+    document.body.prepend(lgDefs);
+  }
+  return lgDefs;
+}
+
+// The displacement map (LG31): neutral grey, with a band at each edge that pushes the backdrop
+// inward (red = x, green = y), so the centre stays clear and the rim bends like a lens. Built at
+// the surface's own size in px, so a wide capsule gets the same rim as a small pill.
+export function lensMap(w, h) {
+  const bx = Math.round(Math.min(h * 0.5, w * 0.25));   // horizontal rim width
+  const by = Math.round(h * 0.32);                       // vertical rim depth
+  const svg = `<svg xmlns="${SVG_NS}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
+    + "<defs>"
+    + '<linearGradient id="l" x1="0" x2="1"><stop offset="0" stop-color="rgb(255,128,128)"/><stop offset="1" stop-color="rgb(128,128,128)"/></linearGradient>'
+    + '<linearGradient id="r" x1="0" x2="1"><stop offset="0" stop-color="rgb(128,128,128)"/><stop offset="1" stop-color="rgb(0,128,128)"/></linearGradient>'
+    + '<linearGradient id="t" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgb(128,255,128)"/><stop offset="1" stop-color="rgb(128,128,128)" stop-opacity="0"/></linearGradient>'
+    + '<linearGradient id="b" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgb(128,128,128)" stop-opacity="0"/><stop offset="1" stop-color="rgb(128,0,128)"/></linearGradient>'
+    + "</defs>"
+    + `<rect width="${w}" height="${h}" fill="rgb(128,128,128)"/>`
+    + `<rect width="${bx}" height="${h}" fill="url(#l)"/>`
+    + `<rect x="${w - bx}" width="${bx}" height="${h}" fill="url(#r)"/>`
+    + `<rect width="${w}" height="${by}" fill="url(#t)"/>`
+    + `<rect y="${h - by}" width="${w}" height="${by}" fill="url(#b)"/>`
+    + "</svg>";
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function buildLens(el) {
+  const id = `e-lg-${++lgCount}`;
+  const f = document.createElementNS(SVG_NS, "filter");
+  f.id = id;
+  f.setAttribute("filterUnits", "userSpaceOnUse");
+  f.setAttribute("primitiveUnits", "userSpaceOnUse");
+  f.setAttribute("color-interpolation-filters", "sRGB");
+  const img = document.createElementNS(SVG_NS, "feImage");
+  img.setAttribute("result", "map");
+  img.setAttribute("preserveAspectRatio", "none");
+  const blur = document.createElementNS(SVG_NS, "feGaussianBlur");
+  blur.setAttribute("in", "SourceGraphic");
+  blur.setAttribute("result", "soft");
+  const sat = document.createElementNS(SVG_NS, "feColorMatrix");
+  sat.setAttribute("in", "soft");
+  sat.setAttribute("type", "saturate");
+  sat.setAttribute("values", "1.5");
+  sat.setAttribute("result", "sat");
+  const disp = document.createElementNS(SVG_NS, "feDisplacementMap");
+  disp.setAttribute("in", "sat");
+  disp.setAttribute("in2", "map");
+  disp.setAttribute("xChannelSelector", "R");
+  disp.setAttribute("yChannelSelector", "G");
+  f.append(img, blur, sat, disp);
+  lgDefsHost().append(f);
+  let w = 0, h = 0, power = 1;
+  const target = () => ({ scale: Math.max(16, Math.min(26, h * 0.45)), blur: h > 80 ? 10 : 7 });
+  function paint() {
+    const t = target();
+    disp.setAttribute("scale", (t.scale * power).toFixed(2));
+    blur.setAttribute("stdDeviation", (t.blur * Math.max(power, 0.15)).toFixed(2));
+  }
+  function size() {
+    const nw = Math.round(el.offsetWidth), nh = Math.round(el.offsetHeight);
+    if (!nw || !nh || (nw === w && nh === h)) return;
+    w = nw; h = nh;
+    for (const node of [f, img]) {
+      node.setAttribute("x", "0");
+      node.setAttribute("y", "0");
+      node.setAttribute("width", String(w));
+      node.setAttribute("height", String(h));
+    }
+    img.setAttribute("href", lensMap(w, h));
+    paint();
+  }
+  size();
+  el.style.setProperty("--lg-filter", `url(#${id})`);
+  let ramp;
+  function to(end, ms) {
+    cancelAnimationFrame(ramp);
+    if (reducedMotion() || ms <= 0) { power = end; paint(); return; }
+    const start = power, t0 = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, Math.max(0, (now - t0) / ms));
+      const e = 1 - Math.pow(1 - k, 3);                 // ease-out
+      power = start + (end - start) * e;
+      paint();
+      if (k < 1) ramp = requestAnimationFrame(step);
+    };
+    ramp = requestAnimationFrame(step);
+  }
+  return { id, size, to, set(p) { cancelAnimationFrame(ramp); power = p; paint(); } };
+}
+
+// One pointer listener for every tracked surface: the highlight leans toward the pointer while it
+// is within 200px, and drifts back to the top-left light source when it leaves.
+const tracked = new Set();
+let pointerQueued = false;
+let lastPointer = null;
+function onPointer(event) {
+  lastPointer = event;
+  if (pointerQueued) return;
+  pointerQueued = true;
+  requestAnimationFrame(() => {
+    pointerQueued = false;
+    const p = lastPointer;
+    for (const el of tracked) {
+      const r = el.getBoundingClientRect();
+      const near = p.clientX > r.left - 200 && p.clientX < r.right + 200 && p.clientY > r.top - 200 && p.clientY < r.bottom + 200;
+      if (near) {
+        el.style.setProperty("--lx", px(p.clientX - r.left));
+        el.style.setProperty("--ly", px(p.clientY - r.top));
+      } else {
+        el.style.removeProperty("--lx");
+        el.style.removeProperty("--ly");
+      }
+    }
+  });
+}
+let pointerBound = false;
+function bindPointer() {
+  if (pointerBound) return;
+  pointerBound = true;
+  window.addEventListener("pointermove", onPointer, { passive: true });
+}
+
+export function liquid(el, { lens, track = true, press = true, under = '[data-under="text"]', materialize: enter = false } = {}) {
+  if (!el) return { refresh() {}, materialize() {}, vanish() {} };
+  el.classList.add("e-liquid");
+  const wantsLens = lens === undefined ? el.classList.contains("lens") : lens;
+  if (wantsLens) el.classList.add("lens");
+  const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
+  const glass = wantsLens && lensOn() ? buildLens(el) : null;
+
+  if (track && fine.matches && !reducedMotion()) { tracked.add(el); bindPointer(); }
+
+  if (press) {
+    const down = (event) => {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty("--px", px(event.clientX - r.left));
+      el.style.setProperty("--py", px(event.clientY - r.top));
+      el.classList.add("is-pressed");
+    };
+    const up = () => el.classList.remove("is-pressed");
+    el.addEventListener("pointerdown", down);
+    for (const name of ["pointerup", "pointercancel", "pointerleave"]) el.addEventListener(name, up);
+  }
+
+  // Adaptive shadow (LG14): denser and deeper while the glass floats over text.
+  const over = () => {
+    if (!under) return;
+    const r = el.getBoundingClientRect();
+    const hit = [...document.querySelectorAll(under)].some((u) => {
+      const q = u.getBoundingClientRect();
+      return q.width && q.height && r.left < q.right && r.right > q.left && r.top < q.bottom && r.bottom > q.top;
+    });
+    el.classList.toggle("over-text", hit);
+  };
+  let overQueued = false;
+  const overSoon = () => {
+    if (overQueued) return;
+    overQueued = true;
+    requestAnimationFrame(() => { overQueued = false; over(); });
+  };
+  window.addEventListener("scroll", overSoon, { passive: true, capture: true });
+  window.addEventListener("resize", overSoon);
+  over();
+
+  let sizeTimer;
+  if (glass && "ResizeObserver" in window) {
+    new ResizeObserver(() => { clearTimeout(sizeTimer); sizeTimer = setTimeout(glass.size, 120); }).observe(el);
+  }
+
+  function materialize() {
+    if (glass) { glass.set(0); glass.to(1, 380); }
+    el.classList.remove("is-materialising");
+    void el.offsetWidth;
+    el.classList.add("is-materialising");
+    clearTimeout(el._lgIn);
+    el._lgIn = setTimeout(() => el.classList.remove("is-materialising"), 420);
+  }
+  function vanish(ms = 200) { if (glass) glass.to(0, ms); }
+  if (enter) materialize();
+  return { lens: glass, refresh() { if (glass) glass.size(); over(); }, materialize, vanish };
+}

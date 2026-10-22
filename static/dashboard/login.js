@@ -1,7 +1,7 @@
 // Staff login. The password goes to the server once over a same-origin POST;
 // the server answers with an HttpOnly cookie this script never sees.
 
-import { shakeX, capsuleNav } from "/static/ui/emma-ui.js";
+import { shakeX, capsuleNav, liquid } from "/static/ui/emma-ui.js";
 
 const form = document.getElementById("login-form");
 const errorBox = document.getElementById("login-error");
@@ -97,6 +97,9 @@ form.addEventListener("submit", async (event) => {
 });
 
 capsuleNav(document.getElementById("signin-capsule"));
+// Liquid Glass here is the rim and the blur on the capsule only: no lens on a quiet page, and the
+// fields and the button stay solid content (section 13 map).
+liquid(document.getElementById("signin-capsule-glass"), { lens: false, press: false });
 // Show the form at once (it stays hidden without JavaScript, so it can never submit as a GET);
 // the status check only redirects a signed-in visitor or swaps in the locked notice.
 form.hidden = false;
