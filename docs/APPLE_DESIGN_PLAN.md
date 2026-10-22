@@ -1099,3 +1099,56 @@ Also disable `html.lg-refract` under reduced transparency, in head.js via `match
 - Clear glass on our plain light backgrounds (LG19).
 - Form fields on sign-in. Fields are content and need solid contrast.
 - Under any reduce-transparency or increase-contrast setting (R9), and any moving highlight under reduced motion.
+
+### 13.x As built: Liquid Glass (22-23 Oct)
+
+**Process:** the same four agents worked in rounds:
+- one researcher, for the material and where it belongs;
+- Builder 1, for the shared material, the talk page and the sign-in page;
+- Builder 2, for the dashboard;
+- the reviewer and the consumer tester.
+
+| Page | Reviewer | Tester |
+|---|---|---|
+| Talk | rejected in round 1, approved in round 2 | 8.5 → 9/10 |
+| Sign-in | approved in round 1 | 8.5/10 |
+| Dashboard | approved in round 1, then polished | 9/10 |
+
+**The material:**
+- `.e-liquid` in `static/ui/emma-ui.css` and `liquid()` in `emma-ui.js`.
+- **Lens:** real `feDisplacementMap` refraction through `backdrop-filter: url(#…)`, in Chromium only (`html.lg-refract`, set by head.js). The bend is `min(8px, h*.14)` with an 8-12px convex rim, and a 2.5px blur runs after the bend.
+- **Rim and highlight:** a specular rim with a 0.5px hairline, and a fixed top-left highlight.
+- **Press:** a spring swell of about 1.04, on the pressed control only.
+- **Entrance:** the lensing ramps up instead of fading in, and filters are built after first paint.
+- **Shape and depth:** concentric radii (`--r-outer`/`--inset`/`--r-inner`), and an adaptive shadow (`.over-text`).
+- **Fallbacks:** Safari and Firefox get frosted blur with the same rim and press. Reduced transparency and increased contrast give solid fills with the lens off. Reduced motion shows end states.
+- **CSP:** an inline `<svg>` defs container, filters appended by same-origin JS, `url(#id)` from external CSS, and `feImage` data: maps. All work under `default-src 'self'` and `img-src 'self' data:`.
+
+**Placement (the lens only where content passes under it):**
+- **Lens:**
+  - the talk page's call bar and typed box, over a state-coloured pool that rests at opacity 0 and rises with a call;
+  - the dashboard's phone tab bar, over the Calendar, Tasks and the transcript;
+  - the Live call input bar, which ramps in on Take over.
+- **Rim and blur:** the talk and sign-in capsules, stuck toolbars, toasts, segmented platters, the "Jump to latest" pill and the phone More menu.
+- **Rim, no blur:** sheets (no blur on blur), and the sidebar (nothing passes under it).
+- **Not glass:** the orb, tiles, calendar cells and events, bubbles, tables, form fields, and anything nested inside other glass.
+
+**Rejected along the way:**
+- **Lens too strong:** the first lens warped instead of bending (a 23-25px bend with 28px linear ramps, which doubled text). Cut to about 8px.
+- **Press on the whole bar:** pressing one pill swelled the whole call bar and blurred its labels.
+- **Moving highlight:** a 180px highlight followed the pointer like a flashlight.
+- **Candy pills:** a glossy red End call pill with a coloured glow.
+- **Nothing to bend:** a lens sat over plain white.
+- **Slow phone load:** about 3s, until the glass build was deferred.
+- **Entrance stain:** a glow showed before the buttons.
+- **Glass faults:** blur on blur in sheets; a fixed `--r-inner` that turned menu rows into pills; the dense fill lost to specificity.
+
+**Frame time** (window visible, page at 60fps): the lens and plain blur both measured p50 16.6-16.7ms and p90 16.8-17.1ms, on the talk page during a typed call and on the dashboard scrolling the Calendar and Tasks at 375px.
+
+**Bug found by the tester and fixed:** one typed caller line showed as two bubbles on Live call. The stored caller turn arrives after Emma's first reply, and it was matched against the last line.
+
+**Follow-ups outside this work:**
+- Each staff-ended talk-page call with no number still creates a callback task.
+- One greeting variant reads oddly ("Hi, Emma at Pearl Dental…").
+- Emma's "closed on Sundays" answer offers no alternative day.
+- There is no goodbye when a typed call ends.
