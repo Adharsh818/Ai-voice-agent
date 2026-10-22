@@ -27,6 +27,7 @@
     <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l4-4-4-4M14 12H4"/></symbol>
     <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/></symbol>
   </svg>
 
   <div class="app">
@@ -104,12 +105,12 @@
           <h1 class="t-large-title" id="h-today">Today</h1>
         </div>
         <div class="today-grid" data-reveal="fast" id="today-grid">
-          <button class="tile tile-hover today-tile wide" data-go="live" id="today-live" type="button"></button>
-          <button class="tile tile-hover today-tile wide" data-go="appointments" id="today-appts" type="button"></button>
-          <button class="tile tile-hover today-tile" data-go="tasks" id="today-tasks" type="button"></button>
-          <button class="tile tile-hover today-tile" data-go="calls" id="today-calls" type="button"></button>
-          <button class="tile tile-hover today-tile" data-go="recovery" id="today-recovery" type="button"></button>
-          <button class="tile tile-hover today-tile" data-go="system" id="today-system" type="button"></button>
+          <article class="tile tile-hover today-tile wide" id="today-live"></article>
+          <article class="tile tile-hover today-tile wide" id="today-appts"></article>
+          <article class="tile tile-hover today-tile" id="today-tasks"></article>
+          <article class="tile tile-hover today-tile" id="today-calls"></article>
+          <article class="tile tile-hover today-tile" id="today-recovery"></article>
+          <article class="tile tile-hover today-tile" id="today-system"></article>
         </div>
       </section>
 
@@ -121,8 +122,8 @@
           <h1 class="t-large-title" id="h-live">Live call</h1>
         </div>
         <div class="live-layout">
-          <div class="chat">
-            <div class="call-switcher" id="live-calls" hidden></div>
+          <div class="chat fit" id="live-chat">
+            <div class="call-switcher" id="live-calls"><div class="call-switcher-in"></div></div>
             <div class="transcript" id="live-transcript" aria-live="polite"></div>
             <div class="chat-empty" id="live-empty">
               <span class="pearl big" aria-hidden="true"></span>
@@ -131,10 +132,13 @@
                 Try one from the <a href="/" target="_blank" rel="noopener">talk page</a>.</p>
             </div>
             <button class="jump glass-pill" id="live-jump" type="button" hidden>Jump to latest</button>
-            <form class="compose" id="op-form" hidden autocomplete="off">
-              <input id="op-text" class="compose-input" maxlength="400" placeholder="Say something to the caller" aria-label="Line to say">
-              <button class="compose-send" type="submit" aria-label="Say it">↑</button>
-            </form>
+            <div class="compose-dock" id="compose-dock">
+              <p class="compose-note">Emma is paused. The caller hears you.</p>
+              <form class="compose" id="op-form" autocomplete="off">
+                <input id="op-text" class="compose-input" maxlength="400" placeholder="Type what to say to the caller" aria-label="Line to say">
+                <button class="compose-send" type="submit" aria-label="Say it"><svg class="ico"><use href="#i-up"/></svg></button>
+              </form>
+            </div>
           </div>
 
           <aside class="inspector">
@@ -144,26 +148,27 @@
                 <span class="state-pill" id="live-state">Idle</span>
               </div>
               <dl class="kv">
-                <dt>Call</dt><dd id="live-call" class="mono">–</dd>
+                <dt>Caller</dt><dd id="live-call">–</dd>
                 <dt>Duration</dt><dd id="live-duration" class="num">–</dd>
-                <dt>Doing</dt><dd id="live-goal">–</dd>
-                <dt>Answered by</dt><dd id="live-tier">–</dd>
+                <dt>What's happening</dt><dd id="live-goal">–</dd>
                 <dt>Outcome</dt><dd id="live-outcome">–</dd>
               </dl>
               <div class="entities" id="live-entities"></div>
               <div class="operator" id="live-controls" hidden>
-                <button class="btn-pill block" type="button" id="op-takeover">Take over</button>
-                <button class="btn-pill block gray" type="button" id="op-handback" hidden>Hand back to Emma</button>
-                <button class="btn-pill block danger" type="button" id="op-end">End call + task</button>
+                <div class="op-swap">
+                  <button class="btn-pill block" type="button" id="op-takeover">Take over</button>
+                  <button class="btn-pill block gray" type="button" id="op-handback">Hand back to Emma</button>
+                </div>
+                <button class="btn-pill block danger-text" type="button" id="op-end">End call…</button>
               </div>
             </div>
             <div class="inspector-card disclosure" id="live-timings">
               <button class="e-acc-head" type="button" aria-expanded="false" aria-controls="live-timings-tray">
-                <span class="acc-label"><span class="t-body">Turn timings</span><span class="t-caption ink-2">ms</span></span></button>
+                <span class="acc-label"><span class="t-body">Response times</span></span></button>
               <div class="e-acc-tray" id="live-timings-tray"><div>
                 <div class="table-wrap">
                   <table class="table compact">
-                    <thead><tr><th>Turn</th><th>Tier</th><th title="Caller stopped → Emma audible">Heard</th><th>End of speech</th><th>Understanding</th><th>First audio</th></tr></thead>
+                    <thead><tr><th>Reply</th><th>How</th><th title="From the caller stopping to Emma being heard">Heard after (ms)</th><th>Waiting for the caller (ms)</th><th>Understanding (ms)</th><th>First sound (ms)</th></tr></thead>
                     <tbody id="live-turns"></tbody>
                   </table>
                 </div>
@@ -176,7 +181,7 @@
       <!-- Appointments (Calendar) ---------------------------------------------->
       <section class="view view-calendar" id="view-appointments" role="tabpanel" aria-labelledby="h-appointments" hidden>
         <header class="view-bar glass-bar cal-toolbar">
-          <span class="bar-title">Appointments</span>
+          <span class="bar-title" id="cal-bar-title">Appointments</span>
           <div class="e-tabnav" id="cal-view" role="group" aria-label="Calendar view">
             <button type="button" data-view="day" aria-pressed="true">Day</button>
             <button type="button" data-view="week" aria-pressed="false">Week</button>
@@ -185,6 +190,11 @@
             <button type="button" data-view="list" aria-pressed="false">List</button>
           </div>
           <span class="bar-actions">
+            <span class="cal-nav">
+              <button class="e-round" type="button" id="appt-prev" aria-label="Previous"><svg class="ico"><use href="#i-chev-l"/></svg></button>
+              <button class="btn-pill small gray" type="button" id="appt-today">Today</button>
+              <button class="e-round" type="button" id="appt-next" aria-label="Next"><svg class="ico"><use href="#i-chev-r"/></svg></button>
+            </span>
             <label class="search-field"><svg class="ico"><use href="#i-search"/></svg>
               <input type="search" id="appt-search" placeholder="Search" aria-label="Search name, phone or ID"></label>
             <button class="e-round solid plus-rot" type="button" id="appt-new" aria-label="New appointment" title="New appointment" aria-expanded="false" aria-controls="dlg-book"><svg class="ico"><use href="#i-plus"/></svg></button>
@@ -192,13 +202,9 @@
         </header>
         <div class="cal-head">
           <h1 class="cal-title" id="h-appointments"><span id="cal-title-main">Appointments</span> <span class="ink-2" id="cal-title-sub"></span></h1>
-          <div class="cal-nav">
-            <button class="e-round" type="button" id="appt-prev" aria-label="Previous"><svg class="ico"><use href="#i-chev-l"/></svg></button>
-            <button class="btn-pill small gray" type="button" id="appt-today">Today</button>
-            <button class="e-round" type="button" id="appt-next" aria-label="Next"><svg class="ico"><use href="#i-chev-r"/></svg></button>
-          </div>
+          <button class="btn-pill small gray filters-toggle" type="button" id="cal-filters-toggle" aria-expanded="false" aria-controls="cal-filters">Filters</button>
         </div>
-        <div class="cal-filters">
+        <div class="cal-filters" id="cal-filters">
           <select id="appt-branch" class="select" aria-label="Branch"><option value="">All branches</option></select>
           <select id="appt-doctor" class="select" aria-label="Doctor"><option value="">All doctors</option></select>
           <select id="appt-status" class="select" aria-label="Status">
@@ -262,16 +268,16 @@
         <div class="view-tools">
           <div class="e-tabnav" id="call-filter" role="group" aria-label="Which calls">
             <button type="button" data-filter="all" aria-pressed="true">All</button>
-            <button type="button" data-filter="changes" aria-pressed="false">Booked or changed</button>
+            <button type="button" data-filter="changes" aria-pressed="false">Bookings</button>
             <button type="button" data-filter="hungup" aria-pressed="false">Hung up</button>
             <button type="button" data-filter="recovery" aria-pressed="false">Recovery</button>
             <button type="button" data-filter="live" aria-pressed="false">Live</button>
           </div>
           <label class="search-field"><svg class="ico"><use href="#i-search"/></svg>
-            <input type="search" id="call-search" placeholder="Search number or call ID" aria-label="Search calls"></label>
+            <input type="search" id="call-search" placeholder="Search number or outcome" aria-label="Search calls"></label>
           <span class="t-caption ink-2" id="call-count"></span>
         </div>
-        <div class="mail">
+        <div class="mail fit">
           <ul class="mail-list" id="call-rows" aria-label="Calls"></ul>
           <div class="mail-detail" id="call-detail">
             <div class="detail-empty">
@@ -287,22 +293,22 @@
       <section class="view" id="view-recovery" role="tabpanel" aria-labelledby="h-recovery" hidden>
         <header class="view-bar glass-bar"><span class="bar-title">Recovery</span><span class="bar-actions"><span class="state-pill" id="runner-state">–</span></span></header>
         <div class="view-head">
-          <h1 class="t-large-title" id="h-recovery">Doctor unavailable</h1>
-          <p class="t-small ink-2">Block a doctor, check who is affected, then let Emma call them to find a new time.
-            Calls ring the patient's phone: the <a href="/patient" target="_blank" rel="noopener">patient page</a>,
-            and the SIP phone when phone calls are set up.</p>
+          <h1 class="t-large-title" id="h-recovery">Recovery</h1>
+          <p class="t-small ink-2">When a doctor can't come in: block them, check who is affected, then let Emma call
+            those patients to find a new time. Her calls ring the patient's phone, or the
+            <a href="/patient" target="_blank" rel="noopener">patient page</a> while phone calls aren't set up.</p>
         </div>
 
         <ol class="steps" data-reveal="fast">
           <li class="step">
-            <div class="step-head"><span class="step-num">1</span><h2 class="t-section">Block a doctor</h2></div>
+            <div class="step-head"><span class="step-num">1</span><h2 class="t-section">Doctor unavailable</h2></div>
             <form id="block-form" class="group-form">
               <label class="row-field"><span>Doctor</span><select id="block-doctor" class="select" required></select></label>
               <label class="row-field"><span>From</span><input type="datetime-local" id="block-start" class="input" required step="1800"></label>
               <label class="row-field"><span>To</span><input type="datetime-local" id="block-end" class="input" required step="1800"></label>
               <label class="row-field"><span>Reason <small class="ink-2">(never told to patients)</small></span><select id="block-reason" class="select"></select></label>
               <label class="row-field"><span>Note</span><input id="block-note" class="input" maxlength="200" placeholder="Optional, e.g. called in sick"></label>
-              <div class="form-actions"><button class="btn-pill small" type="submit">Block and preview</button></div>
+              <div class="form-actions"><button class="btn-pill" type="submit">Block and preview</button></div>
             </form>
             <p class="field-error" id="block-error" hidden></p>
             <div class="sub-title">Active blocks</div>
@@ -311,7 +317,7 @@
 
           <li class="step" id="preview-card">
             <div class="step-head"><span class="step-num">2</span><h2 class="t-section">Who is affected</h2>
-              <button class="btn-pill small" type="button" id="campaign-start" disabled>Start recovery calls</button></div>
+              <button class="btn-pill" type="button" id="campaign-start" disabled>Start recovery calls</button></div>
             <p class="t-small ink-2" id="preview-summary">Block a doctor or pick a block to see who is affected.</p>
             <ul class="grouped-list checklist" id="preview-rows"></ul>
           </li>
@@ -503,35 +509,36 @@
         <h2 class="e-sheet-title" id="dlg-book-title">New appointment</h2>
         <p class="e-sheet-body ink-2" id="book-what" hidden></p>
         <div class="sheet-grid">
-          <label class="row-field" id="book-service-field"><span>Service</span><select id="book-service" class="select" required></select></label>
+          <label class="row-field span-2" id="book-service-field"><span>Service</span><select id="book-service" class="select" required></select></label>
           <label class="row-field" id="book-branch-field"><span>Branch</span><select id="book-branch" class="select"></select></label>
           <label class="row-field"><span>Doctor</span><select id="book-doctor" class="select"></select></label>
           <label class="row-field"><span>Day</span><input type="date" id="book-day" class="input" required></label>
         </div>
-        <div><button class="btn-pill small gray" type="button" id="book-find">Find free times</button></div>
-        <div class="slot-grid" id="book-slots"></div>
-        <div class="sheet-grid" id="book-patient">
-          <div class="field-float"><input id="book-name" maxlength="80" autocomplete="off" placeholder=" "><label for="book-name">Patient name</label></div>
-          <div class="field-float"><input id="book-phone" type="tel" maxlength="20" autocomplete="off" placeholder=" "><label for="book-phone">Phone</label></div>
-          <div class="field-float"><input id="book-age" type="number" min="0" max="120" placeholder=" "><label for="book-age">Age (optional)</label></div>
-        </div>
-        <p class="field-error" id="book-error" hidden></p>
-        <div class="sheet-actions">
-          <button class="btn-pill gray" type="button" data-sheet-close>Close</button>
-          <button class="btn-pill" type="submit" id="book-confirm" disabled>Book</button>
+        <div><button class="btn-pill gray" type="button" id="book-find">Find free times</button></div>
+        <div class="slot-grid" id="book-slots" role="group" aria-label="Free times" hidden></div>
+        <div class="book-foot">
+          <div class="sheet-grid" id="book-patient">
+            <div class="field-float"><input id="book-name" maxlength="80" autocomplete="off" placeholder=" "><label for="book-name">Patient name</label></div>
+            <div class="field-float"><input id="book-phone" type="tel" maxlength="20" autocomplete="off" placeholder=" "><label for="book-phone">Phone</label></div>
+            <div class="field-float"><input id="book-age" type="number" min="0" max="120" placeholder=" "><label for="book-age">Age (optional)</label></div>
+          </div>
+          <p class="field-error" id="book-error" hidden></p>
+          <div class="sheet-actions">
+            <span class="book-chosen t-small ink-2" id="book-chosen">Pick a free time above.</span>
+            <button class="btn-pill gray phone-only" type="button" data-sheet-close>Cancel</button>
+            <button class="btn-pill" type="submit" id="book-confirm" disabled>Book</button>
+          </div>
         </div>
       </form>
     </div>
   </div>
 
-  <div class="e-sheet-root dash-sheet" id="dlg-confirm" hidden>
+  <div class="e-sheet-root dash-sheet alert" id="dlg-confirm" hidden>
     <div class="e-sheet-scrim"></div>
     <div class="e-sheet" role="alertdialog" aria-modal="true" aria-labelledby="dlg-confirm-title" aria-describedby="confirm-text" tabindex="-1">
-      <div class="e-sheet-handle" aria-hidden="true"></div>
-      <div class="e-sheet-close-wrap"><button class="e-sheet-close" type="button" aria-label="Close"><svg class="ico"><use href="#i-close"/></svg></button></div>
       <form class="sheet" id="confirm-form">
-        <h2 class="e-sheet-title" id="dlg-confirm-title">Are you sure?</h2>
-        <p class="e-sheet-body ink-2" id="confirm-text"></p>
+        <h2 class="alert-title" id="dlg-confirm-title">Are you sure?</h2>
+        <p class="alert-text" id="confirm-text"></p>
         <div class="sheet-actions">
           <button class="btn-pill gray" type="button" data-sheet-close>Go back</button>
           <button class="btn-pill danger" type="submit" id="confirm-ok">Confirm</button>
