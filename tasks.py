@@ -92,14 +92,23 @@ def _row(row) -> dict:
     return out
 
 
+# Each task with the patient's name, so staff know who to call: the name on the task's
+# appointment, or else the latest name we hold for its number.
+_SELECT = ("SELECT t.*, COALESCE("
+           "(SELECT COALESCE(a.caller_name, p.name) FROM appointments a JOIN patients p ON p.id = a.patient_id "
+           " WHERE a.id = t.appointment_id), "
+           "(SELECT p.name FROM patients p WHERE t.phone_e164 IS NOT NULL AND p.phone_e164 = t.phone_e164 "
+           " ORDER BY p.id DESC LIMIT 1)) AS patient_name FROM tasks t")
+
+
 def get_task(conn, task_id: int) -> Optional[dict]:
-    row = conn.execute("SELECT t.* FROM tasks t WHERE t.id = ?", (task_id,)).fetchone()
+    row = conn.execute(f"{_SELECT} WHERE t.id = ?", (task_id,)).fetchone()
     return _row(row) if row else None
 
 
 def list_tasks(conn, status: Optional[str] = "open", limit: int = 500) -> list[dict]:
     """Tasks with that status ("open", "done", or None / "all"), most urgent and oldest first."""
-    sql, args = "SELECT t.* FROM tasks t", []
+    sql, args = _SELECT, []
     if status and status != "all":
         sql += " WHERE t.status = ?"
         args.append(status)

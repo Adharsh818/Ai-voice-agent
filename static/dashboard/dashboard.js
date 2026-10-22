@@ -186,7 +186,35 @@ const KIND_LABEL = {
   escalation: "Escalation", language: "Language", abandoned: "Abandoned call",
 };
 const ROLE_LABEL = { caller: "Caller", emma: "Emma", operator: "Staff" };
-const TIER_LABEL = { "-1": "greeting", 0: "Emma's rules", 1: "language model", 2: "fallback (model slow)" };
+const LIVE_ROLE_LABEL = { caller: "Caller", emma: "Emma", operator: "You" };
+// How a reply was made, in front-desk words (shown only inside "Response times").
+const TIER_LABEL = { "-1": "Set line", 0: "Quick reply", 1: "Thought it through", 2: "Backup reply" };
+// What Emma is doing on the call, by the step she is on. Never shown as the raw key.
+const GOAL_LABEL = {
+  greet: "Greeting the caller", greeting: "Greeting the caller", greeting_offer: "Offering help", go_on: "Offering help",
+  offer_help: "Offering help", ask_intent: "Finding out what they need", ask_name: "Asking for their name",
+  spell_name: "Checking how their name is spelt", spelling: "Checking how their name is spelt",
+  ask_phone: "Asking for their number", confirm_phone: "Confirming their number", ask_service: "Asking what it's for",
+  ask_branch: "Choosing a branch", ask_when: "Finding a day", ask_new_when: "Finding a new day",
+  ask_appt_date: "Finding their appointment", ask_time: "Choosing a time", offer: "Offering times",
+  offer_slots: "Offering times", offer_new_slots: "Offering new times", offer_rebook: "Offering another time",
+  summary: "Reading back the booking", summary_again: "Reading back the booking",
+  duplicate: "Checking an existing booking", duplicate_check: "Checking an existing booking",
+  pick_appointment: "Finding their appointment", confirm_cancel: "Confirming a cancellation",
+  ask_cancel_reason: "Asking why they're cancelling", confirm_change: "Confirming the new time",
+  confirm_reschedule: "Confirming the new time", callback: "Arranging a call back", callback_offer: "Offering a call back",
+  callback_task: "Arranging a call back", callback_done: "Arranging a call back", ask_age: "Asking the patient's age",
+  ask_patient: "Asking who the patient is", verify_failed: "Checking who is calling", end: "Saying goodbye",
+  done: "Saying goodbye", confirmed: "Wrapping up",
+};
+function goalText(goal) {
+  if (!goal) return "";
+  const key = String(goal).replace(/^step\s+/, "");
+  return GOAL_LABEL[key] || "On a call";
+}
+// Where an appointment came from.
+const SOURCE_LABEL = { call: "Emma, on a call", inbound: "Emma, on a call", outbound: "Emma, on a recovery call",
+  dashboard: "The front desk", seed: "Set up by the clinic" };
 const CHANNEL_LABEL = { browser: "Browser", phone: "Phone" };
 // Where a caller hung up, by the step Emma was on.
 const STEP_LABEL = {
@@ -195,19 +223,42 @@ const STEP_LABEL = {
   ask_phone: "while giving their number", ask_service: "while saying what it's for", ask_branch: "choosing a branch",
   ask_when: "choosing a day", ask_time: "choosing a time", offer_slots: "choosing a slot", summary: "at the summary",
   duplicate_check: "about an existing appointment", callback_offer: "after a callback offer",
+  ask_intent: "while saying what they needed", greeting: "at the greeting", greeting_offer: "after the greeting",
+  offer_help: "after the greeting", spelling: "while spelling their name", ask_new_when: "choosing a new day",
+  ask_appt_date: "while finding their appointment", offer: "choosing a time", offer_new_slots: "choosing a new time",
+  offer_rebook: "choosing another time", summary_again: "at the summary", duplicate: "about an existing appointment",
+  pick_appointment: "while finding their appointment", confirm_cancel: "while confirming a cancellation",
+  ask_cancel_reason: "while giving a reason to cancel", confirm_change: "while confirming the new time",
+  confirm_reschedule: "while confirming the new time", callback: "while arranging a call back",
+  callback_task: "while arranging a call back", ask_age: "while giving the patient's age",
+  ask_patient: "while saying who the patient is", verify_failed: "while we checked who was calling",
+  end: "at the goodbye", done: "at the goodbye",
 };
 const CALL_OUTCOME = {
   booked: "Booked", rescheduled: "Moved", cancelled: "Cancelled", completed: "Completed", transferred: "Transferred",
   booked_hangup: "Booked, hung up before hearing it", rescheduled_hangup: "Moved, hung up before hearing it",
-  cancelled_hangup: "Cancelled, hung up before hearing it",
+  cancelled_hangup: "Cancelled, hung up before hearing it", ended_by_staff: "Ended by staff", ended: "Ended",
+  abandoned: "Hung up", hung_up: "Hung up", emergency: "Emergency", red_flag: "Red flag", callback: "Call back arranged",
+  language: "Needed another language", escalation: "Passed to staff", not_connected: "Didn't connect",
+  no_answer: "No answer", declined: "Declined",
 };
 
 function callOutcome(outcome) {
   if (!outcome) return "In progress";
   if (CALL_OUTCOME[outcome]) return CALL_OUTCOME[outcome];
   const [kind, step] = outcome.split("@");
-  if (kind === "abandoned") return `Hung up ${STEP_LABEL[step] || (step ? `at ${step.replace(/_/g, " ")}` : "")}`.trim();
-  return outcome.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  if (kind === "abandoned" || kind === "hung_up") return `Hung up ${STEP_LABEL[step] || "during the call"}`;
+  if (CALL_OUTCOME[kind]) return CALL_OUTCOME[kind];
+  return "Call ended";
+}
+// The outcome's dot: green for a booking change, red only when something is urgent.
+function outcomeTone(outcome) {
+  const kind = (outcome || "").split("@")[0];
+  if (!outcome) return "live";
+  if (/^(booked|rescheduled)/.test(kind)) return "good";
+  if (/^(emergency|red_flag)/.test(kind)) return "urgent";
+  if (/^(ended_by_staff|transferred|escalation|callback)/.test(kind)) return "staff";
+  return "plain";
 }
 
 // ------------------------------------------------------------------ sheets (B6)
@@ -215,13 +266,22 @@ function callOutcome(outcome) {
 // sheet with a grab handle. The close button, the scrim, Escape and [data-sheet-close] close it,
 // and focus goes back to whatever opened it.
 const sheetClosed = {};
+const sheetOpener = {};
+const pageBehind = () => [document.querySelector(".app"), $("demo-ribbon")];
 function syncSheetLock() {
   // One sheet can close while the next opens (inspector → Move): keep the page behind locked.
-  document.documentElement.classList.toggle("e-sheet-open", Boolean(document.querySelector(".e-sheet-root.is-open")));
+  const anyOpen = Boolean(document.querySelector(".e-sheet-root.is-open"));
+  document.documentElement.classList.toggle("e-sheet-open", anyOpen);
+  // The page behind an open sheet is inert: not focusable, not in the accessibility tree.
+  for (const node of pageBehind()) if (node) node.inert = anyOpen;
 }
 function makeSheet(id) {
   const ctl = sheet($(id), {
     onClose: () => {
+      syncSheetLock();
+      // The shared sheet tries to focus the opener while the page is still inert; do it again now.
+      const opener = sheetOpener[id];
+      if (opener && opener.isConnected && !document.querySelector(".e-sheet-root.is-open")) opener.focus({ preventScroll: true });
       setTimeout(syncSheetLock, reducedMotion() ? 220 : 620);
       const done = sheetClosed[id];
       sheetClosed[id] = null;
@@ -229,7 +289,13 @@ function makeSheet(id) {
     },
   });
   return {
-    open(onClose) { sheetClosed[id] = onClose || null; ctl.open(); },
+    open(onClose) {
+      sheetClosed[id] = onClose || null;
+      const active = document.activeElement;
+      if (active && active !== document.body && !active.closest(".e-sheet-root")) sheetOpener[id] = active;
+      ctl.open();
+      syncSheetLock();
+    },
     close: ctl.close,
     get isOpen() { return $(id).classList.contains("is-open"); },
   };
@@ -330,6 +396,7 @@ async function refreshOverview() {
 // One already shown stays calm when the overview refreshes.
 const seenAlerts = new Set();
 function renderAlerts(alerts) {
+  requestAnimationFrame(fitCalendar);
   const box = $("alerts");
   box.hidden = alerts.length === 0;
   box.replaceChildren(...alerts.map((a) => {
@@ -385,8 +452,10 @@ function showTab(name) {
     recovery: "Recovery", system: "System" }[name]} · ${document.title.split(" · ").slice(-1)[0]}`;
   if (changed) window.scrollTo({ top: 0 });
   if (changed && name === "system") $("view-system").classList.remove("drilled");   // Settings opens on its list
+  if (changed && name === "calls") $("view-calls").classList.remove("drilled");     // and Mail on its list
   updateBars();
   loaders[name]();
+  requestAnimationFrame(fitCalendar);
   if (name === "today" && changed) replay($("today-grid"));
 }
 
@@ -400,7 +469,10 @@ document.querySelectorAll(".tab-item").forEach((item) => item.addEventListener("
 }));
 document.addEventListener("click", (event) => {
   const go = event.target.closest("[data-go]");
-  if (go) showTab(go.dataset.go);
+  if (go) {
+    if (go.tagName === "A") event.preventDefault();
+    showTab(go.dataset.go);
+  }
   const sheet = $("more-sheet");
   if (!sheet.hidden && !event.target.closest("#more-sheet") && !event.target.closest("#tab-more")) sheet.hidden = true;
 });
@@ -439,6 +511,7 @@ function newLiveState(callId = null) {
   return {
     callId, started: callId ? new Date() : null, ended: false, state: callId ? "listening" : "idle", lines: [],
     interim: "", turns: new Map(), goal: null, tier: null, entities: {}, outcome: null, operator: false,
+    staffSaid: [], ending: false, endedAt: null, endedByMe: false,
   };
 }
 const liveCalls = new Map();          // call_id -> state
@@ -474,15 +547,19 @@ function addCaption(st, who, text, final, turn) {
   if (!text) return;
   if (who === "emma") {
     // Each of Emma's turns is one line, growing sentence by sentence as the caller hears it.
+    // A line staff typed during a takeover is spoken in Emma's voice but is staff's: it shows
+    // as a green "You" bubble (matched on the text staff sent).
     const same = turn !== undefined && turn !== null
-      ? st.lines.find((line) => line.who === "emma" && line.turn === turn) : null;
+      ? st.lines.find((line) => (line.who === "emma" || line.who === "operator") && line.turn === turn) : null;
+    const typedByStaff = isStaffLine(st, text);
     if (same) {
       same.text = text;
+      if (typedByStaff) same.who = "operator";
       return;
     }
     const last = st.lines[st.lines.length - 1];
     if (last) last.closed = true;
-    st.lines.push({ who: "emma", text, closed: true, turn });
+    st.lines.push({ who: typedByStaff ? "operator" : "emma", text, closed: true, turn });
     return;
   }
   if (!final) {
@@ -493,6 +570,12 @@ function addCaption(st, who, text, final, turn) {
   const last = st.lines[st.lines.length - 1];
   if (last && last.who === "caller" && !last.closed) last.text = `${last.text} ${text}`;
   else st.lines.push({ who: "caller", text, closed: false });
+}
+
+const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+function isStaffLine(st, text) {
+  const t = norm(text);
+  return Boolean(t) && (st.staffSaid || []).some((said) => said === t || said.startsWith(t) || t.startsWith(said));
 }
 
 // The caller's turn as Emma took it (the stored transcript). On the phone a turn often ends
@@ -524,10 +607,10 @@ function handleEvent(event) {
       addCaption(st, event.who === "emma" ? "emma" : "caller", event.text, event.final, event.turn);
       break;
     case "state":
-      if (!st.ended) st.state = event.state;
+      if (!st.ended && !st.ending) st.state = event.state;
       break;
     case "turn":
-      if (event.phase === "start" && !st.ended) st.state = "speaking";
+      if (event.phase === "start" && !st.ended && !st.ending) st.state = "speaking";
       break;
     case "metrics":
       st.turns.set(event.turn, event);
@@ -537,6 +620,12 @@ function handleEvent(event) {
     case "call_turn": {
       const meta = event.meta || {};
       if (event.role === "caller" && event.text) commitCallerTurn(st, event.text);
+      if (event.role === "operator" && event.text) {
+        // The stored transcript says this line was staff's: make sure it shows that way.
+        const t = norm(event.text);
+        const line = [...st.lines].reverse().find((l) => l.who === "emma" && norm(l.text) === t);
+        if (line) line.who = "operator";
+      }
       if (meta.goal_after) st.goal = meta.goal_after;
       if (meta.tier !== undefined && meta.tier !== null) st.tier = meta.tier;
       if (meta.entities && typeof meta.entities === "object") Object.assign(st.entities, meta.entities);
@@ -551,6 +640,8 @@ function handleEvent(event) {
     case "call_ended":
       st.ended = true;
       st.state = "ended";
+      st.operator = false;
+      st.endedAt = new Date();
       st.outcome = event.outcome;
       // Ended calls drop off the switcher once another call is shown; the one shown stays to read.
       for (const [id, other] of liveCalls) if (other.ended && other !== live && other !== st) liveCalls.delete(id);
@@ -564,14 +655,14 @@ function handleEvent(event) {
       if (currentTab === "appointments") reloadAppointmentsSoon();
       break;
     case "task_created":
-      toast(`New ${event.priority === "normal" ? "" : `${event.priority} `}task: ${KIND_LABEL[event.kind] || event.kind}`,
+      toast(`New task: ${KIND_LABEL[event.kind] || "Call back"}${event.priority === "normal" ? "" : ` (${event.priority === "urgent" ? "urgent" : "high priority"})`}`,
         event.priority === "urgent" ? "urgent" : "");
       refreshSoon();
       if (currentTab === "tasks") loadTasks();
       break;
     case "task_updated":
       refreshSoon();
-      if (currentTab === "tasks") loadTasks();
+      if (currentTab === "tasks" && Date.now() > taskBusyUntil) loadTasks();
       break;
     case "appointment":
     case "sync":
@@ -600,37 +691,57 @@ function handleEvent(event) {
 
 function renderCallSwitcher() {
   const box = $("live-calls");
+  const inner = box.firstElementChild;
   const active = [...liveCalls.values()].filter((st) => !st.ended || st === live);
-  box.hidden = active.length < 2;
+  const shown = active.length >= 2;
   const chips = active.map((st, i) => el("button", {
     type: "button", class: `chip${st === live ? " active" : ""}`, title: st.callId, "aria-pressed": String(st === live),
     text: `Call ${i + 1}${st.ended ? " (ended)" : ""}`, onclick: () => followCall(st.callId),
   }));
-  box.replaceChildren(...chips);
+  inner.replaceChildren(...chips);
+  // The row opens and closes with a height change (grid rows 0fr to 1fr), never a jump.
+  box.classList.toggle("is-shown", shown);
+  box.inert = !shown;
   // A call that has just come in pops its chip in (B5).
   const fresh = chips.filter((_, i) => !switcherShown.has(active[i].callId));
-  if (!box.hidden && fresh.length) popIn(fresh);
-  switcherShown = new Set(box.hidden ? [] : active.map((st) => st.callId));
+  if (shown && fresh.length) popIn(fresh);
+  switcherShown = new Set(shown ? active.map((st) => st.callId) : []);
 }
 let switcherShown = new Set();
 
 const STATE_LABEL = { idle: "Idle", listening: "Listening", thinking: "Thinking", speaking: "Speaking", ended: "Call ended" };
 
-function bubbleLines(lines, interim) {
+// What the state pill says: staff on the call and a call being ended win over Emma's own state.
+function liveStatus(st) {
+  if (st.ended) return { cls: "ended", text: st.endedByMe ? "Ended by you" : "Call ended" };
+  if (st.ending) return { cls: "ending", text: "Ending the call…" };
+  if (st.operator) return { cls: "operator", text: "You're on the call" };
+  return { cls: st.state, text: STATE_LABEL[st.state] || "On a call" };
+}
+
+function bubbleLines(lines, interim, labels = ROLE_LABEL) {
   const nodes = [];
   let prev = null;
   for (const line of lines) {
     nodes.push(el("div", { class: `line ${line.who}${prev === line.who ? " same" : ""}` },
-      el("span", { class: "who", text: ROLE_LABEL[line.who] || line.who }),
+      el("span", { class: "who", text: labels[line.who] || "Caller" }),
       el("div", { class: "bubble", text: line.text })));
     prev = line.who;
   }
   if (interim) {
     nodes.push(el("div", { class: `line caller interim${prev === "caller" ? " same" : ""}` },
-      el("span", { class: "who", text: "Caller (hearing…)" }),
+      el("span", { class: "who", text: "Caller (still talking)" }),
       el("div", { class: "bubble", text: interim })));
   }
   return nodes;
+}
+
+// Who is on the line, as far as Emma knows yet.
+function callerText(st) {
+  const e = st.entities || {};
+  const name = e.name || e.patient_name || e.caller_name;
+  const phone = e.phone || e.phone_number || e.caller_phone;
+  return [name, phone].filter(Boolean).join(" · ") || (st.callId ? "Not given yet" : "–");
 }
 
 let renderedLineCount = 0;
@@ -642,25 +753,30 @@ function renderLive() {
   const hasCall = Boolean(live.callId);
   $("live-empty").hidden = hasCall;
   $("live-transcript").hidden = !hasCall;
+  const status = liveStatus(live);
   for (const id of ["live-state", "live-state-bar"]) {
     const pill = $(id);
-    pill.className = `state-pill ${live.state}`;
-    pill.textContent = STATE_LABEL[live.state] || live.state;
+    pill.className = `state-pill ${status.cls}`;
+    pill.textContent = status.text;
   }
-  $("live-call").textContent = live.callId || "–";
-  $("live-goal").textContent = live.goal || "–";
-  $("live-tier").textContent = live.tier === null ? "–" : TIER_LABEL[live.tier] ?? String(live.tier);
-  $("live-outcome").textContent = live.outcome || (hasCall && !live.ended ? "in progress" : "–");
+  $("live-call").textContent = callerText(live);
+  $("live-goal").textContent = live.ended ? "Call over" : (goalText(live.goal) || (hasCall ? "On a call" : "–"));
+  $("live-outcome").textContent = live.ended && live.endedByMe && (!live.outcome || live.outcome === "ended_by_staff")
+    ? "Ended by you" : live.outcome ? callOutcome(live.outcome) : (hasCall ? "In progress" : "–");
   renderDuration();
-  const active = hasCall && !live.ended;
+  // Controls stop the moment staff end the call, not when the goodbye has finished.
+  const active = hasCall && !live.ended && !live.ending;
   $("live-controls").hidden = !active;
-  $("op-takeover").hidden = live.operator;
-  $("op-handback").hidden = !live.operator;
-  $("op-form").hidden = !(active && live.operator);
+  $("live-controls").classList.toggle("is-operator", live.operator);
+  $("op-takeover").inert = live.operator;
+  $("op-handback").inert = !live.operator;
+  const composing = active && live.operator;
+  $("live-chat").classList.toggle("composing", composing);
+  $("compose-dock").inert = !composing;
 
   const box = $("live-transcript");
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
-  const nodes = bubbleLines(live.lines, live.interim);
+  const nodes = bubbleLines(live.lines, live.interim, LIVE_ROLE_LABEL);
   // Messages: only a bubble that wasn't on screen before springs in (opacity and an 8px rise).
   // One that is re-rendered, such as Emma's line growing sentence by sentence, stays put.
   const total = live.lines.length + (live.interim ? 1 : 0);
@@ -668,7 +784,7 @@ function renderLive() {
   nodes.forEach((node, i) => { if (sameCall && i < renderedLineCount) node.classList.add("settled"); });
   renderedLineCount = total;
   renderedFor = live;
-  const typing = active && live.state === "thinking";
+  const typing = active && !live.operator && live.state === "thinking";
   if (typing) {
     const dots = el("div", { class: `typing${typingShown && sameCall ? " settled" : ""}`, role: "img", "aria-label": "Emma is thinking" },
       el("i"), el("i"), el("i"));
@@ -684,10 +800,10 @@ function renderLive() {
   }
 
   // What Emma has collected: a chip pops in (B5) the moment a new detail arrives.
-  const entities = Object.entries(live.entities).filter(([, v]) => v !== null && v !== "" && v !== undefined);
+  const entities = Object.entries(live.entities).filter(([, v]) => v !== null && v !== "" && v !== undefined && typeof v !== "object");
   const shownBefore = entityShown.get(live) || new Set();
   const chips = entities.map(([k, v]) => el("span", { class: "entity" },
-    el("b", { text: k.replace(/_/g, " ") }), typeof v === "object" ? JSON.stringify(v) : String(v)));
+    el("b", { text: ENTITY_LABEL[k] || k.replace(/_/g, " ") }), String(v)));
   $("live-entities").replaceChildren(...chips);
   const fresh = chips.filter((_, i) => !shownBefore.has(entities[i][0]));
   if (fresh.length && entityShown.has(live)) popIn(fresh);
@@ -695,13 +811,15 @@ function renderLive() {
 
   const rows = [...live.turns.values()].sort((a, b) => b.turn - a.turn).slice(0, 30).map((t) => el("tr", {},
     el("td", { class: "num", text: t.turn }),
-    el("td", { class: "num", text: t.tier ?? "–" }),
+    el("td", { text: t.tier === null || t.tier === undefined ? "–" : (TIER_LABEL[t.tier] || "Reply") }),
     el("td", { class: "num", text: ms(t.perceived_ms) }),
     el("td", { class: "num", text: ms(t.endpoint_ms) }),
     el("td", { class: "num", text: ms(t.nlu_ms) }),
     el("td", { class: "num", text: ms(t.first_audio_ms) })));
-  $("live-turns").replaceChildren(...(rows.length ? rows : [emptyRow(6, "No turns yet")]));
+  $("live-turns").replaceChildren(...(rows.length ? rows : [emptyRow(6, "Nothing yet: times appear after Emma's first reply.")]));
 }
+const ENTITY_LABEL = { name: "Name", patient_name: "Name", phone: "Number", service: "Service", date: "Day", time: "Time",
+  doctor: "Doctor", branch: "Branch", age: "Age", patient_age: "Age", reason: "Reason" };
 
 $("live-transcript").addEventListener("scroll", () => {
   const box = $("live-transcript");
@@ -728,27 +846,47 @@ $("op-takeover").addEventListener("click", async () => {
   if (res && res.ok) {
     live.operator = true;
     renderLive();
-    $("op-text").focus();
+    setTimeout(() => $("op-text").focus({ preventScroll: true }), reducedMotion() ? 0 : 120);
   }
 });
 $("op-handback").addEventListener("click", async () => {
   const res = await liveAction("handback");
-  if (res && res.ok) { live.operator = false; renderLive(); }
+  if (res && res.ok) { live.operator = false; renderLive(); $("op-takeover").focus({ preventScroll: true }); }
 });
 $("op-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const text = $("op-text").value.trim();
   if (!text) return;
+  const st = live;
+  // Remember it before sending: its caption can arrive before the reply does.
+  st.staffSaid.push(norm(text));
   const res = await liveAction("say", { text });
-  if (res && res.ok) $("op-text").value = "";
+  if (res && res.ok) {
+    $("op-text").value = "";
+    for (const line of st.lines) if (line.who === "emma" && isStaffLine(st, line.text)) line.who = "operator";
+    if (currentTab === "live") renderLive();
+  } else {
+    st.staffSaid = st.staffSaid.filter((t) => t !== norm(text));
+  }
 });
 $("op-end").addEventListener("click", async () => {
-  if (!await confirmAction("End this call?", "Emma says goodbye and promises a call back; a callback task is created.", "End call")) return;
-  await liveAction("end", {});
+  if (!await confirmAction("End this call?", "Emma says goodbye and promises a call back. A callback task is added to Tasks.", "End call")) return;
+  const st = live;
+  st.ending = true;            // the controls go away now; the call ends after Emma's goodbye
+  st.endedByMe = true;
+  renderLive();
+  const res = await liveAction("end", {});
+  if (!res || !res.ok) {
+    st.ending = false;
+    st.endedByMe = false;
+    if (currentTab === "live") renderLive();
+  }
 });
 
 function renderDuration() {
-  $("live-duration").textContent = live.started ? (live.ended ? "ended" : length(live.started.toISOString())) : "–";
+  if (!live.started) { $("live-duration").textContent = "–"; return; }
+  const end = live.ended ? (live.endedAt || new Date()).toISOString() : null;
+  $("live-duration").textContent = length(live.started.toISOString(), end);
 }
 setInterval(() => {
   if (currentTab === "live" && live.callId && !live.ended) renderDuration();
@@ -787,7 +925,12 @@ function connectEvents() {
 
 // ------------------------------------------------------------------ Today (apple.com tile grid)
 function tileHead(icon, label) {
-  return el("span", { class: "tile-kicker" }, svgIcon(icon), label);
+  return el("h2", { class: "tile-kicker" }, svgIcon(icon), label);
+}
+// The tile's one link, stretched over the whole tile (its ::after), so the tile reads as a
+// card with a heading and content rather than one giant button.
+function tileFoot(go, text) {
+  return el("a", { class: "tile-foot", href: `#${go}`, "data-go": go, text });
 }
 
 function renderTodayLive() {
@@ -801,30 +944,32 @@ function renderTodayLive() {
     tile.replaceChildren(tileHead("i-live", "Live call"),
       el("span", { class: "tile-headline", text: "No call right now" }),
       el("span", { class: "tile-sub", text: todays.length ? `${todays.length} call${todays.length === 1 ? "" : "s"} so far today.` : "Emma is ready for the next caller." }),
-      el("span", { class: "tile-foot", text: "Open live call" }));
+      tileFoot("live", "Open live call"));
     return;
   }
-  const last = running.lines.slice(-2);
+  const last = running.lines[running.lines.length - 1];
+  const status = liveStatus(running);
   tile.replaceChildren(tileHead("i-live", "Live call"),
-    el("span", { class: "tile-headline" }, el("span", { class: "live-dot", style: null }), " ", STATE_LABEL[running.state] || running.state),
-    el("span", { class: "tile-sub", text: running.goal ? `Emma is ${running.goal.replace(/_/g, " ")}` : "Emma is on a call" }),
-    el("div", { class: "tile-bubbles" }, ...bubbleLines(last, "")),
-    el("span", { class: "tile-foot", text: "Follow the call" }));
-  tile.querySelector(".tile-headline .live-dot").style.display = "inline-block";
+    el("span", { class: "tile-headline" }, el("span", { class: "live-dot" }), " ", status.text),
+    el("span", { class: "tile-sub", text: running.operator ? "Staff are talking to the caller" : (goalText(running.goal) || "Emma is on a call") }),
+    last ? el("p", { class: "tile-line" }, el("span", { class: "tile-line-who", text: `${LIVE_ROLE_LABEL[last.who] || "Caller"}: ` }), last.text) : "",
+    tileFoot("live", "Follow the call"));
 }
 
-const todayData = { appts: [], tasks: [], calls: [], recovery: null, health: null };
+const todayData = { appts: [], tasks: [], calls: [], recovery: null, health: null, perf: null };
 
 async function renderToday() {
   const today = clinicToday();
   $("today-date").textContent = prettyDay(today);
-  const [appts, tasks, calls, recovery, health] = await Promise.allSettled([
+  const [appts, tasks, calls, recovery, health, perf] = await Promise.allSettled([
     api(`/dashboard/api/appointments?scope=day&day=${today}`),
     api("/dashboard/api/tasks?status=open"),
     api("/dashboard/api/calls?limit=40"),
     api("/dashboard/api/recovery"),
     fetch("/health", { credentials: "same-origin" }).then((r) => r.json()),
+    api("/dashboard/api/performance?days=1"),
   ]);
+  todayData.perf = perf.status === "fulfilled" ? perf.value : null;
   if (appts.status === "fulfilled") todayData.appts = appts.value.appointments;
   if (tasks.status === "fulfilled") todayData.tasks = tasks.value.tasks;
   if (calls.status === "fulfilled") todayData.calls = calls.value.calls;
@@ -855,7 +1000,7 @@ function paintToday() {
       el("span", { class: "t", text: r.time }),
       el("span", { class: "x", text: `${r.patient_name} · ${r.service} · ${r.doctor}` })))) : el("span", { class: "tile-sub", text: "Nothing else booked today." }),
     upcoming.length > next.length ? el("span", { class: "tile-sub", text: `${upcoming.length - next.length} more` }) : "",
-    el("span", { class: "tile-foot", text: "Open calendar" }));
+    tileFoot("appointments", "Open calendar"));
 
   // Tasks.
   const tasks = todayData.tasks;
@@ -864,16 +1009,16 @@ function paintToday() {
     el("span", { class: "tile-big", text: String(tasks.length) }),
     el("span", { class: "tile-sub", text: tasks.length ? (urgent ? `${urgent} need attention first` : "Callbacks Emma promised") : "Nothing waiting. Nice." }),
     el("ul", { class: "tile-list" }, ...tasks.slice(0, 3).map((t) => el("li", {},
-      el("span", { class: "x", text: `${KIND_LABEL[t.kind] || t.kind}${t.phone_display ? ` · ${t.phone_display}` : ""}` })))),
-    el("span", { class: "tile-foot", text: "Open tasks" }));
+      el("span", { class: "x", text: taskTitle(t) })))),
+    tileFoot("tasks", "Open tasks"));
 
   // Recent calls.
-  const calls = todayData.calls.slice(0, 5);
+  const calls = todayData.calls.slice(0, 3);
   $("today-calls").replaceChildren(tileHead("i-calls", "Recent calls"),
-    calls.length ? el("ul", { class: "tile-list" }, ...calls.map((c) => el("li", {},
-      el("span", { class: "t", text: fmtTime(c.started_at) }),
-      el("span", { class: "x", text: callOutcome(c.outcome) })))) : el("span", { class: "tile-sub", text: "No calls yet." }),
-    el("span", { class: "tile-foot", text: "Open calls" }));
+    calls.length ? el("ul", { class: "tile-list stacked" }, ...calls.map((c) => el("li", {},
+      el("span", { class: "x", text: c.phone_display || `${CHANNEL_LABEL[c.channel] || "Unknown"} caller` }),
+      el("span", { class: "o" }, el("span", { class: "t", text: fmtTime(c.started_at) }), ` · ${callOutcome(c.outcome)}`)))) : el("span", { class: "tile-sub", text: "No calls yet." }),
+    tileFoot("calls", "Open calls"));
 
   // Recovery campaign progress.
   const rec = todayData.recovery;
@@ -887,7 +1032,7 @@ function paintToday() {
     ring.style.setProperty("--p", String(pct));
     recTile.replaceChildren(tileHead("i-recovery", "Recovery calls"), ring,
       el("span", { class: "tile-sub", text: `${campaign.doctor}: ${summaryText(campaign)}` }),
-      el("span", { class: "tile-foot", text: "Open recovery" }));
+      tileFoot("recovery", "Open recovery"));
     $("side-recovery-badge").textContent = String(total - finished);
     $("side-recovery-badge").hidden = total === finished;
   } else {
@@ -895,7 +1040,7 @@ function paintToday() {
     recTile.replaceChildren(tileHead("i-recovery", "Recovery"),
       el("span", { class: "tile-headline", text: blocks ? `${blocks} doctor${blocks === 1 ? "" : "s"} blocked` : "All doctors available" }),
       el("span", { class: "tile-sub", text: "When a doctor can't come in, Emma calls their patients to find a new time." }),
-      el("span", { class: "tile-foot", text: "Open recovery" }));
+      tileFoot("recovery", "Open recovery"));
     $("side-recovery-badge").hidden = true;
   }
 
@@ -908,6 +1053,11 @@ function paintToday() {
     if (!h.elevenlabs) problems.push("Voice has no key");
     if (!h.gemini) problems.push("Understanding unavailable");
   }
+  // One truth with the System page: if understanding kept falling back today, say so here too.
+  const channels = Object.values((todayData.perf && todayData.perf.channels) || {});
+  const model = channels.reduce((n, c) => n + (c.model || 0) + (c.fallback || 0), 0);
+  const backup = channels.reduce((n, c) => n + (c.fallback || 0), 0);
+  if (model >= 4 && backup / model > 0.25) problems.push(`Understanding was slow: backup replies on ${Math.round((100 * backup) / model)}% of turns today`);
   const failed = overview ? overview.sync.failed || 0 : 0;
   if (failed) problems.push(`${failed} calendar sync${failed === 1 ? "" : "s"} failed`);
   for (const a of (overview && overview.alerts) || []) problems.push(a.text);
@@ -915,14 +1065,14 @@ function paintToday() {
     el("span", { class: "tile-headline" }, el("span", { class: `health-dot${problems.length ? " bad" : ""}` }), " ",
       problems.length ? "Needs a look" : "All good"),
     el("span", { class: "tile-sub", text: problems.length ? problems.slice(0, 3).join(" · ") : "Speech, voice, understanding and calendar sync are working." }),
-    el("span", { class: "tile-foot", text: "Open system" }));
+    tileFoot("system", "Open system"));
 }
 
 // ------------------------------------------------------------------ appointments (Calendar)
 const VIEWS = ["day", "week", "month", "year", "list"];
 const appt = {
   view: VIEWS.includes(recall("cal-view")) ? recall("cal-view") : "day",
-  day: null, listScope: "upcoming", rows: [], hidden: new Set(JSON.parse(recall("cal-hidden") || "[]")), byDate: null,
+  day: null, listScope: "upcoming", rows: [], slide: 0, hidden: new Set(JSON.parse(recall("cal-hidden") || "[]")), byDate: null,
 };
 const segmentPlacers = [];
 
@@ -1010,18 +1160,44 @@ function renderCalTitle() {
     main.textContent = "Appointments";
     sub.textContent = { upcoming: "Upcoming", past: "Past", all: "All" }[appt.listScope];
   }
+  $("cal-bar-title").textContent = `${main.textContent} ${sub.textContent}`.trim();
 }
 
 function renderAppointments() {
   const rows = visibleRows();
   const active = rows.filter((r) => r.status === "booked" || r.status === "needs_reschedule").length;
   $("appt-summary").textContent = `${rows.length} shown, ${active} active`;
+  const timeGrid = appt.view === "day" || appt.view === "week";
+  $("cal-body").classList.toggle("scroller", timeGrid);
+  $("cal-body").classList.toggle("fit", timeGrid);
   if (appt.view === "day") renderTimeGrid([appt.day], "doctors");
   else if (appt.view === "week") renderTimeGrid([...Array(7)].map((_, i) => shiftDay(startOfWeek(appt.day), i)), "days");
   else if (appt.view === "month") renderMonth();
   else if (appt.view === "year") renderYear();
   else renderList();
+  // Prev / next: the new range slides in from the side it came from and cross-fades (300ms).
+  const moved = appt.slide;
+  appt.slide = 0;
+  const first = $("cal-body").firstElementChild;
+  if (moved && first && !$("cal-body").hidden) {
+    first.classList.remove("slide-next", "slide-prev");
+    void first.offsetWidth;
+    first.classList.add(moved > 0 ? "slide-next" : "slide-prev");
+  }
 }
+
+// The hour grid scrolls inside its own box, which fills the window below the toolbar, so the
+// toolbar and its prev / Today / next never scroll away.
+// The same for the Messages pane and the Mail list: each fills the window below its own top,
+// so the page itself never scrolls a few pixels for nothing on top of an inner scroller.
+function fitCalendar() {
+  for (const node of document.querySelectorAll(".view:not([hidden]) .fit")) {
+    if (node.hidden || !node.offsetParent) continue;
+    const top = node.getBoundingClientRect().top + window.scrollY;
+    node.style.setProperty("--fit-top", `${Math.round(top)}px`);
+  }
+}
+window.addEventListener("resize", debounce(fitCalendar, 120));
 
 // Lay overlapping events side by side, as Calendar does.
 function layoutLanes(events) {
@@ -1106,10 +1282,10 @@ function renderTimeGrid(daysList, mode) {
   const head = el("div", { class: "tgrid-head" }, el("div", { class: "col-head" }));
   for (const col of columns) {
     if (mode === "doctors") {
-      const h = el("div", { class: "col-head" }, el("b", { text: col.label || "No doctors" }), col.sub ? col.sub : "");
-      h.querySelector("b").style.fontSize = "14px";
-      h.querySelector("b").style.fontWeight = "600";
-      if (col.color) h.style.boxShadow = `inset 0 -3px 0 ${col.color}`;
+      const h = el("div", { class: "col-head doctor" },
+        el("b", {}, col.color ? el("i", { class: "doc-dot", "aria-hidden": "true" }) : null, col.label || "No doctors"),
+        col.sub ? col.sub : "");
+      if (col.color) h.style.setProperty("--doc", col.color);
       head.append(h);
     } else {
       const button = el("button", { type: "button", "aria-label": `Open ${prettyDay(col.day)}` }, col.label, el("b", { text: String(col.num) }));
@@ -1120,6 +1296,13 @@ function renderTimeGrid(daysList, mode) {
   grid.append(head);
   const hoursCol = el("div", { class: "hours" });
   for (let h = first; h < last; h += 1) hoursCol.append(el("div", { class: "hour-label", text: h === first ? "" : `${String(h).padStart(2, "0")}:00` }));
+  const nowMin = clinicNowMinutes();
+  if (columns.some((c) => c.day === today) && nowMin >= first * 60 && nowMin <= last * 60) {
+    // Calendar's "now": the time in red in the gutter, one red line through today.
+    const chip = el("span", { class: "now-chip num", text: `${String(Math.floor(nowMin / 60)).padStart(2, "0")}:${String(nowMin % 60).padStart(2, "0")}` });
+    chip.style.top = `${((nowMin - first * 60) / 60) * hourPx}px`;
+    hoursCol.append(chip);
+  }
   grid.append(hoursCol);
   for (const col of columns) {
     const sunday = weekday(col.day) === 6;
@@ -1144,11 +1327,13 @@ function renderTimeGrid(daysList, mode) {
     notes.push(el("div", { class: "cal-empty", text: sunday ? "The clinic is closed on Sundays." : "No appointments here." }));
   }
   body.replaceChildren(grid, ...notes);
+  fitCalendar();
   if (mode === "doctors" || columns.some((c) => c.day === today)) {
-    // Start the view near "now" (or the first appointment), as Calendar does.
-    const target = rows.length ? Math.min(...rows.map((r) => minutesOf(r.time))) : clinicNowMinutes();
-    const y = grid.getBoundingClientRect().top + window.scrollY + ((target - first * 60) / 60) * hourPx - 160;
-    if (window.scrollY < 10 && y > 200) window.scrollTo({ top: y, behavior: "smooth" });
+    // Start the grid near "now" (or the first appointment), as Calendar does: the grid
+    // scrolls, the page and its toolbar stay put.
+    const onToday = columns.some((c) => c.day === today);
+    const target = onToday ? clinicNowMinutes() : (rows.length ? Math.min(...rows.map((r) => minutesOf(r.time))) : first * 60);
+    body.scrollTop = Math.max(0, ((target - first * 60) / 60) * hourPx - 120);
   }
 }
 
@@ -1167,7 +1352,7 @@ function renderMonth() {
       role: "button", tabindex: "0", "aria-label": `${prettyDay(iso)}, ${list.length} appointment${list.length === 1 ? "" : "s"}` },
     el("span", { class: "mnum", text: String(parts(iso).d) }),
     ...list.slice(0, 3).map((r) => {
-      const item = el("div", { class: `mev ${r.status}` }, el("i"), el("span", { text: r.time }), ` ${r.patient_name}`);
+      const item = el("div", { class: `mev ${r.status}` }, el("i"), el("span", { class: "mt", text: r.time }), el("span", { class: "mn", text: ` ${r.patient_name}` }));
       item.style.setProperty("--doc", doctorColor(r.doctor_id));
       return item;
     }),
@@ -1224,16 +1409,16 @@ function renderList() {
       out.push(el("tr", { class: "group-row" }, el("td", { colspan: 9, text: lastGroup })));
     }
     out.push(el("tr", { class: r.status === "cancelled" ? "muted-row" : "" },
-      el("td", { class: "nowrap num", text: fmtDateTime(r.start) }),
-      el("td", {}, r.patient_name, r.patient_age ? el("span", { class: "ink-2 t-caption", text: ` · ${r.patient_age} y` }) : null,
+      el("td", { class: "nowrap num c-when", text: fmtDateTime(r.start) }),
+      el("td", { class: "c-patient" }, r.patient_name, r.patient_age ? el("span", { class: "ink-2 t-caption", text: ` · ${r.patient_age} y` }) : null,
         r.name_unverified ? el("div", {}, el("span", { class: "badge warn", text: "name unverified" })) : null),
-      el("td", { class: "nowrap num", text: r.phone_display }),
-      el("td", { text: r.service }),
-      el("td", { text: r.doctor }),
-      el("td", { text: r.branch }),
-      el("td", {}, el("span", { class: `badge ${r.status}`, text: STATUS_LABEL[r.status] || r.status }),
+      el("td", { class: "nowrap num c-phone", text: r.phone_display }),
+      el("td", { class: "c-service", text: r.service }),
+      el("td", { class: "c-doctor", text: r.doctor }),
+      el("td", { class: "c-branch", text: r.branch }),
+      el("td", { class: "c-status" }, el("span", { class: `badge ${r.status}`, text: STATUS_LABEL[r.status] || "Booked" }),
         r.cancel_reason ? el("div", { class: "ink-2 t-caption", text: r.cancel_reason }) : null),
-      el("td", { title: r.calendar_synced ? "In Google Calendar" : "Waiting to sync", text: r.calendar_synced ? "✓" : "…" }),
+      el("td", { class: "c-cal", title: r.calendar_synced ? "Added to Google Calendar" : "Not added to Google Calendar yet", text: r.calendar_synced ? "✓" : "…" }),
       el("td", { class: "actions" }, ...apptActions(r, true))));
   }
   tbody.replaceChildren(...out);
@@ -1273,11 +1458,11 @@ function openPopover(r, anchor) {
     ...row("Doctor", r.doctor),
     ...row("Branch", r.branch),
     ...row("Phone", r.phone_display || "–"),
-    ...row("Status", el("span", { class: `badge ${r.status}`, text: STATUS_LABEL[r.status] || r.status })),
+    ...row("Status", el("span", { class: `status-text ${r.status}`, text: STATUS_LABEL[r.status] || "Booked" })),
     ...(r.cancel_reason ? row("Reason", r.cancel_reason) : []),
-    ...(r.name_unverified ? row("Name", el("span", { class: "badge warn", text: "unverified" })) : []),
-    ...row("Calendar", r.calendar_synced ? "In Google Calendar" : "Waiting to sync"),
-    ...row("Booked by", r.source === "call" || r.created_by_call_id ? "Emma, on a call" : (r.source || "–")));
+    ...(r.name_unverified ? row("Name", el("span", { class: "status-text needs_reschedule", text: "Spelling not checked yet" })) : []),
+    ...row("Google Calendar", r.calendar_synced ? "Added" : "Not added yet"),
+    ...row("Booked by", r.created_by_call_id ? "Emma, on a call" : (SOURCE_LABEL[r.source] || "The clinic")));
   const actions = apptActions(r);
   if (r.created_by_call_id) {
     actions.push(el("button", { class: "btn-pill text small", type: "button", text: "Open the call",
@@ -1347,6 +1532,7 @@ function setView(view) {
 }
 
 function step(direction) {
+  appt.slide = direction;
   if (appt.view === "day") appt.day = shiftDay(appt.day, direction);
   else if (appt.view === "week") appt.day = shiftDay(appt.day, 7 * direction);
   else if (appt.view === "month") appt.day = shiftMonth(appt.day, direction);
@@ -1382,6 +1568,13 @@ $("appt-export").addEventListener("click", () => {
   location.href = `/dashboard/api/appointments.csv?${apptQuery()}`;
 });
 $("appt-new").addEventListener("click", () => openBook("book"));
+// Phones: the filters fold away behind one Filters button.
+$("cal-filters-toggle").addEventListener("click", () => {
+  const open = !$("cal-filters").classList.contains("is-open");
+  $("cal-filters").classList.toggle("is-open", open);
+  $("cal-filters-toggle").setAttribute("aria-expanded", String(open));
+  requestAnimationFrame(fitCalendar);
+});
 document.addEventListener("keydown", (event) => {
   if (currentTab !== "appointments" || event.target.closest("input, select, textarea, .e-sheet-root")
     || document.querySelector(".e-sheet-root.is-open")) return;
@@ -1463,6 +1656,7 @@ function fillBookDoctors() {
 function clearSlots() {
   booking.slot = null;
   $("book-slots").replaceChildren();
+  $("book-slots").hidden = true;
   updateBookButton();
 }
 
@@ -1470,6 +1664,9 @@ function updateBookButton() {
   const needsPatient = booking.mode === "book";
   const ready = booking.slot && (!needsPatient || ($("book-name").value.trim() && $("book-phone").value.trim()));
   $("book-confirm").disabled = !ready;
+  const slot = booking.slot;
+  $("book-chosen").textContent = slot ? `${dayFmt($("book-day").value, { weekday: "short", day: "numeric", month: "short" })}, ${slot.time} with ${slot.doctor}`
+    : "Pick a free time above.";
 }
 
 function openBook(mode, target = null) {
@@ -1501,10 +1698,19 @@ function openBook(mode, target = null) {
   }
   showError($("book-error"), "");
   clearSlots();
-  // B22: the + turns 45 degrees while its sheet is open.
-  if (!moving) $("appt-new").setAttribute("aria-expanded", "true");
-  sheets.book.open(() => $("appt-new").setAttribute("aria-expanded", "false"));
+  // B22: the + turns 45 degrees while its sheet is open. The sheet follows 120ms later, so the
+  // turn is seen before the scrim covers the button.
+  const openIt = () => sheets.book.open(() => $("appt-new").setAttribute("aria-expanded", "false"));
+  if (!moving) {
+    $("appt-new").setAttribute("aria-expanded", "true");
+    setTimeout(openIt, reducedMotion() ? 0 : 120);
+  } else {
+    openIt();
+  }
 }
+
+const PART_OF_DAY = [["Morning", 0, 12], ["Afternoon", 12, 17], ["Evening", 17, 24]];
+const surname = (name) => String(name || "").replace(/^Dr\.?\s*/i, "").trim().split(/\s+/).slice(-1)[0] || name;
 
 async function findSlots() {
   showError($("book-error"), "");
@@ -1513,6 +1719,7 @@ async function findSlots() {
   if ($("book-doctor").value) params.set("doctor_id", $("book-doctor").value);
   if (booking.mode === "move") params.set("ignore_appointment", booking.target.id);
   const box = $("book-slots");
+  box.hidden = false;
   box.replaceChildren(loadingNode("Looking…", "span"));
   booking.slot = null;
   updateBookButton();
@@ -1523,24 +1730,42 @@ async function findSlots() {
       return;
     }
     const anyDoctor = !$("book-doctor").value;
-    const pills = slots.map((slot) => {
+    const pills = [];
+    const pill = (slot, label) => {
       const button = el("button", {
-        class: "slot", type: "button", "aria-pressed": "false",
-        text: anyDoctor ? `${slot.time} · ${slot.doctor}` : slot.time,
-        title: `${slot.doctor}, ${slot.branch}`,
+        class: "slot", type: "button", "aria-pressed": "false", text: label,
+        "aria-label": `${slot.time} with ${slot.doctor}, ${slot.branch}`, title: `${slot.doctor}, ${slot.branch}`,
       });
       button.addEventListener("click", () => {
-        box.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+        box.querySelectorAll("button.slot").forEach((b) => b.setAttribute("aria-pressed", "false"));
         button.setAttribute("aria-pressed", "true");
         booking.slot = slot;
         updateBookButton();
       });
+      pills.push(button);
       return button;
-    });
-    box.replaceChildren(...pills);
-    // B5: the free times pop in, 50ms apart (capped so a long day doesn't keep popping).
-    popIn(pills);
-    pills.slice(12).forEach((pill) => pill.style.setProperty("--i", "12"));
+    };
+    // Grouped as Calendar's time picker would: morning, afternoon, evening. With any doctor,
+    // one row per time with the free doctors beside it; with one doctor, just the times.
+    const groups = PART_OF_DAY.map(([label, from, to]) => {
+      const inPart = slots.filter((sl) => { const h = Number(sl.time.slice(0, 2)); return h >= from && h < to; });
+      if (!inPart.length) return null;
+      let content;
+      if (anyDoctor) {
+        const byTime = new Map();
+        for (const sl of inPart) (byTime.get(sl.time) || byTime.set(sl.time, []).get(sl.time)).push(sl);
+        content = el("div", { class: "slot-rows" }, ...[...byTime].map(([time, list]) => el("div", { class: "slot-row" },
+          el("span", { class: "slot-time num", text: time }),
+          el("div", { class: "slot-chips" }, ...list.map((sl) => pill(sl, `Dr ${surname(sl.doctor)}`))))));
+      } else {
+        content = el("div", { class: "slot-chips" }, ...inPart.map((sl) => pill(sl, sl.time)));
+      }
+      return el("section", { class: "slot-part" }, el("h3", { class: "slot-part-title", text: label }), content);
+    }).filter(Boolean);
+    box.replaceChildren(...groups);
+    box.scrollTop = 0;
+    // B5: the first free times pop in, 50ms apart; the rest are simply there.
+    popIn(pills.slice(0, 12));
   } catch (err) {
     box.replaceChildren();
     showError($("book-error"), err.message);
@@ -1590,6 +1815,39 @@ $("book-form").addEventListener("submit", async (event) => {
 
 // ------------------------------------------------------------------ tasks (Reminders)
 let taskStatus = "open";
+let taskBusyUntil = 0;          // our own tick is animating: an echo from the server waits
+
+const TASK_ACTION = {
+  callback: "Call back", emergency: "Emergency: call", red_flag: "Red flag: call", recovery_failed: "Find a new time with",
+  escalation: "Call back", language: "Call back in their language:", abandoned: "Call back",
+};
+// "Call back Priya Sharma · 98450 12345": who to call, right in the title.
+function taskTitle(t) {
+  const who = [t.patient_name, t.phone_display].filter(Boolean).join(" · ");
+  if (who) return `${TASK_ACTION[t.kind] || KIND_LABEL[t.kind] || "Call back"} ${who}`;
+  return `${KIND_LABEL[t.kind] || "Task"} (no number: the call came from the talk page)`;
+}
+
+async function setTaskDone(t, done) {
+  await api(`/dashboard/api/tasks/${t.id}`, { method: "POST", body: { done } });
+  refreshSoon();
+}
+
+// A toast with one action (Undo), like Reminders after completing an item.
+function actionToast(message, label, onAction) {
+  const stack = $("toasts");
+  stack.classList.add("toast-stack");
+  const button = el("button", { type: "button", class: "toast-action", text: label });
+  const node = el("div", { class: "toast-pill glass-pill", role: "status" }, el("span", { text: message }), button);
+  const leave = () => {
+    if (node.classList.contains("leaving")) return;
+    node.classList.add("leaving");
+    setTimeout(() => node.remove(), 260);
+  };
+  button.addEventListener("click", () => { leave(); onAction(); });
+  stack.append(node);
+  setTimeout(leave, 6000);
+}
 
 async function loadTasks() {
   document.querySelectorAll("#task-filter button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.status === taskStatus)));
@@ -1607,45 +1865,58 @@ async function loadTasks() {
     return;
   }
   list.replaceChildren(...tasks.map((t) => {
-    const box = el("input", { type: "checkbox", class: "check-circle", "aria-label": `Mark task ${t.id} done` });
-    box.checked = t.status === "done";
-    const item = el("li", { class: `reminder${t.status === "done" ? " done" : ""}${t.priority === "urgent" ? " urgent" : ""}` },
+    const done = t.status === "done";
+    const box = el("input", { type: "checkbox", class: "check-circle",
+      "aria-label": done ? `${taskTitle(t)}: done. Untick to reopen` : `Mark done: ${taskTitle(t)}` });
+    box.checked = done;
+    const item = el("li", { class: `reminder${done ? " done" : ""}${t.priority === "urgent" ? " urgent" : ""}` },
       box,
-      el("div", {},
+      el("div", { class: "rem-body" },
         el("div", { class: "rem-title" },
-          t.priority === "urgent" || t.priority === "high" ? el("span", { class: "flag", text: t.priority === "urgent" ? "!!" : "!" }) : null,
-          KIND_LABEL[t.kind] || t.kind),
+          !done && (t.priority === "urgent" || t.priority === "high") ? el("span", { class: "flag", text: t.priority === "urgent" ? "!!" : "!" }) : null,
+          el("span", { class: "rem-text", text: taskTitle(t) })),
         t.note ? el("div", { class: "rem-note", text: t.note }) : null,
         el("div", { class: "rem-meta" },
-          t.phone_display ? el("span", { class: "num", text: t.phone_display }) : null,
-          el("span", { text: `Created ${ago(t.created_at)}`, title: fmtDateTime(t.created_at) }),
-          t.due_at ? el("span", { text: `Due ${fmtDateTime(t.due_at)}` }) : null)),
+          el("span", { text: `${KIND_LABEL[t.kind] || "Task"} · added ${ago(t.created_at)}`, title: fmtDateTime(t.created_at) }),
+          !done && t.due_at ? el("span", { text: `Due ${fmtDateTime(t.due_at)}` }) : null,
+          done ? el("span", { text: t.done_by ? `Done by ${t.done_by}` : "Done" }) : null)),
       el("div", { class: "rem-side" },
-        el("span", { class: `badge ${t.priority}`, text: t.priority }),
-        t.call_id ? el("button", { class: "btn-pill text small", type: "button", text: "Call",
-          title: `Open call ${t.call_id}`, onclick: () => { showTab("calls"); openCall(t.call_id); } }) : null));
+        !done && t.priority !== "normal" ? el("span", { class: `badge ${t.priority}`, text: t.priority === "urgent" ? "Urgent" : "High" }) : null,
+        t.call_id ? el("button", { class: "btn-pill text small", type: "button", text: "Transcript",
+          title: "Open the call this came from", onclick: () => { showTab("calls"); openCall(t.call_id); } }) : null));
     box.addEventListener("change", async () => {
       box.disabled = true;
+      const nowDone = box.checked;
+      const leaves = taskStatus !== "all";
+      // Reminders: the circle fills (in CSS), then the row slides away and closes up.
+      taskBusyUntil = Date.now() + 1200;
+      item.classList.toggle("done", nowDone);
       try {
-        await api(`/dashboard/api/tasks/${t.id}`, { method: "POST", body: { done: box.checked } });
-        // Reminders: a ticked item fills its circle, then slides away from the Open list.
-        if (taskStatus !== "all") {
-          setTimeout(() => item.classList.add("leaving"), 260);
-          setTimeout(loadTasks, 620);
-        } else {
-          loadTasks();
-        }
-        refreshSoon();
+        await setTaskDone(t, nowDone);
       } catch (err) {
         toast(err.message, "error");
-        box.checked = !box.checked;
+        box.checked = !nowDone;
+        item.classList.toggle("done", !nowDone);
+        box.disabled = false;
+        return;
+      }
+      if (leaves) {
+        setTimeout(() => {
+          item.style.setProperty("--h", `${item.offsetHeight}px`);
+          item.classList.add("leaving");
+        }, reducedMotion() ? 0 : 420);
+        setTimeout(loadTasks, reducedMotion() ? 220 : 900);
+      } else {
         box.disabled = false;
       }
+      actionToast(nowDone ? "Task done." : "Task reopened.", "Undo", async () => {
+        try { await setTaskDone(t, !nowDone); } catch (err) { toast(err.message, "error"); }
+        loadTasks();
+      });
     });
     return item;
   }));
 }
-
 document.querySelectorAll("#task-filter button").forEach((button) => button.addEventListener("click", () => {
   taskStatus = button.dataset.status;
   loadTasks();
@@ -1676,7 +1947,7 @@ async function loadCalls() {
     return;
   }
   renderCalls();
-  if (selectedCall) openCall(selectedCall);
+  if (selectedCall) openCall(selectedCall, { drill: $("view-calls").classList.contains("drilled") });
 }
 
 function renderCalls() {
@@ -1697,11 +1968,12 @@ function renderCalls() {
       class: `mail-row${c.id === selectedCall ? " selected" : ""}${c.ended_at ? "" : " live"}` },
     el("span", { class: "mail-who num", text: c.phone_display || `${CHANNEL_LABEL[c.channel] || "Unknown"} caller` }),
     el("span", { class: "mail-time", text: fmtDateTime(c.started_at) }),
+    el("span", { class: "mail-outcome" },
+      el("i", { class: `dot ${outcomeTone(c.outcome)}`, "aria-hidden": "true" }), callOutcome(c.outcome)),
     el("span", { class: "mail-sub" },
-      el("span", { class: `badge ${(c.outcome || "").split("@")[0]}`, title: c.outcome || "", text: callOutcome(c.outcome) }),
       el("span", { text: [c.direction === "outbound" ? "Recovery call" : null, CHANNEL_LABEL[c.channel] || null,
         c.ended_at ? length(c.started_at, c.ended_at) : "live",
-        c.turns === c.kept_turns ? `${c.turns} turns` : `${c.kept_turns}/${c.turns} kept`].filter(Boolean).join(" · ") })));
+        c.turns === c.kept_turns ? `${c.turns} lines` : `${c.kept_turns} of ${c.turns} lines kept`].filter(Boolean).join(" · ") })));
     row.addEventListener("click", () => openCall(c.id));
     row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCall(c.id); } });
     return row;
@@ -1723,7 +1995,7 @@ $("call-rows").addEventListener("keydown", (event) => {
   if (next) { event.preventDefault(); next.focus(); openCall(next.dataset.call); }
 });
 
-async function openCall(callId) {
+async function openCall(callId, { drill = true } = {}) {
   selectedCall = callId;
   // Opened from a task or a recovery call: clear a filter that would hide its row.
   if (!$("call-rows").querySelector(`[data-call="${CSS.escape(callId)}"]`) && (callFilter !== "all" || $("call-search").value)) {
@@ -1753,8 +2025,10 @@ async function openCall(callId) {
   const turns = call.turns.map((t) => {
     const removed = t.text === null;
     const perceived = t.latency && t.latency.perceived_ms;
-    const meta = [t.tier !== null ? (TIER_LABEL[t.tier] || `tier ${t.tier}`) : null, perceived ? `${ms(perceived)} ms` : null,
-      t.state_before || t.state_after ? `${t.state_before ?? "?"} → ${t.state_after ?? "?"}` : null].filter(Boolean).join(" · ");
+    const meta = t.role === "caller" ? "" : [t.tier !== null && t.tier !== undefined ? (TIER_LABEL[t.tier] || null) : null,
+      perceived ? `replied in ${(perceived / 1000).toFixed(1)} s` : null,
+      t.state_after && t.state_after !== t.state_before && GOAL_LABEL[t.state_after] ? `then ${GOAL_LABEL[t.state_after].toLowerCase()}` : null]
+      .filter(Boolean).join(" · ");
     const node = el("div", { class: `line ${t.role}${removed ? " removed" : ""}${prev === t.role ? " same" : ""}` },
       el("span", { class: "who", text: ROLE_LABEL[t.role] || t.role }),
       el("div", { class: "bubble", text: removed ? "(text removed)" : t.text }),
@@ -1776,15 +2050,17 @@ async function openCall(callId) {
       toast(err.message, "error");
     }
   });
+  const back = el("button", { type: "button", class: "detail-back btn-pill text small", text: "‹ Calls",
+    onclick: () => { $("view-calls").classList.remove("drilled"); const row = $("call-rows").querySelector(".mail-row.selected"); if (row) row.focus({ preventScroll: true }); } });
   box.replaceChildren(
+    back,
     el("div", { class: "detail-head" },
       el("div", {},
         el("h2", { class: "t-section", text: call.phone_display || `${CHANNEL_LABEL[call.channel] || "Unknown"} caller` }),
-        el("p", { class: "t-small ink-2", text: `${fmtDateTime(call.started_at)} · ` }, el("span", { class: "mono", text: call.id }))),
-      deleteButton),
+        el("p", { class: "t-small ink-2", text: fmtDateTime(call.started_at) }))),
     el("div", { class: "detail-kv" }, el("dl", { class: "kv" },
-      el("dt", { text: "Length" }), el("dd", { text: call.ended_at ? length(call.started_at, call.ended_at) : "still live" }),
-      el("dt", { text: "Direction" }), el("dd", { text: call.direction }),
+      el("dt", { text: "Length" }), el("dd", { text: call.ended_at ? length(call.started_at, call.ended_at) : "Still on the call" }),
+      el("dt", { text: "Direction" }), el("dd", { text: call.direction === "outbound" ? "Emma called them (recovery)" : "They called the clinic" }),
       el("dt", { text: "Outcome" }), el("dd", { text: callOutcome(call.outcome), title: call.outcome || "" }),
       el("dt", { text: "Came in by" }), el("dd", { text: CHANNEL_LABEL[call.channel] || "–" }),
       el("dt", { text: "Transcript" }), el("dd", { text: kept ? `kept until ${fmtDateTime(call.purge_after)}` : "not kept (caller's request or deleted)" }),
@@ -1792,8 +2068,14 @@ async function openCall(callId) {
         ...call.appointments.map((a) => el("div", { text: `${a.service}, ${fmtDateTime(a.start_utc)}, ${a.branch} (${STATUS_LABEL[a.status] || a.status})` })))] : null,
       call.tasks.length ? [el("dt", { text: "Tasks" }), el("dd", {},
         ...call.tasks.map((t) => el("div", { text: `${KIND_LABEL[t.kind] || t.kind} · ${t.priority} · ${t.status}` })))] : null)),
-    el("div", { class: "transcript" }, ...(turns.length ? turns : [el("div", { class: "detail-empty", text: "No turns recorded." })])));
+    el("div", { class: "transcript" }, ...(turns.length ? turns : [el("div", { class: "detail-empty", text: "Nothing was said on this call." })])),
+    el("div", { class: "detail-foot" }, el("span", { class: "t-caption ink-2", text: `Call reference ${call.id}` }), deleteButton));
   box.scrollTop = 0;
+  // On a phone the call opens as its own screen with a back button, as in Mail.
+  if (drill && window.matchMedia("(max-width: 734px)").matches) {
+    $("view-calls").classList.add("drilled");
+    window.scrollTo({ top: 0 });
+  }
   document.querySelectorAll("#call-rows .mail-row").forEach((row) => row.classList.toggle("selected", row.dataset.call === callId));
   const chosen = $("call-rows").querySelector(".mail-row.selected");
   if (chosen) chosen.scrollIntoView({ block: "nearest" });
@@ -2000,23 +2282,25 @@ async function loadPerformance() {
     box.replaceChildren(el("p", { class: "ink-2 pad", text: "No calls in the last 7 days." }));
     return;
   }
-  const sec = (v) => (v === null || v === undefined ? "–" : `${(v / 1000).toFixed(1)} s`);
-  const pct = (n, d) => (d ? `${Math.round((100 * n) / d)}%` : "–");
+  const sec = (v) => (v === null || v === undefined ? null : `${(v / 1000).toFixed(1)} s`);
+  const pct = (n, d) => (d ? `${Math.round((100 * n) / d)}%` : null);
+  const pair = (a, b) => (sec(a) && sec(b) ? `${sec(a)} / ${sec(b)}` : "No data yet");
   const row = (label, f) => el("tr", {}, el("th", { text: label }), ...channels.map(([, c]) => el("td", { class: "num", text: f(c) })));
   box.replaceChildren(el("div", { class: "table-wrap" }, el("table", { class: "table kv-table" },
     el("thead", {}, el("tr", {}, el("th", {}), ...channels.map(([name, c]) =>
       el("th", { text: `${CHANNEL_LABEL[name] || name} (${c.calls} calls)` })))),
     el("tbody", {},
-      row("Replies", (c) => String(c.replies)),
-      row("Answered by Emma's rules", (c) => `${c.rules} (${pct(c.rules, c.replies)})`),
-      row("Answered by the language model", (c) => `${c.model} (${pct(c.model, c.replies)})`),
-      row("Fallback, model too slow or down", (c) => `${c.fallback} (${pct(c.fallback, c.model + c.fallback)} of model turns)`),
-      row("Simple reply, typical / slowest 5%", (c) => `${sec(c.simple_p50_ms)} / ${sec(c.simple_p95_ms)}`),
-      row("Model reply, typical / slowest 5%", (c) => `${sec(c.model_p50_ms)} / ${sec(c.model_p95_ms)}`),
-      row("Of that, deciding the caller finished", (c) => sec(c.end_of_speech_p50_ms)),
+      row("Replies Emma gave", (c) => String(c.replies)),
+      row("Quick replies (no thinking needed)", (c) => (c.replies ? `${c.rules} (${pct(c.rules, c.replies)})` : "No data yet")),
+      row("Replies she thought through", (c) => (c.replies ? `${c.model} (${pct(c.model, c.replies)})` : "No data yet")),
+      row("Backup replies, because understanding was slow", (c) => (c.model + c.fallback
+        ? `${c.fallback} (${pct(c.fallback, c.model + c.fallback)} of thought-through replies)` : "No data yet")),
+      row("Time to a quick reply, usual / slowest", (c) => pair(c.simple_p50_ms, c.simple_p95_ms)),
+      row("Time to a thought-through reply, usual / slowest", (c) => pair(c.model_p50_ms, c.model_p95_ms)),
+      row("Of that, waiting for the caller to finish", (c) => sec(c.end_of_speech_p50_ms) || "No data yet"),
       row("Estimated cost per call (7-day total)", (c) => (c.metered_calls
         ? `$${c.cost_per_call_usd.toFixed(3)} ($${c.cost_total_usd.toFixed(2)}, ${c.metered_calls} calls)`
-        : "–"))))));
+        : "No data yet"))))));
 }
 
 async function loadSystem() {
@@ -2507,14 +2791,38 @@ document.querySelector('#more-sheet [data-action="logout"]').addEventListener("c
 // B16: on first load the sidebar's rows slide in once, one after another.
 function sidebarEntrance() {
   const side = $("sidebar");
-  if (reducedMotion() || getComputedStyle(side).display === "none") return;
+  // Once per sign-in, not on every reload of a tool used all day.
+  let seen = false;
+  try { seen = sessionStorage.getItem("emma-dashboard:entered") === "1"; sessionStorage.setItem("emma-dashboard:entered", "1"); } catch { seen = true; }
+  if (seen || reducedMotion() || getComputedStyle(side).display === "none") return;
   const rows = [side.querySelector(".side-brand"), ...side.querySelectorAll(".side-nav > .side-item"), side.querySelector(".side-foot")];
   rows.forEach((row, i) => row.style.setProperty("--i", String(i)));
   side.classList.add("is-entering");
   setTimeout(() => side.classList.remove("is-entering"), 350 + rows.length * 40 + 80);
 }
 
+// Mark the section the URL asks for straight away, before any data loads, so two rows are
+// never selected at once on the first paint.
+function selectNav(name) {
+  if (!loaders[name]) name = "today";
+  document.querySelectorAll(".side-item[data-tab]").forEach((item) => item.setAttribute("aria-selected", String(item.dataset.tab === name)));
+  document.querySelectorAll(".tab-item").forEach((item) => item.setAttribute("aria-selected", String(item.dataset.tab === (TAB_FOR[name] || name))));
+}
+
+// Icon-only rail: each row keeps its name for screen readers and as a tooltip.
+function nameNavItems() {
+  document.querySelectorAll(".side-item, .tab-item").forEach((item) => {
+    const label = item.querySelector(".side-label, span:not(.tab-dot):not(.tab-badge)");
+    if (label && label.textContent.trim()) {
+      item.setAttribute("aria-label", label.textContent.trim());
+      if (item.classList.contains("side-item")) item.title = label.textContent.trim();
+    }
+  });
+}
+
 async function start() {
+  selectNav(location.hash.slice(1) || recall("tab") || "today");
+  nameNavItems();
   sidebarEntrance();
   // B4: segmented controls with a sliding indicator. The page sets aria-pressed itself.
   for (const id of ["cal-view", "task-filter", "appt-scope", "call-filter"]) segmentPlacers.push(tabnav($(id), { manage: false }));
