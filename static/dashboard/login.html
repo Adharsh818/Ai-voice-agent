@@ -17,13 +17,43 @@
         <span>Pearl Dental</span>
       </a>
       <div class="e-capsule-end">
-        <span class="e-capsule-meta">Staff</span>
+        <a class="e-capsule-link" href="/">Talk to Emma</a>
       </div>
     </header>
   </div>
 
   <main class="signin-main">
     <div class="signin-brand" aria-hidden="true">
+      <svg class="signin-ring" viewBox="0 0 120 120" focusable="false">
+        <circle cx="60.00" cy="8.00" r="2" fill="#4a86e0"/>
+        <circle cx="71.57" cy="9.30" r="2" fill="#4b87e0"/>
+        <circle cx="82.56" cy="13.15" r="2" fill="#4e88e0"/>
+        <circle cx="92.42" cy="19.34" r="2" fill="#538bdf"/>
+        <circle cx="100.66" cy="27.58" r="2" fill="#5a8fde"/>
+        <circle cx="106.85" cy="37.44" r="2" fill="#6293de"/>
+        <circle cx="110.70" cy="48.43" r="2" fill="#6b98dd"/>
+        <circle cx="112.00" cy="60.00" r="2" fill="#749ddc"/>
+        <circle cx="110.70" cy="71.57" r="2" fill="#7ea2db"/>
+        <circle cx="106.85" cy="82.56" r="2" fill="#87a7da"/>
+        <circle cx="100.66" cy="92.42" r="2" fill="#8fabda"/>
+        <circle cx="92.42" cy="100.66" r="2" fill="#96afd9"/>
+        <circle cx="82.56" cy="106.85" r="2" fill="#9bb2d8"/>
+        <circle cx="71.57" cy="110.70" r="2" fill="#9eb3d8"/>
+        <circle cx="60.00" cy="112.00" r="2" fill="#9fb4d8"/>
+        <circle cx="48.43" cy="110.70" r="2" fill="#9eb3d8"/>
+        <circle cx="37.44" cy="106.85" r="2" fill="#9bb2d8"/>
+        <circle cx="27.58" cy="100.66" r="2" fill="#96afd9"/>
+        <circle cx="19.34" cy="92.42" r="2" fill="#8fabda"/>
+        <circle cx="13.15" cy="82.56" r="2" fill="#87a7da"/>
+        <circle cx="9.30" cy="71.57" r="2" fill="#7ea2db"/>
+        <circle cx="8.00" cy="60.00" r="2" fill="#749ddc"/>
+        <circle cx="9.30" cy="48.43" r="2" fill="#6b98dd"/>
+        <circle cx="13.15" cy="37.44" r="2" fill="#6293de"/>
+        <circle cx="19.34" cy="27.58" r="2" fill="#5a8fde"/>
+        <circle cx="27.58" cy="19.34" r="2" fill="#538bdf"/>
+        <circle cx="37.44" cy="13.15" r="2" fill="#4e88e0"/>
+        <circle cx="48.43" cy="9.30" r="2" fill="#4b87e0"/>
+      </svg>
       <span class="pearl signin-mark"></span>
     </div>
 
@@ -44,18 +74,20 @@
 
       <form id="login-form" class="signin-form" autocomplete="on" hidden novalidate>
         <div class="signin-fields" id="field-group">
-          <div class="e-field">
+          <div class="e-field" id="username-field">
             <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder=" " aria-describedby="username-help">
             <label for="username">User name (optional)</label>
           </div>
-          <div class="e-field">
+          <div class="e-field" id="password-field">
             <input id="password" name="password" type="password" autocomplete="current-password" required placeholder=" " aria-describedby="login-error">
             <label for="password">Password</label>
           </div>
         </div>
-        <p id="login-error" class="e-error-line" role="alert" aria-live="polite" hidden></p>
-        <p class="signin-help" id="username-help">Leave the user name empty to use the clinic password.</p>
-        <button class="e-block-btn signin-button" type="submit" id="login-button" disabled>
+        <div class="signin-slot">
+          <p id="login-error" class="e-error-line" role="alert" aria-live="polite" hidden></p>
+          <p class="signin-help" id="username-help">Leave the user name empty to use the clinic password.</p>
+        </div>
+        <button class="e-block-btn signin-button" type="submit" id="login-button" aria-label="Sign in" disabled>
           <span class="e-btn-label">Sign in</span>
           <span class="e-spinner" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
         </button>
@@ -66,7 +98,7 @@
           <path d="M4 8V5.5a4 4 0 0 1 8 0V8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <rect x="1.5" y="8" width="13" height="10.5" rx="2.5" fill="currentColor"/>
         </svg>
-        <span>For Pearl Dental staff only. Every sign-in is recorded in the audit log.</span>
+        <span>Staff only. Every sign-in is recorded.</span>
       </p>
     </div>
   </main>

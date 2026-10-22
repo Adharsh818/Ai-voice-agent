@@ -1,34 +1,64 @@
 /* Talk page on the 22 Oct ledger (docs/APPLE_DESIGN_PLAN.md 11.4): a floating glass capsule (B1),
    "Emma." as the hero, the orb as a lit glass sphere (A23, B12), a stretching-pill level meter (B10),
-   the caption on a progressive blur (B11) fading in line by line (B13), and Call / Type instead
+   the conversation on a progressive blur (B11) fading in line by line (B13), and Call / Type instead
    as one materialising glass pill bar with a sliding bubble (B2, B3). Light only.
+   The page is one fixed composition: it always fits the window and never scrolls.
    The orb's ids and data-state values are the ones app.js drives; the patient page keeps app.css. */
 
 body.talk {
   --tint: #9aa6bd;
   --t-idle: #9aa6bd;
-  --t-listening: #34c759;
-  --t-thinking: #5e5ce6;
-  --t-speaking: #0071e3;
-  --t-error: #ff3b30;
-  --t-busy: #ff9f0a;
-  min-height: 100vh;
-  min-height: 100dvh;
+  --t-listening: #5cc48f;     /* softened so the pearl never reads as a traffic light */
+  --t-thinking: #7f7ee8;
+  --t-speaking: #3d8ae6;
+  --t-problem: #e8b45c;       /* calm amber for anything that went wrong */
+  --t-busy: #e8b45c;
+  --end-call: #eb4d3d;
+  --end-call-hover: #f0604f;
+  --end-call-active: #d8432f;
+  height: 100vh;
+  height: 100dvh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  overflow-x: hidden;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);   /* no child's intrinsic width can ever widen the page */
+  overflow: clip;
 }
 
-/* ------------------------------------------------------------------ hero */
+.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------------------------------------------ the composition */
 .talk-main {
+  --tr-min: 82px;
+  min-height: 0;
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto auto minmax(var(--tr-min), max-content) minmax(0, 0.7fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
-  align-content: center;
-  padding: clamp(28px, 6vh, 72px) 16px 40px;
+  padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
+  overflow: clip;
   text-align: center;
 }
+.hero-stack { grid-row: 2; }
+#orb { grid-row: 3; }
+.meter-slot { grid-row: 4; }
+.transcript { grid-row: 5; }
+.dock { grid-row: 7; }
 
-.hero { display: grid; justify-items: center; gap: 8px; transition: opacity var(--t) var(--ease), transform var(--t) var(--ease); }
+/* ------------------------------------------------------------------ hero and status: never on screen together */
+.hero-stack { display: grid; place-items: center; width: 100%; }
+.hero-stack > * { grid-area: 1 / 1; }
+.hero { display: grid; justify-items: center; gap: 8px; transition: opacity 160ms var(--ease) 180ms; }
 .hero-title {
   margin: 0;
   font-family: var(--font-display);
@@ -45,10 +75,6 @@ body.talk {
   line-height: 28px;
   letter-spacing: 0.009em;
 }
-
-/* In a call the headline steps back and a status line takes its place (cross-fade). */
-.hero-stack { display: grid; place-items: center; }
-.hero-stack > * { grid-area: 1 / 1; }
 .call-status {
   margin: 0;
   opacity: 0;
@@ -57,21 +83,26 @@ body.talk {
   font-size: 40px;
   line-height: 44px;
   font-weight: 600;
-  transform: translateY(8px);
-  transition: opacity var(--t) var(--ease), transform var(--t) var(--ease);
+  transition: opacity 160ms var(--ease) 0ms;
 }
-body:not([data-call="idle"]) .call-status { opacity: 1; transform: none; }
-body:not([data-call="idle"]) .hero { opacity: 0; transform: translateY(-8px); pointer-events: none; }
-body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-call="error"]) .call-status { opacity: 0; }
-body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-call="error"]) .hero { opacity: 1; transform: none; }
+/* one fades out (160ms), then the other fades in (after 180ms), so the two never overlap */
+body[data-view="status"] .hero { opacity: 0; pointer-events: none; transition-delay: 0ms; }
+body[data-view="status"] .call-status { opacity: 1; transition: opacity 240ms var(--ease-out) 180ms; }
+
+/* entrance: on the first frame, no observers, readable within ~500ms */
+.hero > * { animation: talk-rise 480ms var(--ease-out) backwards; }
+.hero-sub { animation-delay: 60ms; }
+#orb { animation: talk-in 480ms var(--ease-out) 80ms backwards; }
+@keyframes talk-rise { from { opacity: 0.6; transform: translateY(10px); } }   /* text reads from the first frame */
+@keyframes talk-in { from { opacity: 0; transform: translateY(10px); } }
 
 /* ------------------------------------------------------------------ the orb: a lit glass sphere */
 #orb {
-  --size: min(52vmin, 300px);
+  --size: min(clamp(168px, 34vh, 300px), 72vw);
   position: relative;
   width: var(--size);
   height: var(--size);
-  margin: clamp(30px, 5.5vh, 60px) 0 0;
+  margin: clamp(16px, 3vh, 40px) 0 0;
   border: 0;
   padding: 0;
   border-radius: 50%;
@@ -81,7 +112,7 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
   transition: transform 200ms var(--ease);
 }
 #orb:active { transform: scale(0.96); }
-#orb:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+#orb:focus-visible { outline: none; box-shadow: none; }
 
 #orb .core, #orb .halo, #orb .ring, #orb .gloss, #orb .rim {
   position: absolute;
@@ -90,30 +121,32 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
   pointer-events: none;
 }
 
-/* Frosted glass with the state colour glowing from inside; a 0.5px inner edge, no border (B12). */
+/* Frosted glass with the state colour glowing softly from inside; a 0.5px inner edge, no border (B12). */
 #orb .core {
-  background:
-    radial-gradient(circle at 50% 64%, color-mix(in srgb, var(--tint) 56%, transparent) 0%, transparent 62%),
-    radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 0.94) 0%, rgba(246, 247, 250, 0.88) 50%, rgba(220, 224, 233, 0.92) 100%);
-  box-shadow:
+  --core-shadow:
     var(--edge),
-    inset 0 -18px 40px color-mix(in srgb, var(--tint) 26%, transparent),
+    inset 0 -18px 40px color-mix(in srgb, var(--tint) 22%, transparent),
     inset 0 2px 1px rgba(255, 255, 255, 0.9),
-    0 30px 60px -24px color-mix(in srgb, var(--tint) 55%, transparent),
+    0 30px 60px -24px color-mix(in srgb, var(--tint) 45%, transparent),
     0 2px 6px rgba(0, 0, 0, 0.06);
+  background:
+    radial-gradient(circle at 50% 64%, color-mix(in srgb, var(--tint) 46%, transparent) 0%, transparent 62%),
+    radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 0.94) 0%, rgba(246, 247, 250, 0.88) 50%, rgba(220, 224, 233, 0.92) 100%);
+  box-shadow: var(--core-shadow);
   transform: scale(calc(0.92 + var(--lvl, 0) * 0.16));
   transition: background 480ms var(--ease), box-shadow 480ms var(--ease), transform 70ms linear;
 }
-/* A23: a conic-gradient rim, light catching the top-left edge like a polished swatch ring. */
+/* keyboard focus hugs the visible sphere, not the larger button box */
+#orb:focus-visible .core { box-shadow: var(--core-shadow), 0 0 0 3px #fff, 0 0 0 5px #0071e3; }
+/* A23: a very soft conic rim, light catching the upper edge */
 #orb .rim {
   background: conic-gradient(from 200deg,
-    rgba(0, 0, 0, 0.08) 0deg, rgba(0, 0, 0, 0.22) 64.8deg, rgba(0, 0, 0, 0.08) 115.2deg,
-    rgba(255, 255, 255, 0.95) 160deg, rgba(255, 255, 255, 0.6) 230deg, rgba(0, 0, 0, 0.08) 300deg, rgba(0, 0, 0, 0.08) 360deg);
+    rgba(0, 0, 0, 0.05) 0deg, rgba(0, 0, 0, 0.1) 64.8deg, rgba(0, 0, 0, 0.05) 115.2deg,
+    rgba(255, 255, 255, 0.7) 160deg, rgba(255, 255, 255, 0.45) 230deg, rgba(0, 0, 0, 0.05) 300deg, rgba(0, 0, 0, 0.05) 360deg);
   -webkit-mask: radial-gradient(circle, transparent calc(70.6% - 1.5px), #000 calc(70.6% - 1px), #000 70.6%, transparent calc(70.6% + 0.5px));
           mask: radial-gradient(circle, transparent calc(70.6% - 1.5px), #000 calc(70.6% - 1px), #000 70.6%, transparent calc(70.6% + 0.5px));
   transform: scale(calc(0.92 + var(--lvl, 0) * 0.16));
   transition: transform 70ms linear;
-  opacity: 0.9;
 }
 #orb .gloss {
   inset: 6% 18% 52% 18%;
@@ -125,21 +158,25 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
   transition: transform 70ms linear;
 }
 #orb .halo {
-  inset: -22%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--tint) 70%, transparent) 0%, transparent 62%);
-  opacity: calc(0.18 + var(--lvl, 0) * 0.65);
+  inset: -16%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--tint) 60%, transparent) 0%, transparent 62%);
+  opacity: calc(0.14 + var(--lvl, 0) * 0.5);
   filter: blur(14px);
   transition: opacity 90ms linear, background 480ms var(--ease);
 }
+/* the thinking ring: it only shows if thinking lasts over 320ms, so a quick turn never flashes it */
 #orb .ring {
   inset: -6%;
   opacity: 0;
   background: conic-gradient(from 0deg, transparent 0 68%, var(--tint) 100%);
   -webkit-mask: radial-gradient(circle, transparent 67%, #000 68%, #000 70%, transparent 71%);
           mask: radial-gradient(circle, transparent 67%, #000 68%, #000 70%, transparent 71%);
-  transition: opacity var(--t) var(--ease);
+  transition: opacity 240ms var(--ease) 0ms;
+  animation: spin 1.4s linear infinite paused;
 }
-/* B14: connecting shows the 8-spoke spinner in the sphere */
+#orb[data-state="thinking"] .ring,
+body.is-pending #orb .ring { opacity: 0.8; animation-play-state: running; transition: opacity 240ms var(--ease) 320ms; }
+/* B14: connecting shows the 8-spoke spinner in the sphere, after 300ms */
 #orb .orb-spinner {
   position: absolute;
   inset: 0;
@@ -147,26 +184,23 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
   --spinner-size: 28px;
   --spinner-ink: #6e6e73;
   opacity: 0;
-  transition: opacity 200ms var(--ease);
+  transition: opacity 200ms var(--ease) 0ms;
   pointer-events: none;
+  animation-play-state: paused;
 }
-#orb[data-state="connecting"] .orb-spinner { opacity: 1; }
+#orb[data-state="connecting"] .orb-spinner { opacity: 1; animation-play-state: running; transition: opacity 200ms var(--ease) 300ms; }
 
-#orb[data-state="idle"] { --tint: var(--t-idle); }
-#orb[data-state="idle"] .core { animation: float 6s var(--ease) infinite; }
+#orb[data-state="idle"], #orb[data-state="connecting"] { --tint: var(--t-idle); }
 #orb[data-state="idle"]:hover .core { transform: scale(0.95); }
-#orb[data-state="connecting"] { --tint: var(--t-idle); }
 #orb[data-state="listening"] { --tint: var(--t-listening); }
 #orb[data-state="listening"] .halo { animation: breathe 4s var(--ease) infinite; }
-#orb[data-state="thinking"] { --tint: var(--t-thinking); }
-#orb[data-state="thinking"] .ring { opacity: 1; animation: spin 1.4s linear infinite; }
+#orb[data-state="thinking"], body.is-pending #orb { --tint: var(--t-thinking); }
 #orb[data-state="speaking"] { --tint: var(--t-speaking); }
-#orb[data-state="error"], #orb[data-state="lost"], #orb[data-state="blocked"] { --tint: var(--t-error); }
+#orb[data-state="error"], #orb[data-state="lost"], #orb[data-state="blocked"] { --tint: var(--t-problem); }
 #orb[data-state="busy"] { --tint: var(--t-busy); }
-body.needs-signin #orb { --tint: var(--t-speaking); }   /* an invitation, not an alarm */
+body.needs-signin #orb { --tint: var(--t-speaking); }   /* an invitation, not a problem */
 
-@keyframes float { 50% { transform: scale(0.94) translateY(-4px); } }
-@keyframes breathe { 50% { transform: scale(1.06); } }
+@keyframes breathe { 50% { transform: scale(1.03); } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ------------------------------------------------------------------ B10 level meter */
@@ -174,80 +208,120 @@ body.needs-signin #orb { --tint: var(--t-speaking); }   /* an invitation, not an
   display: grid;
   place-items: center;
   height: 8px;
-  margin: clamp(22px, 3.5vh, 34px) 0 clamp(10px, 2vh, 18px);
+  margin: clamp(14px, 2.2vh, 24px) 0 clamp(6px, 1.2vh, 12px);
   opacity: 0;
   transition: opacity var(--t) var(--ease);
 }
 body:is([data-call="listening"], [data-call="speaking"], [data-call="thinking"]) .meter-slot { opacity: 1; }
-body[data-call="listening"] .e-meter { --meter-ink: rgba(52, 199, 89, 0.42); --meter-ink-current: #34c759; }
-body[data-call="speaking"] .e-meter { --meter-ink: rgba(0, 113, 227, 0.42); --meter-ink-current: #0071e3; }
+body[data-call="listening"] .e-meter { --meter-ink: rgba(92, 196, 143, 0.45); --meter-ink-current: #5cc48f; }
+body[data-call="speaking"] .e-meter { --meter-ink: rgba(61, 138, 230, 0.42); --meter-ink-current: #3d8ae6; }
+body.is-pending .e-meter, body[data-call="thinking"] .e-meter { --meter-ink: rgba(127, 126, 232, 0.4); --meter-ink-current: #7f7ee8; }
 
-/* ------------------------------------------------------------------ caption on a progressive blur (B11, B13) */
-.caption-wrap {
+/* ------------------------------------------------------------------ the conversation (B11, B13) */
+.transcript {
   position: relative;
   isolation: isolate;
-  display: grid;
-  place-items: center;
-  width: min(100%, 720px);
-  padding: 10px 20px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+  width: min(100%, 34em);
+  min-height: 0;
+  padding: 6px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
 }
-.caption-wrap .e-blur-scrim { inset: -8px -10%; opacity: 0; transition: opacity 500ms var(--ease-caption); }
-.caption-wrap:has(#caption:not(:empty)) .e-blur-scrim { opacity: 1; }
-#caption {
-  margin: 0;
-  max-width: 680px;
-  min-height: 2.4em;
+.transcript::-webkit-scrollbar { display: none; }
+/* when the conversation is taller than its space it scrolls, and the top edge fades instead of cutting */
+.transcript.is-overflowing {
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22px);
+  mask-image: linear-gradient(180deg, transparent 0, #000 22px);
+}
+.transcript .e-blur-scrim { position: absolute; inset: 0; opacity: 0; transition: opacity 500ms var(--ease-caption); }
+.transcript.has-text .e-blur-scrim { opacity: 1; }
+.transcript p { margin: 0; max-width: 100%; overflow-wrap: anywhere; }
+.line-caller {
+  color: var(--ink-2);
+  font-size: 17px;
+  line-height: 25px;
+  letter-spacing: -0.022em;
+  transition: opacity 240ms var(--ease);
+}
+.line-caller:empty, .line-emma:empty { display: none; }
+.line-emma {
   color: var(--ink);
   font-family: var(--font-display);
-  font-size: 24px;
-  line-height: 1.2;
-  font-weight: 600;
-  letter-spacing: 0.009em;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-size: 21px;
+  line-height: 29px;
+  font-weight: 500;
+  letter-spacing: 0.011em;
+  transition: opacity 150ms var(--ease);
 }
-#caption.is-new { animation: caption-in 500ms var(--ease-caption) both; }
-#caption.user { color: var(--ink-2); font-weight: 400; }
-#caption.notice { color: var(--ink-2); font-weight: 400; font-size: 19px; letter-spacing: 0.012em; }
-#caption.error { color: var(--red-ink); font-weight: 400; font-size: 19px; letter-spacing: 0.012em; }
-body.needs-signin #caption.error { color: var(--ink); }
-@keyframes caption-in { from { opacity: 0; } to { opacity: 1; } }
-
-/* ------------------------------------------------------------------ B2 + B3: the call pill bar */
-.cta {
-  --bubble-fill: var(--blue);
-  margin-top: 18px;
-  z-index: 5;
+.line-emma.is-out { opacity: 0; }
+.line-emma.is-new { animation: line-in 500ms var(--ease-caption) both; }
+.line-caller.is-new { animation: line-in 400ms var(--ease-caption) both; }
+.line-emma.notice, .line-emma.error {
+  color: var(--ink-2);
+  font-family: var(--font-text);
+  font-size: 17px;
+  line-height: 25px;
+  font-weight: 400;
+  letter-spacing: -0.022em;
 }
-.cta > button { min-width: 112px; }
-body:is([data-call="connecting"], [data-call="listening"], [data-call="thinking"], [data-call="speaking"]) .cta { --bubble-fill: var(--red); }
-/* A problem shows its own "Try again"; the call button steps aside. */
-body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-call="error"]) #call-button { display: none; }
+body.needs-signin .line-emma.error { color: var(--ink); }
+/* the moment after a call: what was said stays, dimmed, under "Call ended" */
+body.call-ended .transcript p { opacity: 0.55; transition: opacity 400ms var(--ease); }
+@keyframes line-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* ------------------------------------------------------------------ typed backup: a glass pill under the call bar */
-.typed {
-  position: relative;
-  z-index: 6;
+/* ------------------------------------------------------------------ the dock: pill bar (B2 + B3) and the typed box */
+.dock {
   display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: min(100%, 640px);
+  margin-top: 12px;
+}
+.cta {
+  --bubble-fill: var(--blue);
+  --bubble-fill-hover: var(--blue-hover);
+  --bubble-fill-active: var(--blue-active);
+  flex: none;
+}
+.cta > button { min-width: 112px; }
+body:is([data-call="connecting"], [data-call="listening"], [data-call="thinking"], [data-call="speaking"]) .cta {
+  --bubble-fill: var(--end-call);
+  --bubble-fill-hover: var(--end-call-hover);
+  --bubble-fill-active: var(--end-call-active);
+}
+/* A problem shows its own "Try again" in the call button's place; the call button steps aside. */
+body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-call="error"]) #call-button { display: none; }
+
+.typed {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
   gap: 8px;
-  width: min(100%, 600px);
   height: 56px;
-  margin-top: 14px;
-  padding: 0 8px 0 22px;
+  padding: 0 8px 0 20px;
   border-radius: 28px;
   background: var(--glass-pass);
   -webkit-backdrop-filter: blur(7px);
   backdrop-filter: blur(7px);
   box-shadow: var(--edge);
-  animation: pill-in 400ms var(--ease-out) both;
+  transition: background-color 250ms linear;
+  animation: pill-in 360ms var(--ease-out) 80ms backwards;
 }
 .typed[hidden] { display: none; }
 .typed:focus-within { background: var(--glass-pass-hover); }
 .typed input {
   flex: 1;
+  width: 0;          /* the field's built-in width (about 20 characters) must not size the dock */
   min-width: 0;
   height: 44px;
   border: 0;
@@ -256,6 +330,7 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
   font: inherit;
   font-size: 17px;
   outline: none;
+  box-shadow: none;
 }
 .typed input::placeholder { color: var(--ink-2); }
 .typed-send {
@@ -275,26 +350,36 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
 .typed-send svg { width: 16px; height: 16px; }
 .typed-send:hover { background: var(--blue-hover); }
 .typed-send:active { background: var(--blue-active); transform: scale(0.95); }
-.typed-send:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 @keyframes pill-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.96); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  to { opacity: 1; }
 }
 
-.talk-footer { padding: 16px 22px 22px; text-align: center; }
-.talk-footer p { margin: 0; font-size: 12px; line-height: 16px; letter-spacing: -0.01em; color: var(--ink-2); }
-
 @media (max-width: 734px) {
-  .talk-main { padding: 24px 16px 32px; }
+  .talk-main { --tr-min: 96px; padding-inline: 16px; }
   .hero-title { font-size: 40px; line-height: 44px; letter-spacing: 0; }
   .hero-sub { font-size: 19px; line-height: 23px; letter-spacing: 0.012em; }
   .call-status { font-size: 32px; line-height: 36px; letter-spacing: 0.004em; }
-  #caption { font-size: 21px; line-height: 25px; letter-spacing: 0.011em; }
-  #orb { --size: min(62vw, 280px); }
-  /* the pill bar rides 32px above the bottom edge on phones (P5) */
-  .cta { position: sticky; bottom: calc(32px + env(safe-area-inset-bottom)); }
-  body:has(.typed:not([hidden])) .cta { position: relative; bottom: auto; }
-  .cta > button { padding: 0 18px; min-width: 104px; }
+  .line-emma { font-size: 19px; line-height: 27px; letter-spacing: 0.012em; }
+  .cta > button { padding: 0 18px; min-width: 96px; }
+  .dock { gap: 8px; }
+  .typed { padding-left: 14px; gap: 6px; }
+}
+
+/* shorter windows: a smaller orb and headline leave room for the conversation */
+@media (max-height: 720px) {
+  #orb { --size: min(clamp(136px, 27vh, 300px), 72vw); }
+}
+@media (max-height: 720px) and (min-width: 735px) {
+  .hero-title { font-size: 48px; line-height: 52px; letter-spacing: -0.003em; }
+  .call-status { font-size: 32px; line-height: 36px; letter-spacing: 0.004em; }
+  .hero { gap: 4px; }
+}
+
+/* very short windows (a phone on its side): let the page scroll rather than clip */
+@media (max-height: 540px) {
+  body.talk { height: auto; min-height: 100dvh; overflow: visible; overflow-x: clip; }
+  .talk-main { overflow: visible; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -305,8 +390,9 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
   #orb .core, #orb .halo, #orb .ring, #orb .gloss, #orb .rim { animation: none !important; }
   #orb .core, #orb .gloss, #orb .rim { transform: none; }
   #orb:active { transform: none; }
-  #orb[data-state="thinking"] .ring { opacity: 0.6; }
-  .typed { animation: none; }
-  #caption.is-new { animation: none; }
+  #orb[data-state="thinking"] .ring, body.is-pending #orb .ring { opacity: 0.5; }
+  .hero > *, #orb, .typed { animation: none; }
+  .line-emma.is-new, .line-caller.is-new { animation: none; }
+  .hero, .call-status, .line-emma, .transcript .e-blur-scrim { transition: opacity 200ms linear !important; }
   .e-meter > i { width: 8px !important; }
 }

@@ -9,18 +9,21 @@ const button = document.getElementById("login-button");
 const password = document.getElementById("password");
 const group = document.getElementById("field-group");
 
-// The mark arrives large and eases to its small size as the form fades in (B20). Never
-// sooner than a beat after load, so the arrival reads as one movement.
-const loaded = performance.now();
+const username = document.getElementById("username");
+
+// The mark lands, then eases to its small size as the ring and the form fade in (B20). This
+// starts on the first frame and never waits for the network, so the page reads within ~500ms.
 function ready() {
-  const wait = Math.max(0, 280 - (performance.now() - loaded));
-  setTimeout(() => document.body.classList.add("is-ready"), wait);
+  void document.body.offsetWidth;          // commit the start state, then transition from it
+  document.body.classList.add("is-ready");
 }
 
 function showError(message) {
   errorBox.textContent = message;
   errorBox.hidden = !message;
-  group.querySelectorAll(".e-field").forEach((f) => f.classList.toggle("is-error", Boolean(message)));
+  // Only the field at fault goes red: the password, and the user name only if one was typed.
+  document.getElementById("password-field").classList.toggle("is-error", Boolean(message));
+  document.getElementById("username-field").classList.toggle("is-error", Boolean(message) && Boolean(username.value.trim()));
   if (message) shakeX(group);
 }
 
@@ -37,6 +40,7 @@ password.addEventListener("input", () => {
   updateButton();
   if (!errorBox.hidden) showError("");
 });
+username.addEventListener("input", () => { if (!errorBox.hidden) showError(""); });
 
 // After signing in, go back where the visitor came from (the talk page sends ?next=/),
 // but only to a page on this site.
@@ -54,17 +58,11 @@ async function checkStatus() {
       return;
     }
     if (!status.configured) {
+      form.hidden = true;
       document.getElementById("locked").hidden = false;
       document.getElementById("locked-reason").textContent = status.reason || "";
-      ready();
-      return;
     }
-    form.hidden = false;
-    ready();
-    password.focus();
   } catch {
-    form.hidden = false;
-    ready();
     showError("Can't reach the server. Is it running?");
   }
 }
@@ -99,4 +97,9 @@ form.addEventListener("submit", async (event) => {
 });
 
 capsuleNav(document.getElementById("signin-capsule"));
+// Show the form at once (it stays hidden without JavaScript, so it can never submit as a GET);
+// the status check only redirects a signed-in visitor or swaps in the locked notice.
+form.hidden = false;
+password.focus();
+ready();
 checkStatus();
