@@ -254,12 +254,11 @@ flip(dock, { selector: ":scope > *" });   // only the bar as a whole glides; its
 
 // Liquid Glass (section 13 map): a lens on the capsule, the call bar and the typed box; the orb
 // is content and stays its own painted sphere. The bar's lens ramps up as its glass lands.
-liquid(document.getElementById("talk-capsule-glass"), { press: false });
-const barGlass = liquid(bar);
-if (barGlass.lens) {
-  barGlass.lens.set(0);
-  setTimeout(() => barGlass.lens.to(1, 380), reduced() ? 0 : 300);
-}
+// The lens only goes where something passes under it: the call bar and the typed box sit over
+// the dock's soft state glow. The capsule floats over plain white, so it is the plain blur glass.
+// Lenses are built after the entrance (when idle), so the first paint never waits on them.
+liquid(document.getElementById("talk-capsule-glass"), { lens: false, press: false });
+liquid(bar, { swell: false, ramp: true, after: 900 });        // the pressed pill swells, never the bar
 const typedGlass = liquid(typedForm, { press: false });
 
 // At the end of a call the typed box fades out before it leaves the dock (then the bar glides).
