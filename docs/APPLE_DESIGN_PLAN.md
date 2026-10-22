@@ -946,3 +946,156 @@ These are the patterns most worth building, as specs. Every one stays CSP-clean:
 - In the built-in browser at 1280x800, 1024, 900, 800x600 and 375x812, light theme, with the pane visible so the motion ran at real speed.
 - No CSP violations; the only 404s are the ambience mp3s, which worktrees don't have.
 - Tests: 1,056 OK, 1 skipped.
+
+## 13. Liquid Glass (22 Oct)
+
+The owner asked for Liquid Glass wherever it feels good. That reverses the 14 Oct "no iOS 26 refraction" decision. The research is below; what was built is in 13.x as-built.
+
+Reverses the 14 Oct "no refraction" decision. Sources: the apple-look skill's HIG pages (materials.md, color.md, scroll-views.md, toolbars.md, tab-bars.md, sidebars.md, layout.md, app-icons.md, pointing-devices.md, live-activities.md and the curated liquid-glass.md), the apple-motion skill, developer.apple.com, apple.com (live measurements) and Emma's own CSP in `server.py`.
+O = observed (quoted or measured), I = inferred or my judgment. Earlier items P1-P35 are in research-iphone.md and APPLE_DESIGN_PLAN.md section 11.
+
+#### A. What Apple says (HIG)
+
+| # | Topic | Quoted / measured | Type | Use on Emma |
+|---|---|---|---|---|
+| LG1 | Where it belongs | materials.md: Liquid Glass "forms a distinct functional layer for controls and navigation elements"; "Don't use Liquid Glass in the content layer." Exception: sliders and toggles take on glass only while being manipulated | O | Glass only on floating chrome: capsule nav, pill bars, tab bar, sheets, toasts, round buttons. Never on Today tiles, calendar cells, transcript bubbles, tables |
+| LG2 | Restraint | materials.md: "Use Liquid Glass effects sparingly ... Limit these effects to the most important functional elements" | O | Budget: at most 2 refracting surfaces visible at once per page (judgment) |
+| LG3 | Two variants | Regular "blurs and adjusts the luminosity of background content"; for "a significant amount of text, such as alerts, sidebars, or popovers". Clear "is highly translucent" and only "for components that appear over visually rich backgrounds"; over bright content "consider adding a dark dimming layer of 35% opacity" | O | Regular for sidebar, sheets, toasts, typed box. Clear only for the talk-page orb controls and pill bar over the clinic photo/gradient. Our light-only theme rarely needs the 35% dim; use it only if clear glass sits on a bright photo |
+| LG4 | Colour and adaptive tint | color.md: glass "has no inherent color, and instead takes on colors from the content directly behind it". Small elements (toolbars, tab bars) "adapt ... between a light and dark appearance in response to the underlying content"; labels go "darker when the underlying content is light, and lighter when it's dark". Larger elements like sidebars are "more opaque". Primary actions: "apply color to the background rather than to symbols or text"; "Refrain from adding color to the background of multiple controls" | O | Tinted ("stained") glass only for the one primary action (Call). Sidebar uses a higher-opacity fill than the small pills |
+| LG5 | Scroll edge effect | scroll-views.md: separates floating bars from scrolling content; "Prefer the automatic ... style" (more opaque under toolbars with many controls, text outside glass, pinned table headers); "Only use a scroll edge effect when a scroll view is behind floating interface elements"; "Apply one scroll edge effect per view" | O | Keep our progressive-blur band (B11) only under the dashboard toolbar and the transcript header; one per pane |
+| LG6 | Concentric corners | toolbars.md: standard items "have corner radii that are concentric with bar corners. If you need to create a custom component, ensure that its corner radius is also concentric"; live-activities.md: "even, matching margins between rounded shapes and the edges" | O | inner radius = outer radius - inset. Capsule 32px with 6px inset holds 26px buttons; sheet 28px with 12px padding holds 16px controls |
+| LG7 | Specular, refraction, translucency are the named attributes | app-icons.md: icons "take on Liquid Glass attributes like specular highlights, refraction, and translucency"; pointing-devices.md: iPad lift = scale up + shadow below + "a soft specular highlight on top" | O | The three things that separate Liquid Glass from frosted blur are (1) refraction at the rim, (2) a specular rim highlight, (3) translucency that adapts. Plain blur has only the third |
+| LG8 | Accessibility states | liquid-glass.md checklist: "Reduce Transparency gets an opaque fallback, Increase Contrast gets stronger fills and borders, Reduce Motion drops morphing and refraction animation"; materials.md: variants change with the system's preferred look, Reduce Transparency and Increase Contrast | O | `prefers-reduced-transparency` = solid #f5f5f7/white with 1px border, no blur, no SVG filter. `prefers-contrast: more` = opaque fill + 1px `#86868b` border. `prefers-reduced-motion` = no morph, no pointer-follow highlight |
+| LG9 | Targets | liquid-glass.md: glass never shrinks hit regions below 44x44 (mobile) / 28x28 (desktop) | O | Rim refraction must not eat into the hit area; keep 44px pills |
+
+#### B. What Apple says (developer.apple.com: "Applying Liquid Glass to custom views" and WWDC25 "Meet Liquid Glass", session 219)
+
+These are paraphrased; at most one short quote per item. Timestamps are the session's.
+
+| # | Topic | Source finding | Type | Use on Emma |
+|---|---|---|---|---|
+| LG10 | Lensing is the defining property | Liquid Glass defines itself through **lensing** (1:55). Older materials scattered light, but this one bends and concentrates it in real time (2:29). That gives the edge definition, so the body can stay very transparent | O | This is the difference from frosted blur. Refract the backdrop at the rim, keep the centre nearly clear, and use only a light blur |
+| LG11 | Materialize, don't fade | Objects appear and disappear by ramping the light-bending and lensing up or down, "instead of fading" (2:55). SwiftUI names this transition `materialize`; for shapes within the container spacing it uses `matchedGeometry` | O | On enter, animate displacement scale 0 to full together with blur and opacity, about 300ms. On exit, reverse it |
+| LG12 | Press: flex and energise | It responds to touch by instantly flexing and lighting up (3:38), with a gel-like give (3:51). The material lights up from within, starting under the finger, and the glow spreads to nearby glass (12:05). The SwiftUI API is `.interactive()`. Elements can also take on glass only while touched (4:10) | O | On press, scale to 1.04-1.06 on a spring (damping about .7, response .3). Show a radial glow at the pointer that fades out over 400ms, and nudge the neighbouring pills' glow |
+| LG13 | Layers | The material is built from layers: highlights, shadow, illumination (10:44). Highlights come from light sources in the environment and follow the geometry. During interactions the lights move around the rim, and sometimes they follow device motion | O | Web layers: (1) backdrop refraction + blur, (2) translucent fill, (3) a specular rim highlight that follows the geometry and can track the pointer, (4) an adaptive shadow, (5) a press glow |
+| LG14 | Adaptive shadow | The shadow gets stronger over text and weaker over a plain light background (11:47) | O | Use a stronger drop shadow when the glass sits over the transcript or a table, and a lighter one over the plain #f5f5f7 page. Two classes, chosen by what lies underneath |
+| LG15 | Adaptive tint and range | Tint and dynamic range shift so labels stay legible. Small elements can flip between light and dark (6:42). Large elements (menus, sidebars) don't flip because it would distract; they become more opaque instead (15:29) | O | The talk-page pills and capsule may flip ink colour based on what is under them. The sidebar never flips; give it a denser fill |
+| LG16 | Thickness scales with size | When glass grows into a bigger surface, such as a menu opening from a toolbar button, it reads as a thicker material: deeper shadow, stronger lensing and refraction, softer light scatter (7:02) | O | Sheets and menus: stronger displacement, more blur and a deeper shadow than the small pills. Small chips: thin |
+| LG17 | Coloured glass tint | Picking a tint colour produces a range of tones mapped to the brightness of the content underneath, like real stained glass (16:31). The colour stays close to the intended hue | O | Call button: a tint built with `color-mix()` of the accent into the glass fill at 70-85%, not a flat solid. Keep the blue recognisable |
+| LG18 | No glass on glass, never mix variants | Avoid using the material on both layers when stacking. The top layer should use fills, transparency and vibrancy as a thin overlay (13:34). Regular and Clear "should never be mixed" (13:48) | O | Buttons inside a glass sheet or capsule are not glass. Use flat fills such as `rgba(0,0,0,.05)` / hover .08. One variant per page area |
+| LG19 | When clear is allowed | Clear needs three conditions: media-rich content underneath, a dimming layer that doesn't hurt the content, and bold, bright content on top (14:54) | O | Only the talk page, and only if its background is a real image. Emma's light gradient backgrounds fail the first test, so default to Regular everywhere |
+| LG20 | Merging and morphing | `GlassEffectContainer(spacing:)`: the larger the spacing, the sooner nearby glass shapes blend and merge. `glassEffectUnion` makes separate views render as one shape. `glassEffectID` morphs one shape into another. Apple also warns that too many glass effects or containers on screen at once hurt performance | O | Call / Type-instead pills share one glass layer (A25 already does this). Morph the pill bar into the typed box using one element that changes width and radius. Approximate merging with an SVG goo filter only if needed (see LG33) |
+| LG21 | Accessibility states | Increase Contrast makes elements mostly black or white with a contrasting border. Reduce Motion lowers the intensity of some effects and turns off the elastic behaviour | O | Matches LG8. Reduced motion: no elastic press, no moving highlight, and materialize becomes a plain 150ms fade |
+
+#### C. What apple.com actually ships (measured 22 Oct on /iphone-air/, JS running, Chromium 152)
+
+| # | Element | Measured | Type | Use on Emma |
+|---|---|---|---|---|
+| LG22 | No SVG refraction anywhere | 0 `<filter>`/`feDisplacementMap`/`feTurbulence`/`feSpecularLighting`/`feImage` elements in the DOM; 0 CSS rules with `filter:` or `backdrop-filter:` containing `url()`; 0 selectors mentioning glass/liquid/specular/refract/lens; no `mix-blend-mode: plus-lighter/overlay/screen` and no backdrop `brightness()/contrast()` | O | apple.com itself is plain frosted blur. Any refraction we add goes beyond Apple's website and imitates iOS 26. Keep it subtle |
+| LG23 | Floating localnav capsule, live values (corrects P1/P2) | stuck and visible: 52px tall, 663px wide when collapsed, **radius 18px collapsed** (`--progress: 0`), 32px when expanded; `rgba(255,255,255,.8)` + `blur(20px)`, ring `0 0 0 1px #e6e6e8`, 10px from the top. Sequence: from scrollY 0 to 900 the container got `sticky reveal` and the wrap went `translateY(-72px)` to 0. Scrolling back up to 700 removed `reveal` and it hid again (`-72px`). So it **shows while scrolling down past the hero and hides on scroll up** here, the reverse of what P2 inferred | O | Capsule nav: 52px, radius 18px at rest (not a full pill), 32px when it opens into a panel. Show/hide behaviour is up to us; Apple's choice is unusual, so don't copy it blindly |
+| LG24 | The one "specular rim" Apple ships | video captions menu: `background: rgba(29,29,31,.92)`, radius 28px, `box-shadow: inset 1.8px 1.8px .5px -1.4px rgb(110,110,115), inset -1.5px -1.5px .5px -1.1px rgb(110,110,115)`. Two offset inset shadows with negative spread draw a thin rim lit on the top-left and bottom-right | O | Our rim highlight: the same geometry in white over light glass (recipe R2) |
+| LG25 | Hairline inner edge | product-viewer pills, `.control-item-bg` and the phone close button all use `inset 0 0 .5px rgba(0,0,0,.11)`; beat fill `rgb(232 232 237/.72)`, hover .92 | O | Already built (B12/A18). Keep it as the dark half of the rim |
+| LG26 | Moving gradient + blur on the product-viewer pill (a "materialize" analogue) | `.control-item-bg`: `backdrop-filter: blur(calc(var(--blur-amount)*(1 - var(--abs))*(2 - var(--alpha))))` with `--blur-amount: 20px`; `background-image` is a horizontal band `linear-gradient(90deg, transparent ..., var(--bg-color) 33%-36px ... 66%+36px, transparent ...)`, `background-size: 300% 100%`, slid by `background-position: calc(50% + var(--gradient-progress)*50%)`; `transform: scale(var(--scale))`, origin centre | O | Enter animation for glass: slide a fill band across while the blur ramps up and the scale settles. This is the closest thing on the site to Apple's "materialize" |
+
+#### D. Building real refraction on the web (tested in this pane)
+
+| # | Topic | Finding | Type | Use on Emma |
+|---|---|---|---|---|
+| LG27 | `backdrop-filter: url(#svg-filter)` works in Chromium | In Chromium 152, `CSS.supports('backdrop-filter','url(#x)')` is true. A test pill with `backdrop-filter: url(#lgtest)` (feImage data: map, blur 1.5, feDisplacementMap scale 48, R/G channels) **visibly bent the text beneath its edge**. The filter region used `filterUnits="userSpaceOnUse"` with x/y 0 and the element's own width/height, so coordinates are local to the element's border box, and the result was clipped to the border radius | O | Real refraction is possible for Chromium visitors (Chrome, Edge, the desktop app) |
+| LG28 | Cost | 40 frames of programmatic scrolling with one 300x80 pill: refraction median 16.5ms / p90 18.1ms; `blur(20px)` 16.6 / 17.5; no pill 16.7 / 17.6. No measurable cost for one small surface at 60Hz on this PC | O (one machine) | Cheap for 1-3 small surfaces. Don't refract large ones (sidebar, sheet body) or many at once. Re-measure on a low-end phone |
+| LG29 | Safari and Firefox | Safari (WebKit, incl. iOS 26 Safari) and Firefox support `backdrop-filter` with CSS functions but **do not render SVG `url()` references in `backdrop-filter`**. The declaration may still parse (so `@supports` can't be trusted) and then draws no backdrop at all | I (from known engine status, not tested here) | Never put `url()` in the only backdrop declaration. Turn refraction on with a class (`html.lg-refract`) that our same-origin head.js sets only when `navigator.userAgentData?.brands` includes "Chromium". WebKit and Gecko don't expose `userAgentData` |
+| LG30 | Backdrop root trap | An element that has `backdrop-filter`, `filter`, `opacity<1`, `mask` or `will-change` on those becomes the backdrop root for its descendants, so a child's backdrop-filter only sees the parent, not the page | I (spec: Filter Effects 2) | Put each glass layer on the element itself or on its `::before`, and never nest a refracting layer inside another glass element (also LG18) |
+| LG31 | Displacement map recipe | Map = neutral grey `rgb(128,128,128)` everywhere, plus a horizontal gradient band (left edge `rgb(255,128,128)` fading to transparent by 18%, right edge `rgb(0,128,128)` from 82%) and a vertical band (top `rgb(128,255,128)` to 30%, bottom `rgb(128,0,128)` from 70%). Pixels then shift inward at the rim and stay still in the centre: a lens edge. Test scale 48 smeared text into streaks; **20-28 reads as glass** for a 44-52px pill | O (map + 48 tested) / I (20-28) | Ship one map per size class as same-origin SVG files: pill 44, capsule 52, round button 44x44, sheet rim. Variable widths use `preserveAspectRatio="none"`, which stretches the bands; accept this or use two end-cap feImages |
+| LG32 | CSP fit (Emma: `default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'`) | (a) An inline `<svg><filter>` in the HTML is markup; CSP doesn't block elements or SVG presentation attributes (`stdDeviation`, `scale`, `href`). Only `style=""` attributes and `<style>` elements are blocked, so hide the svg with a class (`.svg-defs{position:absolute;width:0;height:0}`) in the stylesheet, never `style=""`. (b) `feImage` fetches count as image loads, so `data:` maps need `img-src data:`. We have it, but a same-origin `/static/ui/lg/pill-44.svg` is cleaner. (c) `url(#lg-pill)` written in an external stylesheet: a fragment-only URL is defined to point into the current document (CSS Values 4), so it should resolve to the inline `<filter>`; **verify in our build**. (d) Setting `--lx/--ly` from JS with `el.style.setProperty` is CSSOM and allowed under `style-src 'self'` | I (verify a and c in the browser with the real headers) | Inline `<svg class="svg-defs" aria-hidden="true">` with the filters at the top of each page's body; maps as same-origin files |
+| LG33 | Merging ("goo") | The SVG goo trick (`feGaussianBlur` 10 + `feColorMatrix` alpha `0 0 0 20 -9`) merges shapes, but only as a `filter` on the shapes' own layer; it can't be combined with a backdrop | I | Don't. Merge by animating one shared glass element's width and radius (A25 / the pill-to-typed-box morph). Use same-document View Transitions only where layout changes (Chromium and Safari 18+) |
+| LG34 | Other platform hooks available here | `corner-shape: squircle` is supported in Chromium 152; `color-mix()` is supported; `prefers-reduced-transparency` is supported; `CSS.registerProperty` lets `--lx/--ly/--lg-scale` animate | O | Optional squircle corners (progressive). `@property` makes the displacement-intensity variable animatable for materialize (only the blur and highlight parts; SVG `scale` itself needs JS or SMIL) |
+
+#### E. Ranked recipes for the builder
+
+Order = value for effort. All tokens are light theme. Every recipe has the same reduced-transparency, contrast and motion fallbacks (R9).
+
+**R1. Lens rim (real refraction, Chromium only). Capsule nav, call pill bar, typed box.**
+
+```html
+<svg class="svg-defs" aria-hidden="true" focusable="false">
+  <filter id="lg-pill" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feImage href="/static/ui/lg/pill-52.svg" x="0" y="0" width="100%" height="100%" preserveAspectRatio="none" result="map"/>
+    <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="soft"/>
+    <feColorMatrix in="soft" type="saturate" values="1.5" result="sat"/>
+    <feDisplacementMap in="sat" in2="map" scale="24" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+```
+
+```css
+.svg-defs{position:absolute;width:0;height:0;overflow:hidden}
+.glass{background:rgba(255,255,255,.62);-webkit-backdrop-filter:blur(16px) saturate(150%);backdrop-filter:blur(16px) saturate(150%)}
+html.lg-refract .glass--lens{backdrop-filter:url(#lg-pill)}
+```
+
+The map is LG31 (bands 18% / 30%). Chromium gets the lens; everyone else keeps frosted blur. Note the lens fill is lighter (.62) than the old .8, because refraction now does the separating.
+
+**R2. Specular rim (all browsers). Every glass surface.**
+
+```css
+.glass{box-shadow:
+  inset 1.5px 1.5px .5px -1px rgba(255,255,255,.95),
+  inset -1px -1px .5px -.5px rgba(255,255,255,.65),
+  inset 0 0 .5px rgba(0,0,0,.11),
+  0 0 0 .5px rgba(0,0,0,.06),
+  var(--glass-drop, 0 4px 16px rgba(0,0,0,.08))}
+```
+
+This is Apple's LG24 geometry in white for light glass, plus LG25's hairline.
+
+**R3. Pointer-following highlight (pointer:fine only).** `.glass::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(140px circle at var(--lx,30%) var(--ly,0%),rgba(255,255,255,.45),transparent 65%);mix-blend-mode:plus-lighter;opacity:.6;transition:opacity .3s cubic-bezier(.4,0,.6,1)}`. JS writes `--lx/--ly` on `pointermove`, throttled to rAF, and only while the pointer is within 200px. At rest the highlight sits top-left, the light source. Off under reduced motion and on touch.
+
+**R4. Press = swell and brighten (LG12).** On `pointerdown`: `transform: scale(1.05)` on a spring (Motion `bounce .25, duration .3`, or CSS `transition: transform .32s cubic-bezier(.3,1.6,.5,1)`). Add `filter: brightness(1.06)` on the glass layer and a press glow on `::after` (`radial-gradient(...)` at the pointer, `rgba(255,255,255,.6)`, opacity 1 instantly, then fade to 0 over 400ms after release). Nearby pills in the same bar get opacity .3 of that glow for 200ms. Reduced motion: no scale, brightness only. Caution: `filter` on the host makes it a backdrop root (LG30), so put brightness on the `::before` glass layer, not on the host.
+
+**R5. Materialize, not fade (LG11, LG26).** On enter: `opacity 0 to 1` (200ms), `scale(.96) to 1` (spring), blur 0 to 16px and highlight 0 to .6 over 300ms `cubic-bezier(0,0,.2,1)`. In Chromium, step the lens `scale` attribute 0, 8, 16, 24 across four rAFs. Exit reverses over 200ms. Reduced motion: 150ms opacity only.
+
+**R6. Concentric radii (LG6).** Tokens: `--r-outer`, `--inset`, `--r-inner: max(calc(var(--r-outer) - var(--inset)), 6px)`. Capsule 52px tall radius 26 (full) with a 6px inset gives 20px inner pills; sheet 28 with 12px padding gives 16px inner fields; toast 22 with 8px gives 14px. Optional `@supports (corner-shape: squircle){.glass{corner-shape:squircle}}`.
+
+**R7. Adaptive shadow and tone (LG14, LG15).** `.glass` defaults to `--glass-drop: 0 4px 16px rgba(0,0,0,.08)`. `.glass.over-text` uses `0 8px 28px rgba(0,0,0,.16)` plus fill .74. Set the class with an IntersectionObserver against content tagged `data-under="text"`, such as the transcript list and tables. Small pills only: `.glass.over-dark` switches the ink to `#fff` and the fill to `rgba(40,40,42,.55)`. The sidebar never flips.
+
+**R8. Tinted primary ("stained glass", LG17).** Call: `background: color-mix(in srgb, #0071e3 82%, rgba(255,255,255,.4))` with backdrop `blur(16px) saturate(180%)`, R2 rim at half strength and white label. One per view.
+
+**R9. Accessibility fallbacks (LG8, LG21), required.**
+
+```css
+@media (prefers-reduced-transparency: reduce){.glass{background:#f5f5f7;backdrop-filter:none;-webkit-backdrop-filter:none}.glass::after{display:none}}
+@media (prefers-contrast: more){.glass{background:#fff;backdrop-filter:none;box-shadow:0 0 0 1px #86868b}}
+@media (prefers-reduced-motion: reduce){.glass{transition:opacity .15s linear}.glass::after{display:none}}
+```
+
+Also disable `html.lg-refract` under reduced transparency, in head.js via `matchMedia`.
+
+**R10. Clear variant (only over the talk-page media, LG19).** `background: rgba(255,255,255,.18); backdrop-filter: blur(6px) saturate(160%)`, R2 rim. Use it only if the background behind it is a real image or video, with a local dim `rgba(0,0,0,.35)` under bright areas. Otherwise use Regular.
+
+#### F. Where it feels good on Emma
+
+| Page | Surface | Recipe |
+|---|---|---|
+| Talk | Floating capsule nav | R1 + R2 + R3, regular |
+| Talk | Call / Type-instead pill bar (one shared glass layer) | R1 + R2 + R4 + R5; Call uses R8 |
+| Talk | Typed box (morph from the pill bar) | R1 + R2, materialize via R5 |
+| Talk | Orb | **Not glass.** The orb is content (Emma's presence). Give it R2's rim and a lens look painted in its own gradient, not backdrop glass. Glass on it would also stack under the pills |
+| Sign-in | Capsule nav | R2 + blur only (no lens: one quiet page) |
+| Sign-in | Continue button | R8 tinted, R4 press; the field stays a plain content field |
+| Dashboard | Sidebar | Regular, denser fill .78, R2 rim, **no lens** (large surface, LG16), never flips |
+| Dashboard | Phone tab bar | R1 + R2 + R4 (small, floating: the best place for it) |
+| Dashboard | Sticky toolbars | Turn glass when stuck (B15) + R2; scroll edge band, one per pane |
+| Dashboard | Segmented controls | Platter stays a flat fill. Only the **selected thumb** is glass while it is dragged or moving (the HIG slider/toggle exception), R4 swell |
+| Dashboard | Sheets | Regular, R2, R7 deep shadow, materialize R5; controls inside are flat fills (LG18) |
+| Dashboard | Toasts | R2 + R5, regular; R1 lens is optional (small) |
+| Dashboard | Round buttons (close, more) | R2 + R4; lens only when they float over content |
+| Dashboard | Live call input bar | R1 + R2 + R7 `over-text` (it sits over the transcript) |
+
+**Where NOT:**
+- Today tiles, calendar cells, appointment cards and transcript bubbles. These are the content layer (LG1).
+- Anything behind or containing dense text or tables, e.g. the appointments table or a long transcript inside the glass. Use Regular at fill .78+ or solid.
+- Glass on glass. No lens or blur on buttons inside a sheet, capsule or sidebar (LG18).
+- The lens on large surfaces (sidebar, sheet body) or more than ~3 refracting surfaces on screen (LG2, LG28).
+- Clear glass on our plain light backgrounds (LG19).
+- Form fields on sign-in. Fields are content and need solid contrast.
+- Under any reduce-transparency or increase-contrast setting (R9), and any moving highlight under reduced motion.
