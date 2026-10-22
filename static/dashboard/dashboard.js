@@ -188,7 +188,7 @@ const KIND_LABEL = {
 const ROLE_LABEL = { caller: "Caller", emma: "Emma", operator: "Staff" };
 const LIVE_ROLE_LABEL = { caller: "Caller", emma: "Emma", operator: "You" };
 // How a reply was made, in front-desk words (shown only inside "Response times").
-const TIER_LABEL = { "-1": "Set line", 0: "Quick reply", 1: "Thought it through", 2: "Backup reply" };
+const TIER_LABEL = { 0: "Quick reply", 1: "Thought it through", 2: "Backup reply" };
 // What Emma is doing on the call, by the step she is on. Never shown as the raw key.
 const GOAL_LABEL = {
   greet: "Greeting the caller", greeting: "Greeting the caller", greeting_offer: "Offering help", go_on: "Offering help",
@@ -715,7 +715,7 @@ const STATE_LABEL = { idle: "Idle", listening: "Listening", thinking: "Thinking"
 function liveStatus(st) {
   if (st.ended) return { cls: "ended", text: st.endedByMe ? "Ended by you" : "Call ended" };
   if (st.ending) return { cls: "ending", text: "Ending the call…" };
-  if (st.operator) return { cls: "operator", text: "You're on the call" };
+  if (st.operator) return { cls: "staff-on", text: "You're on the call" };
   return { cls: st.state, text: STATE_LABEL[st.state] || "On a call" };
 }
 
@@ -800,10 +800,10 @@ function renderLive() {
   }
 
   // What Emma has collected: a chip pops in (B5) the moment a new detail arrives.
-  const entities = Object.entries(live.entities).filter(([, v]) => v !== null && v !== "" && v !== undefined && typeof v !== "object");
+  const entities = liveDetails(live.entities);
   const shownBefore = entityShown.get(live) || new Set();
   const chips = entities.map(([k, v]) => el("span", { class: "entity" },
-    el("b", { text: ENTITY_LABEL[k] || k.replace(/_/g, " ") }), String(v)));
+    el("b", { text: ENTITY_LABEL[k] }), v));
   $("live-entities").replaceChildren(...chips);
   const fresh = chips.filter((_, i) => !shownBefore.has(entities[i][0]));
   if (fresh.length && entityShown.has(live)) popIn(fresh);
@@ -811,15 +811,34 @@ function renderLive() {
 
   const rows = [...live.turns.values()].sort((a, b) => b.turn - a.turn).slice(0, 30).map((t) => el("tr", {},
     el("td", { class: "num", text: t.turn }),
-    el("td", { text: t.tier === null || t.tier === undefined ? "–" : (TIER_LABEL[t.tier] || "Reply") }),
+    el("td", { text: TIER_LABEL[t.tier] || (t.tier === -1 ? "Greeting" : "–") }),
     el("td", { class: "num", text: ms(t.perceived_ms) }),
     el("td", { class: "num", text: ms(t.endpoint_ms) }),
     el("td", { class: "num", text: ms(t.nlu_ms) }),
     el("td", { class: "num", text: ms(t.first_audio_ms) })));
   $("live-turns").replaceChildren(...(rows.length ? rows : [emptyRow(6, "Nothing yet: times appear after Emma's first reply.")]));
 }
-const ENTITY_LABEL = { name: "Name", patient_name: "Name", phone: "Number", service: "Service", date: "Day", time: "Time",
-  doctor: "Doctor", branch: "Branch", age: "Age", patient_age: "Age", reason: "Reason" };
+// What Emma has understood so far, in front-desk words. Only these keys are shown, in this
+// order, at most four; internal keys (intent, source, raw text, phrases) never appear.
+const ENTITY_LABEL = { name: "Name", patient_name: "Name", phone: "Phone", service: "Service", date: "Preferred day",
+  day: "Preferred day", preferred_day: "Preferred day", time: "Time", doctor: "Doctor", branch: "Branch", age: "Age",
+  patient_age: "Age" };
+const NOTHING = new Set(["", "none", "null", "unknown", "false", "no", "n/a"]);
+function liveDetails(entities) {
+  const out = [];
+  const seen = new Set();
+  for (const key of Object.keys(ENTITY_LABEL)) {
+    const v = (entities || {})[key];
+    if (v === null || v === undefined || typeof v === "object" || NOTHING.has(String(v).trim().toLowerCase())) continue;
+    const label = ENTITY_LABEL[key];
+    if (seen.has(label)) continue;
+    seen.add(label);
+    const text = /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? dayFmt(String(v), { weekday: "short", day: "numeric", month: "short" }) : String(v);
+    out.push([key, text]);
+    if (out.length === 4) break;
+  }
+  return out;
+}
 
 $("live-transcript").addEventListener("scroll", () => {
   const box = $("live-transcript");
@@ -950,7 +969,7 @@ function renderTodayLive() {
   const last = running.lines[running.lines.length - 1];
   const status = liveStatus(running);
   tile.replaceChildren(tileHead("i-live", "Live call"),
-    el("span", { class: "tile-headline" }, el("span", { class: "live-dot" }), " ", status.text),
+    el("span", { class: "tile-headline with-dot" }, el("span", { class: "live-dot" }), status.text),
     el("span", { class: "tile-sub", text: running.operator ? "Staff are talking to the caller" : (goalText(running.goal) || "Emma is on a call") }),
     last ? el("p", { class: "tile-line" }, el("span", { class: "tile-line-who", text: `${LIVE_ROLE_LABEL[last.who] || "Caller"}: ` }), last.text) : "",
     tileFoot("live", "Follow the call"));
@@ -1062,7 +1081,7 @@ function paintToday() {
   if (failed) problems.push(`${failed} calendar sync${failed === 1 ? "" : "s"} failed`);
   for (const a of (overview && overview.alerts) || []) problems.push(a.text);
   $("today-system").replaceChildren(tileHead("i-system", "System"),
-    el("span", { class: "tile-headline" }, el("span", { class: `health-dot${problems.length ? " bad" : ""}` }), " ",
+    el("span", { class: "tile-headline with-dot" }, el("span", { class: `health-dot${problems.length ? " bad" : ""}` }),
       problems.length ? "Needs a look" : "All good"),
     el("span", { class: "tile-sub", text: problems.length ? problems.slice(0, 3).join(" · ") : "Speech, voice, understanding and calendar sync are working." }),
     tileFoot("system", "Open system"));
@@ -1267,7 +1286,8 @@ function renderTimeGrid(daysList, mode) {
     const withRows = new Set(rows.map((r) => r.doctor_id));
     if (doctors.length > 6) doctors = doctors.filter((d) => withRows.has(d.id));
     if (!doctors.length) doctors = catalog.doctors.filter((d) => withRows.has(d.id));
-    columns = doctors.map((d) => ({ key: d.id, label: d.name.replace(/^Dr\.? /, "Dr "), sub: d.branch, day: daysList[0],
+    const phone = window.matchMedia("(max-width: 734px)").matches;
+    columns = doctors.map((d) => ({ key: d.id, label: phone ? `Dr ${surname(d.name)}` : d.name.replace(/^Dr\.? /, "Dr "), sub: d.branch, day: daysList[0],
       rows: rows.filter((r) => r.doctor_id === d.id), color: doctorColor(d.id) }));
     if (!columns.length) columns = [{ key: "none", label: "", sub: "", day: daysList[0], rows: [] }];
   } else {
@@ -1276,7 +1296,7 @@ function renderTimeGrid(daysList, mode) {
   }
 
   const today = clinicToday();
-  const grid = el("div", { class: "tgrid" });
+  const grid = el("div", { class: `tgrid${mode === "doctors" && columns.length > 2 ? " many" : ""}` });
   grid.style.setProperty("--cols", String(columns.length));
   grid.style.setProperty("--hour", `${hourPx}px`);
   const head = el("div", { class: "tgrid-head" }, el("div", { class: "col-head" }));
@@ -1576,7 +1596,7 @@ $("cal-filters-toggle").addEventListener("click", () => {
   requestAnimationFrame(fitCalendar);
 });
 document.addEventListener("keydown", (event) => {
-  if (currentTab !== "appointments" || event.target.closest("input, select, textarea, .e-sheet-root")
+  if (currentTab !== "appointments" || (event.target.closest && event.target.closest("input, select, textarea, .e-sheet-root"))
     || document.querySelector(".e-sheet-root.is-open")) return;
   if (event.key === "ArrowLeft") step(-1);
   else if (event.key === "ArrowRight") step(1);
@@ -1825,8 +1845,9 @@ const TASK_ACTION = {
 function taskTitle(t) {
   const who = [t.patient_name, t.phone_display].filter(Boolean).join(" · ");
   if (who) return `${TASK_ACTION[t.kind] || KIND_LABEL[t.kind] || "Call back"} ${who}`;
-  return `${KIND_LABEL[t.kind] || "Task"} (no number: the call came from the talk page)`;
+  return `${TASK_ACTION[t.kind] || "Call back"} the talk-page caller from ${fmtTime(t.created_at)}`;
 }
+const taskNote = (t) => t.note || (!t.phone_display ? "No number: the call came from the talk page." : "");
 
 async function setTaskDone(t, done) {
   await api(`/dashboard/api/tasks/${t.id}`, { method: "POST", body: { done } });
@@ -1875,7 +1896,8 @@ async function loadTasks() {
         el("div", { class: "rem-title" },
           !done && (t.priority === "urgent" || t.priority === "high") ? el("span", { class: "flag", text: t.priority === "urgent" ? "!!" : "!" }) : null,
           el("span", { class: "rem-text", text: taskTitle(t) })),
-        t.note ? el("div", { class: "rem-note", text: t.note }) : null,
+        taskNote(t) ? el("div", { class: "rem-note", text: taskNote(t) }) : null,
+        !t.phone_display && t.note ? el("div", { class: "rem-note", text: "No number: the call came from the talk page." }) : null,
         el("div", { class: "rem-meta" },
           el("span", { text: `${KIND_LABEL[t.kind] || "Task"} · added ${ago(t.created_at)}`, title: fmtDateTime(t.created_at) }),
           !done && t.due_at ? el("span", { text: `Due ${fmtDateTime(t.due_at)}` }) : null,
@@ -1973,7 +1995,7 @@ function renderCalls() {
     el("span", { class: "mail-sub" },
       el("span", { text: [c.direction === "outbound" ? "Recovery call" : null, CHANNEL_LABEL[c.channel] || null,
         c.ended_at ? length(c.started_at, c.ended_at) : "live",
-        c.turns === c.kept_turns ? `${c.turns} lines` : `${c.kept_turns} of ${c.turns} lines kept`].filter(Boolean).join(" · ") })));
+        c.turns === c.kept_turns ? `${c.turns} line${c.turns === 1 ? "" : "s"}` : `${c.kept_turns} of ${c.turns} lines kept`].filter(Boolean).join(" · ") })));
     row.addEventListener("click", () => openCall(c.id));
     row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCall(c.id); } });
     return row;
@@ -2288,18 +2310,19 @@ async function loadPerformance() {
   const row = (label, f) => el("tr", {}, el("th", { text: label }), ...channels.map(([, c]) => el("td", { class: "num", text: f(c) })));
   box.replaceChildren(el("div", { class: "table-wrap" }, el("table", { class: "table kv-table" },
     el("thead", {}, el("tr", {}, el("th", {}), ...channels.map(([name, c]) =>
-      el("th", { text: `${CHANNEL_LABEL[name] || name} (${c.calls} calls)` })))),
+      el("th", { text: `${CHANNEL_LABEL[name] || name} (${c.calls} call${c.calls === 1 ? "" : "s"} with replies)` })))),
     el("tbody", {},
       row("Replies Emma gave", (c) => String(c.replies)),
       row("Quick replies (no thinking needed)", (c) => (c.replies ? `${c.rules} (${pct(c.rules, c.replies)})` : "No data yet")),
-      row("Replies she thought through", (c) => (c.replies ? `${c.model} (${pct(c.model, c.replies)})` : "No data yet")),
-      row("Backup replies, because understanding was slow", (c) => (c.model + c.fallback
-        ? `${c.fallback} (${pct(c.fallback, c.model + c.fallback)} of thought-through replies)` : "No data yet")),
+      row("Replies that needed thinking", (c) => (c.replies ? `${c.model + c.fallback} (${pct(c.model + c.fallback, c.replies)})` : "No data yet")),
+      row("Of those, thought through in time", (c) => (c.model + c.fallback ? `${c.model} (${pct(c.model, c.model + c.fallback)})` : "No data yet")),
+      row("Of those, a backup reply because understanding was slow", (c) => (c.model + c.fallback
+        ? `${c.fallback} (${pct(c.fallback, c.model + c.fallback)})` : "No data yet")),
       row("Time to a quick reply, usual / slowest", (c) => pair(c.simple_p50_ms, c.simple_p95_ms)),
       row("Time to a thought-through reply, usual / slowest", (c) => pair(c.model_p50_ms, c.model_p95_ms)),
       row("Of that, waiting for the caller to finish", (c) => sec(c.end_of_speech_p50_ms) || "No data yet"),
       row("Estimated cost per call (7-day total)", (c) => (c.metered_calls
-        ? `$${c.cost_per_call_usd.toFixed(3)} ($${c.cost_total_usd.toFixed(2)}, ${c.metered_calls} calls)`
+        ? `$${c.cost_per_call_usd.toFixed(3)} ($${c.cost_total_usd.toFixed(2)} over ${c.metered_calls} costed call${c.metered_calls === 1 ? "" : "s"}, including ones that ended before a reply)`
         : "No data yet"))))));
 }
 

@@ -1373,8 +1373,6 @@ li.loading { list-style: none; padding: 40px 16px; }
 /* Staff's own lines: green, on the clinic's side, labelled You. */
 .line.operator .who { color: #248a3d; }
 /* Status while staff are on the call, and while it is ending. */
-.state-pill.operator { color: var(--blue); background: rgba(0, 113, 227, 0.12); }
-.state-pill.operator::before { background: var(--blue); }
 .state-pill.ending, .state-pill.ended { color: var(--ink-2); background: var(--canvas-alt); }
 /* Emma typing: on her side and in her colour. */
 .typing { background: rgba(0, 113, 227, 0.14); }
@@ -1417,7 +1415,7 @@ li.loading { list-style: none; padding: 40px 16px; }
 .filters-toggle { display: none; }
 /* The hour grid scrolls in its own box, filling the window under the toolbar. */
 .cal-body.scroller {
-  height: calc(100dvh - var(--fit-top, 240px) - 16px);
+  height: calc(100dvh - var(--fit-top, 240px) - 24px);
   min-height: 320px;
   overflow: auto;
   overscroll-behavior: contain;
@@ -1603,4 +1601,104 @@ li.loading { list-style: none; padding: 40px 16px; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .compose { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* ==================================================================
+   Round 3 (review 22 Oct, round 2)
+   ================================================================== */
+
+/* Icon-rail widths (735-1068px): the Day-List control gets its own row inside the sticky
+   glass toolbar, so it never runs under prev / Today / next. */
+@media (min-width: 735px) and (max-width: 1068px) {
+  .cal-toolbar { flex-wrap: wrap; height: auto; row-gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+  .cal-toolbar::after { content: ""; order: 2; flex-basis: 100%; height: 0; }
+  .cal-toolbar .e-tabnav { order: 3; }
+  .cal-toolbar .bar-title { order: 0; flex: 1 1 0; }
+  .cal-toolbar .bar-actions { order: 1; }
+}
+
+/* Recovery on phones: 16px margins, cards that may shrink, one column of fields. */
+@media (max-width: 734px) {
+  .steps { margin: 0 16px; }
+  .step { padding: 20px; min-width: 0; }
+  .step .group-form { grid-template-columns: minmax(0, 1fr); }
+  .settings-disclosure { margin-left: 16px; margin-right: 16px; padding-left: 20px; padding-right: 20px; min-width: 0; }
+  .settings-disclosure .group-form.inline > * { flex: 1 1 100%; min-width: 0; }
+}
+
+/* Recovery's fields match the rest: 56px floating-label fields, date-times included. */
+.step .row-field { position: relative; display: block; }
+.step .row-field > span {
+  position: absolute;
+  z-index: 1;
+  left: 17px;
+  top: 9px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-2);
+  pointer-events: none;
+}
+.step .row-field > span small { font-size: inherit; }
+.step .row-field .select, .step .row-field .input {
+  height: 56px;
+  padding: 24px 40px 6px 16px;
+  border: 1px solid var(--field-border);
+  border-radius: 12px;
+  font-size: 17px;
+  letter-spacing: -0.022em;
+}
+.step .row-field .input { padding-right: 12px; }
+.step .row-field .select { background-position: right 16px center; }
+.step .row-field .select:focus, .step .row-field .input:focus { padding-left: 15px; }
+.step .form-actions { align-items: center; }
+
+/* "You're on the call": the pill keeps its dot and words on one line. */
+.state-pill.staff-on { display: inline-flex; color: var(--blue); background: rgba(0, 113, 227, 0.12); }
+.state-pill.staff-on::before { background: var(--blue); }
+
+/* On a grey card the call controls need a visible fill: Hand back is a tinted blue pill,
+   End a tinted red one (red ink #d70015 on the tint: 5.6:1). */
+.inspector-card #op-handback { background: rgba(0, 113, 227, 0.12); color: var(--blue-active); }
+.inspector-card #op-handback:hover { background: rgba(0, 113, 227, 0.18); }
+.inspector-card #op-handback:active { background: rgba(0, 113, 227, 0.24); }
+.inspector-card #op-end { background: rgba(255, 59, 48, 0.12); color: var(--red-ink); }
+.inspector-card #op-end:hover { background: rgba(255, 59, 48, 0.18); }
+.inspector-card #op-end:active { background: rgba(255, 59, 48, 0.24); }
+
+/* The segmented label turns white just as the dark pill reaches it, not before. */
+.e-tabnav > button[aria-pressed="true"] { transition: color 140ms ease-in 120ms; }
+
+/* Free-times list: a thin scrollbar beside the chips (the masked fade does the rest). */
+.slot-grid { scrollbar-width: thin; scrollbar-color: rgba(0, 0, 0, 0.25) transparent; }
+
+/* Headline with a status dot: the gap is spacing, not a typed space. */
+.tile-headline.with-dot { display: flex; align-items: center; gap: 8px; }
+.tile-headline.with-dot .live-dot { margin: 0; }
+
+/* Counts of nothing are not shown. */
+.side-count:empty, .side-badge:empty { display: none; }
+
+@media (max-width: 734px) {
+  /* Book sheet on phones: the times get the space; the patient fields follow them in the
+     sheet's own scroll instead of sitting pinned on top of a scroll inside a scroll. */
+  .book-foot { position: static; margin: 0; padding: 4px 0 0; border-top: 0; background: none; }
+  .slot-grid { max-height: none; overflow: visible; -webkit-mask-image: none; mask-image: none; padding-bottom: 4px; }
+
+  /* More menu: labelled rows, Log out in red and set apart. */
+  .more-sheet .side-item { width: 100%; justify-content: flex-start; padding: 10px 12px; }
+  .more-sheet .side-item .side-label { display: block !important; }
+  .more-sheet .side-item.danger { margin-top: 6px; color: var(--red-ink); box-shadow: 0 -1px 0 var(--hairline-soft); border-radius: 0 0 14px 14px; }
+  .more-sheet .side-item.danger .ico { color: var(--red-ink); }
+
+  /* "‹ Calls" back: the 17px nav-bar style with a 44px target. */
+  .detail-back { position: relative; min-height: 44px; font-size: 17px; letter-spacing: -0.022em; padding: 0 8px; }
+
+  /* Day view with several doctors: a strip of columns that snaps one doctor at a time, the
+     hour labels pinned at the left. */
+  .tgrid.many { width: max(100%, calc(44px + var(--cols) * 136px)); grid-template-columns: 44px repeat(var(--cols), minmax(136px, 1fr)); }
+  .cal-body.scroller { scroll-snap-type: x proximity; }
+  .tgrid.many .day-col { scroll-snap-align: start; scroll-margin-left: 44px; }
+  .tgrid.many .hours { position: sticky; left: 0; z-index: 6; background: var(--canvas); }
+  .tgrid.many .tgrid-head > .col-head:first-child { left: 0; z-index: 7; }
+  .tgrid.many .tgrid-head > .col-head:first-child { position: sticky; }
 }
