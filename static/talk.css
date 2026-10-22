@@ -279,6 +279,7 @@ body.is-pending .e-meter, body[data-call="thinking"] .e-meter { --meter-ink: rgb
 body.needs-signin .line-emma.error { color: var(--ink); }
 /* the moment after a call: what was said stays, dimmed, under "Call ended" */
 body.call-ended .transcript p { opacity: 0.55; transition: opacity 400ms var(--ease); }
+body.transcript-leaving .transcript p { opacity: 0; transition: opacity 400ms var(--ease); }
 @keyframes line-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* ------------------------------------------------------------------ the dock: pill bar (B2 + B3) and the typed box */
