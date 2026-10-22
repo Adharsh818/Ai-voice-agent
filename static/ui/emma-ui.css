@@ -142,7 +142,8 @@ body {
 a { color: var(--link); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
+/* B19: the keyboard ring everywhere (3px white, then 2px blue); the transparent outline keeps a ring in forced-colours mode */
+:focus-visible { outline: 2px solid transparent; outline-offset: 2px; box-shadow: 0 0 0 3px #fff, 0 0 0 5px #0071e3; }
 
 [hidden] { display: none !important; }
 
@@ -495,6 +496,7 @@ html.js [data-reveal-self].is-in:not(.is-done) {
   letter-spacing: -0.022em;
 }
 .e-capsule-brand:hover { text-decoration: none; }
+.e-capsule-brand:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 22px; }
 .e-capsule-brand .pearl { --size: 22px; }
 .e-capsule-end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .e-capsule-meta { padding: 0 10px; font-size: 12px; line-height: 16px; letter-spacing: -0.01em; color: var(--ink-2); }
@@ -661,11 +663,13 @@ html.js [data-reveal-self].is-in:not(.is-done) {
 /* ------------------------------------------------------------------ B3 sliding bubble selector */
 .e-bubbles {
   --bubble-fill: var(--dark-rest);
+  --bubble-fill-hover: var(--dark-hover);
+  --bubble-fill-active: var(--dark-active);
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 4px;
+  padding: 3px;
   border-radius: 28px;
   isolation: isolate;
 }
@@ -676,16 +680,16 @@ html.js [data-reveal-self].is-in:not(.is-done) {
   align-items: center;
   justify-content: center;
   min-width: 48px;
-  height: 48px;
+  height: 50px;
   padding: 0 22px;
   border: 0;
-  border-radius: 24px;
+  border-radius: 25px;
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: -0.022em;
+  letter-spacing: -0.35px;
   white-space: nowrap;
   cursor: pointer;
   transition: color 200ms var(--ease-label), background-color 100ms linear;
@@ -700,9 +704,9 @@ html.js [data-reveal-self].is-in:not(.is-done) {
 .e-bubble {
   position: absolute;
   z-index: 0;
-  top: 4px;
+  top: 3px;
   left: 0;
-  height: 48px;
+  height: 50px;
   width: var(--bubble-w, 0px);
   transform: translate3d(var(--bubble-x, 0px), 0, 0);
   transition: transform 200ms ease-out, width 200ms ease-out, opacity 200ms ease-out;
@@ -713,12 +717,21 @@ html.js [data-reveal-self].is-in:not(.is-done) {
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 24px;
+  border-radius: 25px;
   background: var(--bubble-fill);
   transform: scaleX(var(--bubble-sx, 1)) scaleY(var(--bubble-sy, 1));
-  transition: transform 260ms var(--ease-out), background-color 240ms var(--ease-colour);
+  transition: transform 260ms var(--ease-out), background-color 160ms var(--ease-colour);
 }
-.e-bubbles.is-moving .e-bubble::before { transition: transform 110ms var(--ease-out), background-color 240ms var(--ease-colour); }
+.e-bubbles.is-moving .e-bubble::before { transition: transform 110ms var(--ease-out), background-color 160ms var(--ease-colour); }
+/* B8 on the selected option: hover and press step the bubble's colour, 100ms linear, no scale */
+.e-bubbles:has(> :is(.is-selected, [aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]):not([hidden]):hover) > .e-bubble::before {
+  background: var(--bubble-fill-hover);
+  transition: transform 260ms var(--ease-out), background-color 100ms linear;
+}
+.e-bubbles:has(> :is(.is-selected, [aria-pressed="true"], [aria-checked="true"], [aria-selected="true"]):not([hidden]):active) > .e-bubble::before {
+  background: var(--bubble-fill-active);
+  transition: transform 260ms var(--ease-out), background-color 100ms linear;
+}
 .e-bubble.is-empty { opacity: 0; }
 .e-bubbles.e-no-anim .e-bubble, .e-bubbles.e-no-anim .e-bubble::before { transition: none !important; }
 
@@ -735,28 +748,38 @@ html.js [data-reveal-self].is-in:not(.is-done) {
   z-index: -1;
   top: 0;
   bottom: 0;
-  left: 50%;
-  width: 100%;
+  left: 0;
+  width: var(--bar-w, 100%);   /* materialise() keeps --bar-w at the bar's width, so a size change glides */
   border-radius: 28px;
   background: var(--glass-pass);
   -webkit-backdrop-filter: blur(7px);
   backdrop-filter: blur(7px);
   box-shadow: var(--edge);
-  transform: translateX(-50%);
+  transition: width 400ms var(--ease-layout);
 }
-html.js .e-pillbar::after { animation: e-materialise 720ms var(--ease-layout) both; }
-html.js .e-pillbar > :not(.e-bubble) { animation: e-fade-in 360ms var(--ease-out) both; animation-delay: calc(380ms + var(--i, 0) * 50ms); }
-html.js .e-pillbar > :nth-child(2) { --i: 0; }
-html.js .e-pillbar > :nth-child(3) { --i: 1; }
-html.js .e-pillbar > :nth-child(4) { --i: 2; }
-html.js .e-pillbar > :nth-child(5) { --i: 3; }
-html.js .e-pillbar > .e-bubble { animation: e-fade-in 360ms var(--ease-out) 380ms both; }
-html.js .e-pillbar.is-settled > * { animation-delay: 0ms; animation-duration: 240ms; }
+/* Materialise (A13/P5): a 56px dot scales up (0-200ms), then widens to the bar (200-560ms) while its
+   blur settles from 14px to 7px; the bubble and the labels follow 100ms after it lands. */
+html.js .e-pillbar::after { animation: e-materialise 560ms backwards; }
+html.js .e-pillbar > * { animation: e-fade-in 300ms var(--ease-out) backwards; animation-delay: calc(660ms + var(--i, 0) * 50ms); }
+html.js .e-pillbar > .e-bubble { --i: 0; }
+html.js .e-pillbar > :nth-child(2) { --i: 1; }
+html.js .e-pillbar > :nth-child(3) { --i: 2; }
+html.js .e-pillbar > :nth-child(4) { --i: 3; }
+html.js .e-pillbar > :nth-child(5) { --i: 4; }
+/* after the entrance, a pill that arrives fades in once the glass has started to widen */
+html.js .e-pillbar.is-settled > * { animation-duration: 240ms; animation-delay: 120ms; }
+/* a pill that leaves fades out first (materialise() holds it for 200ms), then the glass narrows */
+.e-pillbar > [hidden].is-leaving {
+  display: inline-flex !important;
+  pointer-events: none;
+  animation: e-fade-out 200ms ease-out forwards !important;
+}
 @keyframes e-materialise {
-  0% { width: 56px; transform: translateX(-50%) scale(0.01); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-  38% { width: 56px; transform: translateX(-50%) scale(1); }
-  100% { width: 100%; transform: translateX(-50%) scale(1); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); }
+  0% { left: calc(50% - 28px); width: 56px; transform: scale(0.01); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); animation-timing-function: var(--ease-out); }
+  35.7% { left: calc(50% - 28px); width: 56px; transform: scale(1); -webkit-backdrop-filter: blur(11px); backdrop-filter: blur(11px); animation-timing-function: var(--ease-layout); }
+  100% { left: 0; width: var(--bar-w, 100%); transform: scale(1); -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px); }
 }
+@keyframes e-fade-out { to { opacity: 0; } }
 @keyframes e-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* ------------------------------------------------------------------ B5 overshoot pop-in */
@@ -800,6 +823,8 @@ html.js .e-pillbar.is-settled > * { animation-delay: 0ms; animation-duration: 24
   height: var(--spinner-size);
   animation: e-spin 1s steps(8, end) infinite;
 }
+/* spinners that are present but hidden stand still (no work while invisible) */
+.e-block-btn:not(.is-busy) .e-spinner { animation-play-state: paused; }
 .e-spinner > i {
   position: absolute;
   left: 50%;
@@ -859,6 +884,7 @@ html.js .e-pillbar.is-settled > * { animation-delay: 0ms; animation-duration: 24
   appearance: none;
 }
 .e-field input:focus { border-width: 2px; border-color: var(--blue); padding-left: 15px; }
+.e-field input:focus-visible { box-shadow: none; }   /* the 2px border is the focus ring (S8) */
 .e-field label {
   position: absolute;
   top: 18px;
@@ -1103,6 +1129,8 @@ html.e-sheet-open { overflow: hidden; }
   .e-sheet, .e-sheet-root.is-open .e-sheet { transform: none !important; }
   .e-sheet-root.is-open .e-sheet, .e-sheet-root.is-open .e-sheet-scrim { transition: opacity 200ms linear !important; }
   html.js .e-pillbar::after, html.js .e-pillbar > * { animation: none; }
+  .e-pillbar::after { transition: none !important; }
+  .e-pillbar > [hidden].is-leaving { display: none !important; }
   /* a stepped spinner is not vestibular motion: it keeps turning */
   .e-spinner { animation-duration: 1s !important; animation-iteration-count: infinite !important; }
 }

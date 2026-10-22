@@ -278,11 +278,67 @@ export function bubbles(control) {
   return { place };
 }
 
-// B2: mark a materialising pill bar settled once its entrance has played, so pills shown
-// later fade in at once instead of waiting for the entrance delay.
+// FLIP: when a container's children change place (one appears, leaves or changes width), each
+// child glides from where it was drawn to its new place instead of jumping. It starts from the
+// on-screen position, so a change during a glide redirects it smoothly.
+export function flip(container, { selector = ":scope > :not(.e-bubble)", duration = 400, easing = "cubic-bezier(0.25, 0.1, 0.3, 1)" } = {}) {
+  if (!container) return () => {};
+  const last = new WeakMap();
+  const items = () => [...container.querySelectorAll(selector)].filter((el) => el.offsetParent !== null);
+  function run() {
+    for (const el of items()) {
+      const x = el.offsetLeft, y = el.offsetTop;
+      const prev = last.get(el);
+      last.set(el, { x, y });
+      if (!prev || reducedMotion()) continue;
+      const t = getComputedStyle(el).transform;
+      const m = t && t !== "none" ? new DOMMatrixReadOnly(t) : { m41: 0, m42: 0 };
+      const dx = prev.x + m.m41 - x, dy = prev.y + m.m42 - y;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+      el.style.transition = "none";
+      el.style.transform = `translate(${px(dx)}, ${px(dy)})`;
+      void el.offsetWidth;
+      el.style.transition = `transform ${duration}ms ${easing}`;
+      el.style.transform = "";
+      clearTimeout(el._flipDone);
+      el._flipDone = setTimeout(() => el.style.removeProperty("transition"), duration + 40);
+    }
+  }
+  run();
+  new MutationObserver(run).observe(container, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["hidden", "class"] });
+  if ("ResizeObserver" in window) {
+    const sizes = new ResizeObserver(run);
+    sizes.observe(container);
+    [...container.children].forEach((c) => sizes.observe(c));
+  }
+  return run;
+}
+
+// B2: a materialising pill bar. Keeps --bar-w at the bar's width so the shared glass glides to a
+// new size, holds a pill that is being hidden for a 200ms fade-out before it leaves the layout,
+// and marks the bar settled once its entrance has played.
 export function materialise(bar) {
   if (!bar) return;
-  setTimeout(() => bar.classList.add("is-settled"), reducedMotion() ? 0 : 1000);
+  setTimeout(() => bar.classList.add("is-settled"), reducedMotion() ? 0 : 1100);
+  const width = () => bar.style.setProperty("--bar-w", px(bar.offsetWidth));
+  width();
+  if ("ResizeObserver" in window) new ResizeObserver(width).observe(bar);
+  const shown = new Set([...bar.children].filter((c) => !c.hidden));
+  new MutationObserver((records) => {
+    for (const r of records) {
+      const el = r.target;
+      if (r.attributeName !== "hidden" || el.parentElement !== bar) continue;
+      if (el.hidden && shown.has(el) && !reducedMotion() && bar.classList.contains("is-settled")) {
+        el.classList.add("is-leaving");
+        clearTimeout(el._leave);
+        el._leave = setTimeout(() => el.classList.remove("is-leaving"), 200);
+      } else if (!el.hidden) {
+        clearTimeout(el._leave);
+        el.classList.remove("is-leaving");
+      }
+      if (el.hidden) shown.delete(el); else shown.add(el);
+    }
+  }).observe(bar, { attributes: true, subtree: true, attributeFilter: ["hidden"] });
 }
 
 // B5: overshoot pop-in, index x 50ms apart; popOut leaves fast and all together.
@@ -313,7 +369,8 @@ export function spinner(size) {
 }
 
 // B10: a stretching-pill level meter. The middle dot stretches toward a 48px pill with the
-// level, and its neighbours follow continuously. Returns update(level 0..1, active).
+// level, and its neighbours follow continuously. Returns update(level 0..1, active, sweep):
+// with sweep the stretch travels gently back and forth (a "working on it" shimmer).
 export function levelMeter(el, count = 5) {
   if (!el) return () => {};
   el.classList.add("e-meter");
@@ -321,10 +378,11 @@ export function levelMeter(el, count = 5) {
   const dots = [...el.children];
   const centre = (count - 1) / 2;
   dots[Math.round(centre)].classList.add("is-current");
-  return (level, active = true) => {
+  return (level, active = true, sweep = false) => {
     const amount = active ? 0.22 + 0.78 * Math.min(1, Math.max(0, level)) : 0;
+    const at = sweep && !reducedMotion() ? centre + Math.sin(performance.now() / 420) * centre : centre;
     dots.forEach((dot, i) => {
-      const near = Math.max(0, 1 - Math.abs(i - centre) / 1.6);
+      const near = Math.max(0, 1 - Math.abs(i - at) / 1.6);
       dot.style.setProperty("--w", px(8 + 40 * amount * near));
     });
   };

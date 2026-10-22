@@ -1,45 +1,61 @@
 /* Staff sign-in on the Apple Account sign-in pattern (docs/APPLE_DESIGN_PLAN.md 11.3, B18-B20):
-   a floating glass capsule, a 180px brand area whose mark eases to .6 as the form fades in,
-   a 40/44 title, a 460px column, 56px floating-label fields and a 38px block button. */
+   a floating glass capsule, Pearl's mark framed by a faint dot ring, a 40/44 title, a 460px column,
+   56px floating-label fields, one shared help/error line and a 38px block button. */
 
 body.signin {
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .signin-main {
   display: grid;
   justify-items: center;
   align-content: start;
-  padding: 48px 24px 72px;
+  padding: 40px 24px 72px;
 }
 
-/* ------------------------------------------------------------------ B20 brand arrival */
+/* ------------------------------------------------------------------ B20 brand: mark + dot ring */
 .signin-brand {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 180px;
-  height: 180px;
-  margin-bottom: -78px;
+  width: 140px;
+  height: 140px;
+  margin-bottom: 0;   /* mark centre to title: 50px below the 40px mark */
+}
+.signin-ring {
+  position: absolute;
+  inset: 10px;
+  width: 120px;
+  height: 120px;
+  opacity: 0;
+  transform: scale(0.94);
+  transition: opacity 500ms var(--ease-out) 120ms, transform 500ms var(--ease-out) 120ms;
 }
 .signin-mark {
-  --size: 96px;
-  transform: translateY(-58px) scale(0.6);       /* the end state (no JS, reduced motion) */
-  transition: transform 600ms var(--ease-out);
+  --size: 64px;
+  /* a crisp mark: only the inset edge and the top highlight, no drop shadow */
+  box-shadow: var(--edge), inset 0 -2px 6px rgba(0, 0, 0, 0.06), inset 0 1px 1px rgba(255, 255, 255, 0.9);
+  transform: scale(0.625);
+  transition: transform 520ms var(--ease-out);
 }
-html.js body.signin:not(.is-ready) .signin-mark { transform: none; }
+/* the arrival: the mark lands at 64px, then eases to 40px as the ring and the form fade in */
+html.js body.signin:not(.is-ready) .signin-mark { transform: scale(1); }
+body.signin.is-ready .signin-ring,
+html:not(.js) .signin-ring { opacity: 1; transform: none; }
 
 .signin-column {
   width: min(100%, 460px);
   display: grid;
   justify-items: center;
   text-align: center;
-  transition: opacity 600ms var(--ease-out) 80ms, transform 600ms var(--ease-out) 80ms;
+  transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out);
 }
-html.js body.signin:not(.is-ready) .signin-column { opacity: 0; transform: translateY(12px); }
+/* the text is never invisible: it settles up 8px from 60% opacity, so it reads from the first frame */
+html.js body.signin:not(.is-ready) .signin-column { opacity: 0.6; transform: translateY(8px); }
 
 /* ------------------------------------------------------------------ type (S6, S7) */
 .signin-title {
@@ -52,7 +68,7 @@ html.js body.signin:not(.is-ready) .signin-column { opacity: 0; transform: trans
   color: var(--ink);
 }
 .signin-sub {
-  margin: 12px 0 36px;
+  margin: 12px 0 44px;
   font-size: 17px;
   line-height: 25px;
   letter-spacing: -0.022em;
@@ -62,17 +78,30 @@ html.js body.signin:not(.is-ready) .signin-column { opacity: 0; transform: trans
 /* ------------------------------------------------------------------ form */
 .signin-form { width: 100%; text-align: start; }
 .signin-fields { display: block; }
-.signin-fields .e-field:last-child { margin-bottom: 14px; }
-#login-error { margin-top: -6px; }
+
+/* One fixed slot under the fields: the help line, or the error in its place. Nothing below moves. */
+.signin-slot {
+  min-height: 18px;
+  margin: -6px 0 20px;
+}
+.signin-slot .e-error-line { margin: 0; font-size: 14px; line-height: 18px; letter-spacing: -0.016em; padding-left: 22px; }
+.signin-slot .e-error-line::before { top: 2px; width: 15px; height: 15px; line-height: 15px; font-size: 11px; }
+.signin-slot .e-error-line:not([hidden]) + .signin-help { display: none; }
 .signin-help {
-  margin: -4px 0 20px;
+  margin: 0;
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
   letter-spacing: -0.01em;
   color: var(--ink-2);
 }
-.signin-button { margin-top: 0; }
+
 .signin-button .e-spinner { --spinner-size: 18px; }
+/* At rest (nothing typed yet) the button is a quiet grey, not a washed-out blue. */
+.signin-button:disabled:not(.is-busy) {
+  opacity: 1;
+  background: var(--solid-rest);
+  color: var(--ink-3);
+}
 
 /* ------------------------------------------------------------------ S17 locked notice */
 .signin-locked {
@@ -98,21 +127,20 @@ html.js body.signin:not(.is-ready) .signin-column { opacity: 0; transform: trans
   gap: 8px;
   align-items: flex-start;
   justify-content: center;
-  max-width: 380px;
-  margin: 28px 0 0;
+  margin: 30px 0 0;
   font-size: 12px;
   line-height: 16px;
   letter-spacing: -0.01em;
   color: var(--ink-2);
-  text-align: start;
+  text-wrap: balance;
 }
 
-/* ------------------------------------------------------------------ S4 footer */
+/* ------------------------------------------------------------------ S4 footer: 83px, aligned with the capsule's brand text */
 .signin-footer { background: var(--canvas-alt); }
 .signin-footer-inner {
-  max-width: 980px;
+  max-width: 1044px;
   margin: 0 auto;
-  padding: 17px 22px 21px;
+  padding: 26px 60px 41px;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -126,20 +154,15 @@ html.js body.signin:not(.is-ready) .signin-column { opacity: 0; transform: trans
 
 /* ------------------------------------------------------------------ phones (S20) */
 @media (max-width: 734px) {
-  .signin-main { padding: 28px 24px 56px; }
-  .signin-brand { width: 168px; height: 168px; margin-bottom: -80px; }
-  .signin-mark { --size: 88px; transform: translateY(-54px) scale(0.6); }
+  .signin-main { padding: 24px 24px 56px; }
   .signin-title { font-size: 32px; line-height: 36px; letter-spacing: 0.004em; }
-  .signin-sub { margin-bottom: 28px; }
-  .signin-footer-inner { justify-content: center; text-align: center; }
+  .signin-sub { margin-bottom: 32px; }
+  .signin-footer-inner { padding: 22px 24px 30px; justify-content: center; text-align: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .signin-mark { transition: none; }
-  html.js body.signin:not(.is-ready) .signin-mark { transform: translateY(-58px) scale(0.6); }
+  .signin-mark, html.js body.signin:not(.is-ready) .signin-mark { transform: scale(0.625); transition: none; }
+  .signin-ring { transform: none; transition: opacity 200ms linear !important; }
   .signin-column { transition: opacity 200ms linear !important; }
   html.js body.signin:not(.is-ready) .signin-column { transform: none; }
-}
-@media (prefers-reduced-motion: reduce) and (max-width: 734px) {
-  html.js body.signin:not(.is-ready) .signin-mark { transform: translateY(-54px) scale(0.6); }
 }
