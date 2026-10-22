@@ -1715,8 +1715,11 @@ li.loading { list-style: none; padding: 40px 16px; }
   --r-outer: 32px;
   --inset: 4px;
 }
-.tabbar.e-liquid.over-text { --lg-surface: var(--lg-fill-dense); }
-.tabbar .tab-item { border-radius: var(--r-inner); }      /* concentric: 32 - 4 = 28 */
+.tabbar.e-liquid.over-text, html.lg-refract .tabbar.e-liquid.lens.over-text { --lg-surface: var(--lg-fill-dense); }
+/* Concentric radii (LG6): --r-inner is computed on each component, not inherited from :root
+   (where it resolves once to a fixed 25px). */
+.tabbar.e-liquid, .compose, .more-sheet { --r-inner: max(calc(var(--r-outer) - var(--inset)), 6px); }
+.tabbar .tab-item { border-radius: var(--r-inner); }      /* 32 - 4 = 28 */
 
 /* Lens 2: the Live call input bar, always over the transcript (dense fill, deeper shadow). */
 .compose.e-liquid {
@@ -1731,9 +1734,9 @@ li.loading { list-style: none; padding: 40px 16px; }
 
 /* Rim and blur: the sidebar. A large surface: denser fill, no lens, never flips (LG15/16). */
 .sidebar.lg-side {
-  background: rgba(246, 246, 248, 0.78);
-  -webkit-backdrop-filter: var(--glass-filter);
-  backdrop-filter: var(--glass-filter);
+  background: #f6f6f8;                /* nothing scrolls under the sidebar, so no backdrop pass */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.75);
 }
 
@@ -1744,8 +1747,8 @@ li.loading { list-style: none; padding: 40px 16px; }
    shadow. The fill stays at .9 so body text keeps full contrast. */
 .dash-sheet .e-sheet {
   background: rgba(255, 255, 255, 0.9);
-  -webkit-backdrop-filter: var(--lg-blur);
-  backdrop-filter: var(--lg-blur);
+  -webkit-backdrop-filter: none;      /* the scrim already frosts the page: no blur on blur (LG18) */
+  backdrop-filter: none;
   box-shadow: var(--lg-rim), var(--lg-ring), 0 18px 50px rgba(0, 0, 0, 0.14);
 }
 .dash-sheet .e-sheet-handle { background: rgba(255, 255, 255, 0.9); }
@@ -1810,4 +1813,44 @@ li.loading { list-style: none; padding: 40px 16px; }
     background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 0 0 1px var(--ink-3);
   }
   .view-bar.stuck { background-color: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 1px 0 var(--ink-3); }
+}
+
+/* ==================================================================
+   Final polish (23 Oct)
+   ================================================================== */
+/* Live call: the page itself never scrolls on desktop; the transcript and the inspector scroll in
+   their own boxes, and bubbles pass behind the toolbar and the input bar, never over them. */
+@media (min-width: 735px) {
+  #view-live .live-layout { height: calc(100dvh - var(--fit-top, 120px) - 24px); grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); }
+  #view-live .live-layout > .inspector { grid-template-columns: minmax(0, 1fr); align-content: start; }
+  #view-live .chat { height: 100%; min-height: 0; }
+  #view-live .live-layout > .inspector { position: static; max-height: 100%; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+}
+.chat { isolation: isolate; z-index: 0; }
+.chat .transcript { position: relative; z-index: 0; }
+.chat .compose-dock { z-index: 3; }
+.view-bar { z-index: 20; }
+
+/* Phones: Take over / Hand back / End sit straight under the transcript, before the call's
+   details, so they are on screen without scrolling. */
+@media (max-width: 734px) {
+  #view-live .inspector-card:first-child { display: flex; flex-direction: column; }
+  #view-live .inspector-head { order: 0; }
+  #view-live .operator { order: 1; margin: 0 0 14px; }
+  #view-live .kv { order: 2; }
+  #view-live .entities { order: 3; }
+  #view-live .chat { height: calc(100dvh - var(--fit-top, 200px) - var(--tab-h) - 36px - 170px - env(safe-area-inset-bottom)); min-height: 280px; }
+
+  /* Calendar: the grid's scroll box runs to the bottom edge, under the glass tab bar, with room
+     at the end so the last hour clears it. */
+  body.dash .content:has(> #view-appointments:not([hidden]) .cal-body.scroller) { padding-bottom: 0; }
+  .cal-body.scroller { height: calc(100dvh - var(--fit-top, 240px)); }
+  .cal-body.scroller .tgrid { margin-bottom: calc(var(--tab-h) + 28px + env(safe-area-inset-bottom)); }
+  /* Week on a phone: coloured blocks, no one-letter names (a tap opens the appointment). */
+  .tgrid.week .event { padding: 0; }
+  .tgrid.week .event .ev-name, .tgrid.week .event .ev-meta { display: none; }
+
+  /* Tasks: the badge and the Transcript link go under the text, so the title gets the width. */
+  .reminder { grid-template-columns: 26px minmax(0, 1fr); }
+  .reminder .rem-side { grid-column: 2; justify-content: flex-start; margin-top: 4px; }
 }
