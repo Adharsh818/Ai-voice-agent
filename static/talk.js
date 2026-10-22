@@ -155,10 +155,15 @@ function apply(next, was) {
     body.classList.add("call-ended");
     clearTimeout(endedTimer);
     endedTimer = setTimeout(() => {
+      // The dimmed lines fade on out (never back up to full) before they're cleared.
+      body.classList.add("transcript-leaving");
       body.classList.remove("call-ended");
       shownStatus = "";
       updateStatus();
-      setTimeout(() => { if (state === "idle" && !body.classList.contains("call-ended")) clearTranscript(); }, 400);
+      setTimeout(() => {
+        if (state === "idle" && !body.classList.contains("call-ended")) clearTranscript();
+        body.classList.remove("transcript-leaving");
+      }, 400);
     }, 2400);
   }
   // While idle, typing is always on offer next to the call button; app.js hides it in a call
