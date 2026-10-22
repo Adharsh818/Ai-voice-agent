@@ -2857,10 +2857,10 @@ async function start() {
   accordion($("window-acc"));
   // Liquid Glass (docs/APPLE_DESIGN_PLAN.md 13, F): a real lens only on the two small floating
   // bars, the phone tab bar and the Live call input bar; every other floating surface is rim and
-  // blur only (dashboard.css). Both are bars, so no press swell or glow on them (only single
-  // controls get that), and no pointer-following highlight: the fixed top-left one only.
-  liquid($("tabbar"), { lens: true, track: false, press: false });
-  composeGlass = liquid($("op-form"), { lens: true, track: false, press: false, under: null });
+  // blur only (dashboard.css). Both are containers: no swell and no press glow on them (only
+  // single controls get that). The input bar's lens ramps up as it materializes.
+  liquid($("tabbar"), { lens: true, press: false, swell: false });
+  composeGlass = liquid($("op-form"), { lens: true, press: false, swell: false, ramp: true, under: null });
   await refreshOverview();
   try { await loadCatalog(); } catch (err) { toast(err.message, "error"); }
   loadMe();

@@ -307,7 +307,10 @@ body.transcript-leaving .transcript p { opacity: 0; transition: opacity 400ms va
   transform: translate(-50%, -50%);
   background: radial-gradient(closest-side, color-mix(in srgb, var(--dock-glow) 36%, transparent), color-mix(in srgb, var(--dock-glow) 14%, transparent) 55%, transparent);
   pointer-events: none;
+  opacity: 0;          /* at rest the page is pure white; the pool rises with a call */
+  transition: opacity 600ms var(--ease-caption);
 }
+body:not([data-call="idle"]) .dock::before, body.call-ended .dock::before { opacity: 1; }
 body[data-call="listening"] .dock { --dock-glow: var(--t-listening); }
 body[data-call="speaking"] .dock { --dock-glow: var(--t-speaking); }
 body:is([data-call="thinking"], .is-pending) .dock { --dock-glow: var(--t-thinking); }
