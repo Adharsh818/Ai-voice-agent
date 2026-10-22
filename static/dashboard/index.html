@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/dashboard/static/dashboard.css">
 </head>
 <body class="dash">
+  <svg class="e-svg-defs" id="e-lg-defs" aria-hidden="true" focusable="false"></svg>
   <svg width="0" height="0" class="sprite" aria-hidden="true" focusable="false">
     <symbol id="i-today" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></symbol>
     <symbol id="i-live" viewBox="0 0 24 24"><path d="M5 14v-4M9 17V7M13 19V5M17 16V8M21 13v-2"/></symbol>
@@ -32,7 +33,7 @@
 
   <div class="app">
     <!-- Sidebar (Mail / Settings style). Below 734 px it becomes the bottom tab bar. -->
-    <aside class="sidebar glass-bar" id="sidebar" aria-label="Dashboard sections">
+    <aside class="sidebar lg-side" id="sidebar" aria-label="Dashboard sections">
       <div class="side-brand">
         <span class="pearl" aria-hidden="true"></span>
         <div class="side-brand-text">
@@ -77,14 +78,14 @@
     </aside>
 
     <!-- Phone tab bar -->
-    <nav class="tabbar glass-bar" id="tabbar" aria-label="Sections">
+    <nav class="tabbar e-liquid lens no-swell" id="tabbar" aria-label="Sections">
       <button class="tab-item" data-tab="today"><svg class="ico"><use href="#i-today"/></svg><span>Today</span></button>
       <button class="tab-item" data-tab="live"><svg class="ico"><use href="#i-live"/></svg><span>Live</span><span class="tab-dot" id="tab-live-dot" hidden></span></button>
       <button class="tab-item" data-tab="appointments"><svg class="ico"><use href="#i-calendar"/></svg><span>Calendar</span></button>
       <button class="tab-item" data-tab="tasks"><svg class="ico"><use href="#i-tasks"/></svg><span>Tasks</span><span class="tab-badge num" id="tab-task-badge" hidden></span></button>
       <button class="tab-item" data-tab="more" id="tab-more"><svg class="ico"><use href="#i-more"/></svg><span>More</span></button>
     </nav>
-    <div class="more-sheet glass-bar" id="more-sheet" hidden>
+    <div class="more-sheet lg-panel" id="more-sheet" hidden>
       <button class="side-item" data-go="calls"><svg class="ico"><use href="#i-calls"/></svg><span class="side-label">Calls</span></button>
       <button class="side-item" data-go="recovery"><svg class="ico"><use href="#i-recovery"/></svg><span class="side-label">Recovery</span></button>
       <button class="side-item" data-go="system"><svg class="ico"><use href="#i-system"/></svg><span class="side-label">System</span></button>
@@ -124,7 +125,7 @@
         <div class="live-layout">
           <div class="chat fit" id="live-chat">
             <div class="call-switcher" id="live-calls"><div class="call-switcher-in"></div></div>
-            <div class="transcript" id="live-transcript" aria-live="polite"></div>
+            <div class="transcript" id="live-transcript" data-under="text" aria-live="polite"></div>
             <div class="chat-empty" id="live-empty">
               <span class="pearl big" aria-hidden="true"></span>
               <p class="t-section">No call right now</p>
@@ -134,7 +135,7 @@
             <button class="jump glass-pill" id="live-jump" type="button" hidden>Jump to latest</button>
             <div class="compose-dock" id="compose-dock">
               <p class="compose-note">Emma is paused. The caller hears you.</p>
-              <form class="compose" id="op-form" autocomplete="off">
+              <form class="compose e-liquid lens no-swell over-text" id="op-form" autocomplete="off">
                 <input id="op-text" class="compose-input" maxlength="400" placeholder="Type what to say to the caller" aria-label="Line to say">
                 <button class="compose-send" type="submit" aria-label="Say it"><svg class="ico"><use href="#i-up"/></svg></button>
               </form>
@@ -230,7 +231,7 @@
           <span class="t-caption ink-2" id="appt-summary"></span>
           <button class="btn-pill small text" type="button" id="appt-export">Export CSV</button>
         </div>
-        <div class="cal-body" id="cal-body"></div>
+        <div class="cal-body" id="cal-body" data-under="text"></div>
         <div class="list-view" id="list-view" hidden>
           <div class="table-wrap">
             <table class="table">
@@ -255,7 +256,7 @@
             <button type="button" data-status="all" aria-pressed="false">All</button>
           </div>
         </div>
-        <ul class="reminders" id="task-rows"></ul>
+        <ul class="reminders" id="task-rows" data-under="text"></ul>
       </section>
 
       <!-- Calls (Mail style) ----------------------------------------------------->
@@ -278,7 +279,7 @@
           <span class="t-caption ink-2" id="call-count"></span>
         </div>
         <div class="mail fit">
-          <ul class="mail-list" id="call-rows" aria-label="Calls"></ul>
+          <ul class="mail-list" id="call-rows" data-under="text" aria-label="Calls"></ul>
           <div class="mail-detail" id="call-detail">
             <div class="detail-empty">
               <svg class="ico big"><use href="#i-calls"/></svg>
