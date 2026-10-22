@@ -251,9 +251,10 @@ export function bubbles(control) {
     const item = event.target.closest("button, a");
     if (!item || item.parentElement !== control || item.disabled) return;
     pressed = item;
+    control.classList.add("is-pressing");
     place();
   });
-  const release = () => { pressed = null; requestAnimationFrame(place); };
+  const release = () => { pressed = null; control.classList.remove("is-pressing"); requestAnimationFrame(place); };
   control.addEventListener("pointerleave", release);
   control.addEventListener("pointercancel", release);
   control.addEventListener("click", release);
@@ -515,14 +516,20 @@ export function sheet(root, { onClose } = {}) {
 
 /* ==================================================================
    Liquid Glass (docs/APPLE_DESIGN_PLAN.md section 13). Pairs with .e-liquid in emma-ui.css.
-   liquid(el, options) -> { refresh(), materialize(), vanish() }
-     lens         build a real lens for this surface (Chromium only: html.lg-refract). Default:
-                  el has the "lens" class.
-     track        the highlight follows the pointer (pointer:fine, not reduced motion). Default true.
-     press        swell and light up from under the finger. Default true.
-     under        a selector for content that makes the glass go denser and cast a deeper shadow
-                  when it sits over it (LG14). Default '[data-under="text"]'.
-     materialize  play the entrance now: the lensing ramps up instead of a plain fade.
+   liquid(el, options) -> { lens, refresh(), materialize(), vanish() }
+     lens         a real lens for this surface (Chromium only: html.lg-refract). Default: el has
+                  the "lens" class. Only where real content passes under the glass (LG19).
+     press        light up from under the finger on press (a glow, brightness 1.06). Default true.
+     swell        also swell the surface itself on press (1.04). Default true. Use false on a
+                  container (a pill bar): there the pressed pill swells, never the bar.
+     ramp         when the lens is built, ramp its bend up from 0 (the materialize look).
+     under        content that makes the glass denser with a deeper shadow while it sits over it
+                  (LG14). Default '[data-under="text"]'.
+     materialize  play the entrance now.
+     track        kept for compatibility; the highlight no longer follows the pointer (Liquid
+                  Glass is lit from a fixed light, top left, and from the touch point on press).
+   The lens filter is built after the entrance, when the browser is idle, and only once the
+   surface has a real size, so the first paint never waits on the glass.
    ================================================================== */
 const SVG_NS = "http://www.w3.org/2000/svg";
 const lensOn = () => document.documentElement.classList.contains("lg-refract");
@@ -542,24 +549,32 @@ function lgDefsHost() {
   return lgDefs;
 }
 
-// The displacement map (LG31): neutral grey, with a band at each edge that pushes the backdrop
-// inward (red = x, green = y), so the centre stays clear and the rim bends like a lens. Built at
-// the surface's own size in px, so a wide capsule gets the same rim as a small pill.
-export function lensMap(w, h) {
-  const bx = Math.round(Math.min(h * 0.5, w * 0.25));   // horizontal rim width
-  const by = Math.round(h * 0.32);                       // vertical rim depth
+// The displacement map (LG31, tuned in review): neutral grey, with a thin rim (about 11px) at
+// every edge whose push falls off along a convex curve (full at the edge, 30% a third of the way
+// in, neutral by the inner edge). Red pushes x, green pushes y, both inward, so only the rim bends
+// and the middle stays clear. Built at the surface's own px size, so every surface gets the same rim.
+const RIM_STOPS = [[0, 1], [0.18, 0.62], [0.35, 0.3], [0.6, 0.1], [1, 0]];   // offset, strength
+function rimGradient(id, horizontal, toLow) {
+  // toLow: the band pushes toward the low end (right or bottom edge band), value 128 - 127*s
+  const attrs = horizontal ? 'x1="0" x2="1" y1="0" y2="0"' : 'x1="0" x2="0" y1="0" y2="1"';
+  const stops = RIM_STOPS.map(([o, s]) => {
+    const off = toLow ? 1 - o : o;
+    const v = Math.round(toLow ? 128 - 128 * s : 128 + 127 * s);
+    const c = horizontal ? `rgb(${v},128,128)` : `rgb(128,${v},128)`;
+    return [off, `<stop offset="${off}" stop-color="${c}" stop-opacity="${horizontal ? 1 : s.toFixed(2)}"/>`];
+  }).sort((a, b) => a[0] - b[0]).map((x) => x[1]).join("");
+  return `<linearGradient id="${id}" ${attrs}>${stops}</linearGradient>`;
+}
+export function lensMap(w, h, rim = Math.max(8, Math.min(12, Math.round(h * 0.21)))) {
+  const r = Math.min(rim, Math.floor(w / 2), Math.floor(h / 2));
   const svg = `<svg xmlns="${SVG_NS}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
-    + "<defs>"
-    + '<linearGradient id="l" x1="0" x2="1"><stop offset="0" stop-color="rgb(255,128,128)"/><stop offset="1" stop-color="rgb(128,128,128)"/></linearGradient>'
-    + '<linearGradient id="r" x1="0" x2="1"><stop offset="0" stop-color="rgb(128,128,128)"/><stop offset="1" stop-color="rgb(0,128,128)"/></linearGradient>'
-    + '<linearGradient id="t" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgb(128,255,128)"/><stop offset="1" stop-color="rgb(128,128,128)" stop-opacity="0"/></linearGradient>'
-    + '<linearGradient id="b" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="rgb(128,128,128)" stop-opacity="0"/><stop offset="1" stop-color="rgb(128,0,128)"/></linearGradient>'
-    + "</defs>"
+    + "<defs>" + rimGradient("l", true, false) + rimGradient("r", true, true)
+    + rimGradient("t", false, false) + rimGradient("b", false, true) + "</defs>"
     + `<rect width="${w}" height="${h}" fill="rgb(128,128,128)"/>`
-    + `<rect width="${bx}" height="${h}" fill="url(#l)"/>`
-    + `<rect x="${w - bx}" width="${bx}" height="${h}" fill="url(#r)"/>`
-    + `<rect width="${w}" height="${by}" fill="url(#t)"/>`
-    + `<rect y="${h - by}" width="${w}" height="${by}" fill="url(#b)"/>`
+    + `<rect width="${r}" height="${h}" fill="url(#l)"/>`
+    + `<rect x="${w - r}" width="${r}" height="${h}" fill="url(#r)"/>`
+    + `<rect width="${w}" height="${r}" fill="url(#t)"/>`
+    + `<rect y="${h - r}" width="${w}" height="${r}" fill="url(#b)"/>`
     + "</svg>";
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
@@ -574,31 +589,32 @@ function buildLens(el) {
   const img = document.createElementNS(SVG_NS, "feImage");
   img.setAttribute("result", "map");
   img.setAttribute("preserveAspectRatio", "none");
+  const disp = document.createElementNS(SVG_NS, "feDisplacementMap");
+  disp.setAttribute("in", "SourceGraphic");
+  disp.setAttribute("in2", "map");
+  disp.setAttribute("xChannelSelector", "R");
+  disp.setAttribute("yChannelSelector", "G");
+  disp.setAttribute("result", "bent");
+  // a light frost after the bend (2-3px), so the bend stays visible; the fill does the rest
   const blur = document.createElementNS(SVG_NS, "feGaussianBlur");
-  blur.setAttribute("in", "SourceGraphic");
+  blur.setAttribute("in", "bent");
   blur.setAttribute("result", "soft");
   const sat = document.createElementNS(SVG_NS, "feColorMatrix");
   sat.setAttribute("in", "soft");
   sat.setAttribute("type", "saturate");
-  sat.setAttribute("values", "1.5");
-  sat.setAttribute("result", "sat");
-  const disp = document.createElementNS(SVG_NS, "feDisplacementMap");
-  disp.setAttribute("in", "sat");
-  disp.setAttribute("in2", "map");
-  disp.setAttribute("xChannelSelector", "R");
-  disp.setAttribute("yChannelSelector", "G");
-  f.append(img, blur, sat, disp);
+  sat.setAttribute("values", "1.4");
+  f.append(img, disp, blur, sat);
   lgDefsHost().append(f);
-  let w = 0, h = 0, power = 1;
-  const target = () => ({ scale: Math.max(16, Math.min(26, h * 0.45)), blur: h > 80 ? 10 : 7 });
+  let w = 0, h = 0, power = 1, ready = false;
+  const target = () => ({ scale: Math.min(8, h * 0.14), blur: h > 80 ? 3 : 2.5 });
   function paint() {
     const t = target();
     disp.setAttribute("scale", (t.scale * power).toFixed(2));
-    blur.setAttribute("stdDeviation", (t.blur * Math.max(power, 0.15)).toFixed(2));
+    blur.setAttribute("stdDeviation", t.blur.toFixed(2));
   }
   function size() {
     const nw = Math.round(el.offsetWidth), nh = Math.round(el.offsetHeight);
-    if (!nw || !nh || (nw === w && nh === h)) return;
+    if (!nw || !nh || (nw === w && nh === h)) return ready;
     w = nw; h = nh;
     for (const node of [f, img]) {
       node.setAttribute("x", "0");
@@ -608,9 +624,11 @@ function buildLens(el) {
     }
     img.setAttribute("href", lensMap(w, h));
     paint();
+    // Point the backdrop at the filter only once it has a real size and map: an empty filter
+    // would draw no backdrop at all.
+    if (!ready) { ready = true; el.style.setProperty("--lg-filter", `url(#${id})`); }
+    return ready;
   }
-  size();
-  el.style.setProperty("--lg-filter", `url(#${id})`);
   let ramp;
   function to(end, ms) {
     cancelAnimationFrame(ramp);
@@ -625,50 +643,38 @@ function buildLens(el) {
     };
     ramp = requestAnimationFrame(step);
   }
-  return { id, size, to, set(p) { cancelAnimationFrame(ramp); power = p; paint(); } };
+  return { id, size, to, set(p) { cancelAnimationFrame(ramp); power = p; paint(); }, get ready() { return ready; } };
 }
 
-// One pointer listener for every tracked surface: the highlight leans toward the pointer while it
-// is within 200px, and drifts back to the top-left light source when it leaves.
-const tracked = new Set();
-let pointerQueued = false;
-let lastPointer = null;
-function onPointer(event) {
-  lastPointer = event;
-  if (pointerQueued) return;
-  pointerQueued = true;
-  requestAnimationFrame(() => {
-    pointerQueued = false;
-    const p = lastPointer;
-    for (const el of tracked) {
-      const r = el.getBoundingClientRect();
-      const near = p.clientX > r.left - 200 && p.clientX < r.right + 200 && p.clientY > r.top - 200 && p.clientY < r.bottom + 200;
-      if (near) {
-        el.style.setProperty("--lx", px(p.clientX - r.left));
-        el.style.setProperty("--ly", px(p.clientY - r.top));
-      } else {
-        el.style.removeProperty("--lx");
-        el.style.removeProperty("--ly");
-      }
-    }
-  });
-}
-let pointerBound = false;
-function bindPointer() {
-  if (pointerBound) return;
-  pointerBound = true;
-  window.addEventListener("pointermove", onPointer, { passive: true });
-}
+const idle = (fn, timeout) => ("requestIdleCallback" in window
+  ? requestIdleCallback(fn, { timeout })
+  : setTimeout(fn, Math.min(timeout, 600)));
 
-export function liquid(el, { lens, track = true, press = true, under = '[data-under="text"]', materialize: enter = false } = {}) {
-  if (!el) return { refresh() {}, materialize() {}, vanish() {} };
+export function liquid(el, { lens, press = true, swell = true, ramp = false, under = '[data-under="text"]', materialize: enter = false, after = 700 } = {}) {
+  if (!el) return { lens: null, refresh() {}, materialize() {}, vanish() {} };
   el.classList.add("e-liquid");
+  if (!swell) el.classList.add("no-swell");
   const wantsLens = lens === undefined ? el.classList.contains("lens") : lens;
   if (wantsLens) el.classList.add("lens");
-  const fine = window.matchMedia("(hover: hover) and (pointer: fine)");
-  const glass = wantsLens && lensOn() ? buildLens(el) : null;
+  else el.classList.remove("lens");
+  let glass = null;
 
-  if (track && fine.matches && !reducedMotion()) { tracked.add(el); bindPointer(); }
+  // The lens waits for the entrance to finish and the browser to be idle, then for a real size.
+  function build() {
+    if (glass || !wantsLens || !lensOn()) return;
+    glass = buildLens(el);
+    if (ramp) glass.set(0);
+    if (glass.size() && ramp) glass.to(1, 380);
+    if ("ResizeObserver" in window) {
+      let t;
+      new ResizeObserver(() => {
+        clearTimeout(t);
+        const first = !glass.ready;
+        t = setTimeout(() => { if (glass.size() && first && ramp) glass.to(1, 380); }, first ? 0 : 120);
+      }).observe(el);
+    }
+  }
+  if (wantsLens && lensOn()) setTimeout(() => idle(build, 800), reducedMotion() ? 0 : after);
 
   if (press) {
     const down = (event) => {
@@ -702,13 +708,8 @@ export function liquid(el, { lens, track = true, press = true, under = '[data-un
   window.addEventListener("resize", overSoon);
   over();
 
-  let sizeTimer;
-  if (glass && "ResizeObserver" in window) {
-    new ResizeObserver(() => { clearTimeout(sizeTimer); sizeTimer = setTimeout(glass.size, 120); }).observe(el);
-  }
-
   function materialize() {
-    if (glass) { glass.set(0); glass.to(1, 380); }
+    if (glass) { glass.size(); glass.set(0); glass.to(1, 380); }
     el.classList.remove("is-materialising");
     void el.offsetWidth;
     el.classList.add("is-materialising");
@@ -717,5 +718,10 @@ export function liquid(el, { lens, track = true, press = true, under = '[data-un
   }
   function vanish(ms = 200) { if (glass) glass.to(0, ms); }
   if (enter) materialize();
-  return { lens: glass, refresh() { if (glass) glass.size(); over(); }, materialize, vanish };
+  return {
+    get lens() { return glass; },
+    refresh() { if (glass) glass.size(); else build(); over(); },
+    materialize,
+    vanish,
+  };
 }

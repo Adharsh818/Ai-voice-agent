@@ -284,6 +284,8 @@ body.transcript-leaving .transcript p { opacity: 0; transition: opacity 400ms va
 
 /* ------------------------------------------------------------------ the dock: pill bar (B2 + B3) and the typed box */
 .dock {
+  --dock-glow: var(--t-idle);
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -291,6 +293,25 @@ body.transcript-leaving .transcript p { opacity: 0; transition: opacity 400ms va
   width: min(100%, 640px);
   margin-top: 12px;
 }
+/* Something real for the lens to bend: the orb's state colour pools softly under the call bar
+   and the typed box (the page itself stays white). */
+.dock::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  width: min(520px, 100%);
+  height: 132px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--dock-glow) 36%, transparent), color-mix(in srgb, var(--dock-glow) 14%, transparent) 55%, transparent);
+  pointer-events: none;
+}
+body[data-call="listening"] .dock { --dock-glow: var(--t-listening); }
+body[data-call="speaking"] .dock { --dock-glow: var(--t-speaking); }
+body:is([data-call="thinking"], .is-pending) .dock { --dock-glow: var(--t-thinking); }
+body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-call="error"]) .dock { --dock-glow: var(--t-problem); }
 .cta {
   --bubble-fill: var(--blue);
   --bubble-fill-hover: var(--blue-hover);

@@ -154,3 +154,6 @@ html.js body.signin:not(.is-ready) .signin-column { opacity: 0.6; transform: tra
   .signin-column { transition: opacity 200ms linear !important; }
   html.js body.signin:not(.is-ready) .signin-column { transform: none; }
 }
+
+/* Liquid Glass: on this still page the capsule's shadow stays quiet (2px, 8px, 5%) */
+body.signin .e-capsule.e-liquid { --lg-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); }
