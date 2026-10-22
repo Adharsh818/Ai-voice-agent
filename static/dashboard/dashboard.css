@@ -1289,9 +1289,12 @@ li.loading { list-style: none; padding: 40px 16px; }
   display: grid;
   grid-template-rows: 0fr;
   padding: 0 16px;
-  transition: grid-template-rows 300ms var(--ease-layout), padding 300ms var(--ease-layout);
+  overflow: hidden;
+  /* once closed it is hidden outright, so no sliver of a chip can show */
+  visibility: hidden;
+  transition: grid-template-rows 300ms var(--ease-layout), padding 300ms var(--ease-layout), visibility 0s linear 300ms;
 }
-.call-switcher.is-shown { grid-template-rows: 1fr; padding-top: 12px; }
+.call-switcher.is-shown { grid-template-rows: 1fr; padding-top: 12px; visibility: visible; transition-delay: 0s; }
 .call-switcher-in { min-height: 0; overflow: hidden; display: flex; flex-wrap: wrap; gap: 6px; }
 .call-switcher .chip { min-height: 32px; }
 .transcript { padding-bottom: 24px; transition: padding-bottom 320ms var(--ease-out); }
@@ -1691,7 +1694,7 @@ li.loading { list-style: none; padding: 40px 16px; }
   .more-sheet .side-item.danger .ico { color: var(--red-ink); }
 
   /* "‹ Calls" back: the 17px nav-bar style with a 44px target. */
-  .detail-back { position: relative; min-height: 44px; font-size: 17px; letter-spacing: -0.022em; padding: 0 8px; }
+  #view-calls .detail-back { position: relative; min-height: 44px; font-size: 17px; letter-spacing: -0.022em; padding: 0 8px; }
 
   /* Day view with several doctors: a strip of columns that snaps one doctor at a time, the
      hour labels pinned at the left. */
