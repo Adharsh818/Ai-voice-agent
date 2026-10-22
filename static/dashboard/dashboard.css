@@ -500,10 +500,6 @@ body.dash { background: var(--canvas); min-height: 100vh; }
   gap: 8px;
   align-items: center;
   padding: 10px 12px;
-  border-top: 1px solid var(--hairline-soft);
-  background: var(--glass-bar);
-  -webkit-backdrop-filter: var(--glass-filter);
-  backdrop-filter: var(--glass-filter);
 }
 .compose-input {
   flex: 1;
@@ -990,8 +986,6 @@ body.dash { background: var(--canvas); min-height: 100vh; }
     height: var(--tab-h);
     padding: 4px;
     border-radius: 32px;
-    background: rgba(255, 255, 255, 0.8);
-    box-shadow: 0 0 0 1px var(--glass-capsule-ring);
   }
   .tab-item {
     position: relative;
@@ -1301,6 +1295,8 @@ li.loading { list-style: none; padding: 40px 16px; }
 .chat.composing .transcript { padding-bottom: 116px; }
 /* The compose dock floats over the bottom of the conversation: it rises 12px and fades in
    (320ms) when staff take over, and leaves in 200ms when they hand back. */
+/* The dock itself only shows and hides; its children do the motion. An opacity on the dock would
+   make it the backdrop root of the glass inside it (LG30), and the lens would see nothing. */
 .compose-dock {
   position: absolute;
   left: 0;
@@ -1308,34 +1304,26 @@ li.loading { list-style: none; padding: 40px 16px; }
   bottom: 0;
   z-index: 2;
   padding: 0 12px 12px;
-  opacity: 0;
-  transform: translateY(12px);
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 200ms var(--ease), transform 200ms var(--ease), visibility 0s linear 200ms;
+  transition: visibility 0s linear 200ms;
 }
-.chat.composing .compose-dock {
-  opacity: 1;
-  transform: none;
-  visibility: visible;
-  pointer-events: auto;
-  transition: opacity 320ms var(--ease-out), transform 320ms var(--ease-out), visibility 0s;
-}
+.chat.composing .compose-dock { visibility: visible; pointer-events: auto; transition: visibility 0s; }
+.compose-dock > * { opacity: 0; transform: translateY(12px); transition: opacity 200ms var(--ease), transform 200ms var(--ease); }
+.chat.composing .compose-dock > * { opacity: 1; transform: none; transition: opacity 320ms var(--ease-out), transform 320ms var(--ease-out); }
 .compose-note { margin: 0 0 8px; text-align: center; font-size: 12px; line-height: 16px; color: var(--blue); font-weight: 600; letter-spacing: -0.01em; }
 .compose {
-  padding: 6px 6px 6px 6px;
+  --r-outer: 28px;
+  --inset: 6px;
+  padding: var(--inset);
   border: 0;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.8);
-  -webkit-backdrop-filter: var(--glass-filter);
-  backdrop-filter: var(--glass-filter);
-  box-shadow: 0 0 0 1px var(--glass-capsule-ring);
+  border-radius: var(--r-outer);
 }
 .compose-input {
   height: 44px;
   padding: 0 16px;
   border: 1px solid var(--hairline);
-  border-radius: 22px;
+  border-radius: var(--r-inner, 22px);
   font-size: 15px;
   outline: none;
 }
@@ -1704,4 +1692,122 @@ li.loading { list-style: none; padding: 40px 16px; }
   .tgrid.many .hours { position: sticky; left: 0; z-index: 6; background: var(--canvas); }
   .tgrid.many .tgrid-head > .col-head:first-child { left: 0; z-index: 7; }
   .tgrid.many .tgrid-head > .col-head:first-child { position: sticky; }
+}
+
+/* ==================================================================
+   Liquid Glass on the dashboard (docs/APPLE_DESIGN_PLAN.md 13, map F).
+   - Lens (real refraction, Chromium): only the phone tab bar and the Live call input bar, both
+     small floating bars (.e-liquid.lens, wired by liquid() in dashboard.js). At most two on screen.
+   - Rim and blur only (the LG tokens, no lens): the sidebar, toolbars once stuck, sheets and the
+     alert, toasts, segmented platters that sit on the page, the floating "Jump to latest" pill and
+     the phone More menu. These use the tokens directly rather than .e-liquid, because .e-liquid
+     brings its own transition list, which would replace the sheets' open and close motion.
+   - Never: Today tiles, calendar cells and events, bubbles, tables, lists, fields, and nothing
+     glass inside glass (LG18): a segmented control in a glass toolbar, the buttons in a sheet and
+     the items of a bar stay flat fills.
+   ================================================================== */
+
+/* Lens 1: the phone tab bar. Ring kept as its outer edge (B1); no drop shadow (round 1 review). */
+.tabbar.e-liquid {
+  --lg-surface: rgba(255, 255, 255, 0.72);
+  --lg-ring: 0 0 0 1px var(--glass-capsule-ring);
+  --lg-shadow: 0 0 0 transparent;
+  --r-outer: 32px;
+  --inset: 4px;
+}
+.tabbar.e-liquid.over-text { --lg-surface: var(--lg-fill-dense); }
+.tabbar .tab-item { border-radius: var(--r-inner); }      /* concentric: 32 - 4 = 28 */
+
+/* Lens 2: the Live call input bar, always over the transcript (dense fill, deeper shadow). */
+.compose.e-liquid {
+  --lg-ring: 0 0 0 1px var(--glass-capsule-ring);
+  transition: --lg-glow-a 400ms ease-out, box-shadow 300ms var(--ease), filter 200ms ease-out,
+    opacity 200ms var(--ease), transform 200ms var(--ease);
+}
+.chat.composing .compose.e-liquid {
+  transition: --lg-glow-a 400ms ease-out, box-shadow 300ms var(--ease), filter 200ms ease-out,
+    opacity 320ms var(--ease-out), transform 320ms var(--ease-out);
+}
+
+/* Rim and blur: the sidebar. A large surface: denser fill, no lens, never flips (LG15/16). */
+.sidebar.lg-side {
+  background: rgba(246, 246, 248, 0.78);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.75);
+}
+
+/* Rim and blur: a toolbar once stuck keeps the B15 keyline and gains a lit lower rim. */
+.view-bar.stuck { box-shadow: 0 1px 0 rgba(0, 0, 0, 0.16), inset 0 -1px 0 rgba(255, 255, 255, 0.55); }
+
+/* Rim and blur: sheets and the alert. Bigger glass reads thicker (LG16): denser fill, deeper
+   shadow. The fill stays at .9 so body text keeps full contrast. */
+.dash-sheet .e-sheet {
+  background: rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-rim), var(--lg-ring), 0 18px 50px rgba(0, 0, 0, 0.14);
+}
+.dash-sheet .e-sheet-handle { background: rgba(255, 255, 255, 0.9); }
+.dash-sheet .book-foot { background: rgba(255, 255, 255, 0.96); }
+
+/* Rim and blur: toasts (B5 pop-in kept). */
+.dash .toast-pill {
+  background: var(--lg-fill-dense);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-rim), var(--lg-ring), var(--lg-drop);
+}
+.dash .toast-pill.urgent { box-shadow: inset 0 0 0 1.5px var(--red), var(--lg-rim), var(--lg-drop-over-text); }
+
+/* Rim and blur: segmented platters that sit on the page (Tasks, Calls, the list scope). The one
+   inside the Calendar toolbar stays a flat fill: no glass on glass. */
+.view-tools .e-tabnav, .cal-filters .e-tabnav {
+  background: rgba(232, 232, 237, 0.62);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-rim), var(--lg-ring);
+}
+
+/* Rim and blur: "Jump to latest" floats over the transcript (over text: deeper shadow). */
+.jump.glass-pill {
+  background: var(--lg-fill-dense);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-rim), var(--lg-ring), var(--lg-drop-over-text);
+}
+
+/* Rim and blur: the phone More menu; its rows follow the concentric inner radius (22 - 8). */
+@media (max-width: 734px) {
+  .more-sheet.lg-panel:not([hidden]) {
+    --r-outer: 22px;
+    --inset: 8px;
+    background: var(--lg-fill-dense);
+    -webkit-backdrop-filter: var(--lg-blur);
+    backdrop-filter: var(--lg-blur);
+    box-shadow: var(--lg-rim), 0 0 0 1px var(--glass-capsule-ring), var(--lg-drop);
+  }
+  .more-sheet .side-item { border-radius: var(--r-inner); }
+  .more-sheet .side-item.danger { border-radius: 0 0 var(--r-inner) var(--r-inner); }
+}
+
+/* Less transparency: every glass surface here turns solid, with a hairline edge. */
+@media (prefers-reduced-transparency: reduce) {
+  .sidebar.lg-side, .view-bar.stuck, .dash-sheet .e-sheet, .dash .toast-pill, .view-tools .e-tabnav,
+  .cal-filters .e-tabnav, .jump.glass-pill, .more-sheet.lg-panel:not([hidden]) {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .sidebar.lg-side { background: #f6f6f8; box-shadow: none; }
+  .view-bar.stuck { background-color: var(--canvas-index); }
+  .dash-sheet .e-sheet, .dash .toast-pill, .jump.glass-pill, .more-sheet.lg-panel:not([hidden]) { background: #fff; box-shadow: 0 0 0 1px var(--hairline); }
+  .view-tools .e-tabnav, .cal-filters .e-tabnav { background: var(--solid-rest); box-shadow: none; }
+}
+/* More contrast: opaque fills and a clear edge. */
+@media (prefers-contrast: more) {
+  .sidebar.lg-side { background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: inset -1px 0 0 var(--ink-3); }
+  .dash-sheet .e-sheet, .dash .toast-pill, .jump.glass-pill, .more-sheet.lg-panel:not([hidden]) {
+    background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 0 0 1px var(--ink-3);
+  }
+  .view-bar.stuck { background-color: #fff; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 1px 0 var(--ink-3); }
 }

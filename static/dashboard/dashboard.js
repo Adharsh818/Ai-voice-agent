@@ -9,7 +9,7 @@
 // clinic's timezone, whatever the browser's is.
 
 import {
-  reveal, replay, cardHover, toast as glassToast, tabnav, sheet, popIn, spinner, accordion,
+  reveal, replay, cardHover, toast as glassToast, tabnav, sheet, popIn, spinner, accordion, liquid,
 } from "/static/ui/emma-ui.js";
 
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -744,6 +744,7 @@ function callerText(st) {
   return [name, phone].filter(Boolean).join(" · ") || (st.callId ? "Not given yet" : "–");
 }
 
+let composeGlass = null;
 let renderedLineCount = 0;
 let renderedFor = null;
 let typingShown = false;
@@ -771,6 +772,8 @@ function renderLive() {
   $("op-takeover").inert = live.operator;
   $("op-handback").inert = !live.operator;
   const composing = active && live.operator;
+  // The input bar is Liquid Glass with a lens: it materializes (the lensing ramps up) as it arrives.
+  if (composing && !$("live-chat").classList.contains("composing") && composeGlass) composeGlass.materialize();
   $("live-chat").classList.toggle("composing", composing);
   $("compose-dock").inert = !composing;
 
@@ -2852,6 +2855,12 @@ async function start() {
   // B17: disclosures open and close with a height change and a turning chevron.
   accordion($("live-timings"));
   accordion($("window-acc"));
+  // Liquid Glass (docs/APPLE_DESIGN_PLAN.md 13, F): a real lens only on the two small floating
+  // bars, the phone tab bar and the Live call input bar; every other floating surface is rim and
+  // blur only (dashboard.css). Both are bars, so no press swell or glow on them (only single
+  // controls get that), and no pointer-following highlight: the fixed top-left one only.
+  liquid($("tabbar"), { lens: true, track: false, press: false });
+  composeGlass = liquid($("op-form"), { lens: true, track: false, press: false, under: null });
   await refreshOverview();
   try { await loadCatalog(); } catch (err) { toast(err.message, "error"); }
   loadMe();
