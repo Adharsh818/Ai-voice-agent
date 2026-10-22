@@ -11,7 +11,7 @@ const group = document.getElementById("field-group");
 
 const username = document.getElementById("username");
 
-// The mark lands, then eases to its small size as the ring and the form fade in (B20). This
+// The mark lands, then eases to its small size as the form settles (B20). This
 // starts on the first frame and never waits for the network, so the page reads within ~500ms.
 function ready() {
   void document.body.offsetWidth;          // commit the start state, then transition from it

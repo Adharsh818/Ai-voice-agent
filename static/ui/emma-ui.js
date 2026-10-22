@@ -315,20 +315,32 @@ export function flip(container, { selector = ":scope > :not(.e-bubble)", duratio
 }
 
 // B2: a materialising pill bar. Keeps --bar-w at the bar's width so the shared glass glides to a
-// new size, holds a pill that is being hidden for a 200ms fade-out before it leaves the layout,
-// and marks the bar settled once its entrance has played.
+// new size. A pill that is hidden is lifted out of the layout at the spot where it was drawn and
+// fades out there (200ms), so the other pills take their final places at once and never squeeze.
+// The bar is marked settled once its entrance has played.
 export function materialise(bar) {
   if (!bar) return;
-  setTimeout(() => bar.classList.add("is-settled"), reducedMotion() ? 0 : 1100);
-  const width = () => bar.style.setProperty("--bar-w", px(bar.offsetWidth));
-  width();
-  if ("ResizeObserver" in window) new ResizeObserver(width).observe(bar);
+  setTimeout(() => bar.classList.add("is-settled"), reducedMotion() ? 0 : 900);
+  const where = new WeakMap();
+  const measure = () => {
+    bar.style.setProperty("--bar-w", px(bar.offsetWidth));
+    for (const c of bar.children) if (!c.hidden && c.offsetParent) where.set(c, { x: c.offsetLeft, y: c.offsetTop });
+  };
+  measure();
+  if ("ResizeObserver" in window) {
+    const sizes = new ResizeObserver(measure);
+    sizes.observe(bar);
+    [...bar.children].forEach((c) => sizes.observe(c));
+  }
   const shown = new Set([...bar.children].filter((c) => !c.hidden));
   new MutationObserver((records) => {
     for (const r of records) {
       const el = r.target;
       if (r.attributeName !== "hidden" || el.parentElement !== bar) continue;
-      if (el.hidden && shown.has(el) && !reducedMotion() && bar.classList.contains("is-settled")) {
+      const at = where.get(el);
+      if (el.hidden && shown.has(el) && at && !reducedMotion() && bar.classList.contains("is-settled")) {
+        el.style.setProperty("--leave-x", px(at.x));
+        el.style.setProperty("--leave-y", px(at.y));
         el.classList.add("is-leaving");
         clearTimeout(el._leave);
         el._leave = setTimeout(() => el.classList.remove("is-leaving"), 200);
