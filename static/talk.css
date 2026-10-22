@@ -45,7 +45,7 @@ body.talk {
   grid-template-rows: minmax(0, 1fr) auto auto auto minmax(var(--tr-min), max-content) minmax(0, 0.7fr) auto;
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
-  padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
+  padding: 8px 16px calc(32px + env(safe-area-inset-bottom));   /* the pass rides 32px up (P5) */
   overflow: clip;
   text-align: center;
 }
@@ -88,11 +88,14 @@ body.talk {
 /* one fades out (160ms), then the other fades in (after 180ms), so the two never overlap */
 body[data-view="status"] .hero { opacity: 0; pointer-events: none; transition-delay: 0ms; }
 body[data-view="status"] .call-status { opacity: 1; transition: opacity 240ms var(--ease-out) 180ms; }
+/* the status words cross-fade: out 120ms, in 200ms (talk.js holds each for at least 700ms) */
+.status-text { display: inline-block; transition: opacity 200ms var(--ease-out); }
+.status-text.is-out { opacity: 0; transition: opacity 120ms var(--ease); }
 
 /* entrance: on the first frame, no observers, readable within ~500ms */
-.hero > * { animation: talk-rise 480ms var(--ease-out) backwards; }
-.hero-sub { animation-delay: 60ms; }
-#orb { animation: talk-in 480ms var(--ease-out) 80ms backwards; }
+.hero > * { animation: talk-rise 380ms var(--ease-out) backwards; }
+.hero-sub { animation-delay: 40ms; }
+#orb { animation: talk-in 380ms var(--ease-out) 60ms backwards; }
 @keyframes talk-rise { from { opacity: 0.6; transform: translateY(10px); } }   /* text reads from the first frame */
 @keyframes talk-in { from { opacity: 0; transform: translateY(10px); } }
 
@@ -191,6 +194,8 @@ body.is-pending #orb .ring { opacity: 0.8; animation-play-state: running; transi
 #orb[data-state="connecting"] .orb-spinner { opacity: 1; animation-play-state: running; transition: opacity 200ms var(--ease) 300ms; }
 
 #orb[data-state="idle"], #orb[data-state="connecting"] { --tint: var(--t-idle); }
+#orb[data-state="connecting"] .core { animation: connect-pulse 1.6s var(--ease) infinite; }   /* a gentle "calling" pulse */
+@keyframes connect-pulse { 50% { transform: scale(0.95); } }
 #orb[data-state="idle"]:hover .core { transform: scale(0.95); }
 #orb[data-state="listening"] { --tint: var(--t-listening); }
 #orb[data-state="listening"] .halo { animation: breathe 4s var(--ease) infinite; }
@@ -261,8 +266,8 @@ body.is-pending .e-meter, body[data-call="thinking"] .e-meter { --meter-ink: rgb
   transition: opacity 150ms var(--ease);
 }
 .line-emma.is-out { opacity: 0; }
-.line-emma.is-new { animation: line-in 500ms var(--ease-caption) both; }
-.line-caller.is-new { animation: line-in 400ms var(--ease-caption) both; }
+.line-emma.is-new { animation: line-in 500ms var(--ease-caption) backwards; }
+.line-caller.is-new { animation: line-in 400ms var(--ease-caption) backwards; }
 .line-emma.notice, .line-emma.error {
   color: var(--ink-2);
   font-family: var(--font-text);
@@ -291,7 +296,9 @@ body.call-ended .transcript p { opacity: 0.55; transition: opacity 400ms var(--e
   --bubble-fill-active: var(--blue-active);
   flex: none;
 }
-.cta > button { min-width: 112px; }
+.cta > button { min-width: 112px; transition: color 200ms var(--ease-label), background-color 100ms linear, opacity 200ms var(--ease-out); }
+/* a label that changes words cross-fades in place; it is never squeezed while the bubble resizes */
+.cta > button.label-out { opacity: 0; transition: opacity 110ms var(--ease); }
 body:is([data-call="connecting"], [data-call="listening"], [data-call="thinking"], [data-call="speaking"]) .cta {
   --bubble-fill: var(--end-call);
   --bubble-fill-hover: var(--end-call-hover);
@@ -318,6 +325,8 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
   animation: pill-in 360ms var(--ease-out) 80ms backwards;
 }
 .typed[hidden] { display: none; }
+/* at the end of a call the box fades out (200ms) before it leaves, then the bar glides back */
+.typed[hidden].is-leaving { display: flex !important; pointer-events: none; animation: e-fade-out 200ms ease-out forwards; }
 .typed:focus-within { background: var(--glass-pass-hover); }
 .typed input {
   flex: 1;
@@ -393,6 +402,7 @@ body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-cal
   #orb[data-state="thinking"] .ring, body.is-pending #orb .ring { opacity: 0.5; }
   .hero > *, #orb, .typed { animation: none; }
   .line-emma.is-new, .line-caller.is-new { animation: none; }
-  .hero, .call-status, .line-emma, .transcript .e-blur-scrim { transition: opacity 200ms linear !important; }
+  .hero, .call-status, .line-emma, .transcript .e-blur-scrim, .status-text, .cta > button { transition: opacity 200ms linear !important; }
+  .typed[hidden].is-leaving { display: none !important; }
   .e-meter > i { width: 8px !important; }
 }

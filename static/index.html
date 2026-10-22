@@ -28,7 +28,7 @@
         <h1 class="hero-title">Emma.</h1>
         <p class="hero-sub">Pearl Dental's front desk.</p>
       </div>
-      <p class="call-status" id="call-status" aria-hidden="true"></p>
+      <p class="call-status" id="call-status" aria-hidden="true"><span class="status-text" id="status-text"></span></p>
     </div>
 
     <button id="orb" data-state="idle" aria-label="Start call" aria-pressed="false">
@@ -43,13 +43,14 @@
     <div class="meter-slot" aria-hidden="true"><span class="e-meter" id="level-meter"></span></div>
 
     <!-- What was said: the caller's last line above, Emma's line below. app.js writes the live
-         caption into #caption (read by screen readers); talk.js draws it here. -->
-    <div class="transcript" id="transcript" aria-hidden="true">
-      <span class="e-blur-scrim soft"></span>
-      <p class="line-caller" id="line-caller"></p>
-      <p class="line-emma" id="line-emma"></p>
+         caption into #caption, which stays out of sight and out of the accessibility tree; talk.js
+         draws it here, and Emma's line is the one live region screen readers hear. -->
+    <div class="transcript" id="transcript">
+      <span class="e-blur-scrim soft" aria-hidden="true"></span>
+      <p class="line-caller" id="line-caller" aria-hidden="true"></p>
+      <p class="line-emma" id="line-emma" aria-live="polite"></p>
     </div>
-    <div class="sr-only"><p id="caption" aria-live="polite"></p></div>
+    <div class="caption-source" hidden><p id="caption"></p></div>
 
     <div class="dock" id="dock">
       <div class="cta e-pillbar e-bubbles" id="call-bar">

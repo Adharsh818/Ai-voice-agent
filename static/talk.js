@@ -13,7 +13,7 @@ const orb = document.getElementById("orb");
 const callButton = document.getElementById("call-button");
 const typeInstead = document.getElementById("type-instead");
 const action = document.getElementById("action");
-const status = document.getElementById("call-status");
+const statusText = document.getElementById("status-text");
 const caption = document.getElementById("caption");
 const transcript = document.getElementById("transcript");
 const callerLine = document.getElementById("line-caller");
@@ -25,7 +25,7 @@ const dock = document.getElementById("dock");
 
 const IN_CALL = ["connecting", "listening", "thinking", "speaking"];
 const STATUS = {
-  connecting: "Calling Pearl Dental…",
+  connecting: "Calling Emma…",
   listening: "Emma is listening",
   thinking: "One moment…",
   speaking: "Emma is speaking",
@@ -33,30 +33,102 @@ const STATUS = {
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // The call button already does what the orb does, so the orb is for pointers only: one
-// "End call" for screen readers, not two.
-orb.setAttribute("aria-hidden", "true");
+// "End call" for screen readers, not two. app.js names the orb on every state change, so the
+// name is taken off again each time.
+function quietOrb() {
+  orb.setAttribute("aria-hidden", "true");
+  orb.setAttribute("role", "presentation");
+  if (orb.hasAttribute("aria-label")) orb.removeAttribute("aria-label");
+  if (orb.hasAttribute("aria-pressed")) orb.removeAttribute("aria-pressed");
+}
 orb.tabIndex = -1;
+quietOrb();
+new MutationObserver(quietOrb).observe(orb, { attributes: true, attributeFilter: ["aria-label", "aria-pressed"] });
 
 let state = "idle";
 let pending = false;
-let pendingTimer;
+let pendingSince = 0;
+let pendingTimer, pendingShowTimer;
 let endedTimer;
 
+// The status headline: each wording is held for at least 700ms (a newer one waits, and one that
+// is superseded before its turn never shows), and the words cross-fade: out 120ms, in 200ms.
+const HOLD_MS = 700;
+let shownStatus = "";
+let wantedStatus = "";
+let lastSwap = -HOLD_MS;
+let statusTimer, swapTimer;
+function setStatus(text) {
+  wantedStatus = text;
+  clearTimeout(statusTimer);
+  if (text === shownStatus) { clearTimeout(swapTimer); statusText.classList.remove("is-out"); return; }
+  // Out of sight (the hero is showing): change at once, so a call opens on the right words.
+  if (body.dataset.view !== "status" || !shownStatus) { put(text); return; }
+  statusTimer = setTimeout(swap, Math.max(0, lastSwap + HOLD_MS - performance.now()));
+}
+function put(text) {
+  clearTimeout(swapTimer);
+  statusText.textContent = text;
+  statusText.classList.remove("is-out");
+  shownStatus = text;
+  lastSwap = performance.now();
+}
+function swap() {
+  const text = wantedStatus;
+  if (text === shownStatus) return;
+  if (reduced()) { put(text); return; }
+  statusText.classList.add("is-out");
+  clearTimeout(swapTimer);
+  swapTimer = setTimeout(() => put(wantedStatus), 120);
+}
+
 function updateStatus() {
-  if (body.classList.contains("call-ended")) status.textContent = "Call ended";
-  else if (pending && IN_CALL.includes(state) && state !== "speaking") status.textContent = STATUS.thinking;
-  else if (STATUS[state]) status.textContent = STATUS[state];
   const inCall = IN_CALL.includes(state);
-  body.dataset.view = inCall || body.classList.contains("call-ended") ? "status" : "hero";
+  const view = inCall || body.classList.contains("call-ended") ? "status" : "hero";
+  // "One moment…" only once Emma has been working for 700ms: a quick reply never flashes it.
+  const working = pending && inCall && state !== "speaking" && performance.now() - pendingSince >= HOLD_MS;
+  let text = "";
+  if (body.classList.contains("call-ended")) text = "Call ended";
+  else if (working) text = STATUS.thinking;
+  else if (state === "thinking") text = STATUS.listening;
+  else text = STATUS[state] || "";
+  if (view === "hero") body.dataset.view = view;
+  if (text) setStatus(text);
+  body.dataset.view = view;
 }
 
 // "Emma is working on it": from the caller's line until her reply (or 15 s, or the call ends).
+// The orb and the meter show it after 320ms; the words only after 700ms.
 function setPending(on) {
+  if (on && pending) return;
   pending = on;
   body.classList.toggle("is-pending", on);
   clearTimeout(pendingTimer);
-  if (on) pendingTimer = setTimeout(() => setPending(false), 15000);
+  clearTimeout(pendingShowTimer);
+  if (on) {
+    pendingSince = performance.now();
+    pendingTimer = setTimeout(() => setPending(false), 15000);
+    pendingShowTimer = setTimeout(updateStatus, HOLD_MS + 10);
+  }
   updateStatus();
+}
+
+// The call button's words cross-fade in place, so its label is never squeezed while the
+// bubble changes size and colour underneath it.
+let labelTimer;
+function setCallLabel(text) {
+  clearTimeout(labelTimer);
+  if (callButton.textContent === text && !callButton.classList.contains("label-out")) return;
+  if (reduced() || !bar.classList.contains("is-settled")) {
+    callButton.textContent = text;
+    callButton.classList.remove("label-out");
+    return;
+  }
+  callButton.classList.add("label-out");
+  labelTimer = setTimeout(() => {
+    callButton.textContent = text;
+    callButton.classList.remove("label-out");
+  }, 110);
 }
 
 function clearTranscript() {
@@ -70,7 +142,7 @@ function apply(next, was) {
   state = next;
   body.dataset.call = next;
   const inCall = IN_CALL.includes(next);
-  callButton.textContent = inCall ? "End call" : "Call Emma";
+  setCallLabel(inCall ? "End call" : "Call Emma");
   if (next !== "idle") {
     clearTimeout(endedTimer);
     body.classList.remove("call-ended");
@@ -84,6 +156,7 @@ function apply(next, was) {
     clearTimeout(endedTimer);
     endedTimer = setTimeout(() => {
       body.classList.remove("call-ended");
+      shownStatus = "";
       updateStatus();
       setTimeout(() => { if (state === "idle" && !body.classList.contains("call-ended")) clearTranscript(); }, 400);
     }, 2400);
@@ -174,8 +247,21 @@ requestAnimationFrame(tick);
 capsuleNav(document.getElementById("talk-capsule"));
 materialise(bar);                   // before flip(), so a leaving pill is held before anything measures
 bubbles(bar);
-flip(bar, { duration: 200, easing: "ease-out" });
-flip(dock, { selector: ":scope > *" });
+flip(dock, { selector: ":scope > *" });   // only the bar as a whole glides; its labels cross-fade
+
+// At the end of a call the typed box fades out before it leaves the dock (then the bar glides).
+let typedShown = !typedForm.hidden;
+new MutationObserver(() => {
+  if (typedForm.hidden && typedShown && !reduced()) {
+    typedForm.classList.add("is-leaving");
+    clearTimeout(typedForm._leave);
+    typedForm._leave = setTimeout(() => typedForm.classList.remove("is-leaving"), 200);
+  } else if (!typedForm.hidden) {
+    clearTimeout(typedForm._leave);
+    typedForm.classList.remove("is-leaving");
+  }
+  typedShown = !typedForm.hidden;
+}).observe(typedForm, { attributes: true, attributeFilter: ["hidden"] });
 
 apply(orb.dataset.state || "idle", null);
 
