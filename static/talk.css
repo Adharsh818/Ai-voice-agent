@@ -300,7 +300,8 @@ body.transcript-leaving .transcript p { opacity: 0; transition: opacity 400ms va
 .cta > button { min-width: 112px; transition: color 200ms var(--ease-label), background-color 100ms linear, opacity 200ms var(--ease-out); }
 /* a label that changes words cross-fades in place; it is never squeezed while the bubble resizes */
 .cta > button.label-out { opacity: 0; transition: opacity 110ms var(--ease); }
-body:is([data-call="connecting"], [data-call="listening"], [data-call="thinking"], [data-call="speaking"]) .cta {
+/* red only once the words say "End call" (talk.js sets it with the label swap) */
+body.is-end-call .cta {
   --bubble-fill: var(--end-call);
   --bubble-fill-hover: var(--end-call-hover);
   --bubble-fill-active: var(--end-call-active);
