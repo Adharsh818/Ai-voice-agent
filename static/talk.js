@@ -118,17 +118,15 @@ function setPending(on) {
 let labelTimer;
 function setCallLabel(text) {
   clearTimeout(labelTimer);
-  if (callButton.textContent === text && !callButton.classList.contains("label-out")) return;
-  if (reduced() || !bar.classList.contains("is-settled")) {
+  const show = () => {
     callButton.textContent = text;
     callButton.classList.remove("label-out");
-    return;
-  }
+    body.classList.toggle("is-end-call", text === "End call");   // the colour changes with the words
+  };
+  if (callButton.textContent === text && !callButton.classList.contains("label-out")) return show();
+  if (reduced() || !bar.classList.contains("is-settled")) return show();
   callButton.classList.add("label-out");
-  labelTimer = setTimeout(() => {
-    callButton.textContent = text;
-    callButton.classList.remove("label-out");
-  }, 110);
+  labelTimer = setTimeout(show, 110);
 }
 
 function clearTranscript() {
