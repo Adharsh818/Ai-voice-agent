@@ -463,6 +463,8 @@ document.querySelectorAll(".side-item[data-tab]").forEach((item) => item.addEven
 document.querySelectorAll(".tab-item").forEach((item) => item.addEventListener("click", () => {
   if (item.dataset.tab === "more") {
     $("more-sheet").hidden = !$("more-sheet").hidden;
+    moreByPointer = !moreKeyboard;
+    moreKeyboard = false;
     return;
   }
   showTab(item.dataset.tab);
@@ -568,8 +570,14 @@ function addCaption(st, who, text, final, turn) {
   }
   st.interim = "";
   const last = st.lines[st.lines.length - 1];
-  if (last && last.who === "caller" && !last.closed) last.text = `${last.text} ${text}`;
-  else st.lines.push({ who: "caller", text, closed: false });
+  if (last && last.who === "caller" && !last.closed) { last.text = `${last.text} ${text}`; return; }
+  // The stored turn can arrive before its caption: don't show the same words twice.
+  const lastCaller = [...st.lines].reverse().find((l) => l.who === "caller");
+  if (lastCaller && lastCaller.committed && !lastCaller.captioned && norm(lastCaller.text).includes(norm(text))) {
+    lastCaller.captioned = true;
+    return;
+  }
+  st.lines.push({ who: "caller", text, closed: false, captioned: true });
 }
 
 const norm = (s) => String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -581,15 +589,23 @@ function isStaffLine(st, text) {
 // The caller's turn as Emma took it (the stored transcript). On the phone a turn often ends
 // before speech-to-text sends a final caption, so the caption alone left only a passing
 // "hearing…" line and the caller's words vanished from the conversation (owner's call, 14 Oct).
+// The stored turn usually lands after Emma has already started answering (her first caption
+// comes first), so it is matched to the caller's latest line that has no stored turn yet, not
+// only to the very last line: one message is one bubble.
 function commitCallerTurn(st, text) {
   st.interim = "";
-  const last = st.lines[st.lines.length - 1];
-  if (last && last.who === "caller") {
-    last.text = text;                 // the words Emma acted on replace the live caption
-    last.closed = true;
-    return;
+  for (let i = st.lines.length - 1; i >= 0; i -= 1) {
+    const line = st.lines[i];
+    if (line.who !== "caller") continue;
+    if (!line.committed) {
+      line.text = text;               // the words Emma acted on replace the live caption
+      line.closed = true;
+      line.committed = true;
+      return;
+    }
+    break;
   }
-  st.lines.push({ who: "caller", text, closed: true });
+  st.lines.push({ who: "caller", text, closed: true, committed: true });
 }
 
 function handleEvent(event) {
@@ -745,6 +761,7 @@ function callerText(st) {
 }
 
 let composeGlass = null;
+let tabGlass = null;
 let renderedLineCount = 0;
 let renderedFor = null;
 let typingShown = false;
@@ -773,7 +790,10 @@ function renderLive() {
   $("op-handback").inert = !live.operator;
   const composing = active && live.operator;
   // The input bar is Liquid Glass with a lens: it materializes (the lensing ramps up) as it arrives.
-  if (composing && !$("live-chat").classList.contains("composing") && composeGlass) composeGlass.materialize();
+  if (composing && !$("live-chat").classList.contains("composing")) {
+    if (composeGlass) composeGlass.materialize();
+    setTimeout(() => { const t = $("live-transcript"); t.scrollTop = t.scrollHeight; }, reducedMotion() ? 0 : 340);
+  }
   $("live-chat").classList.toggle("composing", composing);
   $("compose-dock").inert = !composing;
 
@@ -1093,7 +1113,10 @@ function paintToday() {
 // ------------------------------------------------------------------ appointments (Calendar)
 const VIEWS = ["day", "week", "month", "year", "list"];
 const appt = {
-  view: VIEWS.includes(recall("cal-view")) ? recall("cal-view") : "day",
+  view: (() => {
+    const stored = VIEWS.includes(recall("cal-view")) ? recall("cal-view") : "day";
+    return stored === "week" && window.matchMedia("(max-width: 734px)").matches ? "day" : stored;
+  })(),
   day: null, listScope: "upcoming", rows: [], slide: 0, hidden: new Set(JSON.parse(recall("cal-hidden") || "[]")), byDate: null,
 };
 const segmentPlacers = [];
@@ -1299,7 +1322,7 @@ function renderTimeGrid(daysList, mode) {
   }
 
   const today = clinicToday();
-  const grid = el("div", { class: `tgrid${mode === "doctors" && columns.length > 2 ? " many" : ""}` });
+  const grid = el("div", { class: `tgrid${mode === "doctors" && columns.length > 2 ? " many" : ""}${mode === "days" ? " week" : ""}` });
   grid.style.setProperty("--cols", String(columns.length));
   grid.style.setProperty("--hour", `${hourPx}px`);
   const head = el("div", { class: "tgrid-head" }, el("div", { class: "col-head" }));
@@ -1504,8 +1527,14 @@ function closePopover() {
 }
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  if (!$("more-sheet").hidden) { $("more-sheet").hidden = true; $("tab-more").focus(); }
+  if (!$("more-sheet").hidden) {
+    $("more-sheet").hidden = true;
+    $("tab-more").focus({ preventScroll: true, focusVisible: !moreByPointer });
+  }
 });
+let moreByPointer = true;
+let moreKeyboard = false;
+$("tab-more").addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") moreKeyboard = true; });
 
 // Calendar's sidebar: a mini month and the doctors as show/hide "calendars".
 let miniMonthOf = null;
@@ -1597,6 +1626,8 @@ $("cal-filters-toggle").addEventListener("click", () => {
   $("cal-filters").classList.toggle("is-open", open);
   $("cal-filters-toggle").setAttribute("aria-expanded", String(open));
   requestAnimationFrame(fitCalendar);
+  // What is under the glass tab bar changed: let it pick its denser fill over lists and grids.
+  setTimeout(() => { if (tabGlass) tabGlass.refresh(); }, 400);
 });
 document.addEventListener("keydown", (event) => {
   if (currentTab !== "appointments" || (event.target.closest && event.target.closest("input, select, textarea, .e-sheet-root"))
@@ -1900,7 +1931,6 @@ async function loadTasks() {
           !done && (t.priority === "urgent" || t.priority === "high") ? el("span", { class: "flag", text: t.priority === "urgent" ? "!!" : "!" }) : null,
           el("span", { class: "rem-text", text: taskTitle(t) })),
         taskNote(t) ? el("div", { class: "rem-note", text: taskNote(t) }) : null,
-        !t.phone_display && t.note ? el("div", { class: "rem-note", text: "No number: the call came from the talk page." }) : null,
         el("div", { class: "rem-meta" },
           el("span", { text: `${KIND_LABEL[t.kind] || "Task"} · added ${ago(t.created_at)}`, title: fmtDateTime(t.created_at) }),
           !done && t.due_at ? el("span", { text: `Due ${fmtDateTime(t.due_at)}` }) : null,
@@ -2859,7 +2889,7 @@ async function start() {
   // bars, the phone tab bar and the Live call input bar; every other floating surface is rim and
   // blur only (dashboard.css). Both are containers: no swell and no press glow on them (only
   // single controls get that). The input bar's lens ramps up as it materializes.
-  liquid($("tabbar"), { lens: true, press: false, swell: false });
+  tabGlass = liquid($("tabbar"), { lens: true, press: false, swell: false });
   composeGlass = liquid($("op-form"), { lens: true, press: false, swell: false, ramp: true, under: null });
   await refreshOverview();
   try { await loadCatalog(); } catch (err) { toast(err.message, "error"); }
