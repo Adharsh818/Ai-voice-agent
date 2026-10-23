@@ -226,6 +226,9 @@ DASHBOARD_COOKIE_SECURE = os.getenv("DASHBOARD_COOKIE_SECURE", "false").lower() 
 # Failed logins allowed per client within the window before a lockout of the same length.
 DASHBOARD_LOGIN_MAX_FAILURES = int(os.getenv("DASHBOARD_LOGIN_MAX_FAILURES", "5"))
 DASHBOARD_LOGIN_WINDOW_S = int(os.getenv("DASHBOARD_LOGIN_WINDOW_S", "300"))
+# The demo login (on the owner's resume) may start this many talk-page calls a day, all demo
+# logins together, so a shared link can't spend the month's API credit. 0 = no limit.
+DEMO_DAILY_CALL_LIMIT = int(os.getenv("DEMO_DAILY_CALL_LIMIT", "20"))
 
 # Call transcripts (no audio is recorded, decision R3): text older than this is
 # blanked by a purge that runs at startup and every TRANSCRIPT_PURGE_HOURS.
