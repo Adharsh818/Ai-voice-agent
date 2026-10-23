@@ -24,6 +24,23 @@ def mask_phones(text: str) -> str:
     return _PHONE_RE.sub(mask, text or "")
 
 
+def _keeps_digits(key) -> bool:
+    """Ids and tokens are matched exactly by the page, so they stay as they are."""
+    key = str(key or "").lower()
+    return key in ("id", "token", "version") or key.endswith("_id")
+
+
+def mask_tree(value, key=None):
+    """Every string in a JSON-like value with its phone numbers masked (the demo login's view)."""
+    if isinstance(value, str):
+        return value if _keeps_digits(key) else mask_phones(value)
+    if isinstance(value, dict):
+        return {k: mask_tree(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [mask_tree(v, key) for v in value]
+    return value
+
+
 class RedactPhones(logging.Filter):
     """Handler filter: rewrites each record's final message with phones masked."""
 

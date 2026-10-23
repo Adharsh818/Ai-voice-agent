@@ -40,6 +40,7 @@ import config
 import db
 import pages
 import events
+import logredact
 import outbound
 import phones
 import recording
@@ -952,24 +953,27 @@ async def remove_dnc(request: Request, user: str = staff):
 
 
 # ---------------------------------------------------------------- live events (SSE)
-def _sse(event: dict) -> str:
+def _sse(event: dict, mask: bool = False) -> str:
+    if mask:                                  # the demo login: phone numbers to their last four digits
+        event = logredact.mask_tree(json.loads(json.dumps(event, default=str)))
     return f"event: {event['type']}\ndata: {json.dumps(event, default=str)}\n\n"
 
 
-async def sse_stream(request: Request, heartbeat_s: float = HEARTBEAT_S):
+async def sse_stream(request: Request, heartbeat_s: float = HEARTBEAT_S, mask: bool = False):
     """Replay the call in progress (if any), then stream new events with keep-alives."""
     async with events.subscribe() as stream:
         yield "retry: 3000\n\n"
         for event in events.current_call_events():
-            yield _sse(event)
+            yield _sse(event, mask)
         while True:
             if await request.is_disconnected():
                 break
             event = await stream.get(timeout=heartbeat_s)
-            yield ": keep-alive\n\n" if event is None else _sse(event)
+            yield ": keep-alive\n\n" if event is None else _sse(event, mask)
 
 
 @router.get("/dashboard/api/events")
 async def live_events(request: Request, user: str = staff):
-    return StreamingResponse(sse_stream(request), media_type="text/event-stream",
+    mask = auth.current_role(request) == "demo"
+    return StreamingResponse(sse_stream(request, mask=mask), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

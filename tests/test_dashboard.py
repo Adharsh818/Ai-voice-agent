@@ -701,6 +701,55 @@ class DemoLoginTests(DashboardTestCase):
                     ws.send_json({"type": "end"})
         self.assertEqual(demo.post("/dashboard/api/logout").status_code, 200)            # and sign out
 
+    def demo_client(self):
+        self.login()
+        r = self.client.post("/dashboard/api/staff", json={"username": "demo", "display_name": "Demo",
+                                                           "password": "a-long-password", "role": "demo"})
+        self.assertEqual(r.status_code, 200, r.text)
+        demo = TestClient(server.app)
+        self.addCleanup(demo.close)
+        self.assertEqual(demo.post("/dashboard/api/login",
+                                   json={"username": "demo", "password": "a-long-password"}).status_code, 200)
+        return demo
+
+    def test_demo_login_sees_phone_numbers_masked(self):
+        self.book(phone="9876543210")
+        demo = self.demo_client()
+        for client, masked in ((self.client, False), (demo, True)):
+            listed = client.get("/dashboard/api/appointments?day=2026-10-06").text
+            csv_text = client.get("/dashboard/api/appointments.csv?day=2026-10-06").text
+            for text in (listed, csv_text):
+                self.assertEqual("43210" in text and "98765" in text, not masked, text[:300])
+                if masked:
+                    self.assertIn("******3210", text)
+        appointment = demo.get("/dashboard/api/appointments?day=2026-10-06").json()["appointments"][0]
+        self.assertEqual(appointment["patient_name"], "Priya Sharma")                  # the rest is unchanged
+        self.assertEqual(appointment["id"],                                             # ids stay exact
+                         self.client.get("/dashboard/api/appointments?day=2026-10-06").json()["appointments"][0]["id"])
+        self.assertEqual(dashboard._sse({"type": "caption", "text": "it's 98765 43210", "call_id": "12345678"},
+                                        mask=True),
+                         'event: caption\ndata: {"type": "caption", "text": "it\'s ******3210", '
+                         '"call_id": "12345678"}\n\n')
+
+    def test_demo_calls_stop_at_the_daily_limit(self):
+        demo = self.demo_client()
+
+        def call(client):
+            with client.websocket_connect("/ws/voice") as ws:
+                first = ws.receive_json()
+                if first["type"] != "busy":
+                    ws.send_json({"type": "end"})
+                return first
+
+        with patch.object(config, "TALK_PAGE_PUBLIC", False), patch.object(config, "DEMO_DAILY_CALL_LIMIT", 2), \
+                patch.object(server, "CallSession", FakeSession), patch.object(server, "_services", lambda s: None):
+            self.assertEqual(call(demo)["type"], "caption")
+            self.assertEqual(call(demo)["type"], "caption")
+            refused = call(demo)
+            self.assertEqual(refused, {"type": "busy", "message": server.DEMO_LIMIT_MESSAGE})
+            self.assertEqual(call(self.client)["type"], "caption")                     # staff are never limited
+        self.assertEqual(len(self.rows("SELECT id FROM audit_events WHERE action = 'demo_call'")), 2)
+
 
 class TalkPageGateTests(DashboardTestCase):
     def test_deployed_talk_page_needs_a_staff_login(self):
