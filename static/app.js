@@ -73,6 +73,7 @@ let speakingTurn = null;
 let opened = false;        // the socket opened (a later close is a dropped line)
 let ending = false;        // we hung up, or Emma said goodbye
 let busyMessage = null;    // the server refused the call
+let busyRetry = true;      // ...and whether trying again soon could work
 let callSeq = 0;           // bumped on hang-up, so a call still starting up stops quietly
 let needsSignin = false;   // a server that keeps the talk page for signed-in staff said no
 let typed = false;         // this call has no microphone: the caller types (the demo's backup)
@@ -96,12 +97,14 @@ function setCaption(text, who) {
 function showProblem(kind, message, button) {
   setState(kind);
   setCaption(message, kind === 'busy' ? 'notice' : 'error');
-  action.textContent = button;
-  action.hidden = false;
+  action.textContent = button || '';
+  action.hidden = !button;             // no button when trying again can't help (today's demo calls are used)
+  document.body.classList.toggle('no-retry', !button);
 }
 
 function hideProblem() {
   action.hidden = true;
+  document.body.classList.remove('no-retry');
   typeInstead.hidden = true;
 }
 
@@ -167,6 +170,7 @@ export async function startCall(path, options = {}) {
   speakingTurn = null;
   opened = ending = false;
   busyMessage = null;
+  busyRetry = true;
 
   let cfg = {};
   try { cfg = await (await fetch('/client-config', { cache: 'no-cache' })).json(); } catch (_) {}
@@ -265,7 +269,7 @@ function onSocketClosed() {
   const wasOpen = opened;
   teardown();
   if (busyMessage !== null) {
-    showProblem('busy', busyMessage || MESSAGES.busy, 'Try again');
+    showProblem('busy', busyMessage || MESSAGES.busy, busyRetry ? 'Try again' : null);
   } else if (ending) {
     setState('idle');
   } else {
@@ -345,6 +349,7 @@ function onEvent(ev) {
     case 'busy':
       // The socket closes next; onSocketClosed shows this.
       busyMessage = ev.message || '';
+      busyRetry = ev.retry !== false;
       break;
     case 'state':
       if (ev.state === 'thinking' && state !== 'speaking') setState('thinking');

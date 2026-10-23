@@ -117,7 +117,7 @@ Each chosen fix: test first, then the change, then suite + scenarios + sims.
 23 Oct:
 - Item 1 is done: 1061 tests, 53/53 scenarios both ways, the four sims all pass, and the crash drill passes.
 - Item 2: the phone calls were checked 12-14 Oct; a microphone call on the redesigned talk page is left for the owner.
-- Item 3: pushed to the session branch. HANDOFF "state at the end" is written, and the merge into `main` waits for the owner.
+- Item 3: pushed and merged into `main` (owner's go-ahead, 23 Oct); HANDOFF "state at the end" is written.
 
 ## Dropped
 

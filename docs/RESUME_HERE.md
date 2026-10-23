@@ -4,11 +4,12 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 ## STATUS NOW (written 23 Oct): start here
 
-**Code:** branch `claude/optimistic-edison-kbglfn` (a cloud session), on top of `main` = 91a4982 (the Liquid Glass redesign). Not merged into `main` yet. The PC Emma and the hosted site pick it up only after a merge, then a restart / `bash tools/deploy_remote.sh`.
+**Code:** `main` = `claude/optimistic-edison-kbglfn` (merged 23 Oct, owner's go-ahead), on top of the Liquid Glass redesign (91a4982). The PC Emma picks it up after `git pull` and a restart; the hosted site after `bash tools/deploy_remote.sh`.
 
 **Checks (23 Oct, Linux venv):** 1061 tests pass (1 skipped); scenarios 53/53 offline and 53/53 model-down; all four 200-call sims pass every check (Z1-Z7 = 0; M7 99-100%; M3 <= 0.5%; M10 <= 1%; T5 = 9 on seeds 7 and 11). The four sims and the crash drill were all re-run for FINISH_PLAN Phase 7; see HANDOFF START HERE.
 
 **Owner's decisions (23 Oct):**
+- **Dropped from the list (owner, 23 Oct):** the Wi-Fi router (O4), and deciding where Emma moves after the AWS Free plan ends (17 Apr 2027).
 - **Voice:** the default stays (ElevenLabs Rachel). When the free 10,000 characters run out before the 12 Nov reset, live sentences fall back to Piper until then. Cached sentences are unaffected.
 - **Redesign:** still ongoing (the owner's O2 design-change list is still to come).
 - **Real Indian number:** moved to the future (see "Future" below).
@@ -34,7 +35,7 @@ When the owner says **"continue your work"**, start from this file. The full pla
 **New sentences to render** (they cost ElevenLabs characters once, then they're cached): the new greeting (~70 characters), the two Sunday lines (~120), and the no-number staff goodbye (~100). Rendered live on first use, about 300 characters in all.
 
 **Left, Claude:**
-1. **Merge this branch into `main`** (owner's go-ahead), then restart the PC Emma.
+1. ~~**Merge this branch into `main`**~~ (done 23 Oct, owner's go-ahead). The PC Emma picks it up after `git pull` in `A:\Voice-Agent` and a restart.
 2. **Hosted-site update, only when the owner says:** `bash tools/deploy_remote.sh` from the PC (it carries the 19-23 Oct code, including the demo masking and the call limit).
    - Optional: switch the server to Gemma 4. Add `SARVAM_API_KEY`, `NLU_PRIMARY=sarvam`, `SARVAM_URL=https://api.sarvam.ai/v2/chat/completions` and `SARVAM_MODEL=gemma4` to `/opt/emma/.env`.
 3. **Live checks needing a person** (FINISH_PLAN Phase 7, item 2):
@@ -44,15 +45,13 @@ When the owner says **"continue your work"**, start from this file. The full pla
      - A typed call ended with End call heard "Alright, have a good day. Bye!" and then went idle.
      - Signed in as `demo`: the ribbon shows, and phone numbers are masked in the API and the CSV (none left unmasked).
      - A change by the demo login was refused (403).
-     - With the limit set to 2, calls 1 and 2 connected and call 3 showed "That's all the demo calls for today." That screen still offers "Try again", which can't work until the next day.
+     - With the limit set to 2, calls 1 and 2 connected and call 3 showed "That's all the demo calls for today." That screen no longer offers "Try again" (the server sends `retry: false`; checked in the browser).
 4. **The redesign:** apply the owner's O2 list when it comes.
 
 **Left, owner:**
 - **O2:** the design-change list (the redesign is ongoing).
-- **O4:** a Wi-Fi router for phone calls (the hotspot loses audio).
 - Put `https://pearl-emma.duckdns.org` and the demo login on the resume. Earn the extra AWS credits (AWS home page, "earn credits").
 - Every few days, run `bash tools/pull_backups.sh` on the PC, or schedule it (DEPLOY.md).
-- Before 17 Apr 2027, when the AWS Free plan ends: decide where Emma moves next.
 
 **Future (not now):**
 - **A real Indian phone number** (docs/TRUNK.md).
