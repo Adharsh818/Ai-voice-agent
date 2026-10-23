@@ -10,6 +10,7 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 **Owner's decisions (23 Oct):**
 - **Dropped from the list (owner, 23 Oct):** the Wi-Fi router (O4), and deciding where Emma moves after the AWS Free plan ends (17 Apr 2027).
+- **Voice (later on 23 Oct):** the owner changed `ELEVENLABS_API_KEY` to a key with about 9,800 characters, so Rachel can speak live again. It must be set in both the PC `.env` and the server's `/opt/emma/.env`, followed by a restart. They share one allowance, so the PC Emma spends it too.
 - **Voice:** the default stays (ElevenLabs Rachel). When the free 10,000 characters run out before the 12 Nov reset, live sentences fall back to Piper until then. Cached sentences are unaffected.
 - **Redesign:** still ongoing (the owner's O2 design-change list is still to come).
 - **Real Indian number:** moved to the future (see "Future" below).
@@ -75,6 +76,34 @@ When the owner says **"continue your work"**, start from this file. The full pla
   - Neither is fully free. WhatsApp can be tried at no cost on a test number. Meta's per-message charge for an Indian utility message is about ₹0.12-0.15.
   - SMS in India needs DLT registration (a one-time fee of several thousand rupees) plus a per-message charge.
 - Sarvam's WebSocket voice (faster first audio); tuning the brief for Gemma; several clinics in one database (`clinic_id`).
+- **Improvement ideas (23 Oct, owner: "add all these to future"), in the suggested order:**
+  1. **Speed.** Replies are heard a median of 2.2 s after the caller stops; a person answers in about 1 s.
+     - Listening (1.1 s typical, 2.7 s worst 10%): find the cause with the report's `end` column. Then let Emma end the turn herself when the words already make a complete answer (`turn_detector.py`), or test Deepgram's model built for conversations, which detects end of turn better.
+     - The model: Gemma via Sarvam on the server, as on the PC (removes the 2.2 s Gemini timeouts).
+     - Server location: Sydney adds about 0.4 s from India. A Mumbai server (a paid AWS plan or another provider) cuts most of it.
+  2. **Voice:**
+     - one voice for every call (paid ElevenLabs, or Sarvam for everything);
+     - an Indian English voice (ElevenLabs library voices need a paid plan);
+     - Sarvam's streaming voice for a faster first word.
+  3. **Understanding:**
+     - name hearing ("Adharsh"): better hints, or a second recognizer just for the name;
+     - fewer turns per booking (about 9 now): ask for two details at once, aiming for 6-7;
+     - real Kannada and Hindi support (today Emma offers a callback).
+  4. **Reliability (cheap or free):**
+     - an Elastic IP, so the address and DuckDNS never change after a restart;
+     - uptime monitoring (UptimeRobot, free) that texts or emails the owner;
+     - GitHub Actions running the tests on every push;
+     - a one-click deploy of `main` to AWS from a GitHub Action, so no PC is needed.
+  5. **Clinic features:**
+     - the real number and WhatsApp (above);
+     - online booking through the same Python rules;
+     - Calendar sync on the hosted site;
+     - a weekly report for the clinic (calls, bookings, missed calls, cost);
+     - several clinics on one system.
+  6. **Resume and portfolio:**
+     - a 1-2 minute demo video of a real call and the dashboard (recruiters may not sign in, and it works when the credits are out);
+     - a README with an architecture diagram and the numbers (1,061 tests, 0 safety failures in 800 simulated calls, the typical reply time);
+     - "Python decides, the model only talks" as the headline.
 
 The sections below are older history; where they disagree with this section, this section wins.
 
