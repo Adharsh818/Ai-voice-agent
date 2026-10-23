@@ -50,6 +50,7 @@ const VAD_RMS = 0.02;          // local "caller is talking" energy threshold
 const VAD_FRAMES = 2;          // consecutive 20 ms frames above it
 const DUCK_GAIN = 0.3;         // Emma's volume while a barge-in is being confirmed
 const DUCK_RELEASE_MS = 600;   // restore if the server does not confirm
+const TYPED_GOODBYE_MS = 8000; // a typed call's End call: hang up anyway if Emma's goodbye never comes
 const CAPTURE_RATE = 16000;
 
 const IN_CALL = ['connecting', 'listening', 'thinking', 'speaking'];
@@ -273,6 +274,15 @@ function onSocketClosed() {
 }
 
 export function endCall() {
+  if (typed && !ending && ws && ws.readyState === WebSocket.OPEN) {
+    // A typed call: Emma says goodbye first; her 'bye' (or this timer) hangs up.
+    ending = true;
+    typedForm.hidden = true;
+    send({ type: 'end', goodbye: true });
+    const call = callSeq;
+    setTimeout(() => { if (call === callSeq && IN_CALL.includes(state)) endCall(); }, TYPED_GOODBYE_MS);
+    return;
+  }
   callSeq++;
   ending = true;
   send({ type: 'end' });

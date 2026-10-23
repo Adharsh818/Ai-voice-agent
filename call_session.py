@@ -181,6 +181,10 @@ HAND_BACK_LINES = [
 STAFF_GOODBYE_LINES = [
     "I'm sorry, I need to end the call here. Someone from the team will call you back shortly. Bye for now.",
 ]
+# The same with no number to call back on: no promise of a call, and no task nobody could act on.
+STAFF_GOODBYE_NO_NUMBER_LINES = [
+    "I'm sorry, I need to end the call here. Please do give us a ring back whenever suits you. Bye for now.",
+]
 # Worth pre-rendering with the other fixed prompts (phrases.all_phrases(extra=...)).
 CACHEABLE_LINES = (STILL_THERE_LINES + CANT_HEAR_LINES + SILENCE_GOODBYE_LINES + WRAP_UP_LINES
                    + LONG_CALL_GOODBYE_CALLBACK_LINES + LONG_CALL_GOODBYE_LINES
@@ -731,6 +735,16 @@ class CallSession:
         elif kind == "end":
             if self.outcome is None and not self._ended_by_emma():
                 self.outcome = self._abandoned()
+            idle = self._turn_task is None or self._turn_task.done()
+            if msg.get("goodbye") and self.typed and idle and not (self.closed or self._ending or self.operator):
+                # A typed call ended with End call: the caller is still reading, so Emma says goodbye
+                # before the line closes (a phone hang-up hears nothing, so a voice call closes at once;
+                # so does a typed call with a reply still being worked out, as before).
+                if self._speaking_turn is not None:
+                    await self.interrupt("caller ended the call")
+                await self._say_line(random.choice(prompts.VARIANTS["close"]), then_close=True,
+                                     outcome=self.outcome, final=True)
+                return
             await self.close()
         elif kind == "hello":
             logger.info("[%s] client protocol v%s%s", self.call_id, msg.get("v"),
@@ -1486,15 +1500,17 @@ class CallSession:
         return True
 
     async def end_by_staff(self, note: str = "") -> bool:
-        """End the call politely and leave the front desk a callback task."""
+        """End the call politely and leave the front desk a callback task (when there's a number to call)."""
         if self.closed or self._ending:
             return False
         if self._speaking_turn is not None:
             await self.interrupt("staff ended the call")
-        await self._create_task("callback", "high", self._caller_phone(),
-                                (note or "").strip() or "Staff ended the call from the dashboard; please call back.")
-        await self._say_line(self._pick(STAFF_GOODBYE_LINES), then_close=True, outcome="ended_by_staff",
-                             final=True)
+        phone = self._caller_phone()
+        if phone:
+            await self._create_task("callback", "high", phone,
+                                    (note or "").strip() or "Staff ended the call from the dashboard; please call back.")
+        lines = STAFF_GOODBYE_LINES if phone else STAFF_GOODBYE_NO_NUMBER_LINES
+        await self._say_line(self._pick(lines), then_close=True, outcome="ended_by_staff", final=True)
         return True
 
     async def _say_line(self, text: str, then_close: bool = False, outcome: Optional[str] = None,

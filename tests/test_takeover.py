@@ -54,26 +54,64 @@ class TakeoverTests(unittest.TestCase):
         with engine(fake):
             self.assertEqual(asyncio.run(run()), ["Thanks!"])
 
-    def test_end_by_staff_says_goodbye_makes_a_task_and_ends(self):
+    def end_by_staff(self, phone):
         made = []
 
         async def run():
             s, t = make_session()
 
             async def create_task(kind, priority, phone, note):
-                made.append((kind, priority, note))
+                made.append((kind, priority, phone, note))
 
             s._create_task = create_task
+            s._caller_phone = lambda: phone
             self.assertTrue(await s.end_by_staff("Patient wants Dr Rao only"))
             await wait_until(lambda: s.closed, timeout=5)
             return s, t
 
         with engine(Recorder()):
             s, t = asyncio.run(run())
-        self.assertEqual(made, [("callback", "high", "Patient wants Dr Rao only")])
-        self.assertIn(call_session.STAFF_GOODBYE_LINES[0], t.emma_captions())
         self.assertEqual(s.outcome, "ended_by_staff")
         self.assertTrue(t.of_type("bye"))
+        return made, t.emma_captions()
+
+    def test_end_by_staff_says_goodbye_makes_a_task_and_ends(self):
+        made, captions = self.end_by_staff("+919876543210")
+        self.assertEqual(made, [("callback", "high", "+919876543210", "Patient wants Dr Rao only")])
+        self.assertIn(call_session.STAFF_GOODBYE_LINES[0], captions)
+
+    def test_end_by_staff_without_a_number_promises_no_call_back(self):
+        # A talk-page call that never got as far as a number: a callback task nobody could act on,
+        # and "someone will call you back", would both be wrong (APPLE_DESIGN_PLAN follow-ups, 22 Oct).
+        made, captions = self.end_by_staff(None)
+        self.assertEqual(made, [])
+        self.assertIn(call_session.STAFF_GOODBYE_NO_NUMBER_LINES[0], captions)
+        self.assertFalse(any("call you back" in c for c in captions))
+
+
+class TypedCallEndTests(unittest.TestCase):
+    """End call on a typed call: Emma says goodbye before the line closes (APPLE_DESIGN_PLAN follow-ups)."""
+
+    def end(self, typed):
+        async def run():
+            s, t = make_session()
+            await s.on_control({"type": "hello", "v": 2, "typed": typed})
+            await s.on_control({"type": "end", "goodbye": True})
+            await wait_until(lambda: s.closed, timeout=5)
+            return s, t
+
+        with engine(Recorder()):
+            return asyncio.run(run())
+
+    def test_a_typed_call_hears_goodbye_then_ends(self):
+        s, t = self.end(typed=True)
+        self.assertTrue(any(c in call_session.prompts.VARIANTS["close"] for c in t.emma_captions()))
+        self.assertTrue(t.of_type("bye"))
+        self.assertTrue(s.outcome.startswith("abandoned"))          # the caller ended it, as before
+
+    def test_a_voice_call_ends_at_once(self):
+        s, t = self.end(typed=False)
+        self.assertFalse(any(c in call_session.prompts.VARIANTS["close"] for c in t.emma_captions()))
 
 
 if __name__ == "__main__":

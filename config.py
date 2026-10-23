@@ -20,7 +20,7 @@ CLINIC_TIMEZONE = os.getenv("CLINIC_TIMEZONE", "Asia/Kolkata")
 GREETINGS = [
     f"Hi, this is Emma at {CLINIC_SHORT_NAME}. How can I help?",
     f"Hello, Emma at {CLINIC_SHORT_NAME}. What can I do for you?",
-    f"Hi, Emma at {CLINIC_SHORT_NAME}. Would you like to book an appointment?",
+    f"{CLINIC_SHORT_NAME}, Emma speaking. Would you like to book an appointment?",
     f"Hi, Emma at {CLINIC_SHORT_NAME}. Any questions about the clinic?",
 ]
 # Said instead when it suits the clinic clock (4 am-12, before 4 pm, after 4 pm;
