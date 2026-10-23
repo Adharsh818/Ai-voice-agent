@@ -32,6 +32,14 @@ When the owner says **"continue your work"**, start from this file. The full pla
 5. **docs/NOTIFICATIONS.md "Is it free?"**: WhatsApp and SMS costs (answer below).
 6. **HANDOFF START HERE** rewritten as the final "state at the end"; FINISH_PLAN Phase 7 ticked off except the two live calls.
 
+**Later on 23 Oct (owner's test calls on the updated hosted site: "it is switching between 2 voices"):**
+- **Cause:** the second voice is Piper, the backup. A call switches to Piper for every live sentence once ElevenLabs fails or answers with silence. Cached sentences stay Rachel, so the two alternate. There are two triggers:
+  - (a) the free ElevenLabs characters ran out. The 12 Nov reset or Starter ($5/month) fixes it; code can't.
+  - (b) one sentence answered with silence switched the whole call.
+- **Fix for (b)** (`speech.Speaker.play`): a silent sentence is tried again over ElevenLabs HTTP, in the same Rachel voice, before Piper. The call only moves to Piper when both paths are silent.
+- **Which one it was:** the owner runs `bash tools/call_report_remote.sh` on the PC. Its last part lists the server's ElevenLabs errors: "quota" means (a).
+- **Slow parts:** `tools/call_report.py` (same command) splits every reply's wait into its parts and names the slowest: hearing (Deepgram), Emma's hold, the model, the typing beat, the voice, and the line. It prints no caller words.
+
 **New sentences to render** (they cost ElevenLabs characters once, then they're cached): the new greeting (~70 characters), the two Sunday lines (~120), and the no-number staff goodbye (~100). Rendered live on first use, about 300 characters in all.
 
 **Left, Claude:**
