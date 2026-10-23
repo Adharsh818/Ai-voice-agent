@@ -76,3 +76,29 @@ sudo systemctl disable --now emma caddy emma-backup.timer
 ```
 
 It stays installed in `/opt/emma` (switched off). Asterisk in the same distro was not touched.
+
+## Tested on AWS (live since 17 Oct 2026)
+
+Emma runs at **https://pearl-emma.duckdns.org** for the owner's resume (sign-in needed; recruiters use the `demo` login).
+
+**The setup:**
+- **Account:** AWS **Free plan** (no card), project "Emma", region **Sydney `ap-southeast-2`**.
+  - The Free plan pins a project to one region. Mumbai needs "advanced features", and activating them leaves the protected Free plan, so don't.
+  - $100 credit at about $21/month. The "earn credits" tasks on the AWS home page add up to $100 more, which takes it to about 9-10 months. The Free plan itself ends **17 Apr 2027**; after that AWS suspends the account and deletes it 90 days later.
+- **Server:** EC2 t4g.small (ARM, 2 vCPU, 2 GB) with a 2 GB swapfile, Ubuntu 24.04, 20 GB gp3, time zone Asia/Kolkata. Security group: 22, 80 and 443 open.
+  - The public IP (3.27.254.11) is ephemeral: after a stop and start it changes, and the DuckDNS record must be updated by hand.
+- **Install:** a `git archive` of the repo, then `sudo bash deploy/install.sh pearl-emma.duckdns.org`. Caddy gets the Let's Encrypt certificate by itself.
+- **`.env` on the server** (`/opt/emma/.env`): the PC's keys, with `CALENDAR_SYNC_ENABLED=false` (the Calendar stays on the PC), `TELEPHONY_ENABLED=false`, `TALK_PAGE_PUBLIC=false`, `DASHBOARD_COOKIE_SECURE=true` and `LOG_CALLER_TEXT=false`. No `secrets/` folder.
+- **The demo login:** a `demo` staff user (role `demo`, migration 007). It can look around and talk to Emma, but every change is refused. It sees phone numbers masked to their last four digits, and can start `DEMO_DAILY_CALL_LIMIT` (20) talk-page calls a day, counted across all demo logins.
+
+**Updating it** (from the owner's PC, where the SSH key `~/.ssh/emma_oracle` is):
+```bash
+bash tools/deploy_remote.sh
+```
+It deploys the committed code (HEAD), keeps the server's `.env`, models, database, logs and backups, restarts Emma and prints the live status code. It refuses to run with uncommitted changes.
+
+**Backups off the server:** the server backs itself up daily at 02:30 (`emma-backup.timer`) onto its own disk. To keep copies on the PC as well:
+```bash
+bash tools/pull_backups.sh
+```
+It copies backups the PC doesn't have yet into `backups/server/` (git-ignored), checks each one with `tools/backup.py --check`, and keeps the newest 14. Run it by hand every few days, or add it to Windows Task Scheduler (program `C:\Program Files\Git\bin\bash.exe`, arguments `tools/pull_backups.sh`, start in `A:\Voice-Agent`). To restore one on the server: copy it up with `scp`, stop Emma, then run `tools/backup.py --restore FILE` there.

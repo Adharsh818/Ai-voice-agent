@@ -108,11 +108,16 @@ The last item of plan section 13 / FINAL_PHASES_PLAN E3. Emma on Windows is stop
 
 Each chosen fix: test first, then the change, then suite + scenarios + sims.
 
-## Phase 7: final verification and hand-in (30 min)
+## Phase 7: final verification and hand-in (30 min) — DONE 23 Oct, except the live calls (owner)
 
 1. Full suite, 53 scenarios, the four 200-call sims, crash drill: all at or above today.
 2. Preflight READY; one browser call and one phone call end to end.
 3. Push; merge per Phase 1's decision; final HANDOFF "state at the end".
+
+23 Oct:
+- Item 1 is done: 1061 tests, 53/53 scenarios both ways, the four sims all pass, and the crash drill passes.
+- Item 2: the phone calls were checked 12-14 Oct; a microphone call on the redesigned talk page is left for the owner.
+- Item 3: pushed to the session branch. HANDOFF "state at the end" is written, and the merge into `main` waits for the owner.
 
 ## Dropped
 

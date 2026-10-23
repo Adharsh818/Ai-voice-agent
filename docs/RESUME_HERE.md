@@ -1,8 +1,66 @@
-# Resume here (updated 22 Oct 2026)
+# Resume here (updated 23 Oct 2026)
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
-## LEFT WORK (written 22 Oct, ~01:00): start here
+## STATUS NOW (written 23 Oct): start here
+
+**Code:** branch `claude/optimistic-edison-kbglfn` (a cloud session), on top of `main` = 91a4982 (the Liquid Glass redesign). Not merged into `main` yet. The PC Emma and the hosted site pick it up only after a merge, then a restart / `bash tools/deploy_remote.sh`.
+
+**Checks (23 Oct, Linux venv):** 1061 tests pass (1 skipped); scenarios 53/53 offline and 53/53 model-down; all four 200-call sims pass every check (Z1-Z7 = 0; M7 99-100%; M3 <= 0.5%; M10 <= 1%; T5 = 9 on seeds 7 and 11). The four sims and the crash drill were all re-run for FINISH_PLAN Phase 7; see HANDOFF START HERE.
+
+**Owner's decisions (23 Oct):**
+- **Voice:** the default stays (ElevenLabs Rachel). When the free 10,000 characters run out before the 12 Nov reset, live sentences fall back to Piper until then. Cached sentences are unaffected.
+- **Redesign:** still ongoing (the owner's O2 design-change list is still to come).
+- **Real Indian number:** moved to the future (see "Future" below).
+- **PC `.env`:** already cleaned by the owner (the duplicate `SARVAM_API_KEY` and `GEMINI_API_KEY_NEW` are gone).
+- **Hosting:** AWS only. The owner adds the site to the resume and earns the extra AWS credits, so it runs about 9-10 months.
+- **Keep the test bookings:** Jimmy (Sat 24 Oct 9:30, Dr Menon, Indiranagar) and Adharsh (root canal, Wed 21 Oct 1 pm, Dr Shetty).
+
+**Done on 23 Oct (this branch):**
+1. **Demo-login safety** (from the 19 Oct audit):
+   - The demo login sees every phone number masked to its last four digits: API answers, CSV exports, transcripts and the live-event stream. This is done in one place, `server.mask_phones_for_demo` (and `dashboard.sse_stream`), so no route can forget it.
+   - It can start `DEMO_DAILY_CALL_LIMIT` (20) talk-page calls a day, all demo logins together. Each call is counted as an `audit_events` row with `action = 'demo_call'`. Past the limit, the page says "That's all the demo calls for today." Staff are never limited.
+2. **Off-machine backups:** `bash tools/pull_backups.sh`, run from the PC. It copies the server's new backups into `backups/server/`, checks each one, and keeps 14 (docs/DEPLOY.md, "Tested on AWS").
+3. **docs/DEPLOY.md "Tested on AWS":** the setup, the update command, the Free-plan region lock, the credits, and backups.
+4. **Call fixes** (the APPLE_DESIGN_PLAN follow-ups):
+   - Staff ending a talk-page call that has no number no longer makes an uncallable callback task, or promises a call back.
+   - "Hi, Emma at Pearl Dental. Would you like to book an appointment?" is now "Pearl Dental, Emma speaking. Would you like to book an appointment?"
+   - "We're closed on Sundays" now adds "but we're open on Saturday and Monday".
+   - End call on a typed call: Emma says goodbye before the line closes.
+   - "Ok bye" after the greeting's question is a goodbye, not a yes.
+5. **docs/NOTIFICATIONS.md "Is it free?"**: WhatsApp and SMS costs (answer below).
+6. **HANDOFF START HERE** rewritten as the final "state at the end"; FINISH_PLAN Phase 7 ticked off except the two live calls.
+
+**New sentences to render** (they cost ElevenLabs characters once, then they're cached): the new greeting (~70 characters), the two Sunday lines (~120), and the no-number staff goodbye (~100). Rendered live on first use, about 300 characters in all.
+
+**Left, Claude:**
+1. **Merge this branch into `main`** (owner's go-ahead), then restart the PC Emma.
+2. **Hosted-site update, only when the owner says:** `bash tools/deploy_remote.sh` from the PC (it carries the 19-23 Oct code, including the demo masking and the call limit).
+   - Optional: switch the server to Gemma 4. Add `SARVAM_API_KEY`, `NLU_PRIMARY=sarvam`, `SARVAM_URL=https://api.sarvam.ai/v2/chat/completions` and `SARVAM_MODEL=gemma4` to `/opt/emma/.env`.
+3. **Live checks needing a person** (FINISH_PLAN Phase 7, item 2):
+   - one microphone call on the redesigned talk page;
+   - a typed call ended with End call (it should hear the goodbye);
+   - sign in as `demo` and check the ribbon, the masked numbers and the daily limit;
+   - re-try the Reject on a recovery call after 9 am.
+4. **The redesign:** apply the owner's O2 list when it comes.
+
+**Left, owner:**
+- **O2:** the design-change list (the redesign is ongoing).
+- **O4:** a Wi-Fi router for phone calls (the hotspot loses audio).
+- Put `https://pearl-emma.duckdns.org` and the demo login on the resume. Earn the extra AWS credits (AWS home page, "earn credits").
+- Every few days, run `bash tools/pull_backups.sh` on the PC, or schedule it (DEPLOY.md).
+- Before 17 Apr 2027, when the AWS Free plan ends: decide where Emma moves next.
+
+**Future (not now):**
+- **A real Indian phone number** (docs/TRUNK.md).
+- **WhatsApp / SMS to patients** (docs/NOTIFICATIONS.md). Everything is built and runs log-only today; switching on is only settings.
+  - Neither is fully free. WhatsApp can be tried at no cost on a test number. Meta's per-message charge for an Indian utility message is about ₹0.12-0.15.
+  - SMS in India needs DLT registration (a one-time fee of several thousand rupees) plus a per-message charge.
+- Sarvam's WebSocket voice (faster first audio); tuning the brief for Gemma; several clinics in one database (`clinic_id`).
+
+The sections below are older history; where they disagree with this section, this section wins.
+
+## Earlier: left work (written 22 Oct, ~01:00)
 
 **State now:**
 - `main` = `day2-r2-engine` = b112ae6, all pushed.
