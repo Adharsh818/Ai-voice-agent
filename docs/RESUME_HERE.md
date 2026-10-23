@@ -92,7 +92,7 @@ When the owner says **"continue your work"**, start from this file. The full pla
   4. **Reliability (cheap or free):**
      - an Elastic IP, so the address and DuckDNS never change after a restart;
      - uptime monitoring (UptimeRobot, free) that texts or emails the owner;
-     - GitHub Actions running the tests on every push;
+     - ~~GitHub Actions running the tests on every push~~ (done 23 Oct: `.github/workflows/tests.yml`);
      - a one-click deploy of `main` to AWS from a GitHub Action, so no PC is needed.
   5. **Clinic features:**
      - the real number and WhatsApp (above);
@@ -102,8 +102,7 @@ When the owner says **"continue your work"**, start from this file. The full pla
      - several clinics on one system.
   6. **Resume and portfolio:**
      - a 1-2 minute demo video of a real call and the dashboard (recruiters may not sign in, and it works when the credits are out);
-     - a README with an architecture diagram and the numbers (1,061 tests, 0 safety failures in 800 simulated calls, the typical reply time);
-     - "Python decides, the model only talks" as the headline.
+     - ~~a README with an architecture diagram and the numbers, "the model talks, Python decides" as the headline~~ (done 23 Oct).
 
 The sections below are older history; where they disagree with this section, this section wins.
 
