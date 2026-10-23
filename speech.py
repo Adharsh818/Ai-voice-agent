@@ -256,19 +256,24 @@ class Speaker:
 
     async def _open(self, text: str):
         for engine in self._engines():
-            if engine is None:
-                continue
-            try:
-                stream = await asyncio.wait_for(engine.open_stream(text), timeout=3.0)
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                logger.warning("TTS stream open failed on %s: %s", type(engine).__name__, exc)
-                continue
-            stream._engine = engine
-            self._live.append(stream)
-            return stream
+            stream = await self._open_on(engine, text)
+            if stream is not None:
+                return stream
         return None
+
+    async def _open_on(self, engine, text: str):
+        if engine is None:
+            return None
+        try:
+            stream = await asyncio.wait_for(engine.open_stream(text), timeout=3.0)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("TTS stream open failed on %s: %s", type(engine).__name__, exc)
+            return None
+        stream._engine = engine
+        self._live.append(stream)
+        return stream
 
     def prepare(self, text: str) -> list[_Segment]:
         """
@@ -379,10 +384,23 @@ class Speaker:
                     async for chunk in seg.stream:
                         await self._send(turn_id, chunk, timer, "live")
                         sent = got = True
+                    engine = getattr(seg.stream, "_engine", None)
+                    if (not got and not seg.stream.cancelled and self.fallback_tts is not None
+                            and engine is not self.fallback_tts and engine is not self.backup_tts):
+                        # One silent answer from the live socket ("Hmm." on a busy moment) is not a
+                        # dead voice: the same sentence over HTTP first, in the same voice, so the call
+                        # doesn't change voice mid-way (owner, 23 Oct: "it is switching between 2 voices").
+                        logger.warning("Live TTS returned no audio; trying the same voice over HTTP")
+                        retry = await self._open_on(self.fallback_tts, seg.text)
+                        if retry is not None:
+                            seg.stream = retry
+                            async for chunk in retry:
+                                await self._send(turn_id, chunk, timer, "live")
+                                sent = got = True
                     if (not got and not seg.stream.cancelled and self.backup_tts is not None
                             and getattr(seg.stream, "_engine", None) is not self.backup_tts
                             and getattr(self.backup_tts, "ready", False)):
-                        # ElevenLabs answered with silence (its quota ran out on
+                        # ElevenLabs answered with silence on both paths (its quota ran out on
                         # 1 Oct with no error): say it with the backup voice, and
                         # use the backup for the rest of the call.
                         logger.warning("Live TTS returned no audio; switching this call to the backup voice")
