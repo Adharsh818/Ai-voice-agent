@@ -6,6 +6,21 @@
       "runtimeExecutable": "./.venv/Scripts/python.exe",
       "runtimeArgs": ["server.py"],
       "port": 8000
+    },
+    {
+      "name": "emma-review",
+      "runtimeExecutable": "A:/Voice-Agent/.venv/Scripts/python.exe",
+      "runtimeArgs": ["server.py"],
+      "port": 8010,
+      "env": {
+        "SERVER_PORT": "8010",
+        "TELEPHONY_ENABLED": "false",
+        "CALENDAR_SYNC_ENABLED": "false",
+        "TALK_PAGE_PUBLIC": "true",
+        "RECOVERY_CALL_WINDOW": "00:00-23:59",
+        "DASHBOARD_PASSWORD_HASH": "scrypt:16384:8:1:3T_BSfO_0xDLtHXiNQQEig:meNNyhuAPW_dSdpvVq9X_9VXMkoQfkr8wTVwe94xwxY",
+        "DASHBOARD_SESSION_SECRET": "db908eae3b6c502357e1591d48616a41bd52d6461ea3603d6721a9802f50c1b3"
+      }
     }
   ]
 }
