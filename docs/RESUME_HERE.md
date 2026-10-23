@@ -39,9 +39,12 @@ When the owner says **"continue your work"**, start from this file. The full pla
    - Optional: switch the server to Gemma 4. Add `SARVAM_API_KEY`, `NLU_PRIMARY=sarvam`, `SARVAM_URL=https://api.sarvam.ai/v2/chat/completions` and `SARVAM_MODEL=gemma4` to `/opt/emma/.env`.
 3. **Live checks needing a person** (FINISH_PLAN Phase 7, item 2):
    - one microphone call on the redesigned talk page;
-   - a typed call ended with End call (it should hear the goodbye);
-   - sign in as `demo` and check the ribbon, the masked numbers and the daily limit;
    - re-try the Reject on a recovery call after 9 am.
+   - **Checked 23 Oct in a headless browser** (a local copy with no API keys, so captions only):
+     - A typed call ended with End call heard "Alright, have a good day. Bye!" and then went idle.
+     - Signed in as `demo`: the ribbon shows, and phone numbers are masked in the API and the CSV (none left unmasked).
+     - A change by the demo login was refused (403).
+     - With the limit set to 2, calls 1 and 2 connected and call 3 showed "That's all the demo calls for today." That screen still offers "Try again", which can't work until the next day.
 4. **The redesign:** apply the owner's O2 list when it comes.
 
 **Left, owner:**
