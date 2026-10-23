@@ -381,8 +381,10 @@ class Speaker:
                         await self._send(turn_id, random.choice(BREATHS), timer, "breath")
                     self._begin(turn_id, seg.text, kind)
                     got = False
+                    # "backup" when the call already moved to Piper, so the turn log says which voice spoke.
+                    source = "backup" if getattr(seg.stream, "_engine", None) is self.backup_tts else "live"
                     async for chunk in seg.stream:
-                        await self._send(turn_id, chunk, timer, "live")
+                        await self._send(turn_id, chunk, timer, source)
                         sent = got = True
                     engine = getattr(seg.stream, "_engine", None)
                     if (not got and not seg.stream.cancelled and self.fallback_tts is not None
