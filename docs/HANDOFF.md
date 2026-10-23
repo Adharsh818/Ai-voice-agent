@@ -41,7 +41,7 @@
 **FINISH_PLAN Phase 7:**
 1. Suite, scenarios, sims and drill: done 23 Oct.
 2. One browser call and one phone call end to end: phone calls were done 12-14 Oct (PHONE_CHECKS.md). A microphone call on the redesigned page is still for the owner.
-3. Push: done to the session branch. Merging into `main` waits for the owner.
+3. Push and merge: done 23 Oct (`main` = the session branch, owner's go-ahead).
 
 ## ▶ Earlier: START HERE (14 Oct)
 

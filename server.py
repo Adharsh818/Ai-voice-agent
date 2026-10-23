@@ -486,7 +486,7 @@ async def voice_websocket(ws: WebSocket):
     if auth.current_role(ws) == "demo" and not await db.get_db().run(_count_demo_call, call_id):
         logger.info("Refused a demo call: today's %d demo calls are used", config.DEMO_DAILY_CALL_LIMIT)
         try:
-            await ws.send_text(json.dumps({"type": "busy", "message": DEMO_LIMIT_MESSAGE}))
+            await ws.send_text(json.dumps({"type": "busy", "message": DEMO_LIMIT_MESSAGE, "retry": False}))
             await ws.close(code=1013)
         except Exception:
             pass

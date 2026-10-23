@@ -746,7 +746,7 @@ class DemoLoginTests(DashboardTestCase):
             self.assertEqual(call(demo)["type"], "caption")
             self.assertEqual(call(demo)["type"], "caption")
             refused = call(demo)
-            self.assertEqual(refused, {"type": "busy", "message": server.DEMO_LIMIT_MESSAGE})
+            self.assertEqual(refused, {"type": "busy", "message": server.DEMO_LIMIT_MESSAGE, "retry": False})
             self.assertEqual(call(self.client)["type"], "caption")                     # staff are never limited
         self.assertEqual(len(self.rows("SELECT id FROM audit_events WHERE action = 'demo_call'")), 2)
 
