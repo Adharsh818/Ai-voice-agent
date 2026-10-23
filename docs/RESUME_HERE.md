@@ -40,6 +40,14 @@ When the owner says **"continue your work"**, start from this file. The full pla
 - **Which one it was:** the owner runs `bash tools/call_report_remote.sh` on the PC. Its last part lists the server's ElevenLabs errors: "quota" means (a).
 - **Slow parts:** `tools/call_report.py` (same command) splits every reply's wait into its parts and names the slowest: hearing (Deepgram), Emma's hold, the model, the typing beat, the voice, and the line. It prints no caller words.
 
+**The owner's 3 hosted test calls (23 Oct 17:55-18:05), from `tools/call_report_remote.sh`:**
+- **Voice:** trigger (a). The server log shows ElevenLabs `quota_exceeded` ("0 credits remaining") from 17:53. Every live sentence went to Piper while cached ones stayed Rachel. No code can bring Rachel back before the 12 Nov reset; the owner chooses (Starter $5/month, wait, or one voice for the whole call). The PC Emma shares the key.
+- **Waits:** heard after a median of 2.18 s (90th percentile 3.68 s); 19 of 32 turns took 2 s or more.
+  - **Listening was the main cause** (Deepgram noticing the end of speech): median 1.12 s, 90th percentile 2.70 s, and the biggest part in 16 of the 19 slow turns. That's well above the 0.8-1.0 s measured on the PC on 6 Oct.
+  - **The model** caused 3 slow turns. Each stopped at 2.21 s (the server's `NLU_HEAD_DEADLINE_S` of 2.2), so Gemini, from Sydney on the free tier, didn't answer in time and Emma used her own line. The PC runs Gemma via Sarvam (0.72 s first words).
+  - **The rest is small:** the voice 0.20 s, the line 0.40 s (India to Sydney plus the browser), and the typing beat 0.20 s (on purpose).
+- **The report now shows** which signal ended each turn (`final` = the 300 ms silence, `utt` = the 1 s fallback), and labels Piper sentences `backup` (before, they read `live` after a switch). The next run shows why listening was slow before anything is tuned.
+
 **New sentences to render** (they cost ElevenLabs characters once, then they're cached): the new greeting (~70 characters), the two Sunday lines (~120), and the no-number staff goodbye (~100). Rendered live on first use, about 300 characters in all.
 
 **Left, Claude:**
