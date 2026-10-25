@@ -221,7 +221,8 @@ LINES: dict[str, LineSpec] = {
     "ask.time.instead": _l("The caller asked to change the time without naming one. 'Sure, what time would "
                            "suit you better on {day}?'", "day"),
     "resolve.ampm": _l("'{hour} in the morning or the evening?'", "hour", critical=True),
-    "date.sunday": _l("Notice: 'We're closed on Sundays.'", critical=True, cache=True),
+    "date.sunday": _l("Notice: 'We're closed on Sundays, but we're open on Saturday and Monday.'",
+                      critical=True, cache=True),
     "date.past": _l("Notice: 'That one's already gone by.'", critical=True),
     "date.horizon": _l("Notice: 'I can only book up to two months ahead.'", critical=True),
     "date.invalid_day": _l("Notice: '{month} doesn't have a {day}.'", "month", "day", critical=True),
@@ -554,7 +555,10 @@ VARIANTS: dict[str, tuple] = {
     "ask.time.instead": ("Sure, what time would suit you better on {day}?",
                          "No problem. What time would you like on {day} instead?"),
     "resolve.ampm": ("{hour} in the morning or the evening?", "Is that {hour} in the morning, or in the evening?"),
-    "date.sunday": ("We're closed on Sundays.", "We're closed on Sunday, sorry."),
+    # With the open days either side, as a receptionist would (owner's follow-up list, 22 Oct: the bare
+    # "We're closed on Sundays." left the caller to guess). A statement, not a question: the next line asks.
+    "date.sunday": ("We're closed on Sundays, but we're open on Saturday and Monday.",
+                    "We're closed on Sunday, sorry, but Saturday and Monday are both open."),
     "date.past": ("That one's already gone by.", "That date's already passed."),
     "date.horizon": ("I can only book up to two months ahead.", "We only take bookings up to two months out."),
     "date.invalid_day": ("{month} doesn't have a {day}.", "There's no {day} in {month}."),
