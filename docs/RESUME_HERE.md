@@ -2,7 +2,34 @@
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
-## STATUS NOW (written 25 Oct): start here
+## STATUS NOW (written 25 Oct, evening): start here
+
+**Done after the owner's three test calls (25 Oct 17:19-17:25):**
+- **The owner's decisions (MCQ):**
+  - Cancel / move / check is verified by **the registered number and the patient's name**; the appointment is read back for a yes. A date, branch or treatment only narrows several bookings.
+  - **Open greetings** ("Pearl Dental, Emma speaking. How can I help?").
+  - **"Please come about 10 minutes early"** after a booking.
+- **Number flow:** "Yes, go on." at the first pause. At the second pause, or on "hello?" / "what should I say?", she reads back the digits she has and what's missing. One digit too many is said plainly. She waits 2.6 s mid-number.
+- **The receptionist review** (13 sources: dental front-desk scripts, turn-taking research):
+  - one acknowledgement per reply, first names only;
+  - "8 or 8:30 in the morning";
+  - no "Like I said";
+  - a kind close when no number was given;
+  - "Not right now, thanks" and "One second, I'm parking the car" are understood;
+  - a refused number gets the reason it's needed;
+  - the model may never say what's free or taken (validator V10);
+  - a one-word answer stops her mid-sentence;
+  - "tomorrow or the day after" covers both days.
+- **More replies by rules (owner: "most of it under tier 0"):**
+  - a booking with its day and time;
+  - clinic questions a verified fact answers (questions that point back with "it" / "that" still go to the model);
+  - a "Hi." / "Okay." said first;
+  - "X is my name";
+  - "Sorry. Actually," and "I'll take 9" at the summary.
+
+  Replaying the owner's three calls with the model off: 5 of 38 lines need the model, against about 22 before. Offline scenarios: 372 of 427 turns by rules (87%). Rule answers to clinic questions need a confident fact (`facts.confident`: every meaningful word of the question is in the fact).
+- **`TYPED_CALLS=false`** hides "Type instead" (set on the hosted site).
+- **Dead code removed:** the appointment-date question and two unused lines.
 
 **The running briefing is [LOCAL_CLAUDE_START.md](LOCAL_CLAUDE_START.md); its section 6 "Status, 25 Oct" is the latest.** In short:
 - **Code:** `main` (GitHub) holds everything: the 23 Oct cloud work, the Apple redesign (Liquid Glass, sign-in, dashboard, patient phone page) and the 22 Oct fixes. Checks before the push: 1068 tests, 53/53 scenarios both ways, all four sims on target; GitHub's run is green.

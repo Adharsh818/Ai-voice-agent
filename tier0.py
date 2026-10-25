@@ -580,13 +580,13 @@ def _fact_question(raw: str, t: str, words: list, view: Tier0View) -> bool:
     """A short question about the clinic that a verified fact answers, carrying no booking detail."""
     if view.catalog is None or len(words) > 16 or _ASKS_TO_BOOK.search(t) or _CHANGE_IT_RE.search(t):
         return False
-    if _POINTS_BACK_RE.search(t):
+    if _POINTS_BACK_RE.search(re.sub(r"\b(?:is|are) there\b", " ", t)):     # "is there parking" points nowhere
         return False                       # "how much is it?", "does that hurt?": what "it" is needs the model
     if view.pending in (Goal.ASK_SERVICE, Goal.ASK_BRANCH, Goal.CLARIFY_SERVICE) or _other_slots(raw, view):
         return False                       # "which branches?" at the branch question: the options (policy)
     import facts
     try:
-        return bool(facts.lookup(raw, facts.get_knowledge(), view.catalog))
+        return facts.confident(raw, facts.get_knowledge(), view.catalog)
     except Exception:                      # noqa: BLE001 - a broken fact never stops the call: ask the model
         return False
 
