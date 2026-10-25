@@ -268,6 +268,66 @@ def looks_like_echo(heard: str, emma: str, greeting: bool = False) -> bool:
     return sum(1 for p in heard_pairs if p in pairs) / len(heard_pairs) >= 0.6
 
 
+# Words around a choice that don't change it: "the morning", "evening please", "in the evening".
+_CHOICE_FILLER = {"the", "in", "a", "an", "at", "please", "um", "uh", "er", "hmm", "ok", "okay",
+                  "maybe", "i", "think", "say", "go", "with", "for", "is", "fine", "better", "works"}
+
+
+def choice_options(emma: str) -> list:
+    """
+    The options in Emma's last "A or B" / "A, B or C" sentence, as word lists in order
+    ("Morning or evening?" -> [["morning"], ["evening"]]); [] when she offered no choice.
+    A list's first item usually follows a lead-in ("available at Nagarbhavi"): its last word.
+    """
+    for sentence in reversed(re.split(r"(?<=[.?!])\s+", emma or "")):
+        found = re.search(r"\bor\b", sentence, re.I)
+        if not found:
+            continue
+        items = []
+        for part in reversed(sentence[:found.start()].split(",")):
+            words = _plain_words(part)
+            if not words:
+                continue
+            if len(words) <= 3:
+                items.insert(0, words)
+            else:
+                items.insert(0, words[-1:])
+                break
+        tail = _plain_words(re.split(r"[.?!,]", sentence[found.end():])[0])[:3]
+        if tail:
+            items.append(tail)
+        return items if len(items) >= 2 else []
+    return []
+
+
+def _match_choice(heard: str, emma: str) -> tuple:
+    """(the option named, whether it was her last one), or (None, False)."""
+    words = _plain_words(heard)
+    if not words or len(words) > 4 or "or" in words:
+        return None, False
+    content = [w for w in words if w not in _CHOICE_FILLER]
+    options = choice_options(emma)
+    if not content:
+        return None, False
+    n = len(content)
+    for i, item in enumerate(options):
+        core = [w for w in item if w not in _CHOICE_FILLER]
+        last = i == len(options) - 1
+        # Lead-in words come before an option ("Would morning or ..."), trailing ones after
+        # the last ("... or evening suit you better?").
+        if core and (core[:n] if last else core[-n:]) == content:
+            return " ".join(content), last
+    return None, False
+
+
+def answered_choice(heard: str, emma: str) -> Optional[str]:
+    """
+    The one option the caller named ("Morning.", "the evening please") when Emma had just
+    offered a choice; None otherwise. Her own question echoing back names "or" or both.
+    """
+    return _match_choice(heard, emma)[0]
+
+
 # Indian number phrasing ("double nine", "triple zero"): boosted with the clinic's words.
 SPOKEN_NUMBER_TERMS = ["double", "triple"]
 
@@ -1276,8 +1336,21 @@ class CallSession:
             start = start_wall if start_wall is not None else end_wall - 0.4 * words
             emma = self.speaker.window_text(tid, (start - span[0] - ECHO_WINDOW_SLACK_S) * 1000,
                                             (end_wall - span[0] + 0.3) * 1000)
+        ended = span[1] if span is not None else None
+        words_heard = len(_plain_words(text))
+        if ended is not None and end_wall - 0.4 * words_heard > ended + ECHO_TAIL_S:
+            # Said after her voice, and its echo tail, had stopped: it can't be her ("9" after
+            # "8:30 or 9?"), however many of her words it repeats.
+            return False
+        full = self.speaker.spoken_text(tid) or (self._emma_text if tid == self._speaking_turn else "")
+        # "Morning or evening?" -> "Morning.": every word is hers, but it's the answer (25 Oct: three
+        # answers were dropped as echo and the call stalled). Her last option said back is only an
+        # answer once her audio, and its echo tail, are over.
+        choice, is_last = _match_choice(text, full)
+        if choice is not None and (not is_last or (ended is not None and end_wall > ended + ECHO_TAIL_S)):
+            return False
         if not emma:
-            emma = self.speaker.spoken_text(tid) or (self._emma_text if tid == self._speaking_turn else "")
+            emma = full
         return looks_like_echo(text, emma, greeting=tid == self._greeting_turn)
 
     def _is_barge_in(self, text: str, now: float) -> bool:

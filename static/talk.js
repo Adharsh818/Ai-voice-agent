@@ -23,9 +23,12 @@ const typedText = document.getElementById("typed-text");
 const bar = document.getElementById("call-bar");
 const dock = document.getElementById("dock");
 
+// The same chrome runs the patient phone (/patient, data-page="patient"): there Emma is the one
+// calling, so the words differ, "Type instead" is offered only by app.js, and there's no Staff link.
+const PATIENT = body.dataset.page === "patient";
 const IN_CALL = ["connecting", "listening", "thinking", "speaking"];
 const STATUS = {
-  connecting: "Calling Emma…",
+  connecting: PATIENT ? "Connecting…" : "Calling Emma…",
   listening: "Emma is listening",
   thinking: "One moment…",
   speaking: "Emma is speaking",
@@ -166,7 +169,7 @@ function apply(next, was) {
   }
   // While idle, typing is always on offer next to the call button; app.js hides it in a call
   // and shows it itself when the microphone is blocked.
-  if (next === "idle") typeInstead.hidden = false;
+  if (next === "idle" && !PATIENT) typeInstead.hidden = false;
   // A deployment that keeps the talk page for signed-in staff: the prompt is an invitation,
   // not an error. (app.js names the button just after it changes state.)
   queueMicrotask(() => body.classList.toggle("needs-signin", next === "lost" && action.textContent === "Sign in"));
@@ -280,7 +283,10 @@ new MutationObserver(() => {
 apply(orb.dataset.state || "idle", null);
 
 // The "Staff" link appears only when this deployment has a staff login set up.
-fetch("/dashboard/api/auth", { credentials: "same-origin" })
+if (!PATIENT) fetch("/dashboard/api/auth", { credentials: "same-origin" })
   .then((res) => (res.ok ? res.json() : null))
-  .then((auth) => { if (auth && auth.configured) document.getElementById("staff-link").hidden = false; })
+  .then((auth) => {
+    const link = document.getElementById("staff-link");
+    if (link && auth && auth.configured) link.hidden = false;
+  })
   .catch(() => {});

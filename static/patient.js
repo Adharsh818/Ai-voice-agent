@@ -46,22 +46,48 @@ async function poll() {
       }
       const data = await res.json();
       const r = data.ringing;
-      if (r && (!ring || ring.job_id !== r.job_id)) show(r);
+      // A retried job rings again with the same id and a new token: compare both.
+      if (r && (!ring || ring.job_id !== r.job_id || ring.token !== r.token)) show(r);
       else if (!r && ring) hide();
     } catch (err) {
       console.warn('ring poll failed', err);
     }
   }
-  setTimeout(poll, POLL_MS);
+}
+
+function schedulePoll() {
+  poll().finally(() => setTimeout(schedulePoll, POLL_MS));
+}
+
+// Answer or Decline for a ring the server no longer has: show what is ringing now instead.
+function refreshRing() {
+  ring = null;
+  poll();
+}
+
+async function postRing(path, r) {
+  const res = await fetch(path, {
+    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: r.job_id, token: r.token }),
+  });
+  return res.ok;
 }
 
 let lastAnswered = null;    // the ring being answered, for "Type instead" if the microphone fails
 
-answerBtn.addEventListener('click', () => {
+answerBtn.addEventListener('click', async () => {
   if (!ring) return;
   const r = ring;
-  lastAnswered = r;
   answerBtn.disabled = declineBtn.disabled = true;
+  // Take the ring before asking for the microphone, so a slow or refused microphone can't
+  // let it time out as "no answer" while the patient switches to typing.
+  let claimed = false;
+  try { claimed = await postRing('/patient/api/answer', r); } catch (err) { console.warn('answer failed', err); }
+  if (!claimed) {
+    refreshRing();
+    return;
+  }
+  lastAnswered = r;
   inCall = true;
   hide();
   startCall(`/ws/outbound?job=${encodeURIComponent(r.job_id)}&token=${encodeURIComponent(r.token)}`);
@@ -79,15 +105,10 @@ declineBtn.addEventListener('click', async () => {
   if (!ring) return;
   const r = ring;
   answerBtn.disabled = declineBtn.disabled = true;
-  hide();
-  try {
-    await fetch('/patient/api/decline', {
-      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: r.job_id, token: r.token }),
-    });
-  } catch (err) {
-    console.warn('decline failed', err);
-  }
+  let declined = false;
+  try { declined = await postRing('/patient/api/decline', r); } catch (err) { console.warn('decline failed', err); }
+  if (declined) hide();
+  else refreshRing();
 });
 
 window.addEventListener('emma-call-state', (e) => {
@@ -137,4 +158,4 @@ function stopTone() {
   tone = null;
 }
 
-poll();
+schedulePoll();
