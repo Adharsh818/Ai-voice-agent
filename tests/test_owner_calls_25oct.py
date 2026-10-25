@@ -77,7 +77,7 @@ class NumberInPiecesTests(OwnerCallCase):
                          {"so_far": "9 8 4 5 0, 3 3 2 2", "need": "Just the last digit, please."})
         self.assertEqual(prompts.phone_so_far("98450")["need"], "Just the last 5 digits, please.")
         self.assertEqual(prompts.phone_so_far("080234")["need"], "Just the last 5 digits, please.")
-        self.assertEqual(prompts.phone_so_far("12")["need"], "What's the rest of the number?")
+        self.assertEqual(prompts.phone_so_far("25")["need"], "Just the last 8 digits, please.")   # any 10 digits
 
 
 class TimeNotOfferedTests(OwnerCallCase):
@@ -144,6 +144,17 @@ class EitherDayTests(unittest.TestCase):
         when = dateparse.parse_when("Tomorrow or day after tomorrow within this week", today=date(2026, 10, 25))
         self.assertEqual(list(when.date.dates()), [date(2026, 10, 26), date(2026, 10, 27)])
         self.assertIsNone(dateparse.parse_when("8 or 8:30", today=date(2026, 10, 25)).date)
+
+
+
+class TenDigitsTests(OwnerCallCase):
+    def test_ten_digits_starting_with_2_are_read_back_not_asked_for_more(self):
+        call = Call()
+        call.run("", "I need to book an appointment.")
+        call.run("Paul.")
+        reply = call.run("(258) 369-1470.").text
+        self.assertIn("2 5 8 3 6, 9 1 4 7 0", reply)
+        self.assertNotIn("rest of the number", reply)
 
 
 if __name__ == "__main__":

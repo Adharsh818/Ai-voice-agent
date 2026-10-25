@@ -1044,7 +1044,7 @@ def phone_so_far(buffer: str) -> dict:
     digits = "".join(ch for ch in buffer or "" if ch.isdigit())
     groups = [digits[i:i + 5] for i in range(0, len(digits), 5)]
     so_far = ", ".join(" ".join(g) for g in groups)
-    whole = 11 if digits.startswith("0") else 10 if digits[:1] in tuple("6789") else None
+    whole = 11 if digits.startswith("0") else 10 if digits else None
     left = whole - len(digits) if whole else 0
     if left == 1:
         need = "Just the last digit, please."
