@@ -361,6 +361,9 @@ class SarvamNLU:
     Structured Outputs keep the reply to the schema. One request, no retry of its own.
     """
 
+    label = "Sarvam"                     # in logs
+    meter = "sarvam"                     # usage.KINDS prefix
+
     def __init__(self, key=None, model=None, url=None, timeout=None):
         self.key = config.SARVAM_API_KEY if key is None else key
         self.model = config.SARVAM_MODEL if model is None else model
@@ -380,13 +383,19 @@ class SarvamNLU:
             self._client = httpx.AsyncClient()
         return self._client
 
+    def _headers(self) -> dict:
+        return {"api-subscription-key": self.key}
+
+    def _extra_body(self) -> dict:
+        return {"reasoning_effort": None}            # Sarvam: reasoning off (it costs ~1 s)
+
     def _body(self, contents: str, system: str, schema: dict | None, max_tokens: int) -> dict:
         body = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": contents}],
             "temperature": 0.0,
             "max_tokens": max_tokens,
-            "reasoning_effort": None,
+            **self._extra_body(),
             "stream": True,
         }
         if schema:
@@ -406,13 +415,13 @@ class SarvamNLU:
         if remaining <= 0:
             return
         self.requests += 1
-        usage.add("sarvam_requests")
-        usage.add("sarvam_in_tokens", usage.tokens(system) + usage.tokens(contents))
+        usage.add(f"{self.meter}_requests")
+        usage.add(f"{self.meter}_in_tokens", usage.tokens(system) + usage.tokens(contents))
         yielded = False
         out_chars = 0
         try:
             async with self._http().stream("POST", self.url, json=self._body(contents, system, schema, max_tokens),
-                                           headers={"api-subscription-key": self.key},
+                                           headers=self._headers(),
                                            timeout=remaining) as response:
                 if response.status_code != 200:
                     raise RuntimeError(f"HTTP {response.status_code}: {(await response.aread())[:160]!r}")
@@ -441,19 +450,41 @@ class SarvamNLU:
                         yield text
         except asyncio.TimeoutError:
             self.failures += 1
-            logger.warning("Sarvam NLU stream timed out (%s)%s", self.model, " mid-reply" if yielded else "")
+            logger.warning("%s NLU stream timed out (%s)%s", self.label, self.model, " mid-reply" if yielded else "")
         except Exception as exc:  # quota, overload, auth, network
             self.failures += 1
             if not yielded:
                 self.cooldown_until = time.monotonic() + KEY_COOLDOWN_S
-            logger.warning("Sarvam NLU stream failed (%s)%s: %s", self.model, " mid-reply" if yielded else "",
+            logger.warning("%s NLU stream failed (%s)%s: %s", self.label, self.model, " mid-reply" if yielded else "",
                            _short(exc))
         finally:
-            usage.add("sarvam_out_tokens", (out_chars + 3) // 4)
+            usage.add(f"{self.meter}_out_tokens", (out_chars + 3) // 4)
 
     def status(self) -> dict:
         return {"model": self.model, "requests": self.requests, "failures": self.failures,
                 "cooling_down": self.cooldown_until > time.monotonic(), "configured": bool(self.key)}
+
+
+class NvidiaNLU(SarvamNLU):
+    """
+    NVIDIA's hosted models (build.nvidia.com, OpenAI-shaped /v1/chat/completions, a Bearer key),
+    with SarvamNLU's contract. Measured 25 Oct on Emma's real brief: minimax-m3.1-flash gave first
+    words in p50 0.75 s with valid JSON; most other free models timed out.
+    """
+
+    label = "NVIDIA"
+    meter = "nvidia"
+
+    def __init__(self, key=None, model=None, url=None, timeout=None):
+        super().__init__(key=config.NVIDIA_API_KEY if key is None else key,
+                         model=config.NVIDIA_MODEL if model is None else model,
+                         url=config.NVIDIA_URL if url is None else url, timeout=timeout)
+
+    def _headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.key}"}
+
+    def _extra_body(self) -> dict:
+        return {}
 
 
 def json_schema(schema: dict) -> dict:
@@ -483,10 +514,13 @@ def json_schema(schema: dict) -> dict:
 
 def _primary_and_backup():
     """(first, second) model clients for a turn, per config.NLU_PRIMARY; second may be None."""
-    gemini, sarvam = get_nlu(), get_sarvam()
-    if config.NLU_PRIMARY == "sarvam" and sarvam.key:
-        return sarvam, gemini
-    return gemini, (sarvam if sarvam.key and config.NLU_BACKUP == "sarvam" else None)
+    gemini = get_nlu()
+    others = {"sarvam": get_sarvam(), "nvidia": get_nvidia()}
+    primary = others.get(config.NLU_PRIMARY)
+    if primary is not None and primary.key:
+        return primary, gemini
+    backup = others.get(config.NLU_BACKUP)
+    return gemini, (backup if backup is not None and backup.key else None)
 
 
 def turn_usable() -> bool:
@@ -582,6 +616,15 @@ def get_nlu() -> GeminiNLU:
 
 
 _sarvam: SarvamNLU | None = None
+_nvidia: NvidiaNLU | None = None
+
+
+def get_nvidia() -> NvidiaNLU:
+    """Process-wide NVIDIA client (unusable without NVIDIA_API_KEY)."""
+    global _nvidia
+    if _nvidia is None:
+        _nvidia = NvidiaNLU()
+    return _nvidia
 
 
 def get_sarvam() -> SarvamNLU:

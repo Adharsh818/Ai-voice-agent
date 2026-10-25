@@ -93,7 +93,11 @@ GEMINI_THINKING = os.getenv("GEMINI_THINKING", "MINIMAL").strip()
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
 SARVAM_MODEL = os.getenv("SARVAM_MODEL", "sarvam-105b-conversations")
 SARVAM_URL = os.getenv("SARVAM_URL", "https://api.sarvam.ai/v1/chat/completions")
-# Which model takes the turn first: "gemini" (default) or "sarvam". The other one, when it
+# NVIDIA's hosted models (build.nvidia.com), OpenAI-shaped: NLU_PRIMARY=nvidia. Free for development.
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "minimaxai/minimax-m3.1-flash")
+NVIDIA_URL = os.getenv("NVIDIA_URL", "https://integrate.api.nvidia.com/v1/chat/completions")
+# Which model takes the turn first: "gemini" (default), "sarvam" or "nvidia". Gemini, when it
 # has a key, is the turn's one retry (only before any token arrived; llm.py budget rules).
 NLU_PRIMARY = os.getenv("NLU_PRIMARY", "gemini").strip().lower()
 # Sarvam as Gemini's retry only when asked for ("sarvam"). Off by default: on the 53 scenarios
