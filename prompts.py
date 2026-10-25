@@ -92,8 +92,6 @@ LINES: dict[str, LineSpec] = {
     # knowledge
     "answer.fact": _l("A verified fact, spoken as-is: '{text}'", "text", critical=True),
     "unknown": _l("Honest not-sure, natural. 'Hmm, I'm not sure about that one.'", cache=True),
-    "unknown.offer": _l("Offer after not-sure. 'I can ask someone from the clinic to call you about it, "
-                        "if you like?'"),
     "clinical": _l("Only for genuinely clinical questions (diagnosis, 'do I need X', medicine). "
                    "'That's really one for the doctor to check when they see you.'"),
     # global handlers
@@ -155,7 +153,6 @@ LINES: dict[str, LineSpec] = {
     "ask.name.manage.rephrase": _l("'Sorry, which name is the appointment under?'"),
     "ack.name.manage": _l("Notice, a cancel or change: the name the booking is under. 'Thank you, {first}.' "
                           "(never 'Nice to meet you')", "first", critical=True),
-    "ask.name.callback": _l("'And who should they ask for?'"),
     "ack.name": _l("Notice, implicit confirmation with the first name. 'Thank you, {first}.'", "first",
                    critical=True),
     "ack.spelled": _l("Notice: letters read back. '{letters}, got it.'", "letters", critical=True),
@@ -311,8 +308,6 @@ LINES: dict[str, LineSpec] = {
     "checking": _l("Played before a search or a commit (before_action). 'Let me just check that for you.' / "
                    "'One moment, let me have a look.'", critical=True, cache=True),
     # MANAGE
-    "ask.appt_date": _l("'And what date is the appointment?'", cache=True),
-    "ask.appt_date.rephrase": _l("'Do you remember roughly which day it's on?'"),
     "verify.failed": _l("Reveal nothing. 'Hmm, I can't find a booking under that name on this number. Could it "
                         "be under someone else's name?'", critical=True),
     "verify.failed.final": _l("Second failure: offer a callback. 'I'm still not finding it. I can have the "
@@ -401,8 +396,6 @@ VARIANTS: dict[str, tuple] = {
     "answer.fact": ("{text}",),
     "unknown": ("Hmm, I'm not sure about that one.", "Honestly, I don't know that one.",
                 "I'm not sure about that, sorry."),
-    "unknown.offer": ("I can ask someone from the clinic to call you about it, if you like?",
-                      "I can have the team find out and call you, if that helps?"),
     "clinical": ("That's really one for the doctor to check when they see you.",
                  "That's something the doctor would need to look at in person.",
                  "The doctor would need to see it to tell you properly."),
@@ -479,7 +472,6 @@ VARIANTS: dict[str, tuple] = {
     "ask.name.manage.rephrase": ("Sorry, which name is the appointment under?",
                                  "Sorry, I didn't catch which name the appointment is under."),
     "ack.name.manage": ("Thank you, {first}.", "Okay, {first}."),
-    "ask.name.callback": ("And who should they ask for?", "And what name should they ask for?"),
     # The first name, once: the full name is checked in the summary (review, 25 Oct: "Nice to meet you,
     # Kabir Singh" sounds odd on an Indian clinic line).
     "ack.name": ("Thank you, {first}.", "Okay, {first}.", "{first}, thank you."),
@@ -675,8 +667,6 @@ VARIANTS: dict[str, tuple] = {
     "checking": (CHECKING_FIRST, "One moment, let me have a look.", "Let me just pull that up.",
                  "Give me a second, I'll check."),
     # MANAGE
-    "ask.appt_date": ("And what date is the appointment?", "And which day is the appointment on?"),
-    "ask.appt_date.rephrase": ("Do you remember roughly which day it's on?", "Roughly when is it, do you remember?"),
     "verify.failed": ("Hmm, I can't find a booking under that name on this number. Could it be under someone "
                       "else's name, like a family member?",
                       "I'm not finding one under that name on this number. Might it be booked in another name?"),

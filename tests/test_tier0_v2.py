@@ -142,11 +142,6 @@ class StrictAnswers(Tier0Case):
         self.assertIsNone(u.date_phrase)
         self.assertEqual(self.u("November 22, at", view(Goal.ASK_WHEN)).acts, ["fragment"])
 
-    def test_verification_date(self):
-        u = self.u("the 5th", view(Goal.ASK_APPT_DATE, intent=Intent.CANCEL))
-        self.assertEqual(u.appt_date_phrase, "the 5th")
-        self.assertIsNone(u.date_phrase)
-
     def test_date_refusals_go_to_the_model(self):
         for text in ("Monday doesn't work", "not Monday", "Monday is my son's exam"):
             self.assertIsNone(self.u(text, view(Goal.ASK_WHEN)), text)

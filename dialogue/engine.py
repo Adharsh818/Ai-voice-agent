@@ -58,7 +58,7 @@ OnSentence = Callable[[str], Awaitable[None]]
 # model said nothing first. Never a summary, read-back, offer or outcome.
 OPENER_GOALS = frozenset({
     Goal.ASK_NAME, Goal.ASK_PHONE, Goal.ASK_PATIENT, Goal.ASK_AGE, Goal.ASK_SERVICE, Goal.ASK_BRANCH,
-    Goal.ASK_WHEN, Goal.ASK_TIME, Goal.ASK_APPT_DATE, Goal.ASK_NEW_WHEN, Goal.WHAT_TO_CHANGE,
+    Goal.ASK_WHEN, Goal.ASK_TIME, Goal.ASK_NEW_WHEN, Goal.WHAT_TO_CHANGE,
     Goal.ANYTHING_ELSE, Goal.ASK_INTENT,
 })
 _ENDS_SENTENCE = re.compile(r"[.!?][\"')\]]*$")

@@ -270,8 +270,7 @@ def _retry_verification(ctx: CallContext):
     """
     m = ctx.manage
     m.done, m.verify_attempts, m.appt_date = False, 0, None
-    for goal in (Goal.VERIFY_FAILED, Goal.ASK_APPT_DATE):
-        ctx.goal_stats.pop(goal.value, None)
+    ctx.goal_stats.pop(Goal.VERIFY_FAILED.value, None)
 
 
 def switch_intent(ctx: CallContext, new: Intent, rt: Runtime) -> list:

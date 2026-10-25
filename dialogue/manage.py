@@ -296,7 +296,7 @@ def _absorb(ctx: CallContext, u: Understanding) -> _Heard:
         m.action = ctx.intent
 
     was_verified = m.verified
-    asked_date = ctx.pending in (Goal.ASK_APPT_DATE, Goal.VERIFY_FAILED)
+    asked_date = ctx.pending == Goal.VERIFY_FAILED
     date_was_appt = False
     if not was_verified:
         name = u.patient_name or u.name_spelled or u.name

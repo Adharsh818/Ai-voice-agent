@@ -72,7 +72,7 @@ GOAL_LINES = {
     Goal.ASK_TIME: "ask.time", Goal.RESOLVE_AMPM: "resolve.ampm", Goal.OFFER_SLOTS: "offer.two",
     Goal.NO_SLOTS: "no_slots", Goal.MAX_REACHED: "max_reached", Goal.DUPLICATE_CHECK: "duplicate",
     Goal.SUMMARY: "summary", Goal.SUMMARY_AGAIN: "summary.again", Goal.WHAT_TO_CHANGE: "what_to_change",
-    Goal.BOOKED: "booked", Goal.DROPPED: "dropped", Goal.ASK_APPT_DATE: "ask.appt_date",
+    Goal.BOOKED: "booked", Goal.DROPPED: "dropped",
     Goal.VERIFY_FAILED: "verify.failed", Goal.PICK_APPOINTMENT: "pick.appointment",
     Goal.STATE_APPOINTMENT: "state.appointment", Goal.CONFIRM_CANCEL: "confirm.cancel",
     Goal.ASK_CANCEL_REASON: "ask.cancel_reason", Goal.CANCELLED: "cancelled", Goal.OFFER_REBOOK: "offer.rebook",
@@ -87,7 +87,6 @@ RUNG_LINES = {
     Goal.SPELL_NAME: ("ask.name.spell", "ask.name.spell", "ask.name.spell"),
     Goal.PHONE_MORE: ("phone.more", "phone.more.so_far", "phone.more.so_far"),
     Goal.ASK_TIME: ("ask.time", "ask.time.choices", "ask.time.choices"),
-    Goal.ASK_APPT_DATE: ("ask.appt_date", "ask.appt_date.rephrase", "ask.appt_date.rephrase"),
     Goal.ASK_INTENT: ("ask.intent", "ask.intent", "capability"),
     Goal.SUMMARY: ("summary", "summary.again", "summary.again"),
 }
@@ -95,7 +94,7 @@ RUNG_LINES = {
 # Goals that ask the caller for a detail, and the detail they fill (M2).
 ASK_GOALS = frozenset({
     Goal.ASK_NAME, Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE, Goal.ASK_PATIENT, Goal.ASK_AGE,
-    Goal.ASK_SERVICE, Goal.ASK_BRANCH, Goal.ASK_WHEN, Goal.ASK_TIME, Goal.ASK_APPT_DATE, Goal.ASK_NEW_WHEN,
+    Goal.ASK_SERVICE, Goal.ASK_BRANCH, Goal.ASK_WHEN, Goal.ASK_TIME, Goal.ASK_NEW_WHEN,
     Goal.ASK_CANCEL_REASON,
 })
 # Workflow goals that go ahead of the name and phone questions: they react
@@ -134,7 +133,7 @@ _GOAL_FIELDS = {
     Goal.ASK_SERVICE: ("service", "service_phrase"), Goal.CLARIFY_SERVICE: ("service", "service_phrase"),
     Goal.ASK_BRANCH: ("branch", "branch_any"), Goal.ASK_WHEN: ("date_phrase", "time_phrase"),
     Goal.ASK_TIME: ("time_phrase",), Goal.RESOLVE_AMPM: ("time_phrase",),
-    Goal.ASK_APPT_DATE: ("appt_date_phrase", "date_phrase"), Goal.ASK_NEW_WHEN: ("date_phrase", "time_phrase"),
+    Goal.ASK_NEW_WHEN: ("date_phrase", "time_phrase"),
     Goal.OFFER_SLOTS: ("choice_index", "reject_options", "time_phrase", "date_phrase"),
     Goal.OFFER_NEW_SLOTS: ("choice_index", "reject_options", "time_phrase", "date_phrase"),
 }
@@ -416,8 +415,6 @@ def holds(ctx: CallContext, goal: Goal) -> bool:
         return b.date_c is not None
     if goal == Goal.ASK_TIME:
         return b.any_time or (b.time_c is not None and b.time_c.kind != "ambiguous")
-    if goal == Goal.ASK_APPT_DATE:
-        return m.appt_date is not None
     if goal == Goal.ASK_NEW_WHEN:
         return m.new_date_c is not None
     if goal == Goal.ASK_CANCEL_REASON:
