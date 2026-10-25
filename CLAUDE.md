@@ -2,6 +2,8 @@
 
 **Before any work in this repo, read [docs/NORTH_STAR.md](docs/NORTH_STAR.md) and check the change against its checklist.**
 
+**Picking the project up? Start with [docs/LOCAL_CLAUDE_START.md](docs/LOCAL_CLAUDE_START.md):** where everything runs, every change so far, the owner's decisions and the tasks left, in order.
+
 The goal is not just a voice agent. Callers should feel they're talking to a real, skilled receptionist: natural greeting, human phrasing, clinic sounds that follow the call (no background bed, nothing constant), listening tuned for Indian-accented English, and problems solved on the call rather than handed off. Emma never volunteers that she's automated, but never claims to be human when sincerely asked. Python, not the LLM, decides every booking action and every fact that is spoken.
 
 - **Current status, the owner's latest feedback and next steps: [docs/HANDOFF.md](docs/HANDOFF.md). Read it before starting work.**
