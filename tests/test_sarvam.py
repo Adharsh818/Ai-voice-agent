@@ -157,3 +157,21 @@ class NvidiaTests(unittest.TestCase):
             text = asyncio.run(collect(llm.stream_turn("c", "s", deadline=time.monotonic() + 5)))
         self.assertEqual(text, '{"a":1}')                             # NVIDIA gave nothing: Gemini's answer
         self.assertEqual(nvidia.calls, [False])
+
+
+class CerebrasTests(unittest.TestCase):
+    def test_bearer_key_and_low_reasoning_for_gpt_oss(self):
+        seen = {}
+
+        def handler(request):
+            seen["body"] = json.loads(request.content)
+            seen["auth"] = request.headers.get("authorization")
+            return httpx.Response(200, content=sse('{"intent":"book"}'))
+
+        client = llm.CerebrasNLU(key="cb-test", model="gpt-oss-120b", url="https://cerebras.test/v1/chat")
+        client._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        text = asyncio.run(collect(client.generate_json_stream("c", "s", schema=nlu.build_schema(),
+                                                               deadline=time.monotonic() + 5)))
+        self.assertEqual(json.loads(text), {"intent": "book"})
+        self.assertEqual(seen["auth"], "Bearer cb-test")
+        self.assertEqual(seen["body"]["reasoning_effort"], "low")

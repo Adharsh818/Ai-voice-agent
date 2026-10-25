@@ -97,7 +97,11 @@ SARVAM_URL = os.getenv("SARVAM_URL", "https://api.sarvam.ai/v1/chat/completions"
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
 NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "minimaxai/minimax-m3.1-flash")
 NVIDIA_URL = os.getenv("NVIDIA_URL", "https://integrate.api.nvidia.com/v1/chat/completions")
-# Which model takes the turn first: "gemini" (default), "sarvam" or "nvidia". Gemini, when it
+# Cerebras's hosted models (cloud.cerebras.ai), OpenAI-shaped: NLU_PRIMARY=cerebras. A free trial tier.
+CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY", "")
+CEREBRAS_MODEL = os.getenv("CEREBRAS_MODEL", "gpt-oss-120b")
+CEREBRAS_URL = os.getenv("CEREBRAS_URL", "https://api.cerebras.ai/v1/chat/completions")
+# Which model takes the turn first: "gemini" (default), "sarvam", "nvidia" or "cerebras". Gemini, when it
 # has a key, is the turn's one retry (only before any token arrived; llm.py budget rules).
 NLU_PRIMARY = os.getenv("NLU_PRIMARY", "gemini").strip().lower()
 # Sarvam as Gemini's retry only when asked for ("sarvam"). Off by default: on the 53 scenarios
@@ -310,6 +314,9 @@ TELEPHONY_ENABLED = os.getenv("TELEPHONY_ENABLED", "false").lower() == "true"
 # Phone playout (audiosocket.py): hold this much of a live line before it starts, and refill this much if
 # the stream runs dry mid-line (bursty mobile data). Cached lines arrive whole and don't wait.
 PHONE_PREBUFFER_MS = int(os.getenv("PHONE_PREBUFFER_MS", "250"))
+# Feed the speech recogniser silence in the caller's gaps: softphones send nothing while the caller is
+# quiet, so Deepgram couldn't hear the end of a turn (25 Oct phone calls: 2.5-4.5 s to answer).
+PHONE_FILL_SILENCE = os.getenv("PHONE_FILL_SILENCE", "true").lower() == "true"
 PHONE_REBUFFER_MS = int(os.getenv("PHONE_REBUFFER_MS", "150"))
 AUDIOSOCKET_HOST = os.getenv("AUDIOSOCKET_HOST", "127.0.0.1")
 AUDIOSOCKET_PORT = int(os.getenv("AUDIOSOCKET_PORT", "9092"))

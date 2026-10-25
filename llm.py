@@ -487,6 +487,22 @@ class NvidiaNLU(SarvamNLU):
         return {}
 
 
+class CerebrasNLU(NvidiaNLU):
+    """Cerebras's hosted models (cloud.cerebras.ai, OpenAI-shaped, a Bearer key; a free trial tier)."""
+
+    label = "Cerebras"
+    meter = "cerebras"
+
+    def __init__(self, key=None, model=None, url=None, timeout=None):
+        SarvamNLU.__init__(self, key=config.CEREBRAS_API_KEY if key is None else key,
+                           model=config.CEREBRAS_MODEL if model is None else model,
+                           url=config.CEREBRAS_URL if url is None else url, timeout=timeout)
+
+    def _extra_body(self) -> dict:
+        # gpt-oss reasons before it answers: as little as it allows, for Emma's first words.
+        return {"reasoning_effort": "low"} if "gpt-oss" in self.model else {}
+
+
 def json_schema(schema: dict) -> dict:
     """Gemini's OpenAPI-style schema ("nullable": true) as plain JSON Schema (type lists, null in enums)."""
     if not isinstance(schema, dict):
@@ -515,7 +531,7 @@ def json_schema(schema: dict) -> dict:
 def _primary_and_backup():
     """(first, second) model clients for a turn, per config.NLU_PRIMARY; second may be None."""
     gemini = get_nlu()
-    others = {"sarvam": get_sarvam(), "nvidia": get_nvidia()}
+    others = {"sarvam": get_sarvam(), "nvidia": get_nvidia(), "cerebras": get_cerebras()}
     primary = others.get(config.NLU_PRIMARY)
     if primary is not None and primary.key:
         return primary, gemini
@@ -617,6 +633,15 @@ def get_nlu() -> GeminiNLU:
 
 _sarvam: SarvamNLU | None = None
 _nvidia: NvidiaNLU | None = None
+_cerebras: CerebrasNLU | None = None
+
+
+def get_cerebras() -> CerebrasNLU:
+    """Process-wide Cerebras client (unusable without CEREBRAS_API_KEY)."""
+    global _cerebras
+    if _cerebras is None:
+        _cerebras = CerebrasNLU()
+    return _cerebras
 
 
 def get_nvidia() -> NvidiaNLU:

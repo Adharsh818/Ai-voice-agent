@@ -95,7 +95,8 @@ _LEAD_RE = re.compile(
 _WANT = (r"(?:i'?d like to|i would like to|i want to|i wanna|i need to|i have to|i wish to|"
          r"i was hoping to|i'?m calling to|i am calling to|i called to|i'?m looking to|"
          r"i am looking to|can i|could i|may i|can you|could you|please|let me|want to|"
-         r"need to|looking to|i'?ll|i will|i'?d|just want to|just wanted to|i wanted to)\s+")
+         r"need to|looking to|i'?ll|i will|i'?d|just want to|just wanted to|i wanted to|i just need to|"
+         r"just need to)\s+")
 _BOOK_HEAD_RE = re.compile(
     rf"^(?:{_WANT})?(?:book|schedule|make|fix|get|take|set up|arrange)\b(?P<rest>.*)$|"
     r"^(?:i'?d like|i want|i need|i would like|can i (?:get|have)|could i (?:get|have)|"
@@ -111,6 +112,8 @@ _CHECK_RE = re.compile(
     r"(?:\s+(?:time|date|details|timing))?|when is my (?:appointment|booking)|"
     r"what time is my (?:appointment|booking))(?:\s+please)?$"
 )
+_MOVE_FILLER = {"to", "another", "different", "other", "day", "date", "time", "some", "later", "need", "want",
+                "wanna", "like", "would", "can", "could", "you", "we", "just", "so", "actually", "sorry", "please"}
 _APPT_NOUN_RE = re.compile(r"\b(appointment|appointments|booking|bookings|visit)\b")
 # Words an opener may carry besides its verb and object.
 _OPENER_FILLER = {
@@ -239,6 +242,23 @@ _NEGATED_SYMPTOM_RE = re.compile(
 )
 
 # Words a yes / no reply may carry beside the answer itself.
+# Small talk (the same words engine._fallback_answer answers with "chitchat" / "chitchat.remark").
+_HOW_ARE_YOU_RE = re.compile(
+    r"\bhow(?:'s| is| are| r)\s+(?:you|u|your day|it going|things|everything|life)\b|\bhow do you do\b|"
+    r"\bhope you(?:'re| are)\s+(?:well|good|fine|doing well|keeping well|not too busy)\b|\bhow have you been\b")
+_REMARK_RE = re.compile(
+    r"\b(?:rain(?:s|ing|y|ed)?|weather|so hot|very hot|hot today|humid|traffic|busy day|long day|"
+    r"(?:too|so|very) busy|hectic)\b")
+_ABOUT_CLINIC_RE = re.compile(r"\b(?:clinic|doctors?|dr|appointments?|open|wait(?:ing)?|parking|branch|reach|"
+                              r"get there|book|cancel|move|change)\b")
+_YES_LEAD_RE = re.compile(r"^(?:yes|yeah|yep|yup|sure|ok|okay|please|go ahead)\b")
+_NEGATION_RE = re.compile(r"\b(?:no|not|don'?t|dont|never|nope|nah|wait)\b")
+_CONFIRM_VERBS = {
+    Goal.CONFIRM_CANCEL: frozenset({"cancel", "and", "go", "ahead", "for", "me"}),
+    Goal.CONFIRM_RESCHEDULE: frozenset({"move", "change", "shift", "reschedule", "and", "go", "ahead", "for", "me"}),
+    Goal.SUMMARY: frozenset({"book", "and", "go", "ahead", "for", "me"}),
+    Goal.SUMMARY_AGAIN: frozenset({"book", "and", "go", "ahead", "for", "me"}),
+}
 _YES_NO_VOCAB = {
     "yes", "yeah", "yep", "yup", "ya", "yea", "sure", "correct", "right", "ok", "okay", "exactly",
     "absolutely", "definitely", "certainly", "of", "course", "go", "ahead", "proceed", "sounds",
@@ -656,6 +676,11 @@ def _globals(t: str, raw: str, words: list, view: Tier0View, source: str):
         if view.pending in _CLOSING_QUESTION_GOALS:
             return _u(raw, source, [Act.END])
         return _u(raw, source, [Act.CHITCHAT])
+    if len(words) <= 10 and (_HOW_ARE_YOU_RE.search(t) or _REMARK_RE.search(t)) and not _ABOUT_CLINIC_RE.search(t) \
+            and _parse_when(re.sub(r"\btoday\b", "", t)).empty and not _other_slots(raw, view):
+        # "How's your day going?" / "It's been raining so much here, no?": small talk, answered warmly
+        # and then back to the question (sims, 25 Oct: to the model).
+        return _u(raw, source, [Act.CHITCHAT])
     return None
 
 
@@ -689,7 +714,8 @@ def _offer_pick(t: str, raw: str, view: Tier0View, source: str):
     bare = _BARE_TIME_PICK_RE.match(dateparse.normalize(raw)) if when.empty else None
     if bare:
         when = _parse_when(bare.group(1), expecting="time")
-    allowed = frozenset({"one", "slot", "works", "please", "the"}) | (_PICK_LEAD_WORDS if bare else frozenset())
+    # "Let's do 10 in the morning" / "Okay, 8 am works": the lead-in words around a time (sims, 25 Oct).
+    allowed = frozenset({"one", "slot", "works", "please", "the"}) | _PICK_LEAD_WORDS
     if not when.empty and _when_residue_ok(t, allowed):
         hits = []
         for i, slot in enumerate(offered, 1):
@@ -795,6 +821,12 @@ def _strict_answer(t: str, raw: str, words: list, view: Tier0View):
         if re.search(r"\d", t) or len(match.extract_digits(raw).digits) >= 3:
             return None                     # "no, it's 937": a correction for the model
         conf = match.parse_yes_no(raw)
+        # "Yes, go ahead and cancel it" to "Shall I cancel it?" says yes with the very action asked about
+        # (sims, 25 Oct: 86 turns to the model; parse_yes_no hears "cancel" as a no). Only that action's verb.
+        verbs = _CONFIRM_VERBS.get(pending, frozenset())
+        if verbs and _YES_LEAD_RE.match(t) and len(words) <= 8 and not _NEGATION_RE.search(t) \
+                and all(w in _YES_NO_VOCAB or w in verbs for w in words):
+            return _u(raw, src, [Act.ANSWER], confirmation="yes")
         if conf == "no" and re.search(r"\b(book|cancel|change|reschedule|move)\b", t):
             return None                     # "don't book it" / "no, change the time"
         if conf and len(words) <= 5 and all(w in _YES_NO_VOCAB for w in words):
@@ -960,8 +992,9 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
 
     # "For cleaning." when Emma asked for the name (21 Oct, twice to the model): the service, given early;
     # nothing is taken as the name, so Emma notes the service and asks for the name again.
-    if view.pending == Goal.ASK_NAME and len(words) <= 4:
-        said = _SERVICE_LEAD_RE.sub("", t)
+    if view.pending == Goal.ASK_NAME and len(words) <= 8:
+        # "For cleaning." / "I just want to book a check-up." (sims, 25 Oct) when Emma asked for the name.
+        said = _SERVICE_LEAD_RE.sub("", _BOOK_LEAD_RE.sub("", t))
         svc = match.match_service(said, _catalog_part(view, "services"), asked=True) if said else None
         if svc is not None and svc.value and not svc.options and len(_tokens(said)) <= 2 \
                 and not _other_slots(raw, view, service=False):
@@ -997,7 +1030,26 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
     if view.pending == Goal.BOOKED and _changes_just_booked(t, raw, words):
         return None                         # a change to the booking just made: the model, else lenient
 
-    opener = None if _MOVE_APPT_RE.search(t) else _opener(t, view, strict=True)
+    if view.intent == Intent.RESCHEDULE and view.pending == Goal.ASK_NEW_WHEN:
+        # "It's this Monday, and I'd like to move it to Saturday" to "When would you like to move it to?":
+        # the part after "move it to" is the new time (sims, 25 Oct: 71 turns to the model).
+        moved_to = _MOVE_TO.match(raw)
+        if moved_to:
+            new = _parse_when(moved_to.group("new"))
+            if not new.empty and not _other_slots(moved_to.group("new"), view):
+                date_phrase, time_phrase = _split_when(moved_to.group("new"), new)
+                return _u(raw, "tier0", [Act.ANSWER], date_phrase=date_phrase, time_phrase=time_phrase)
+    moving = _MOVE_APPT_RE.search(t)
+    if moving:
+        # "I need to change my appointment" / "I want to move my appointment to another day", nothing more
+        # (sims, 25 Oct: to the model at "anything else?" and at a move's offers).
+        rest = _tokens(t[:moving.start()] + " " + t[moving.end():])
+        if all(w in _OPENER_FILLER or w in _MOVE_FILLER or _LEAD_RE.fullmatch(w + " ") for w in rest):
+            if view.intent == Intent.RESCHEDULE and view.pending == Goal.OFFER_NEW_SLOTS:
+                return _u(raw, "tier0", [Act.ANSWER], reject_options=True, confirmation="no")
+            act = Act.ANSWER if view.pending in _INTENT_GOALS else Act.INFO
+            return _u(raw, "tier0", [act], intent=Intent.RESCHEDULE)
+    opener = None if moving else _opener(t, view, strict=True)
     when_fields = {}
     if opener is None and not _MOVE_APPT_RE.search(t) and view.pending in _INTENT_GOALS | {None}:
         # "I'd like to get my teeth cleaned on Monday afternoon" / "Can I book a check-up for Saturday
@@ -1079,6 +1131,8 @@ _ASKS_TO_BOOK = re.compile(r"\b(book|appointment|come in|(can|could|may) (i|we) 
                            r"i'?d like|i want|i need)\b")
 
 
+_BOOK_LEAD_RE = re.compile(r"^(?:(?:i|just|only|really|want|wanna|would|like|need|to|book|get|have|i'?d|"
+                           r"please|actually|sorry|no)[\s,.]+)+")
 _SERVICE_LEAD_RE = re.compile(r"^(?:(?:it'?s|its|it is|for|for a|for an|a|an|the|just|um+|uh+)[\s,.]+)+")
 _NO_LEAD_RE = re.compile(r"^(?:no|nope|nah|not this|not that)\b")
 _OTHER_NUMBER_RE = re.compile(r"\b(?:another|different|other|new|wrong)\s+(?:number|one|mobile)\b|"
