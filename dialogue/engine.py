@@ -266,10 +266,13 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
             or plan.goal in (Goal.PHONE_MORE, Goal.HELP_FIRST, Goal.TRANSFER, Goal.CONFIRM_PHONE))
         if not (answer.line == "unknown" and asks_about_booking) and not hours_again and not not_a_question:
             notices.insert(0, answer)
-            if answer.line == "answer.fact" and plan.goal == Goal.ASK_INTENT:
+            if answer.line == "answer.fact" and plan.goal in (Goal.ASK_INTENT, Goal.ANSWER_ONLY) \
+                    and not ctx.workflow_active():
                 # "A cleaning is 1,000 to 1,500 rupees. What can I do for you?" sounded like the call
-                # had just started; after an answer a receptionist asks "Anything else?" (25 Oct).
-                plan.line = "anything_else"
+                # had just started, and a bare answer left the caller waiting; after an answer a
+                # receptionist asks "Anything else?" (25 Oct).
+                plan = policy._plan(ctx, Goal.ANYTHING_ELSE, rt.catalog)
+                ctx.pending, ctx.pending_params = Goal.ANYTHING_ELSE, {"_line": plan.line, "_rung": plan.rung}
             if answer.line == "unknown" and plan.goal == Goal.ANSWER_ONLY and not ctx.workflow_active() \
                     and ctx.outcome is None:
                 # "How may I help you out?" -> "I'm not sure about that, sorry." and nothing more (phone
@@ -660,8 +663,13 @@ _ABOUT_CLINIC = re.compile(r"\b(?:clinic|doctors?|dr|appointments?|open|wait(?:i
 
 def _view(ctx: CallContext, rt: Runtime) -> Tier0View:
     hint = policy.listening_hint(ctx)
+    pending = ctx.pending
+    if pending in (Goal.GO_ON, Goal.HOLD_ON) and ctx.__dict__.get("_open_question"):
+        # After "Sorry, go on." the question still open is what an answer answers: "I want
+        # Whitefield" to the branch question (owner's call 2, 25 Oct: it went to the model).
+        pending = ctx.__dict__["_open_question"][0]
     return Tier0View(
-        expect=Expect(hint["expect"]), pending=ctx.pending, intent=ctx.intent,
+        expect=Expect(hint["expect"]), pending=pending, intent=ctx.intent,
         digits_so_far=ctx.caller.phone_buffer, offered=tuple(ctx.offers()),
         options=tuple(ctx.book.service_options), names_heard=tuple(ctx.caller.names_heard),
         catalog=rt.catalog)

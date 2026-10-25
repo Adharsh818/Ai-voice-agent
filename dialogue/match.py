@@ -866,7 +866,9 @@ ASKS_OPTIONS_RE = re.compile(
     r"\b(?:what|which|tell me|list|say|read|name|go through)\b.{0,30}?"
     r"\b(?:services?|treatments?|options?|choices?|branches|branch|locations?|times|slots)\b"
     r"|\bwhat (?:do|can) you (?:do|offer|have)\b|\bwhat (?:are|is) (?:there|available)\b"
-    r"|\b(?:services?|treatments?|branches|locations?)\s+(?:available|offered|you (?:have|do|offer))\b",
+    r"|\b(?:services?|treatments?|branches|locations?)\s+(?:available|offered|you (?:have|do|offer))\b"
+    # "Tell me where it is available" at the branch question (owner's call 2, 25 Oct).
+    r"|\bwhere (?:is it|it is|it's|can i get it|do you do it|all)\b",
     re.IGNORECASE)
 # "Hello? Yes, I'm still here." answers "are you still there?"; the "?" is the line, not a question.
 _HELLO_RE = re.compile(r"^\s*(hello|hi|hey|hallo)\s*\?+\s*")

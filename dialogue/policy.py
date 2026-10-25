@@ -52,7 +52,7 @@ from dateparse import DateConstraint
 from dialogue import book, manage, match
 from dialogue.context import (
     Act, CallContext, CLOSING_GOALS, Expect, FieldState, GOAL_SPECS, Goal, GoalPlan, Intent,
-    MANAGE_INTENTS, RUNG_ASK, RUNG_CHOICES, RUNG_EXIT, Understanding,
+    MANAGE_INTENTS, RUNG_ASK, RUNG_CHOICES, RUNG_EXIT, RUNG_REPHRASE, Understanding,
 )
 from dialogue.runtime import safe_call
 
@@ -583,6 +583,10 @@ def rung_for(ctx: CallContext, goal: Goal, u: Optional[Understanding] = None) ->
         rung = max(rung, RUNG_CHOICES)               # a non-answer to this question, not to an earlier one
     if asks_for_options(ctx, goal, u):
         rung = RUNG_CHOICES                          # read the options out, never jump past them to an exit
+        if goal == Goal.ASK_BRANCH:
+            # The branch "choices" rung proposes "whichever is earliest"; asked where, she names them
+            # all ("Which is more convenient for you, Nagarbhavi, ...?", owner's call 2, 25 Oct).
+            rung = RUNG_REPHRASE
     return rung
 
 

@@ -131,6 +131,8 @@ _REPEAT_RE = re.compile(
     r"(?:\s+(?:please|again|sorry|ma'?am|madam))*$"
 )
 _UNIT = r"(?:sec|second|seconds|minute|minutes|moment|min)"
+_WHAT_NOW_RE = re.compile(r"\bwhat (?:should|do|shall|must) i (?:say|tell|do)\b|\bwhat do you (?:need|want)\b|"
+                          r"^(?:sorry,? )?what$|\bwhich digits?\b|\bwhat(?:'s| is) (?:left|missing|remaining)\b")
 _LEAD_SENTENCE_RE = re.compile(r"^\s*(hi|hello|hey|okay|ok|yeah|yes)(?: there)?\s*[.?!]\s+(?=\S)", re.I)
 _NOT_NOW_RE = re.compile(r"^(?:no,? )?(?:not (?:right )?now|not at the moment|not today|maybe later)"
                          r"(?:,? (?:thanks|thank you|thanks a lot))?$")
@@ -571,6 +573,37 @@ def _opener(t: str, view: Tier0View, strict: bool):
     return Intent.BOOK, svc.value, phrase
 
 
+_POINTS_BACK_RE = re.compile(r"\b(?:it|its|it's|that|this|there|them|those|these|one)\b|\b(?:how|what) can you\b")
+
+
+def _fact_question(raw: str, t: str, words: list, view: Tier0View) -> bool:
+    """A short question about the clinic that a verified fact answers, carrying no booking detail."""
+    if view.catalog is None or len(words) > 16 or _ASKS_TO_BOOK.search(t) or _CHANGE_IT_RE.search(t):
+        return False
+    if _POINTS_BACK_RE.search(t):
+        return False                       # "how much is it?", "does that hurt?": what "it" is needs the model
+    if view.pending in (Goal.ASK_SERVICE, Goal.ASK_BRANCH, Goal.CLARIFY_SERVICE) or _other_slots(raw, view):
+        return False                       # "which branches?" at the branch question: the options (policy)
+    import facts
+    try:
+        return bool(facts.lookup(raw, facts.get_knowledge(), view.catalog))
+    except Exception:                      # noqa: BLE001 - a broken fact never stops the call: ask the model
+        return False
+
+
+_WHEN_GLUE = frozenset({"on", "at", "for", "this", "next", "coming", "in", "the", "of", "around", "by", "sometime"})
+
+
+def _without_when(t: str) -> str:
+    """The words of `t` without its day and time ("a cleaning on monday afternoon" -> "a cleaning")."""
+    words = _tokens(t)
+    keep = [w for w in words if not _when_word(w)]
+    while keep and keep[-1] in _WHEN_GLUE:
+        keep.pop()
+    return " ".join(w for i, w in enumerate(keep)
+                    if not (w in _WHEN_GLUE and (i + 1 == len(keep) or keep[i + 1] in _WHEN_GLUE)))
+
+
 def _globals(t: str, raw: str, words: list, view: Tier0View, source: str):
     """Patterns that mean the same whatever Emma asked."""
     if _NON_LATIN_RE.search(raw or "") or _LANGUAGE_RE.match(t):
@@ -581,6 +614,9 @@ def _globals(t: str, raw: str, words: list, view: Tier0View, source: str):
         return _u(raw, source, [Act.REPEAT])
     if _WAIT_RE.match(t) or (_WAIT_WHY_RE.match(t) and not re.search(r"\d", t)):
         return _u(raw, source, [Act.WAIT])
+    if view.pending == Goal.PHONE_MORE and _WHAT_NOW_RE.search(t):
+        # "What should I say now?" mid-number: handlers.py says back the digits held (25 Oct).
+        return _u(raw, source, [Act.NON_ANSWER])
     if _NOT_NOW_RE.match(t) and view.pending in _CLOSING_QUESTION_GOALS | {Goal.ASK_INTENT, Goal.GREET}:
         # "Not right now, thanks" to "Anything else?": a polite no, not "right now" as a time (25 Oct).
         return _u(raw, source, [Act.END], confirmation="no")
@@ -751,6 +787,11 @@ def _strict_answer(t: str, raw: str, words: list, view: Tier0View):
     src = "tier0"
 
     if exp == "yes_no":
+        bare = _BARE_TIME_PICK_RE.match(dateparse.normalize(raw))
+        if bare and pending in (Goal.SUMMARY, Goal.SUMMARY_AGAIN) and view.intent == Intent.BOOK:
+            # "I'll take 9" at the summary: another time, looked up and summarised again (owner's call 2,
+            # 25 Oct: it kept the old time and asked "Shall I go ahead?").
+            return _u(raw, src, [Act.ANSWER], time_phrase=bare.group(1), correction=True)
         if re.search(r"\d", t) or len(match.extract_digits(raw).digits) >= 3:
             return None                     # "no, it's 937": a correction for the model
         conf = match.parse_yes_no(raw)
@@ -961,16 +1002,33 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
         return None                         # a change to the booking just made: the model, else lenient
 
     opener = None if _MOVE_APPT_RE.search(t) else _opener(t, view, strict=True)
+    when_fields = {}
+    if opener is None and not _MOVE_APPT_RE.search(t) and view.pending in _INTENT_GOALS | {None}:
+        # "I'd like to get my teeth cleaned on Monday afternoon" / "Can I book a check-up for Saturday
+        # morning?" (owner's calls, 25 Oct: both went to the model): the opener with its day and time.
+        when = _parse_when(raw)
+        bare = _without_when(t) if not when.empty else None
+        if bare and bare != t:
+            opener = _opener(bare, view, strict=True)
+            if opener:
+                date_phrase, time_phrase = _split_when(raw, when)
+                when_fields = {k: v for k, v in (("date_phrase", date_phrase), ("time_phrase", time_phrase)) if v}
     if opener:
         intent, service, phrase = opener
         act = Act.ANSWER if view.pending in _INTENT_GOALS else Act.INFO
         conf = "yes" if re.match(r"^(yes|yeah|yep|sure|ok|okay)\b", t) else None
-        return _u(raw, "tier0", [act], intent=intent, service=service, service_phrase=phrase, confirmation=conf)
+        return _u(raw, "tier0", [act], intent=intent, service=service, service_phrase=phrase, confirmation=conf,
+                  **when_fields)
 
     exp = _expect(view)
     if match.is_fragment(raw, exp):
         return _u(raw, "tier0", [Act.FRAGMENT])
     if match.looks_like_question(raw):
+        # A plain clinic question the verified facts answer ("What are your timings on Saturday?",
+        # "Where is the Jayanagar branch?"): Emma says the fact herself, no model (owner, 25 Oct:
+        # "most replies without the LLM"). Anything mixed with booking details still goes to the model.
+        if _fact_question(raw, t, words, view):
+            return _u(raw, "tier0", [Act.QUESTION], intent=Intent.INFO, question=raw.strip())
         return None
     if len(words) > STRICT_MAX_WORDS and exp not in ("phone", "spelling"):
         return None
