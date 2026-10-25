@@ -640,6 +640,7 @@ class Ringing:
         self.answered = asyncio.Event()
         self.connected = asyncio.Event()          # the /patient page opened the call's socket
         self.declined = False
+        self.claimed_early = False                # Answer pressed before the socket opened (see Runner.claim)
         self.call_done = asyncio.Event()
         self.result: Optional[dict] = None        # set by the call when it ends
 
@@ -683,6 +684,9 @@ class Runner:
 
     POLL_S = 2.0
     CONNECT_TIMEOUT_S = 20.0      # answer pressed -> the call's socket must open by then
+    # Answer claimed the ring first: the page may still be asking for the microphone, or the patient
+    # is choosing "Type instead" after refusing it, so the socket gets longer to open.
+    CLAIMED_CONNECT_TIMEOUT_S = 120.0
 
     def __init__(self, database, gate, *, ring_timeout_s: Optional[float] = None,
                  window_check: Optional[Callable[[], bool]] = None):
@@ -787,7 +791,8 @@ class Runner:
         events.publish({"type": "ring_ended", "call_id": call_id, "job_id": claimed.job_id, "outcome": "answered"})
         await self.db.run(mark_in_call, claimed.job_id)
         try:
-            await asyncio.wait_for(ring.connected.wait(), self.CONNECT_TIMEOUT_S)
+            await asyncio.wait_for(ring.connected.wait(),
+                                   self.CLAIMED_CONNECT_TIMEOUT_S if ring.claimed_early else self.CONNECT_TIMEOUT_S)
         except asyncio.TimeoutError:
             logger.warning("recovery job %s answered but the call never connected", claimed.job_id)
             ring.result = {"outcome": "not_connected", "unresolved": unresolved,
@@ -831,11 +836,24 @@ class Runner:
 
     # ------------------------------------------------ the /patient page's side
     def answer(self, job_id: int, token: str) -> Optional[Ringing]:
+        """The call's socket is opening: the ring, if it's this one and still free to connect."""
         ring = self.ringing
-        if ring is None or ring.claimed.job_id != job_id or ring.token != token or ring.answered.is_set():
+        if ring is None or ring.claimed.job_id != job_id or ring.token != token:
             return None
+        if ring.answered.is_set():
+            # Answer already claimed it (claim()); the socket connects once, never after a decline.
+            return ring if ring.claimed_early and not ring.declined and not ring.connected.is_set() else None
         ring.answered.set()
         return ring
+
+    def claim(self, job_id: int, token: str) -> bool:
+        """Answer pressed: the ring is taken now, before the page asks for the microphone."""
+        ring = self.ringing
+        if ring is None or ring.claimed.job_id != job_id or ring.token != token or ring.answered.is_set():
+            return False
+        ring.claimed_early = True
+        ring.answered.set()
+        return True
 
     def decline(self, job_id: int, token: str) -> bool:
         ring = self.ringing

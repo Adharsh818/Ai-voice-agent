@@ -62,6 +62,55 @@ class BackchannelAndEchoRuleTests(unittest.TestCase):
                 self.assertFalse(looks_like_echo(heard, emma))
 
 
+class ChoiceAnswerTests(unittest.TestCase):
+    """25 Oct: "Morning or evening?" -> "Morning." was dropped as echo three times and the call stalled."""
+
+    def test_the_options_emma_offered(self):
+        self.assertEqual(call_session.choice_options("Tomorrow, got it. Morning or evening?"),
+                         [["morning"], ["evening"]])
+        self.assertEqual(call_session.choice_options(
+            "That's available at Nagarbhavi, Indiranagar, Jayanagar or Whitefield. Which branch would you like?"),
+            [["nagarbhavi"], ["indiranagar"], ["jayanagar"], ["whitefield"]])
+        self.assertEqual(call_session.choice_options("When would you like to come in?"), [])
+
+    def test_naming_one_option_is_an_answer(self):
+        emma = "Tomorrow, got it. Morning or evening?"
+        for heard, choice in [("Morning.", "morning"), ("the evening please", "evening"),
+                              ("In the morning.", "morning")]:
+            with self.subTest(heard=heard):
+                self.assertEqual(call_session.answered_choice(heard, emma), choice)
+        for heard in ["morning or evening", "Hello?", "Tomorrow.", "evening morning", "yes"]:
+            with self.subTest(heard=heard):
+                self.assertIsNone(call_session.answered_choice(heard, emma))
+        other = "Sure, tomorrow. Would morning or evening suit you better?"      # lead-in and trailing words
+        self.assertEqual(call_session.answered_choice("Morning.", other), "morning")
+        self.assertEqual(call_session.answered_choice("Evening.", other), "evening")
+        self.assertIsNone(call_session.answered_choice("Suit you better.", other))
+
+    def test_the_session_hears_a_choice_answer_but_not_her_own_last_word(self):
+        s, _ = make_session(PlayingTransport())
+        emma = "Tomorrow, got it. Morning or evening?"
+        s.speaker.spoken_text = lambda tid: emma
+        s.speaker.window_text = lambda tid, a, b: emma
+        s._audible[3] = [100.0, 103.0]                     # her question played from 100 s to 103 s
+        self.assertFalse(s._is_echo("Morning.", 3, 102.9, 103.3))     # the other option, at once
+        self.assertFalse(s._is_echo("Evening.", 3, 103.2, 103.8))     # her last word, after the tail
+        self.assertTrue(s._is_echo("Evening.", 3, 102.8, 103.2))      # her last word, still echoing
+        self.assertTrue(s._is_echo("Morning or evening", 3, 101.0, 103.1))
+        s._audible[4] = [110.0, None]                      # still playing
+        self.assertTrue(s._is_echo("Evening.", 4, 112.0, 112.4))
+
+    def test_a_short_reply_after_her_voice_has_stopped_is_never_an_echo(self):
+        s, _ = make_session(PlayingTransport())
+        emma = "I can do tomorrow at 8:30 in the morning or 9, with Dr Reddy. Which suits you?"
+        s.speaker.spoken_text = lambda tid: emma
+        s.speaker.window_text = lambda tid, a, b: emma
+        s._audible[5] = [200.0, 205.0]
+        self.assertFalse(s._is_echo("9.", 5, None, 205.9))            # well after she stopped
+        self.assertFalse(s._is_echo("8:30.", 5, None, 206.5))
+        self.assertTrue(s._is_echo("Dr Reddy.", 5, None, 205.1))      # inside the echo tail
+
+
 class BargeInTests(unittest.TestCase):
     def test_backchannels_while_emma_speaks_never_interrupt_her(self):
         async def run():

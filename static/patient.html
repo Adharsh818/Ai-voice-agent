@@ -2,38 +2,89 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Patient phone</title>
-  <meta name="description" content="The patient's phone for Emma's recovery calls.">
-  <link rel="stylesheet" href="/static/app.css">
+  <meta name="description" content="The patient's phone for Pearl Dental's calls.">
+  <script src="/static/ui/head.js"></script>
+  <link rel="stylesheet" href="/static/ui/emma-ui.css">
+  <link rel="stylesheet" href="/static/talk.css">
   <link rel="stylesheet" href="/static/patient.css">
 </head>
-<body data-page="patient">
+<body class="talk patient" data-page="patient" data-call="idle">
+  <svg class="e-svg-defs" id="e-lg-defs" aria-hidden="true" focusable="false"></svg>
   <p class="phone-label">Patient phone</p>
-  <section id="incoming" hidden aria-live="assertive">
-    <p class="incoming-title">Incoming call</p>
-    <p class="incoming-from" id="incoming-from">Pearl Dental</p>
-    <p class="incoming-to" id="incoming-to"></p>
+
+  <!-- Ringing: an iOS-style incoming call screen. patient.js fills the caller and who it's for. -->
+  <section id="incoming" class="incoming" hidden aria-live="assertive" aria-labelledby="incoming-from">
+    <div class="incoming-top">
+      <p class="incoming-title">Incoming call</p>
+      <div class="incoming-mark" aria-hidden="true"><span class="pearl"></span></div>
+      <p class="incoming-from" id="incoming-from">Pearl Dental</p>
+      <p class="incoming-to" id="incoming-to"></p>
+    </div>
     <div class="incoming-actions">
-      <button type="button" class="call-btn decline" id="decline">Decline</button>
-      <button type="button" class="call-btn answer" id="answer">Answer</button>
+      <div class="call-choice">
+        <button type="button" class="call-btn decline" id="decline" aria-label="Decline">
+          <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M16 12c-3.6 0-7 .9-9.6 2.6-.9.6-1.3 1.6-1.1 2.6l.4 2.1c.2.9 1.1 1.5 2 1.4l3.6-.5c.9-.1 1.5-.8 1.6-1.7l.2-2c1-.3 1.9-.4 2.9-.4s1.9.1 2.9.4l.2 2c.1.9.7 1.6 1.6 1.7l3.6.5c.9.1 1.8-.5 2-1.4l.4-2.1c.2-1-.2-2-1.1-2.6C23 12.9 19.6 12 16 12Z" fill="currentColor"/></svg>
+        </button>
+        <span class="call-choice-label" aria-hidden="true">Decline</span>
+      </div>
+      <div class="call-choice">
+        <button type="button" class="call-btn answer" id="answer" aria-label="Answer">
+          <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M11.4 6.3c-.4-1-1.5-1.5-2.5-1.2l-2.6.8c-1 .3-1.6 1.2-1.6 2.2.3 9.6 8.1 17.4 17.7 17.7 1 0 1.9-.6 2.2-1.6l.8-2.6c.3-1-.2-2.1-1.2-2.5l-3.5-1.5c-.9-.4-1.9-.1-2.5.6l-1.3 1.6c-2.7-1.3-4.9-3.5-6.2-6.2l1.6-1.3c.7-.6 1-1.6.6-2.5L11.4 6.3Z" fill="currentColor"/></svg>
+        </button>
+        <span class="call-choice-label" aria-hidden="true">Answer</span>
+      </div>
     </div>
   </section>
-  <main id="call-ui">
+
+  <!-- In the call: the talk page's orb, status line, two-line transcript and typed fallback. -->
+  <main id="call-ui" class="talk-main">
+    <div class="hero-stack">
+      <p class="call-status" id="call-status" aria-hidden="true"><span class="status-text" id="status-text"></span></p>
+    </div>
+
     <button id="orb" data-state="idle" aria-label="End call" aria-pressed="false">
       <span class="halo" aria-hidden="true"></span>
       <span class="ring" aria-hidden="true"></span>
       <span class="core" aria-hidden="true"></span>
+      <span class="rim" aria-hidden="true"></span>
+      <span class="gloss" aria-hidden="true"></span>
+      <span class="e-spinner orb-spinner" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
     </button>
-    <p id="caption" aria-live="polite"></p>
-    <button id="action" type="button" hidden>OK</button>
-    <button id="type-instead" type="button" hidden>Type instead</button>
-    <form id="typed" hidden autocomplete="off">
-      <input id="typed-text" type="text" placeholder="Type what the patient says, then Enter" aria-label="What the patient says">
-      <button type="submit">Send</button>
-    </form>
+
+    <div class="meter-slot" aria-hidden="true"><span class="e-meter" id="level-meter"></span></div>
+
+    <div class="transcript" id="transcript" data-under="text">
+      <span class="e-blur-scrim soft" aria-hidden="true"></span>
+      <p class="line-caller" id="line-caller" aria-hidden="true"></p>
+      <p class="line-emma" id="line-emma" aria-live="polite"></p>
+    </div>
+    <div class="caption-source" hidden><p id="caption"></p></div>
+
+    <div class="dock" id="dock">
+      <div class="cta e-pillbar e-bubbles e-liquid lens" id="call-bar">
+        <button id="action" type="button" class="is-selected" hidden>OK</button>
+        <button id="call-button" type="button" class="is-selected">End call</button>
+        <button id="type-instead" type="button" hidden>Type instead</button>
+      </div>
+      <form id="typed" class="typed e-liquid lens" hidden autocomplete="off">
+        <input id="typed-text" type="text" placeholder="Type your reply" aria-label="Your reply to Emma" enterkeyhint="send">
+        <button type="submit" class="typed-send" aria-label="Send">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 13V3.5M3.5 7.5 8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </form>
+    </div>
   </main>
-  <p class="waiting" id="waiting">Waiting for a call from the clinic…</p>
+
+  <!-- Nothing ringing: a calm wait. -->
+  <section class="waiting" id="waiting" aria-live="polite">
+    <span class="pearl waiting-mark" aria-hidden="true"></span>
+    <p class="waiting-title">Waiting for a call from the clinic…</p>
+    <p class="waiting-note">This tab rings when Pearl Dental calls.</p>
+  </section>
+
   <script type="module" src="/static/patient.js"></script>
+  <script type="module" src="/static/talk.js"></script>
 </body>
 </html>

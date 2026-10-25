@@ -1,70 +1,143 @@
-/* The demo patient phone (/patient): the talk page's circle, plus a ringing screen. */
+/* The demo patient phone (/patient), in the talk page's Apple language: talk.css draws the call
+   (orb, status line, two-line transcript, glass dock); this file adds the ringing screen, the calm
+   wait and the phone's label. Light only. Glass only where content passes under it (section 13):
+   the call's dock keeps its lens over the state glow; the ringing screen has no glass. */
+
+body.patient {
+  --answer: #248a3d; --answer-hover: #1f7a36; --answer-active: #196b2f;
+  --decline: #d7382a; --decline-hover: #c43224; --decline-active: #b02c1f;
+}
 
 .phone-label {
-  position: fixed;
-  top: 16px;
-  left: 0;
-  right: 0;
   margin: 0;
+  padding: calc(14px + env(safe-area-inset-top)) 16px 0;
   text-align: center;
-  color: var(--idle);
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: -0.01em;
 }
 
+/* The call view shows only while there is a call (or its short "Call ended" moment). */
+body.patient[data-call="idle"]:not(.call-ended) #call-ui { visibility: hidden; }
+body.patient[data-call="idle"] #call-button { display: none; }
+
+/* ------------------------------------------------------------------ waiting: calm, nothing moving */
 .waiting {
   position: fixed;
-  bottom: 24px;
-  left: 16px;
-  right: 16px;
-  margin: 0;
-  text-align: center;
-  color: var(--idle);
-  font-size: 0.95rem;
-}
-.waiting[hidden] { display: none; }
-
-#incoming {
-  position: fixed;
-  inset: 0;
-  z-index: 2;
+  inset: 44px 0 0;
+  z-index: 5;
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 8px;
-  padding: 16px;
-  background: var(--bg);
-  color: var(--caption);
+  gap: 10px;
+  padding: 24px;
   text-align: center;
+  background: var(--canvas);
+  animation: patient-in 360ms var(--ease-out) backwards;
 }
-#incoming[hidden] { display: none; }
+.waiting[hidden], body.patient.call-ended .waiting { display: none; }
+.waiting-mark { --size: 56px; margin-bottom: 12px; }
+.waiting-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: 0.009em;
+  color: var(--ink);
+}
+.waiting-note { margin: 0; font-size: 14px; line-height: 20px; letter-spacing: -0.016em; color: var(--ink-2); }
 
-.incoming-title { margin: 0; color: var(--idle); font-size: 0.95rem; }
-.incoming-from { margin: 0; font-size: clamp(1.8rem, 7vw, 2.6rem); font-weight: 600; animation: ring-pulse 1.2s ease-in-out infinite; }
-.incoming-to { margin: 0 0 40px; color: var(--idle); }
+/* ------------------------------------------------------------------ ringing: an iOS-style call screen */
+.incoming {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  padding: clamp(56px, 12vh, 120px) 24px calc(56px + env(safe-area-inset-bottom));
+  text-align: center;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(159, 180, 216, 0.18), rgba(255, 255, 255, 0) 70%),
+    var(--canvas);
+  animation: patient-in 320ms var(--ease-out) backwards;
+}
+.incoming[hidden] { display: none; }
+.incoming-top { display: grid; justify-items: center; align-content: start; gap: 6px; }
+/* a quiet caption (iOS shows none; the web page needs a hint of what this screen is) */
+.incoming-title { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 20px; letter-spacing: -0.016em; }
+.incoming-from {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 40px;
+  line-height: 44px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.incoming-to { margin: 0; color: var(--ink-2); font-size: 17px; line-height: 25px; letter-spacing: -0.022em; font-variant-numeric: tabular-nums; }
 
-.incoming-actions { display: flex; gap: 48px; }
+/* The caller's mark rings: two soft rings swell out from it and fade, gently (a ring every 2.4s). */
+.incoming-mark { position: relative; display: grid; place-items: center; width: 120px; height: 120px; margin: 22px 0 18px; }
+.incoming-mark .pearl { --size: 88px; position: relative; z-index: 1; }
+.incoming-mark::before, .incoming-mark::after {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 113, 227, 0.28);
+  opacity: 0;
+  animation: ring-out 2.4s var(--ease-out) infinite;
+}
+.incoming-mark::after { animation-delay: 0.6s; }
+@keyframes ring-out {
+  0% { transform: scale(1); opacity: 0.9; }
+  70% { opacity: 0; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
 
+.incoming-actions { display: flex; justify-content: center; gap: clamp(64px, 22vw, 120px); }
+.call-choice { display: grid; justify-items: center; gap: 10px; }
+.call-choice-label { font-size: 14px; line-height: 18px; letter-spacing: -0.016em; color: var(--ink); }
+
+/* Two large round buttons, flat and solid like the phone's own (they aren't glass, so no swell and
+   no drop shadow): hover and press step the colour darker, 100ms linear. */
 .call-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
   width: 76px;
   height: 76px;
+  padding: 0;
   border: 0;
   border-radius: 50%;
   color: #fff;
-  font: inherit;
-  font-size: 0.85rem;
   cursor: pointer;
+  transition: background-color 100ms linear;
+  -webkit-tap-highlight-color: transparent;
 }
-.call-btn.answer { background: #16a34a; }
-.call-btn.decline { background: #dc2626; }
-.call-btn:focus-visible { outline: 2px solid var(--caption); outline-offset: 4px; }
-.call-btn:disabled { opacity: 0.5; cursor: default; }
+.call-btn svg { width: 34px; height: 34px; }
+.call-btn.decline svg { width: 42px; height: 42px; }   /* the hung-up handset is a flatter glyph */
+.call-btn.decline { background: var(--decline); }
+.call-btn.answer { background: var(--answer); }
+.call-btn.decline:hover { background: var(--decline-hover); }
+.call-btn.answer:hover { background: var(--answer-hover); }
+.call-btn.decline:active { background: var(--decline-active); }
+.call-btn.answer:active { background: var(--answer-active); }
+.call-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.call-btn:disabled { opacity: var(--disabled-opacity); cursor: default; }
 
-@keyframes ring-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
+@keyframes patient-in { from { opacity: 0; transform: translateY(8px); } }
+
+@media (max-width: 734px) {
+  .incoming-from { font-size: 34px; line-height: 40px; letter-spacing: 0.007em; }
+  .waiting-title { font-size: 21px; line-height: 25px; letter-spacing: 0.011em; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .incoming-from { animation: none; }
+  .incoming-mark::before, .incoming-mark::after { animation: none; opacity: 0; }
+  .incoming-mark::before { opacity: 0.7; transform: scale(1.18); }   /* a still ring says "ringing" */
+  .incoming, .waiting { animation: none; }
 }
