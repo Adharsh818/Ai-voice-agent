@@ -121,6 +121,14 @@ On the PC on 6 Oct, listening was 0.8-1.0 s. Nothing has been tuned yet, because
 
 ## 6. Your tasks, in order
 
+**Status, 25 Oct ~17:00 (local session):**
+- **T1, T2:** done. `main` = 214cbe2, which combines the 23 Oct branch with the Apple redesign (Liquid Glass, patient phone page). 1068 tests, 53/53 scenarios both ways, all four sims pass; GitHub's run is green.
+- **T3:** done. Deployed 214cbe2; `/health` is ok, with ElevenLabs ok on the new key. The PC Emma was restarted on `main`.
+- **T5:** waiting for the owner's explicit yes. The server already has `SARVAM_API_KEY`, but `NLU_PRIMARY`, `SARVAM_URL` and `SARVAM_MODEL` aren't set yet.
+- **T6:** done. 8 backups copied; Task Scheduler "Emma server backups" runs every 3 days at 10:00 (test run: result 0).
+- **T4:** next. The owner makes 2-3 test calls on the site.
+- **PC `.env`:** it still has two `SARVAM_API_KEY` lines (the last one wins).
+
 The local Claude runs on the owner's PC, so it has the SSH key and can do what the cloud session couldn't. Each task says when it's done.
 
 ### T1. Get the latest code (no approval needed)
