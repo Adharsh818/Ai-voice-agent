@@ -622,7 +622,9 @@ def take_exit(ctx: CallContext, plan: GoalPlan) -> Optional[GoalPlan]:
     if goal == Goal.ASK_CANCEL_REASON:
         ctx.manage.reason_asked = True
         return None
-    if goal == Goal.OFFER_SLOTS and ctx.intent == Intent.BOOK and b.offer_rounds < 3:
+    if goal == Goal.OFFER_SLOTS and ctx.intent == Intent.BOOK and b.offer_rounds == 0:
+        # Once: a caller who keeps asking for a time the clinic can't do gets the callback offer
+        # below, not a loop of "What would work better?" (sim, 25 Oct).
         # The offers didn't land: ask what would work, as a receptionist would, not a callback
         # (owner's call 2, 25 Oct: "I'll take 9" went to "I can have someone call you").
         b.offer_rounds += 1

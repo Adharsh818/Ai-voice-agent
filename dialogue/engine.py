@@ -267,7 +267,8 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         if not (answer.line == "unknown" and asks_about_booking) and not hours_again and not not_a_question:
             notices.insert(0, answer)
             if answer.line == "answer.fact" and plan.goal in (Goal.ASK_INTENT, Goal.ANSWER_ONLY) \
-                    and not ctx.workflow_active():
+                    and not ctx.workflow_active() and ctx.pending != Goal.ANYTHING_ELSE:
+                # Not again right after one (sim: "Anything else you need?" three times in a row).
                 # "A cleaning is 1,000 to 1,500 rupees. What can I do for you?" sounded like the call
                 # had just started, and a bare answer left the caller waiting; after an answer a
                 # receptionist asks "Anything else?" (25 Oct).

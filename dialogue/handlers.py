@@ -241,8 +241,8 @@ ACCEPTED = "Callback: "
 # Goals that collect the callback number.
 _PHONE_GOALS = (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE)
 # "What should I say now?", "sorry, what?", "what do you need?" (owner's call 2, 25 Oct).
-_WHAT_NOW = re.compile(r"what (?:should|do|shall|must) i (?:say|tell|do)|what do you (?:need|want)|"
-                       r"^(?:sorry,? )?what\??$|which digits?|what(?:'s| is) (?:left|missing|remaining)")
+_WHAT_NOW = re.compile(r"\bwhat (?:should|do|shall|must) i (?:say|tell|do)\b|\bwhat do you (?:need|want)\b|"
+                       r"^(?:sorry,? )?what\??$|\bwhich digits?\b|\bwhat(?:'s| is) (?:left|missing|remaining)\b")
 
 
 def callback_in_progress(ctx: CallContext) -> bool:
