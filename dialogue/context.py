@@ -125,7 +125,6 @@ class Goal(str, Enum):
     BOOKED = "booked"                          # committed; confirmation + "anything else?"
     DROPPED = "dropped"                        # caller said cancel / don't book at the summary
     # MANAGE
-    ASK_APPT_DATE = "ask_appt_date"            # verification: the date of the appointment
     VERIFY_FAILED = "verify_failed"            # nothing matched; reveal nothing, ask which detail to check
     PICK_APPOINTMENT = "pick_appointment"      # several verified matches
     STATE_APPOINTMENT = "state_appointment"    # CHECK: the verified appointment
@@ -217,7 +216,6 @@ GOAL_SPECS: dict[Goal, GoalSpec] = {
     Goal.WHAT_TO_CHANGE: _spec(Expect.OPEN, False, Intent.BOOK),
     Goal.BOOKED: _spec(Expect.YES_NO, True, Intent.BOOK),
     Goal.DROPPED: _spec(Expect.YES_NO, True, Intent.BOOK),
-    Goal.ASK_APPT_DATE: _spec(Expect.DATE, False, *MANAGE_INTENTS),
     Goal.VERIFY_FAILED: _spec(Expect.NAME, True, *MANAGE_INTENTS),   # "Could it be under another name?"
     Goal.PICK_APPOINTMENT: _spec(Expect.CHOICE, True, *MANAGE_INTENTS),
     Goal.STATE_APPOINTMENT: _spec(Expect.YES_NO, True, Intent.CHECK),

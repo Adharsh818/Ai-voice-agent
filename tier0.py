@@ -830,10 +830,6 @@ def _strict_answer(t: str, raw: str, words: list, view: Tier0View):
         if when.empty or not _when_residue_ok(t) or _other_slots(raw, view):
             return None
         date_phrase, time_phrase = _split_when(raw, when)
-        if pending == Goal.ASK_APPT_DATE:
-            if not date_phrase:
-                return None
-            return _u(raw, src, [Act.ANSWER], appt_date_phrase=date_phrase)
         return _u(raw, src, [Act.ANSWER], date_phrase=date_phrase, time_phrase=time_phrase)
 
     if exp == "choice":
@@ -1317,7 +1313,7 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
     # date when the caller is moving one (drill, 6 Oct: "It's on October 13th,
     # and" ... "I'd like to move it to the 20th" verified against the 20th).
     resumed = pending == Goal.GO_ON and view.intent == Intent.RESCHEDULE
-    moved = _MOVE_TO.match(raw) if pending in (Goal.ASK_APPT_DATE, Goal.VERIFY_FAILED) or resumed else None
+    moved = _MOVE_TO.match(raw) if pending == Goal.VERIFY_FAILED or resumed else None
     if moved and not (u.date_phrase or u.time_phrase):
         # "It's on Monday, and I'd like to move it to Friday": the first date is
         # the appointment's (verification), the second the new one.
@@ -1344,12 +1340,9 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         when = _parse_when(when_text, expecting=exp if exp in ("date", "time") else None)
         if not when.empty:
             date_phrase, time_phrase = _split_when(when_text, when)
-            if pending == Goal.ASK_APPT_DATE:
-                u.appt_date_phrase = date_phrase
-            else:
-                u.date_phrase, u.time_phrase = date_phrase, time_phrase
+            u.date_phrase, u.time_phrase = date_phrase, time_phrase
             filled_expected = filled_expected or exp in ("date", "time")
-        elif exp == "date" and pending != Goal.ASK_APPT_DATE and _SUGGEST_RE.search(t):
+        elif exp == "date" and _SUGGEST_RE.search(t):
             # "I don't know, what do you suggest?" to "When would suit you?": the earliest times.
             u.date_phrase = "earliest"
             filled_expected = True
