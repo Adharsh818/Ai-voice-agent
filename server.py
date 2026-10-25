@@ -277,7 +277,8 @@ async def warm_nlu():
     models = [(name, client) for name, client, ok in (
         ("Gemini", llm.get_nlu(), bool(config.GEMINI_API_KEY)),
         ("Sarvam", llm.get_sarvam(), bool(config.SARVAM_API_KEY) and "sarvam" in roles),
-        ("NVIDIA", llm.get_nvidia(), bool(config.NVIDIA_API_KEY) and "nvidia" in roles)) if ok]
+        ("NVIDIA", llm.get_nvidia(), bool(config.NVIDIA_API_KEY) and "nvidia" in roles),
+        ("Cerebras", llm.get_cerebras(), bool(config.CEREBRAS_API_KEY) and "cerebras" in roles)) if ok]
     if not models:
         return
     try:
