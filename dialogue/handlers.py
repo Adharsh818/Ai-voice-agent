@@ -448,7 +448,10 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
         # at a summary still commits and is told the outcome.
         await _release_holds(rt)
         return _stop(out, _statement(Goal.CLOSE, _closing_line(ctx), closes_call=True))
-    if u.has(Act.REPEAT) and ctx.last_emma and not u.carries_details:
+    # Mid-number, "Hello?" is answered by saying back the digits held and what's missing
+    # (the workflow's "phone.more.so_far"), not "I can hear you. Mm-hmm." (owner's call, 25 Oct).
+    mid_number = ctx.pending == Goal.PHONE_MORE and bool(ctx.caller.phone_buffer)
+    if u.has(Act.REPEAT) and ctx.last_emma and not u.carries_details and not mid_number:
         # The engine speaks repeat.prefix + ctx.last_emma (asked for, so not a loop).
         plain = " ".join(re.sub(r"[^a-z' ]+", " ", text.lower()).split())
         hearing = match.HEAR_CHECK_RE.match(plain) or match.BARE_HELLO_RE.match(plain)

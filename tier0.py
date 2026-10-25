@@ -71,6 +71,8 @@ _DATE_TIME_WORDS_RE = re.compile(
     r"january|february|march|april|may|june|july|august|september|october|november|december|"
     r"a\.?m\.?|p\.?m\.?|o'?clock|morning|afternoon|evening|night)\b|\b\d{1,2}:\d{2}\b")
 # "I don't know the number", "I only know the name".
+_NO_DATE_RE = re.compile(r"\b(?:(?:don'?t|do not|didn'?t|can'?t|cannot) (?:know|remember|recall)|not sure|"
+                         r"no idea|forgot|forget)\b")
 _NO_NUMBER_RE = re.compile(r"\b(?:(?:don'?t|do not|didn'?t) (?:know|have|remember)(?: (?:the|my|that|which))?"
                            r"(?: phone)? number|only (?:know|have|remember) the name|forgot (?:the|my) number|"
                            r"not sure (?:of|about|which) (?:the )?number)\b")
@@ -283,7 +285,7 @@ _NUMBER_PICK_RE = re.compile(r"^(?:the\s+|option\s+|number\s+)*(one|two|three|1|
 # only reads a bare number when it is the whole reply, so the number is cut out first.
 _BARE_TIME_PICK_RE = re.compile(
     # "Do ten." / "I want ten." / "Uh-huh, 10." (phone check, 13 Oct: three tries, then a callback offer)
-    r"^(?:(?:uh[- ]?huh|mm[- ]?hmm|yes|yeah|yep|ok|okay|so|um+|uh+|do|i want|i'?ll take|i will take|i'?d like|"
+    r"^(?:(?:uh[- ]?huh|mm[- ]?hmm|yes|yeah|yep|ok|okay|so|um+|uh+|do|i want|i wanted|i'?ll take|i will take|i'?d like|"
     r"let'?s do|lets do|make it|go with|book|take)\s+)*"
     r"(?:the |at |around |about )?(\d{1,2}(?:[:.]\d{2}|\s+[0-5]\d)?)"
     r"(?:\s+(?:1|slot|oclock|please|then|works|is fine|is good|is ok|is okay|is perfect|sounds good|"
@@ -292,7 +294,7 @@ _BARE_TIME_PICK_RE = re.compile(
 # The lead-in words _BARE_TIME_PICK_RE allows, as left over around the time ("i want", "do").
 _PICK_LEAD_WORDS = frozenset({"uh", "huh", "uhhuh", "mm", "hmm", "mmhmm", "yes", "yeah", "yep", "ok", "okay", "so",
                               "um", "do", "i", "want", "ll", "i'll", "will", "take", "d", "i'd", "like", "let",
-                              "s", "let's", "lets", "make", "it", "go", "with", "book", "at", "around", "about",
+                              "s", "let's", "lets", "make", "it", "go", "with", "book", "at", "around", "about", "wanted",
                               "ten", "o'clock", "oclock", "then"})
 _EITHER_RE = re.compile(r"\b(either|any of them|any one|anyone|whichever|both are fine|both work|anything is fine)\b")
 _REJECT_RE = re.compile(
@@ -665,7 +667,8 @@ def _offer_pick(t: str, raw: str, view: Tier0View, source: str):
             return None                     # "Monday" when both offers are Monday: ask which
         if match.parse_yes_no(raw) is None:
             # A different day or time than offered: a new constraint for the search.
-            date_phrase, time_phrase = _split_when(raw, when)
+            # "I'll take 9" (owner's call, 25 Oct): the time alone, or the search can't read it.
+            date_phrase, time_phrase = _split_when(bare.group(1) if bare else raw, when)
             return _u(raw, source, [Act.ANSWER], date_phrase=date_phrase, time_phrase=time_phrase)
         return None
     conf = match.parse_yes_no(raw)
@@ -1298,6 +1301,12 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         # "I've been really busy lately" to "When's good for you?": not a day, so Emma offers this week
         # or next (no-model scenarios, 22 Oct: she asked the same thing again in other words).
         u.acts.append(Act.NON_ANSWER.value)
+    if view.pending in (Goal.ASK_APPT_DATE, Goal.VERIFY_FAILED) and not (u.date_phrase or u.appt_date_phrase) \
+            and _NO_DATE_RE.search(t):
+        # "I don't remember which day" to "Which day is the appointment on?" (owner's call, 25 Oct):
+        # not a question for Emma; she asks for the branch or the treatment instead.
+        u.acts.append(Act.NON_ANSWER.value)
+        u.acts = [a for a in u.acts if a != Act.QUESTION.value]
 
     if filled_expected:
         u.acts.insert(0, Act.ANSWER.value)

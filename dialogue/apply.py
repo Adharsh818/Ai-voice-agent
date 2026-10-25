@@ -430,23 +430,27 @@ def _name_notice(name: str, spelled: Optional[str], manage: bool = False) -> Not
         return Notice("ack.spelled", {"letters": " ".join(spelled.replace(" ", "").upper())},
                       covered_by=(name,))
     # A cancel or change names an existing booking: never "Nice to meet you, Sharon" (8 Oct).
-    return Notice("ack.name.manage" if manage else "ack.name", {"name": name}, covered_by=(name,))
+    # The model's "Got it, Neha." already acknowledges "Neha Kapur": not "Thanks, Neha Kapur." on top (25 Oct).
+    first = name.split()[0] if name.split() else name
+    covered = (name, first) if len(first) >= 3 else (name,)
+    return Notice("ack.name.manage" if manage else "ack.name", {"name": name}, covered_by=covered)
 
 
 def _apply_phone(ctx: CallContext, u: Understanding, conf: Optional[str], cued: bool, notices: list) -> None:
     c = ctx.caller
+    c.phone_overflow = False                            # set again below only when this turn overflowed
     if u.phone_digits:
         digits, too_many = _digit_run(u.phone_digits)
         if too_many:
             c.phone_buffer = ""
-            notices.append(Notice("phone.too_many"))
+            c.phone_overflow = True
             return
         # As said, before the 0 / +91 prefix is stripped ("080 2345 6789" is read back as a landline).
         said = c.phone_buffer + (safe_call(match._read_digits, u.raw_text or "", default="") or digits)
         buffer, e164 = _accumulate(c.phone_buffer, u.phone_digits, digits)
         if e164 is None:
-            if not buffer and len(c.phone_buffer) + len(digits) > 12:
-                notices.append(Notice("phone.too_many"))
+            if not buffer and digits:
+                c.phone_overflow = True
             c.phone_buffer = buffer
             return
         c.phone_buffer = ""

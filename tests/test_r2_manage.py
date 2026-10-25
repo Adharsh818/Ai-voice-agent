@@ -175,7 +175,8 @@ class Verification(unittest.TestCase):
             call = Call(clinic, Intent.CANCEL).given(name="Rahul")
             call.verified("Monday")
             self.assertEqual(call.goal, Goal.VERIFY_FAILED)
-            self.assertEqual(call.plan.line, "verify.failed")
+            # No branch or treatment given yet: she asks for one (owner, 25 Oct), revealing nothing.
+            self.assertEqual(call.plan.line, "verify.failed.alt")
             self._assert_reveals_nothing(call, appt)
 
     def test_wrong_date_reveals_nothing(self):

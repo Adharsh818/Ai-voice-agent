@@ -343,6 +343,7 @@ class Caller:
     phone_buffer: str = ""                             # digits accumulated across turns
     phone_landline: bool = False                       # said as "080 2345 6789": read back as a landline
     phone_misses: int = 0                             # read-backs rejected
+    phone_overflow: bool = False                       # this turn's digits made too many: ask once more
     # "caller_id": phone_e164 came from the phone network, so it's confirmed by asking
     # "Is the number you're calling from the best one?" rather than read back;
     # "declined": the caller said no to that question (not a mishearing).
@@ -404,10 +405,14 @@ class VerifiedAppointment:
 
 @dataclass
 class ManageDraft:
-    """The MANAGE checklist: verify (phone + name + date), then check, cancel or reschedule."""
+    """The MANAGE checklist: verify (phone + name + date, or the branch or treatment), then check, cancel or reschedule."""
     action: Optional[Intent] = None                    # RESCHEDULE | CANCEL | CHECK
     patient_name: Optional[str] = None                 # the name the appointment is under
     appt_date: Optional[DateConstraint] = None
+    # A caller who doesn't remember the date names the branch or the treatment instead (owner, 25 Oct).
+    appt_branch: Optional[str] = None
+    appt_service: Optional[str] = None
+    date_unknown: bool = False                         # "I don't remember which day"
     booked_start: Optional[datetime] = None            # the appointment booked earlier on this call
     verify_attempts: int = 0
     verified: bool = False

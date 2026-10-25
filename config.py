@@ -39,6 +39,9 @@ PHONE_LINE_EFFECT = os.getenv("PHONE_LINE_EFFECT", "true").lower() == "true"
 AMBIENCE_ENABLED = os.getenv("AMBIENCE_ENABLED", "true").lower() == "true"
 AMBIENCE_EVENT_DB = float(os.getenv("AMBIENCE_EVENT_DB", "-34"))    # door / chair / footsteps peak
 TYPING_SFX = os.getenv("TYPING_SFX", "true").lower() == "true"
+# "Type instead" on the talk page (a call typed instead of spoken). Off on the hosted site
+# (owner, 25 Oct): visitors talk to Emma; the PC keeps it as the demo backup.
+TYPED_CALLS = os.getenv("TYPED_CALLS", "true").lower() == "true"
 # After the caller gives something to write down (name, number, date...), Emma
 # types for a moment before answering, as a receptionist would. Min/max ms.
 # The beat overlaps the engine's work: the reply waits max(engine time, beat),

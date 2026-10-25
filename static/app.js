@@ -175,6 +175,7 @@ export async function startCall(path, options = {}) {
   let cfg = {};
   try { cfg = await (await fetch('/client-config', { cache: 'no-cache' })).json(); } catch (_) {}
   if (cancelled()) return;
+  if (cfg.typed_calls === false) typed = false;     // typing turned off on this deployment
   if (cfg.signin_required) {
     needsSignin = true;
     showProblem('lost', MESSAGES.signin, 'Sign in');
@@ -433,6 +434,11 @@ orb.addEventListener('click', () => {
   if (IN_CALL.includes(state)) endCall();
   else if (!PATIENT_PAGE) startCall();
 });
+// A deployment without typed calls (TYPED_CALLS=false): no "Type instead" anywhere.
+fetch('/client-config', { cache: 'no-cache' })
+  .then((r) => r.json())
+  .then((cfg) => { if (cfg.typed_calls === false) document.body.classList.add('no-typed'); })
+  .catch(() => {});
 typeInstead.addEventListener('click', () => {
   if (PATIENT_PAGE) window.dispatchEvent(new CustomEvent('emma-type-instead'));
   else startCall(undefined, { typed: true });

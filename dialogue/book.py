@@ -790,8 +790,12 @@ def _phone_plan(ctx: CallContext) -> Optional[GoalPlan]:
         return None
     if c.phone_state == FieldState.PENDING and c.phone_e164:
         return _plan(Goal.CONFIRM_PHONE, "confirm.phone", phone=prompts.speak_phone(c.phone_e164, c.phone_landline))
+    if c.phone_overflow:
+        return _plan(Goal.ASK_PHONE, "phone.too_many")
     if c.phone_buffer:
-        return _plan(Goal.PHONE_MORE, "phone.more")
+        # Say back what's held and what's missing; a bare "Mm-hmm." left the caller guessing (owner, 25 Oct).
+        line = "phone.more.so_far"
+        return _plan(Goal.PHONE_MORE, line, **prompts.phone_so_far(c.phone_buffer))
     return _plan(Goal.ASK_PHONE, "ask.phone")
 
 

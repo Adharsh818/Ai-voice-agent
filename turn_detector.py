@@ -46,7 +46,7 @@ SILENCE_MS = {
     "default": 800,      # no signal either way
     "unsure": 1200,      # probably more coming: a cut-off word, "what's the best"
     "unfinished": 1600,  # trailing "and", "the", "my number is", "Don't", "But"
-    "digits": 2000,      # half a phone number; Indian callers pause between groups
+    "digits": 2600,      # half a phone number; Indian callers pause between groups (2 s talked over them, 25 Oct)
 }
 # While the caller keeps talking (new interim words), a held turn waits at most
 # this long after its utterance arrived; the next utterance merges into it.
