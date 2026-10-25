@@ -2,7 +2,21 @@
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
-## STATUS NOW (written 23 Oct): start here
+## STATUS NOW (written 25 Oct): start here
+
+**The running briefing is [LOCAL_CLAUDE_START.md](LOCAL_CLAUDE_START.md); its section 6 "Status, 25 Oct" is the latest.** In short:
+- **Code:** `main` (GitHub) holds everything: the 23 Oct cloud work, the Apple redesign (Liquid Glass, sign-in, dashboard, patient phone page) and the 22 Oct fixes. Checks before the push: 1068 tests, 53/53 scenarios both ways, all four sims on target; GitHub's run is green.
+- **Hosted site:** deployed 25 Oct. Its brain is **Gemma 4 via Sarvam** (Gemini as the retry), the same as the PC. It uses the PC's ElevenLabs key (they share one allowance until 12 Nov), and the cache is 219/219.
+- **PC:** `A:\Voice-Agent` is on `main`, and the Emma tab is running. Server backups are copied every 3 days by Task Scheduler ("Emma server backups").
+- **The PC `.env` still has two `SARVAM_API_KEY` lines** (the 23 Oct note below says they were removed; they weren't). The last one wins.
+
+**Left, needs the owner:**
+- **T4:** 2-3 test calls on the site, then `bash tools/call_report_remote.sh` to find why listening takes 1.1 s or more.
+- **Live checks:** a microphone call on the redesigned talk page; Reject on a recovery call after 9 am.
+- **O2:** the design-change list.
+- **Picks from "Future" below.** Ready to be started: the demo-video script (`docs/DEMO_VIDEO.md`), and the manual deploy button (`.github/workflows/deploy.yml`), which needs the owner to add the SSH key as a GitHub secret.
+
+## Earlier status (written 23 Oct)
 
 **A Claude on the owner's PC: read [LOCAL_CLAUDE_START.md](LOCAL_CLAUDE_START.md) first** (25 Oct). It has the full briefing and the task list (T1-T9).
 
