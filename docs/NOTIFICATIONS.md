@@ -35,6 +35,20 @@ The wording is in `notify.TEMPLATES` (short, fixed text with a few variables, wh
 2. Use an SMS provider that passes the DLT IDs (Twilio supports Indian DLT; local providers such as MSG91, Exotel and Gupshup do too).
 3. With Twilio: set `NOTIFY_CHANNEL=sms` and `TWILIO_FROM` to the registered sender. Another provider needs a small sender class in `notify.py` next to `TwilioSender` (one `send(channel, to, body)` method).
 
+## Is it free? (checked 23 Oct 2026; future work, owner's decision)
+
+Not fully. Neither is switched on yet: Emma stays on the log-only sender.
+
+- **WhatsApp:** Meta charges per delivered template message, by the patient's country.
+  - A utility message (a confirmation or reminder) to an Indian number is about **₹0.12-0.15** each, plus 18% GST. Third-party price pages give these figures; check Meta's own pricing page before switching on.
+  - For trying it out, Meta's test number and Twilio's sandbox can both message a few numbers that opted in, at no or trial-credit cost.
+  - Real patients need a WhatsApp Business sender and approved templates.
+- **SMS in India:**
+  - The clinic, its sender ID and each template must be registered on an operator's **DLT** portal. Vendor guides give roughly ₹5,900-10,000 one-time, plus a yearly renewal.
+  - Then there's a per-message charge from the provider (Twilio, MSG91, Exotel, Gupshup).
+  - Twilio's international route skips DLT, but costs far more per message.
+- For two messages per booking, WhatsApp is the cheaper of the two for a small clinic.
+
 ## Costs and privacy
 
 - Check the provider's current price per message before switching on; a reminder plus a confirmation is two messages per booking.

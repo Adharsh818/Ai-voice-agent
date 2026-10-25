@@ -1,12 +1,49 @@
 # Project memory and next steps
 
-**Last updated:** 14 Oct 2026 (phone checks done; see START HERE) · **Demo:** done Thursday 8 Oct 2026, with a real phone call · **Owner:** Adharsh (GitHub `Adharsh818`)
+**Last updated:** 23 Oct 2026 (state at the end; see START HERE) · **Demo:** done Thursday 8 Oct 2026, with a real phone call · **Owner:** Adharsh (GitHub `Adharsh818`)
 
 **Resuming? Read [RESUME_HERE.md](RESUME_HERE.md) first.** Read [NORTH_STAR.md](NORTH_STAR.md) first, then this file, then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (section 0 is the current priority). This file records what happened in the working sessions of 30 Sep – 1 Oct, the decisions made, the owner's latest feedback, and what to do next.
 
 ---
 
-## ▶ START HERE (14 Oct, state at the end)
+## ▶ START HERE (23 Oct, state at the end)
+
+**The project is finished, apart from what needs a person or an account** (the live list is [RESUME_HERE.md](RESUME_HERE.md) STATUS NOW).
+
+**What Emma is:** Pearl Dental's phone receptionist. She books, moves and cancels appointments, answers clinic questions and makes recovery calls when a doctor drops out. She does this in the browser, on a softphone through Asterisk, and online at https://pearl-emma.duckdns.org (AWS, sign-in needed, a `demo` login for recruiters). Python decides every booking action and every spoken fact.
+
+**Stack:**
+- Listening: Deepgram Nova-3.
+- Understanding: Gemini 3.5 Flash-Lite, or Gemma 4 via Sarvam on the PC. When the model is slow or down, Emma uses her own rules.
+- Voice: ElevenLabs Rachel, with Piper as the backup.
+- Booking and data: SQLite, synced to Google Calendar from the PC.
+- Dashboard: Apple-style with Liquid Glass (APPLE_DESIGN_PLAN.md).
+
+**Checks (23 Oct):**
+- 1061 tests (1 skipped).
+- 53/53 scenarios offline and with the model down.
+- All four 200-call sims (offline and model-down, seeds 7 and 11) pass every check: Z1-Z7 = 0, M7 99-100%, M3 <= 0.5%, M10 <= 1%, T5 = 9.
+- The crash drill passes.
+
+**Last changes (23 Oct):**
+- The demo login sees phone numbers masked, and has 20 talk-page calls a day.
+- `tools/pull_backups.sh` keeps copies of the server's backups on the PC.
+- DEPLOY.md "Tested on AWS".
+- Four call fixes from the redesign follow-ups.
+
+**Owner's latest decisions (23 Oct):**
+- Keep the default voice.
+- The redesign continues.
+- A real number and WhatsApp/SMS are future work.
+- Stay on AWS only, extended with earned credits to about 9-10 months.
+- Keep the two test bookings.
+
+**FINISH_PLAN Phase 7:**
+1. Suite, scenarios, sims and drill: done 23 Oct.
+2. One browser call and one phone call end to end: phone calls were done 12-14 Oct (PHONE_CHECKS.md). A microphone call on the redesigned page is still for the owner.
+3. Push and merge: done 23 Oct (`main` = the session branch, owner's go-ahead).
+
+## ▶ Earlier: START HERE (14 Oct)
 
 **Code:** branch `day2-r2-engine` = `main` on GitHub, everything pushed. 1013 tests pass, 53/53 scenarios, the four 200-call sims on target (Z1-Z7 = 0, M3 <= 0.5%, M7 99-100%, M10 <= 1%, T5 = 9), crash drill passes (EVALUATION.md, 13 Oct). R2 is the only engine (the 12-step engine was retired 12 Oct).
 

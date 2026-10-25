@@ -332,6 +332,8 @@ body.is-end-call .cta {
 }
 /* A problem shows its own "Try again" in the call button's place; the call button steps aside. */
 body:is([data-call="busy"], [data-call="lost"], [data-call="blocked"], [data-call="error"]) #call-button { display: none; }
+/* ...and with nothing to try again (today's demo calls are used), the empty bar steps aside too. */
+body.no-retry #call-bar { display: none; }
 
 .typed {
   position: relative;

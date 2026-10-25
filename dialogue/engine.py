@@ -478,6 +478,9 @@ async def _close(stream) -> None:
 
 _ASK_WHAT_TO_KNOW = "<<ask what to know>>"       # marker: a yes to "anything you'd like to know?"
 _GREETING_YES = {"book": "Yes, I'd like to book an appointment.", "info": _ASK_WHAT_TO_KNOW}
+# "Ok bye" is a goodbye, not a yes to the greeting's question (it was answered "Sure, what would you
+# like to know?").
+_GOODBYE_WORD = re.compile(r"\b(?:bye|goodbye|good bye|bye-bye|ta-ta|tata)\b", re.I)
 
 
 def _answer_to_greeting(ctx: CallContext, text: str) -> str:
@@ -487,7 +490,8 @@ def _answer_to_greeting(ctx: CallContext, text: str) -> str:
         return text
     ctx.greeting_offer = None
     from dialogue import match
-    if len(text.split()) <= 4 and safe_call(match.parse_yes_no, text, default=None) == "yes":
+    if len(text.split()) <= 4 and not _GOODBYE_WORD.search(text) \
+            and safe_call(match.parse_yes_no, text, default=None) == "yes":
         return _GREETING_YES[offer]
     return text
 

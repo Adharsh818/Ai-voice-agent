@@ -53,7 +53,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import auth
@@ -97,6 +97,7 @@ logger = logging.getLogger("voice-server")
 
 AUDIO_FRAME = 0x01
 BUSY_MESSAGE = "All our lines are busy right now. Please try again in a minute."
+DEMO_LIMIT_MESSAGE = "That's all the demo calls for today. Please try again tomorrow."
 # Talk-page events the dashboard's live panel also shows (not audio, not sound effects).
 MIRRORED_EVENTS = {"caption", "state", "turn", "metrics", "error", "bye"}
 
@@ -330,6 +331,30 @@ async def revalidate_page_assets(request, call_next):
     return response
 
 
+@app.middleware("http")
+async def mask_phones_for_demo(request, call_next):
+    """The demo login (on the owner's resume) sees every phone number masked to its last four
+    digits: in API answers, CSV exports and transcripts. One place, so no route can forget it;
+    the live-event stream masks itself (dashboard.sse_stream)."""
+    response = await call_next(request)
+    path = request.url.path
+    if not (path.startswith("/dashboard/api/") or path.startswith("/patient/api/")):
+        return response
+    content_type = response.headers.get("content-type", "")
+    if ("json" not in content_type and "csv" not in content_type) or auth.current_role(request) != "demo":
+        return response
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    if "json" in content_type:
+        try:
+            body = json.dumps(logredact.mask_tree(json.loads(body))).encode()
+        except ValueError:
+            body = logredact.mask_phones(body.decode("utf-8", "replace")).encode()
+    else:
+        body = logredact.mask_phones(body.decode("utf-8", "replace")).encode()
+    headers = {k: v for k, v in response.headers.items() if k.lower() != "content-length"}
+    return Response(body, status_code=response.status_code, headers=headers)
+
+
 @app.get("/")
 async def index():
     return pages.html(STATIC_DIR / "index.html")
@@ -429,6 +454,20 @@ def origin_allowed(headers) -> bool:
     return bool(host) and urlsplit(origin).netloc.lower() == host
 
 
+def _count_demo_call(conn, call_id: str) -> bool:
+    """Counts one demo-login call against today's limit; False (nothing written) when it's used up."""
+    day = clock.today().isoformat()
+    limit = config.DEMO_DAILY_CALL_LIMIT
+    with db.transaction(conn):
+        used = conn.execute("SELECT COUNT(*) FROM audit_events WHERE action = 'demo_call' AND entity_id = ?",
+                            (day,)).fetchone()[0]
+        if limit > 0 and used >= limit:
+            return False
+        conn.execute("INSERT INTO audit_events (ts, actor, action, entity, entity_id, correlation_id) "
+                     "VALUES (?, 'demo', 'demo_call', 'day', ?, ?)", (db.now_str(), day, call_id))
+    return True
+
+
 @app.websocket("/ws/voice")
 async def voice_websocket(ws: WebSocket):
     if not origin_allowed(ws.headers):
@@ -444,6 +483,14 @@ async def voice_websocket(ws: WebSocket):
     state = ws.app.state
     gate: CallGate = state.gate
     call_id = uuid.uuid4().hex[:8]
+    if auth.current_role(ws) == "demo" and not await db.get_db().run(_count_demo_call, call_id):
+        logger.info("Refused a demo call: today's %d demo calls are used", config.DEMO_DAILY_CALL_LIMIT)
+        try:
+            await ws.send_text(json.dumps({"type": "busy", "message": DEMO_LIMIT_MESSAGE, "retry": False}))
+            await ws.close(code=1013)
+        except Exception:
+            pass
+        return
     if not gate.try_acquire("inbound", call_id):
         logger.info("Refused a second call while %s (%s) is active", gate.call_id, gate.kind)
         try:
