@@ -335,6 +335,39 @@ class RunnerTests(unittest.TestCase):
             job = c.run(outbound.get_job, jobs[0])
             self.assertEqual((job["status"], job["outcome"]), ("done", "rescheduled"))
 
+    def test_answer_claims_the_ring_before_the_socket_opens(self):
+        # 25 Oct: Answer, then a refused microphone, then "Type instead" long after the ring time:
+        # the claimed ring still connects (once), and is never a no-answer or a decline.
+        with RecoveryClinic() as c:
+            a1 = c.book("Dr Rao", _day(7, 11), "Priya Sharma", PRIYA)
+            block_id = c.block("Dr Rao", _day(7, 9), _day(7, 17))
+            _, jobs = _campaign(c, block_id, [a1])
+            runner = self._runner(c, timeout=0.05)
+
+            async def go():
+                step = asyncio.create_task(runner.step())
+                for _ in range(100):
+                    if runner.ringing:
+                        break
+                    await asyncio.sleep(0.01)
+                job_id, token = runner.ringing.claimed.job_id, runner.ringing.token
+                self.assertFalse(runner.claim(job_id, "nope"))
+                self.assertTrue(runner.claim(job_id, token))
+                self.assertFalse(runner.claim(job_id, token))             # once
+                self.assertFalse(runner.decline(job_id, token))           # answered, not declined
+                await asyncio.sleep(0.2)                                  # past the 0.05 s ring time
+                ring = runner.answer(job_id, token)                       # the typed call's socket
+                self.assertIsNotNone(ring)
+                ring.connected.set()
+                self.assertIsNone(runner.answer(job_id, token))           # a second socket is refused
+                ring.result = {"outcome": "rescheduled", "unresolved": []}
+                ring.call_done.set()
+                return await step
+
+            self.assertEqual(asyncio.run(go()), "rescheduled")
+            job = c.run(outbound.get_job, jobs[0])
+            self.assertEqual((job["status"], job["outcome"], job["attempts"]), ("done", "rescheduled", 1))
+
 
 class RecoveryCallTests(unittest.TestCase):
     def _call(self, c, appts, reason="illness"):
@@ -636,6 +669,17 @@ class RecoveryApiTests(unittest.TestCase):
         ok = self.client.post("/patient/api/decline", json={"job_id": job["id"], "token": "secret-token"})
         self.assertEqual(ok.status_code, 200)
         self.assertTrue(self.runner.ringing.declined)
+        # Answer claims a ring; a declined one can't be answered.
+        self.assertEqual(self.client.post("/patient/api/answer",
+                                          json={"job_id": job["id"], "token": "secret-token"}).status_code, 409)
+        self.runner.ringing = outbound.Ringing(claimed, "c1", "token-2")
+        self.assertEqual(self.client.post("/patient/api/answer",
+                                          json={"job_id": job["id"], "token": "secret-token"}).status_code, 409)
+        answered = self.client.post("/patient/api/answer", json={"job_id": job["id"], "token": "token-2"})
+        self.assertEqual(answered.status_code, 200)
+        self.assertTrue(self.runner.ringing.claimed_early and self.runner.ringing.answered.is_set())
+        self.assertEqual(self.client.post("/patient/api/decline",
+                                          json={"job_id": job["id"], "token": "token-2"}).status_code, 409)
 
     def test_outbound_socket_refuses_without_a_ringing_job(self):
         from starlette.websockets import WebSocketDisconnect
