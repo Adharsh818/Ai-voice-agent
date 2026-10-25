@@ -2,7 +2,23 @@
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
-## STATUS NOW (written 25 Oct, evening): start here
+## Latest (26 Oct, ~00:15): on the PC only, not pushed, not deployed
+
+**Not on GitHub or the website (owner: "don't update the website until the changes are done"):** `main` on GitHub = 097c4d6. Local branch `integrate-25oct` (= `A:\Voice-Agent` HEAD) adds:
+- **Brain options:** NVIDIA (`NLU_PRIMARY=nvidia`, minimax-m3.1-flash) and Cerebras (`NLU_PRIMARY=cerebras`, gpt-oss-120b; waits for the owner's free key).
+  - Measured on the 53 live scenarios: NVIDIA was no faster than Gemini (2.15 s p50), and Gemma 4 via the Gemini key hit its quota.
+  - Sarvam ran out of credits. The PC and the site are on **Gemini**; the owner can't spend money.
+- **Phone silence filler:** softphones send nothing while the caller is quiet, and Emma now feeds Deepgram silence in those gaps.
+- **More rules:** "yes, cancel it", "change my appointment", old→new day, the service given at the name question, small talk, and time picks with lead-ins. Model turns fell to 10% of scenario turns and 17% of sim turns.
+- **A number is any 10 digits** (owner), read back as said.
+
+**Phone-call findings (25 Oct night):**
+- **Listening:** about 1 s typical on a clean MicroSIP call, 2.4–4.5 s over the phone hotspot, where only 27–45% of the caller's audio arrived.
+- **"Two people talking at once":** a recording of one test call (owner's OK; deleted after) showed Emma sent **one voice only**, and Asterisk had no second call. The second voice is added on the hotspot / phone side: loss concealment on a very lossy line.
+- **Next:** the owner tests on a proper Wi-Fi network, with Linphone's adaptive jitter on and opus first.
+- **Speaker echo:** on the PC speakers Emma hears her own voice. Use a headset.
+
+## STATUS NOW (written 25 Oct, evening)
 
 **Done after the owner's three test calls (25 Oct 17:19-17:25):**
 - **The owner's decisions (MCQ):**
