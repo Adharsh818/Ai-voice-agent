@@ -124,7 +124,8 @@ On the PC on 6 Oct, listening was 0.8-1.0 s. Nothing has been tuned yet, because
 **Status, 25 Oct ~17:00 (local session):**
 - **T1, T2:** done. `main` = 214cbe2, which combines the 23 Oct branch with the Apple redesign (Liquid Glass, patient phone page). 1068 tests, 53/53 scenarios both ways, all four sims pass; GitHub's run is green.
 - **T3:** done. Deployed 214cbe2; `/health` is ok, with ElevenLabs ok on the new key. The PC Emma was restarted on `main`.
-- **T5:** waiting for the owner's explicit yes. The server already has `SARVAM_API_KEY`, but `NLU_PRIMARY`, `SARVAM_URL` and `SARVAM_MODEL` aren't set yet.
+- **T5:** done (owner said yes, 25 Oct 17:02). `/opt/emma/.env` now has `NLU_PRIMARY=sarvam`, `SARVAM_URL` and `SARVAM_MODEL=gemma4`; the old file is kept as `/opt/emma/.env.bak-20261025`. The log shows "Sarvam warm (1546 ms)", and `/health` is ok. `/health` doesn't name the brain, so check the log.
+- **The server's ElevenLabs key is not the PC's:** they compare different by fingerprint, and the server's key has **0 credits** (`quota_exceeded` since the 16:58 deploy). Live sentences on the site are Piper, and 5 new cached lines are missing there. The PC's key works. Fix: put the PC's key on the server (owner's OK), then `sudo systemctl restart emma`.
 - **T6:** done. 8 backups copied; Task Scheduler "Emma server backups" runs every 3 days at 10:00 (test run: result 0).
 - **T4:** next. The owner makes 2-3 test calls on the site.
 - **PC `.env`:** it still has two `SARVAM_API_KEY` lines (the last one wins).
