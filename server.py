@@ -273,9 +273,11 @@ async def warm_nlu():
     line), read to the end and thrown away, so a caller's first turn finds the
     connection and the model warm. Never raises.
     """
-    models = [(name, client) for name, client in (("Gemini", llm.get_nlu()), ("Sarvam", llm.get_sarvam()))
-              if (config.GEMINI_API_KEY if name == "Gemini" else
-                  config.SARVAM_API_KEY and "sarvam" in (config.NLU_PRIMARY, config.NLU_BACKUP))]
+    roles = (config.NLU_PRIMARY, config.NLU_BACKUP)
+    models = [(name, client) for name, client, ok in (
+        ("Gemini", llm.get_nlu(), bool(config.GEMINI_API_KEY)),
+        ("Sarvam", llm.get_sarvam(), bool(config.SARVAM_API_KEY) and "sarvam" in roles),
+        ("NVIDIA", llm.get_nvidia(), bool(config.NVIDIA_API_KEY) and "nvidia" in roles)) if ok]
     if not models:
         return
     try:
