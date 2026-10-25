@@ -4,6 +4,8 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 ## STATUS NOW (written 23 Oct): start here
 
+**A Claude on the owner's PC: read [LOCAL_CLAUDE_START.md](LOCAL_CLAUDE_START.md) first** (25 Oct). It has the full briefing and the task list (T1-T9).
+
 **Code:** `main` = `claude/optimistic-edison-kbglfn` (merged 23 Oct, owner's go-ahead), on top of the Liquid Glass redesign (91a4982). The PC Emma picks it up after `git pull` and a restart; the hosted site after `bash tools/deploy_remote.sh`.
 
 **Checks (23 Oct, Linux venv):** 1061 tests pass (1 skipped); scenarios 53/53 offline and 53/53 model-down; all four 200-call sims pass every check (Z1-Z7 = 0; M7 99-100%; M3 <= 0.5%; M10 <= 1%; T5 = 9 on seeds 7 and 11). The four sims and the crash drill were all re-run for FINISH_PLAN Phase 7; see HANDOFF START HERE.
