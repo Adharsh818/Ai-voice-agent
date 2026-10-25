@@ -5,8 +5,8 @@ The owner's three hosted test calls of 25 Oct (17:19-17:25), replayed with the m
   "Could you say it a few digits at a time?", and the caller said the whole number again.
   Now she says back the digits she holds and what's missing.
 - Call 2: "I'll take 9" after 8 and 8:30 were offered went to a callback offer, although 9 was free.
-- Call 3: a cancel stalled because the caller didn't remember the date; the branch or the
-  treatment now stands in for it (owner's choice, 25 Oct).
+- Call 3: a cancel stalled because the caller didn't remember the date; the number and the
+  name now find the booking, which is read back for a yes (owner's choice, 25 Oct).
 """
 
 import unittest
@@ -43,8 +43,7 @@ class NumberInPiecesTests(OwnerCallCase):
     def test_the_second_piece_hears_what_she_has_and_what_is_missing(self):
         call = self._to_the_number()
         first = call.run("Nine eight four five zero, double three,").text
-        self.assertIn("9 8 4 5 0, 3 3", first)
-        self.assertIn("last 3 digits", first)
+        self.assertIn(first, prompts.VARIANTS["phone.more"])        # short at the first pause: "Yes, go on."
         second = call.run("Double two.").text
         self.assertIn("9 8 4 5 0, 3 3 2 2", second)
         self.assertIn("last digit", second)
@@ -87,7 +86,7 @@ class TimeNotOfferedTests(OwnerCallCase):
         for line in ("", "Can I book a check-up for Saturday morning?", "Rahul Mehta.", "98450 33333.", "Yes."):
             call.run(line)
         reply = call.run("Whitefield.").text
-        self.assertIn("8 in the morning", reply)
+        self.assertIn("8:30", reply)
         return call
 
     def test_ill_take_9_asks_for_9(self):
@@ -100,8 +99,8 @@ class TimeNotOfferedTests(OwnerCallCase):
         self.assertIn("at 10", reply)
 
 
-class CancelWithoutDateTests(OwnerCallCase):
-    """Phone + name + (the date, or the branch or treatment): still three checks (owner, 25 Oct)."""
+class CancelByNumberAndNameTests(OwnerCallCase):
+    """Owner, 25 Oct: the registered number and the patient's name find the booking, read back for a yes."""
 
     def setUp(self):
         super().setUp()
@@ -111,45 +110,40 @@ class CancelWithoutDateTests(OwnerCallCase):
             call.run(line)
         self.assertIn("booked", call.run("Yes, book it.").text)
 
-    def _to_the_date(self, number="98450 22222", name="Neha Kapoor."):
+    def _named(self, name, intent="I want to cancel my appointment."):
         call = Call()
-        for line in ("", "I want to cancel my appointment.", number, "Yes."):
+        for line in ("", intent, "98450 22222", "Yes."):
             call.run(line)
-        reply = call.run(name).text.lower()
-        self.assertTrue("day" in reply or "date" in reply, reply)
-        return call
+        return call, call.run(name).text
 
-    def test_dont_remember_asks_branch_or_treatment_and_the_branch_finds_it(self):
-        call = self._to_the_date()
-        reply = call.run("I don't remember which day.").text
-        self.assertIn("branch", reply)
-        self.assertNotIn("don't know that one", reply)
-        reply = call.run("It's at Indiranagar.").text
+    def test_the_number_and_name_read_the_appointment_back(self):
+        call, reply = self._named("Neha Kapoor.")
         self.assertIn("tomorrow at 12", reply)
         self.assertIn("cancel", reply)
+        self.assertNotIn("which day", reply.lower())
         self.assertIn("cancelled", call.run("Yes, cancel it.").text)
 
-    def test_a_wrong_date_then_the_treatment_finds_it(self):
-        call = self._to_the_date()
-        reply = call.run("Day after tomorrow.").text
-        self.assertIn("branch", reply)
-        self.assertNotIn("Dr", reply)                       # nothing revealed on a miss (Z7)
-        reply = call.run("It's a cleaning.").text
+    def test_another_name_reveals_nothing_then_the_right_name_finds_it(self):
+        call, reply = self._named("Rahul Mehta.")
+        self.assertIn("another name", reply.replace("someone else's name", "another name"))
+        self.assertNotIn("12", reply)
+        self.assertNotIn("Dr", reply)
+        reply = call.run("Neha Kapoor.").text
         self.assertIn("tomorrow at 12", reply)
 
-    def test_the_wrong_branch_reveals_nothing(self):
-        call = self._to_the_date()
-        call.run("I don't remember which day.")
-        reply = call.run("It's at Whitefield.").text
-        self.assertNotIn("12", reply)
-        self.assertNotIn("Dr", reply)
+    def test_a_move_says_which_appointment_first(self):
+        _, reply = self._named("Neha Kapoor.", "I need to move my appointment.")
+        self.assertIn("tomorrow at 12", reply)
+        self.assertRegex(reply, r"move it|suit you better")
 
-    def test_another_name_on_the_number_reveals_nothing(self):
-        call = self._to_the_date(name="Rahul Mehta.")
-        call.run("I don't remember which day.")
-        reply = call.run("It's at Indiranagar.").text
-        self.assertNotIn("12", reply)
-        self.assertNotIn("Dr", reply)
+
+class EitherDayTests(unittest.TestCase):
+    def test_tomorrow_or_the_day_after_is_both_days(self):
+        import dateparse
+        from datetime import date
+        when = dateparse.parse_when("Tomorrow or day after tomorrow within this week", today=date(2026, 10, 25))
+        self.assertEqual(list(when.date.dates()), [date(2026, 10, 26), date(2026, 10, 27)])
+        self.assertIsNone(dateparse.parse_when("8 or 8:30", today=date(2026, 10, 25)).date)
 
 
 if __name__ == "__main__":

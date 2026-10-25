@@ -121,6 +121,15 @@ CLAIMS = {
         r"\bi (have|just) (booked|cancell?ed|moved|reserved|scheduled)\b",
     ),
 }
+# V10: what's free or taken (Python's scheduling says it, never the model).
+_AVAILABILITY = (
+    r"\bno (free )?(slots?|times?|appointments?|availability|openings?)\b",
+    r"\b(don'?t|do not|doesn'?t) have (any )?(slots?|times?|appointments?|availability|openings?)\b",
+    r"\b(isn'?t|is not|aren'?t|are not|not) (free|available|open)\b",
+    r"\b(fully|all) booked\b", r"\b(is|are|it'?s|that'?s|we'?re|they'?re) (all )?booked up\b",
+    r"\b(already )?(taken|gone)\b",
+    r"\b(is|are|it'?s|that'?s|'s) (free|available)\b", r"\bnothing (free|available|open)\b",
+)
 # V6
 MEDICAL = (
     r"\b\d+\s?(mg|ml|milligrams?)\b", r"\btablets?\b", r"\bcapsules?\b", r"\bparacetamol\b", r"\bibuprofen\b",
@@ -254,6 +263,12 @@ def check_sentence(sentence: str, allowed: Allowed, *, part: str) -> Verdict:
         hit = _first(patterns, low)
         if hit:
             return Verdict(False, "V3", f"claims {action} {hit!r}")
+
+    # V10: availability is Python's alone. 25 Oct: the model told the owner "we don't have any slots at
+    # 10" that Python never checked; the offers and "that's free" / "that's taken" come from scheduling.
+    hit = _first(_AVAILABILITY, low)
+    if hit:
+        return Verdict(False, "V10", f"availability claim {hit!r}")
 
     # V6: medical advice.
     hit = _first(MEDICAL, low)

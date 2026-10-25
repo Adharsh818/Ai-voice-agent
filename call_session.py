@@ -119,6 +119,11 @@ CHECKING_FALLBACK_MS = 600
 OWED_AFTER_S = 1.2
 
 _URGENT_WORDS = {"no", "wait", "stop", "sorry", "hello", "hey", "hold", "excuse"}
+# A one-word answer stops her too (review, 25 Oct: "Indiranagar" or a digit said over her went
+# unheard and they talked over each other): digits, days, and the clinic's own words (keyterms).
+_ONE_WORD_ANSWERS = {"zero", "oh", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "double",
+                 "triple", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "tomorrow",
+                 "today", "morning", "evening", "afternoon"} | {str(n) for n in range(10)}
 _BACKCHANNEL_WORDS = {
     "yeah", "yes", "yep", "yup", "ya", "yah", "okay", "ok", "mm", "mmm", "hmm", "hm", "mhm",
     "uh", "huh", "right", "sure", "alright", "fine", "cool", "great", "good", "nice", "perfect",
@@ -617,6 +622,7 @@ class CallSession:
         self.detector = turn_detector.TurnDetector(self._on_turn_ready, hint=self._listening_hint,
                                                    spawn=self._spawn)
         self._turns_since_filler = 99
+        self._answer_words: set = set()            # the clinic's words from its keyterms (one-word barge-in)
         self._tasks: set[asyncio.Task] = set()
         self._started_at = time.perf_counter()
         self._idle_since = self._started_at
@@ -734,6 +740,7 @@ class CallSession:
             return
         self.stt.add_keyterms(terms)
         turn_detector.add_vocabulary(terms)
+        self._answer_words |= {w.lower() for t in terms for w in str(t).split() if len(w) > 3}
         self.stt.add_keyterms(getattr(config, "DEEPGRAM_NAME_KEYTERMS", []))   # last: never crowds out the clinic's words
 
     # How long the recogniser's watchdog waits on unchanged words, by what they
@@ -1360,7 +1367,8 @@ class CallSession:
             return False
         if self._speaking_turn == self._greeting_turn and is_hello(text):
             return False
-        if len(words) < config.BARGE_IN_MIN_WORDS and words[0] not in _URGENT_WORDS:
+        if len(words) < config.BARGE_IN_MIN_WORDS and words[0] not in _URGENT_WORDS \
+                and words[0] not in _ONE_WORD_ANSWERS and words[0] not in self._answer_words:
             return False
         return not self._is_echo(text, self._speaking_turn, None, now)
 

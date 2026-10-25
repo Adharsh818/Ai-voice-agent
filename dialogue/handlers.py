@@ -240,6 +240,9 @@ async def _release_holds(rt: Runtime) -> None:
 ACCEPTED = "Callback: "
 # Goals that collect the callback number.
 _PHONE_GOALS = (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE)
+# "What should I say now?", "sorry, what?", "what do you need?" (owner's call 2, 25 Oct).
+_WHAT_NOW = re.compile(r"what (?:should|do|shall|must) i (?:say|tell|do)|what do you (?:need|want)|"
+                       r"^(?:sorry,? )?what\??$|which digits?|what(?:'s| is) (?:left|missing|remaining)")
 
 
 def callback_in_progress(ctx: CallContext) -> bool:
@@ -443,7 +446,11 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
         ctx.outcome = ctx.outcome or "abuse"
         await _release_holds(rt)
         return _stop(out, _statement(Goal.ABUSE_CLOSE, "abuse.close", closes_call=True))
-    if (u.has(Act.END) or _SIGN_OFF.search(text)) and not (confirmation == "yes" and ctx.pending in _COMMIT_GOALS):
+    # "No, it's okay, thank you" to "Shall I find you another time?" opens the closing: say goodbye
+    # rather than "Anything else?" for one more turn (review, 25 Oct).
+    thanks_no = ctx.pending == Goal.OFFER_REBOOK and confirmation == "no" and "thank" in text.lower()
+    if (u.has(Act.END) or _SIGN_OFF.search(text) or thanks_no) \
+            and not (confirmation == "yes" and ctx.pending in _COMMIT_GOALS):
         # "Bye" never books (the 1 Oct "Bye -> booked" call); "yes, thanks, bye"
         # at a summary still commits and is told the outcome.
         await _release_holds(rt)
@@ -451,6 +458,10 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
     # Mid-number, "Hello?" is answered by saying back the digits held and what's missing
     # (the workflow's "phone.more.so_far"), not "I can hear you. Mm-hmm." (owner's call, 25 Oct).
     mid_number = ctx.pending == Goal.PHONE_MORE and bool(ctx.caller.phone_buffer)
+    if mid_number and not u.phone_digits and _WHAT_NOW.search(text.lower()):
+        # "What should I say now?" mid-number: what she has and what's missing, plainly (repair).
+        return _stop(out, plan(Goal.PHONE_MORE, "phone.more.so_far", prompts.phone_so_far(ctx.caller.phone_buffer),
+                               use_model_say=False))
     if u.has(Act.REPEAT) and ctx.last_emma and not u.carries_details and not mid_number:
         # The engine speaks repeat.prefix + ctx.last_emma (asked for, so not a loop).
         plain = " ".join(re.sub(r"[^a-z' ]+", " ", text.lower()).split())

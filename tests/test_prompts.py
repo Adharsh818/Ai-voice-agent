@@ -165,13 +165,13 @@ class RenderTests(unittest.TestCase):
                  for _ in range(2)}
         self.assertIn("Braces are done at our Whitefield branch.", texts)
 
-    def test_single_wording_lines_say_like_i_said_rather_than_repeat(self):
+    def test_single_wording_lines_get_a_kind_lead_when_said_again(self):
         memory = PromptMemory()
         fact = {"text": "A cleaning is usually between 1,000 and 1,500 rupees."}
         first = prompts.render("answer.fact", memory, fact)
         second = prompts.render("answer.fact", memory, fact)
         self.assertEqual(first, fact["text"])
-        self.assertEqual(second, "Like I said, a cleaning is usually between 1,000 and 1,500 rupees.")
+        self.assertEqual(second, "Sure, a cleaning is usually between 1,000 and 1,500 rupees.")   # never "Like I said"
 
     def test_rng_is_respected(self):
         import random

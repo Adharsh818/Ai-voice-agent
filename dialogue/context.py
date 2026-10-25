@@ -218,7 +218,7 @@ GOAL_SPECS: dict[Goal, GoalSpec] = {
     Goal.BOOKED: _spec(Expect.YES_NO, True, Intent.BOOK),
     Goal.DROPPED: _spec(Expect.YES_NO, True, Intent.BOOK),
     Goal.ASK_APPT_DATE: _spec(Expect.DATE, False, *MANAGE_INTENTS),
-    Goal.VERIFY_FAILED: _spec(Expect.OPEN, True, *MANAGE_INTENTS),
+    Goal.VERIFY_FAILED: _spec(Expect.NAME, True, *MANAGE_INTENTS),   # "Could it be under another name?"
     Goal.PICK_APPOINTMENT: _spec(Expect.CHOICE, True, *MANAGE_INTENTS),
     Goal.STATE_APPOINTMENT: _spec(Expect.YES_NO, True, Intent.CHECK),
     Goal.CONFIRM_CANCEL: _spec(Expect.YES_NO, True, Intent.CANCEL),
@@ -405,14 +405,12 @@ class VerifiedAppointment:
 
 @dataclass
 class ManageDraft:
-    """The MANAGE checklist: verify (phone + name + date, or the branch or treatment), then check, cancel or reschedule."""
+    """The MANAGE checklist: verify (phone + name; a date, branch or treatment only narrows), then check, cancel or reschedule."""
     action: Optional[Intent] = None                    # RESCHEDULE | CANCEL | CHECK
     patient_name: Optional[str] = None                 # the name the appointment is under
     appt_date: Optional[DateConstraint] = None
-    # A caller who doesn't remember the date names the branch or the treatment instead (owner, 25 Oct).
-    appt_branch: Optional[str] = None
+    appt_branch: Optional[str] = None                  # "my cleaning at Indiranagar": narrows several bookings
     appt_service: Optional[str] = None
-    date_unknown: bool = False                         # "I don't remember which day"
     booked_start: Optional[datetime] = None            # the appointment booked earlier on this call
     verify_attempts: int = 0
     verified: bool = False

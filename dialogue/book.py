@@ -793,8 +793,9 @@ def _phone_plan(ctx: CallContext) -> Optional[GoalPlan]:
     if c.phone_overflow:
         return _plan(Goal.ASK_PHONE, "phone.too_many")
     if c.phone_buffer:
-        # Say back what's held and what's missing; a bare "Mm-hmm." left the caller guessing (owner, 25 Oct).
-        line = "phone.more.so_far"
+        # A short "Yes, go on." at the first pause (they're mid-number: a long sentence would talk over
+        # them); still short after that, what she holds and what's missing (owner's calls, 25 Oct).
+        line = "phone.more.so_far" if ctx.pending == Goal.PHONE_MORE else "phone.more"
         return _plan(Goal.PHONE_MORE, line, **prompts.phone_so_far(c.phone_buffer))
     return _plan(Goal.ASK_PHONE, "ask.phone")
 
