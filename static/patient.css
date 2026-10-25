@@ -3,11 +3,14 @@
    wait and the phone's label. Light only. Glass only where content passes under it (section 13):
    the call's dock keeps its lens over the state glow; the ringing screen has no glass. */
 
-body.patient { --answer: #248a3d; --answer-press: #1f7a36; --decline: #d7382a; --decline-press: #c43224; }
+body.patient {
+  --answer: #248a3d; --answer-hover: #1f7a36; --answer-active: #196b2f;
+  --decline: #d7382a; --decline-hover: #c43224; --decline-active: #b02c1f;
+}
 
 .phone-label {
   margin: 0;
-  padding: 14px 16px 0;
+  padding: calc(14px + env(safe-area-inset-top)) 16px 0;
   text-align: center;
   color: var(--ink-2);
   font-size: 12px;
@@ -63,7 +66,8 @@ body.patient[data-call="idle"] #call-button { display: none; }
 }
 .incoming[hidden] { display: none; }
 .incoming-top { display: grid; justify-items: center; align-content: start; gap: 6px; }
-.incoming-title { margin: 0; color: var(--ink-2); font-size: 17px; line-height: 25px; letter-spacing: -0.022em; }
+/* a quiet caption (iOS shows none; the web page needs a hint of what this screen is) */
+.incoming-title { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 20px; letter-spacing: -0.016em; }
 .incoming-from {
   margin: 0;
   font-family: var(--font-display);
@@ -98,8 +102,8 @@ body.patient[data-call="idle"] #call-button { display: none; }
 .call-choice { display: grid; justify-items: center; gap: 10px; }
 .call-choice-label { font-size: 14px; line-height: 18px; letter-spacing: -0.016em; color: var(--ink); }
 
-/* Two large round buttons: solid, with the specular rim and a neutral soft shadow; the press
-   swells them on a spring and lights them from under the finger. */
+/* Two large round buttons, flat and solid like the phone's own (they aren't glass, so no swell and
+   no drop shadow): hover and press step the colour darker, 100ms linear. */
 .call-btn {
   position: relative;
   display: grid;
@@ -111,17 +115,17 @@ body.patient[data-call="idle"] #call-button { display: none; }
   border-radius: 50%;
   color: #fff;
   cursor: pointer;
-  box-shadow: var(--lg-sheen), var(--lg-tint-rim), 0 4px 14px rgba(0, 0, 0, 0.1);
-  transition: transform 320ms var(--lg-spring), background-color 100ms linear, filter 100ms linear;
+  transition: background-color 100ms linear;
   -webkit-tap-highlight-color: transparent;
 }
 .call-btn svg { width: 34px; height: 34px; }
 .call-btn.decline svg { width: 42px; height: 42px; }   /* the hung-up handset is a flatter glyph */
 .call-btn.decline { background: var(--decline); }
 .call-btn.answer { background: var(--answer); }
-.call-btn.decline:hover { background: var(--decline-press); }
-.call-btn.answer:hover { background: var(--answer-press); }
-.call-btn:active { transform: scale(1.06); filter: brightness(1.08); }
+.call-btn.decline:hover { background: var(--decline-hover); }
+.call-btn.answer:hover { background: var(--answer-hover); }
+.call-btn.decline:active { background: var(--decline-active); }
+.call-btn.answer:active { background: var(--answer-active); }
 .call-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .call-btn:disabled { opacity: var(--disabled-opacity); cursor: default; }
 
@@ -135,6 +139,5 @@ body.patient[data-call="idle"] #call-button { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .incoming-mark::before, .incoming-mark::after { animation: none; opacity: 0; }
   .incoming-mark::before { opacity: 0.7; transform: scale(1.18); }   /* a still ring says "ringing" */
-  .call-btn:active { transform: none; }
   .incoming, .waiting { animation: none; }
 }

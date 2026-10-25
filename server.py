@@ -516,6 +516,19 @@ async def patient_ring(request: Request):
     return {"ringing": ring.public()}
 
 
+@app.post("/patient/api/answer")
+async def patient_answer(request: Request):
+    """Answer pressed: claim the ring before the page asks for the microphone, so a slow or
+    refused microphone (then "Type instead") doesn't let the ring time out as no answer."""
+    auth.require_staff(request)
+    data = await request.json()
+    runner = outbound.get_runner()
+    ok = runner is not None and runner.claim(int(data.get("job_id") or 0), str(data.get("token") or ""))
+    if not ok:
+        raise HTTPException(status_code=409, detail="That call isn't ringing any more.")
+    return {"ok": True}
+
+
 @app.post("/patient/api/decline")
 async def patient_decline(request: Request):
     auth.require_staff(request)
