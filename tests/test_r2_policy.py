@@ -251,7 +251,14 @@ class LoopBreaker(PolicyCase):
         self.assertEqual(ctx.book.date_c.kind, "earliest")
         self.assertTrue(ctx.book.any_time)
         close = policy.take_exit(ctx, GoalPlan(Goal.CONFIRM_PHONE, "confirm.phone"))
-        self.assertEqual((close.goal, close.line, close.closes_call), (Goal.CLOSE, "phone.failed", True))
+        # No read-back ever failed: a kind close that doesn't blame the line (25 Oct).
+        self.assertEqual((close.goal, close.line, close.closes_call), (Goal.CLOSE, "close.no_number", True))
+        ctx.caller.phone_misses = 2
+        close = policy.take_exit(ctx, GoalPlan(Goal.CONFIRM_PHONE, "confirm.phone"))
+        self.assertEqual(close.line, "phone.failed")
+        ctx.book.offer_rounds = 0
+        again = policy.take_exit(ctx, GoalPlan(Goal.OFFER_SLOTS, "offer.two"))
+        self.assertEqual((again.goal, again.line), (Goal.ASK_WHEN, "ask.when.after_reject"))   # not a callback
         callback = policy.take_exit(ctx, GoalPlan(Goal.ASK_SERVICE, "ask.service"))
         self.assertEqual(callback.goal, Goal.CALLBACK_OFFER)
         self.assertEqual(ctx.callback_reason, Goal.ASK_SERVICE.value)

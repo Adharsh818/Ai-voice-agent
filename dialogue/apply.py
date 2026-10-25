@@ -433,7 +433,7 @@ def _name_notice(name: str, spelled: Optional[str], manage: bool = False) -> Not
     # The model's "Got it, Neha." already acknowledges "Neha Kapur": not "Thanks, Neha Kapur." on top (25 Oct).
     first = name.split()[0] if name.split() else name
     covered = (name, first) if len(first) >= 3 else (name,)
-    return Notice("ack.name.manage" if manage else "ack.name", {"name": name}, covered_by=covered)
+    return Notice("ack.name.manage" if manage else "ack.name", {"name": name, "first": first}, covered_by=covered)
 
 
 def _apply_phone(ctx: CallContext, u: Understanding, conf: Optional[str], cued: bool, notices: list) -> None:

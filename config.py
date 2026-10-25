@@ -15,13 +15,14 @@ CLINIC_TIMEZONE = os.getenv("CLINIC_TIMEZONE", "Asia/Kolkata")
 # she is automated, and never claims to be human: if a caller sincerely asks,
 # she says HONEST_LINE and carries straight on helping.
 # Every greeting names Emma and the clinic and asks one question (owner, 6 Oct:
-# "it should always mention its name Emma"); at most 12 words (R1). A yes to the
-# appointment or clinic question is understood as that request (dialogue/engine.py).
+# "it should always mention its name Emma"); at most 12 words (R1). An open offer of help, as
+# real front-desk scripts do (owner, 25 Oct): "Would you like to book?" had cancelling callers
+# start with "No...".
 GREETINGS = [
     f"Hi, this is Emma at {CLINIC_SHORT_NAME}. How can I help?",
-    f"Hello, Emma at {CLINIC_SHORT_NAME}. What can I do for you?",
-    f"{CLINIC_SHORT_NAME}, Emma speaking. Would you like to book an appointment?",
-    f"Hi, Emma at {CLINIC_SHORT_NAME}. Any questions about the clinic?",
+    f"{CLINIC_SHORT_NAME}, Emma speaking. How can I help?",
+    f"Hi, this is Emma at {CLINIC_SHORT_NAME}. How may I help you?",
+    f"{CLINIC_SHORT_NAME}, this is Emma. How can I help you?",
 ]
 # Said instead when it suits the clinic clock (4 am-12, before 4 pm, after 4 pm;
 # none between midnight and 4 am, phrases.next_greeting).

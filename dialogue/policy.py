@@ -261,14 +261,14 @@ def _identity_plan(ctx: CallContext, goal: Goal, u, catalog) -> GoalPlan:
         return GoalPlan(Goal.CLOSE, "phone.failed", critical=True, use_model_say=False,
                         closes_call=True, expect=Expect.OPEN)
     plan = _plan(ctx, goal, catalog, u=u)
-    if goal == Goal.PHONE_MORE and plan.line == "phone.more":
-        plan.line = "phone.more.so_far"         # what she holds and what's missing, not a bare "Mm-hmm."
+    if goal == Goal.PHONE_MORE and ctx.pending == Goal.PHONE_MORE and plan.line == "phone.more":
+        plan.line = "phone.more.so_far"         # "Yes, go on." once, then what she holds and what's missing
     manage_flow = ctx.intent in MANAGE_INTENTS
-    if goal == Goal.ASK_PHONE and manage_flow and u is not None and u.has(Act.NON_ANSWER) \
+    if goal == Goal.ASK_PHONE and u is not None and u.has(Act.NON_ANSWER) \
             and ctx.pending in (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE):
-        # "I don't know the number, I only know the name" (8 Oct): say why it's needed
-        # rather than "a few digits at a time" on a loop.
-        plan.line = "ask.phone.why"
+        # "I don't know the number, I only know the name" (8 Oct), "I'd rather not give my number"
+        # (review, 25 Oct): say why it's needed rather than "could you say it once more?".
+        plan.line = "ask.phone.why" if manage_flow else "ask.phone.why.book"
         return plan
     if goal == Goal.ASK_PHONE and c.phone_overflow:
         plan.line = "phone.too_many"            # one sentence that asks again, not "too many" + a second ask
@@ -465,8 +465,6 @@ def missing(ctx: CallContext) -> list:
             todo.append(phone)
         if not m.patient_name:
             todo.append(Goal.ASK_NAME)
-        if m.appt_date is None:
-            todo.append(Goal.ASK_APPT_DATE)
         if not m.done and not m.verified:
             if m.verify_attempts:
                 todo.append(Goal.VERIFY_FAILED)         # verification itself is an action, not a question
@@ -623,9 +621,20 @@ def take_exit(ctx: CallContext, plan: GoalPlan) -> Optional[GoalPlan]:
     if goal == Goal.ASK_CANCEL_REASON:
         ctx.manage.reason_asked = True
         return None
+    if goal == Goal.OFFER_SLOTS and ctx.intent == Intent.BOOK and b.offer_rounds < 3:
+        # The offers didn't land: ask what would work, as a receptionist would, not a callback
+        # (owner's call 2, 25 Oct: "I'll take 9" went to "I can have someone call you").
+        b.offer_rounds += 1
+        b.time_c = None
+        b.touch()
+        return GoalPlan(Goal.ASK_WHEN, "ask.when.after_reject", rung=RUNG_ASK, critical=False,
+                        use_model_say=False, expect=Expect.DATE)
     if goal in (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE) and not (
             ctx.intent in MANAGE_INTENTS and ctx.line_e164 and ctx.caller.phone_misses < 3):
-        return GoalPlan(Goal.CLOSE, "phone.failed", rung=RUNG_EXIT, critical=True, use_model_say=False,
+        # The line is blamed only after real read-backs failed; a caller who never gave a number
+        # hears a kind close instead (review, 25 Oct).
+        line = "phone.failed" if ctx.caller.phone_misses else "close.no_number"
+        return GoalPlan(Goal.CLOSE, line, rung=RUNG_EXIT, critical=True, use_model_say=False,
                         closes_call=True, expect=Expect.OPEN)
     # A phone call where they can't give the number the booking is under (8 Oct: "I only
     # know the name"): the team can find it by name and call back, rather than hanging up.

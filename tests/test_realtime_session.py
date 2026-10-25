@@ -134,6 +134,21 @@ class BargeInTests(unittest.TestCase):
         self.assertEqual(after, [1])          # real words stop her
         self.assertEqual(turn_id, 1)          # and no turn was made of the "yeah"
 
+    def test_a_one_word_answer_stops_her(self):
+        # Review, 25 Oct: a lone digit or day said over her went unheard, and they talked over each other.
+        async def run():
+            s, t = make_session(PlayingTransport(), tts=FakeTTS(ms=2000))
+            s.turn_id = 1
+            speaking = asyncio.ensure_future(s._speak(1, ASK, s._timer(1, "")))
+            self.assertTrue(await wait_until(s._emma_audible))
+            await s._on_transcript("tomorrow", False)
+            await settle()
+            await speaking
+            await s.close()
+            return t.flushed
+
+        self.assertEqual(asyncio.run(run()), [1])
+
     def test_hello_over_the_greeting_does_not_stop_it(self):
         fake = Recorder("Hi, this is Emma at Pearl Dental, how can I help?", tier=-1)
 

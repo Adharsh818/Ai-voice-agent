@@ -153,10 +153,10 @@ LINES: dict[str, LineSpec] = {
     "ask.name.spell": _l("'Sorry, could you spell that for me?'", cache=True),
     "ask.name.manage": _l("'And what name is the appointment under?'", cache=True),
     "ask.name.manage.rephrase": _l("'Sorry, which name is the appointment under?'"),
-    "ack.name.manage": _l("Notice, a cancel or change: the name the booking is under. '{name}, got it.' "
-                          "(never 'Nice to meet you')", "name", critical=True),
+    "ack.name.manage": _l("Notice, a cancel or change: the name the booking is under. 'Thank you, {first}.' "
+                          "(never 'Nice to meet you')", "first", critical=True),
     "ask.name.callback": _l("'And who should they ask for?'"),
-    "ack.name": _l("Notice, implicit confirmation. '{name}, got it.' / 'Thanks, {name}.'", "name",
+    "ack.name": _l("Notice, implicit confirmation with the first name. 'Thank you, {first}.'", "first",
                    critical=True),
     "ack.spelled": _l("Notice: letters read back. '{letters}, got it.'", "letters", critical=True),
     "ask.phone": _l("'And what's the best number to reach you on?'", cache=True),
@@ -164,9 +164,12 @@ LINES: dict[str, LineSpec] = {
     "ask.phone.choices": _l("'Could you say it a few digits at a time? I'm listening.'"),
     "ask.phone.manage": _l("'Sure. What's the number the appointment is booked under?'"),
     "ask.phone.callback": _l("'What's the best number for them to call you on?'"),
+    "ask.phone.why.book": _l("They'd rather not give a number. 'That's okay. It's just so we can confirm the "
+                             "booking and reach you if a time changes. What's a good number for you?'"),
     "ask.phone.why": _l("They don't know the number. 'No problem. I find bookings by the number they were "
                         "made with. Could it be this number, or one you've used with us before?'"),
-    "phone.more": _l("Partial number heard. 'Mm-hmm.'", critical=True, cache=True),
+    "phone.more": _l("Partial number heard, first pause. 'Yes, go on.' (short, never a bare 'Mm-hmm.')",
+                     critical=True, cache=True),
     "phone.more.so_far": _l("Still part of a number, a second time (or 'hello?'): say back what's held and what's "
                             "missing. 'I've got 9 8 4 5 0, 3 3 so far. Just the last 3 digits, please.'",
                             "so_far", "need", critical=True),
@@ -175,6 +178,8 @@ LINES: dict[str, LineSpec] = {
     "confirm.phone": _l("Grouped read-back. 'So that's {phone}, right?'", "phone", critical=True),
     "confirm.phone.retry": _l("After a rejected read-back with no new digits. 'Sorry about that. "
                               "What's the number again?'", critical=True, cache=True),
+    "close.no_number": _l("Exit when no number was ever given (never blame the line). 'No problem. Whenever "
+                          "you'd like to book, just give us a call.'", critical=True),
     "phone.failed": _l("Exit after 3 failed read-backs. 'I'm sorry, the line isn't great. Please call us back "
                        "when you can, and we'll sort it out.' Closes the call.", critical=True),
     # BOOK
@@ -308,12 +313,8 @@ LINES: dict[str, LineSpec] = {
     # MANAGE
     "ask.appt_date": _l("'And what date is the appointment?'", cache=True),
     "ask.appt_date.rephrase": _l("'Do you remember roughly which day it's on?'"),
-    "ask.appt_alt": _l("They don't remember the date. 'No problem. Which branch is it at, or what's it for?'",
-                       critical=True),
-    "verify.failed.alt": _l("Reveal nothing; no branch or treatment given yet. 'Hmm, I can't find one with those details. "
-                            "Which branch is it at, or what's it for?'", critical=True),
-    "verify.failed": _l("Reveal nothing. 'Hmm, I can't find one matching those details. Could you check the "
-                        "date for me?'", critical=True),
+    "verify.failed": _l("Reveal nothing. 'Hmm, I can't find a booking under that name on this number. Could it "
+                        "be under someone else's name?'", critical=True),
     "verify.failed.final": _l("Second failure: offer a callback. 'I'm still not finding it. I can have the "
                               "team call you to sort it out, would that help?'", critical=True),
     "pick.appointment": _l("'I can see {options}. Which one is it?'", "options", critical=True),
@@ -324,6 +325,8 @@ LINES: dict[str, LineSpec] = {
     "cancelled": _l("Committed only. 'Done, that's cancelled.' + rebook offer.", critical=True, cache=True),
     "offer.rebook": _l("'Would you like to book another time instead?'"),
     "ask.new_when": _l("'Sure. When would you like to move it to?'"),
+    "ask.new_when.found": _l("Found by number and name: say which one. 'I can see {appt}. When would you like to "
+                             "move it to?'", "appt", critical=True),
     "ask.new_when.rephrase": _l("Rung 2 of the new-time question. 'Which day would suit you better?'"),
     "ask.new_when.choices": _l("Rung 3. 'No worries. Later this week, or sometime next week?'"),
     "confirm.reschedule": _l("'So that's moving it from {old} to {new}. Shall I go ahead?'", "old", "new",
@@ -378,7 +381,7 @@ VARIANTS: dict[str, tuple] = {
     "anything_else": ("Anything else I can help with?", "Is there anything else I can do for you?",
                       "Anything else you need?"),
     "close": ("Take care, bye!", "Thanks for calling, take care!", "Alright, have a good day. Bye!"),
-    "close.booked": ("Great, see you then. Take care!", "Lovely, we'll see you then. Bye!",
+    "close.booked": ("Thank you, see you then. Take care!", "Okay, see you then. Bye!",
                      "Perfect, see you soon. Take care!"),
     "hold_on": ("Sure, take your time.", "No problem, I'll wait.", "Of course, no rush."),
     "repeat.prefix": ("Sure.", "Of course.", "No problem."),
@@ -475,9 +478,11 @@ VARIANTS: dict[str, tuple] = {
     "ask.name.manage": ("And what name is the appointment under?", "Which name is it booked under?"),
     "ask.name.manage.rephrase": ("Sorry, which name is the appointment under?",
                                  "Sorry, I didn't catch which name the appointment is under."),
-    "ack.name.manage": ("{name}, got it.", "Thanks, {name}."),
+    "ack.name.manage": ("Thank you, {first}.", "Okay, {first}."),
     "ask.name.callback": ("And who should they ask for?", "And what name should they ask for?"),
-    "ack.name": ("{name}, got it.", "Thanks, {name}.", "Nice to meet you, {name}."),
+    # The first name, once: the full name is checked in the summary (review, 25 Oct: "Nice to meet you,
+    # Kabir Singh" sounds odd on an Indian clinic line).
+    "ack.name": ("Thank you, {first}.", "Okay, {first}.", "{first}, thank you."),
     "ack.spelled": ("{letters}, got it.", "Okay, {letters}. Thank you."),
     "ask.phone": ("And what's the best number to reach you on?", "And your phone number, please?",
                   "What's a good number for you?"),
@@ -489,11 +494,15 @@ VARIANTS: dict[str, tuple] = {
                          "Which phone number is the appointment under?"),
     "ask.phone.callback": ("What's the best number for them to call you on?",
                            "Which number should they call you on?"),
+    "ask.phone.why.book": ("That's okay. It's just so we can confirm the booking and reach you if a time changes. "
+                           "It stays with the clinic. What's a good number for you?",
+                           "No problem. We only use it for this appointment, to confirm it and tell you if anything "
+                           "changes. What number should I put down?"),
     "ask.phone.why": ("No problem. I find bookings by the number they were made with. Is there another "
                       "number you might have used with us?",
                       "That's okay. Bookings are kept under a phone number, so I'll need that one. "
                       "Might it be a family member's number, or an older one of yours?"),
-    "phone.more": ("Mm-hmm.", "Yes, go on.", "Okay, go on."),
+    "phone.more": ("Yes, go on.", "Mm-hmm, go on.", "Okay, go on."),
     "phone.more.so_far": ("I've got {so_far} so far. {need}", "So far I have {so_far}. {need}"),
     "phone.too_many": ("Sorry, I got a few too many digits there. Could you say it once more?",
                        "Hmm, that's more digits than a phone number. Could you say it again for me?"),
@@ -501,6 +510,8 @@ VARIANTS: dict[str, tuple] = {
                       "That's {phone}, correct?"),
     "confirm.phone.retry": ("Sorry about that. What's the number again?",
                             "My mistake. Could you give me the number again?"),
+    "close.no_number": ("No problem. Whenever you'd like to book, just give us a call. Take care!",
+                        "That's alright. Do call us whenever you'd like to book. Bye for now!"),
     "phone.failed": ("I'm sorry, the line isn't great. Please call us back when you can, and we'll sort it out.",
                      "Sorry, I'm struggling to catch the number on this line. Do call us back when you can, "
                      "and we'll get it sorted."),
@@ -649,9 +660,13 @@ VARIANTS: dict[str, tuple] = {
     "summary.again": ("Let me just finish the details: {when} at {branch}. Shall I book it?",
                       "Just to finish, that's {when} at {branch}. Shall I go ahead?"),
     "what_to_change": ("Sure, what should I change?", "No problem, what would you like to change?"),
-    "booked": ("Done, you're booked for {when} at {branch}. Anything else I can help with?",
-               "All done, you're booked in for {when} at our {branch} branch. Anything else?",
-               "That's booked for {when} at {branch}. Is there anything else I can do for you?"),
+    # The next step, as front desks give it (owner, 25 Oct: "come about 10 minutes early").
+    "booked": ("Done, you're booked for {when} at {branch}. Please come about 10 minutes early. Anything else I "
+               "can help with?",
+               "All done, you're booked in for {when} at our {branch} branch. Do come about 10 minutes early. "
+               "Anything else?",
+               "That's booked for {when} at {branch}. Please come in about 10 minutes before. Is there anything "
+               "else I can do for you?"),
     "booked.emergency": ("Done, you're booked for {when} at {branch}, and I've told the team you're in pain.",
                          "All done, you're booked for {when} at {branch}. I've let the team know you're in pain."),
     "dropped": ("Okay, I won't book that. Did you want to cancel an appointment you already have?",
@@ -662,12 +677,9 @@ VARIANTS: dict[str, tuple] = {
     # MANAGE
     "ask.appt_date": ("And what date is the appointment?", "And which day is the appointment on?"),
     "ask.appt_date.rephrase": ("Do you remember roughly which day it's on?", "Roughly when is it, do you remember?"),
-    "ask.appt_alt": ("No problem. Which branch is it at, or what's it for?",
-                     "That's okay. Do you know which branch it's at, or what treatment it's for?"),
-    "verify.failed.alt": ("Hmm, I can't find one with those details. Which branch is it at, or what's it for?",
-                          "I'm not finding it with those details. Do you know the branch, or what it's for?"),
-    "verify.failed": ("Hmm, I can't find one matching those details. Could you check the date for me?",
-                      "I'm not finding it with those details. Could you double-check the date?"),
+    "verify.failed": ("Hmm, I can't find a booking under that name on this number. Could it be under someone "
+                      "else's name, like a family member?",
+                      "I'm not finding one under that name on this number. Might it be booked in another name?"),
     "verify.failed.final": ("I'm still not finding it. I can have the team call you to sort it out, would that "
                             "help?",
                             "Still nothing, sorry. Shall I ask the team to call you and sort it out?"),
@@ -680,6 +692,8 @@ VARIANTS: dict[str, tuple] = {
     "cancelled": ("Done, that's cancelled.", "All done, it's cancelled."),
     "offer.rebook": ("Would you like to book another time instead?", "Shall I find you another time?"),
     "ask.new_when": ("Sure. When would you like to move it to?", "No problem. When would suit you better?"),
+    "ask.new_when.found": ("I can see {appt}. When would you like to move it to?",
+                           "I have {appt}. What day would suit you better?"),
     "ask.new_when.rephrase": ("Which day would suit you better?", "Is there a day that's easier for you?"),
     "ask.new_when.choices": ("No worries. Later this week, or sometime next week?",
                              "That's okay, we'll find something. Would this week or next week be better?"),
@@ -701,7 +715,7 @@ VARIANTS: dict[str, tuple] = {
 # When a line has only one variant (or one that fits the params) and it would
 # repeat Emma's previous sentence word for word, a person would say "like I
 # said". Only used then; never on lines whose first word is a name or a number.
-_REPEAT_LEADS = ("Like I said, ", "As I said, ")
+_REPEAT_LEADS = ("Sure, ", "Yes, so ")      # someone who asks again didn't hear: kindly, never "Like I said"
 # First words that may be lower-cased after an opener or a lead ("Sure, we're...").
 _LOWERABLE = frozenset("""
     a all an and any anything are can could did do doing every for give go happy have hello hmm honestly how
@@ -744,6 +758,25 @@ def _fill(variant: str, params: dict) -> Optional[str]:
     return _upper_first(text)
 
 
+_DAY_PARTS = (" in the morning", " in the afternoon", " in the evening", " at night")
+
+
+def _one_day_part(params: Optional[dict]) -> Optional[dict]:
+    """
+    Two times of one part of the day name it once: "8 in the morning or 8:30 in the morning" ->
+    "8 or 8:30 in the morning" (review, 25 Oct). Same for a move's "from ... to ...".
+    """
+    if not params:
+        return params
+    for first, second in (("a", "b"), ("old", "new")):
+        a, b = params.get(first), params.get(second)
+        if isinstance(a, str) and isinstance(b, str):
+            part = next((p for p in _DAY_PARTS if a.endswith(p) and b.endswith(p)), None)
+            if part and (first == "a" or a.split(" at ")[0] == b.split(" at ")[0]):
+                params = {**params, first: a[: -len(part)]}
+    return params
+
+
 def render(line_id: str, memory, params: Optional[dict] = None, rng=None) -> str:
     """
     One variant of `line_id` with params filled in. Picks a variant this call
@@ -757,6 +790,7 @@ def render(line_id: str, memory, params: Optional[dict] = None, rng=None) -> str
     evening?"), so a missing detail never leaves a hole in the sentence.
     """
     spec = LINES[line_id]                                    # KeyError for an unknown id, on purpose
+    params = _one_day_part(params)
     variants = VARIANTS[line_id]
     rng = rng or random
     params = params or {}
@@ -822,7 +856,22 @@ def no_double_opener(sentences: list, keep: int = 0) -> list:
                 continue
             out[i] = rest[0].upper() + rest[1:]
         i += 1
+    # One acknowledgement per reply, at its start: "...right outside. Sure. What's the number?" ->
+    # "...right outside. What's the number?" (review, 25 Oct). "Right now it's..." is not an opener.
+    i = max(1, keep)
+    while i < len(out):
+        ack = _MID_ACK.match(out[i] or "")
+        if ack:
+            rest = out[i][ack.end():].strip()
+            if not rest or not re.search(r"[A-Za-z0-9]", rest):
+                del out[i]
+                continue
+            out[i] = rest[0].upper() + rest[1:]
+        i += 1
     return out
+
+
+_MID_ACK = re.compile(r"^(?:okay|ok|sure|right|alright|all right)[,.!]\s*", re.I)
 
 
 def with_opener(text: str, memory, rng=None) -> str:

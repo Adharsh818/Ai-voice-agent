@@ -259,9 +259,17 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         hours_again = answer.line == "answer.fact" and answer.params.get("text") == rt.kb.hours \
             and any(isinstance(n, Notice) and n.line == "date.sunday" for n in notices)
         # "I don't remember which day" is a non-answer, not a question to be "not sure" about (25 Oct).
-        not_a_question = answer.line == "unknown" and u.has(Act.NON_ANSWER)
+        # Nor "Can I talk to someone?", "Hello? I'm still here", or "What should I say now?" mid-number
+        # (review, 25 Oct): a receptionist never answers those with "I don't know".
+        not_a_question = answer.line == "unknown" and (
+            any(u.has(a) for a in (Act.NON_ANSWER, Act.WANTS_HUMAN, Act.REPEAT, Act.WAIT))
+            or plan.goal in (Goal.PHONE_MORE, Goal.HELP_FIRST, Goal.TRANSFER, Goal.CONFIRM_PHONE))
         if not (answer.line == "unknown" and asks_about_booking) and not hours_again and not not_a_question:
             notices.insert(0, answer)
+            if answer.line == "answer.fact" and plan.goal == Goal.ASK_INTENT:
+                # "A cleaning is 1,000 to 1,500 rupees. What can I do for you?" sounded like the call
+                # had just started; after an answer a receptionist asks "Anything else?" (25 Oct).
+                plan.line = "anything_else"
             if answer.line == "unknown" and plan.goal == Goal.ANSWER_ONLY and not ctx.workflow_active() \
                     and ctx.outcome is None:
                 # "How may I help you out?" -> "I'm not sure about that, sorry." and nothing more (phone

@@ -19,7 +19,7 @@ report can show exactly where a call went wrong and group failures by cause.
     Z4  invented doctor, branch or price (candidate)
     Z5  wrong outcome (asked to cancel, got booked...)
     Z6  a service at a branch that doesn't offer it
-    Z7  appointment details revealed before verification (best effort)
+    Z7  appointment details revealed before verification: number and name (best effort)
     T5  caller turns to finish a simple booking
 
 Turns whose model call failed (llm_ok False, live runs) are marked
@@ -265,15 +265,11 @@ def _phone_read_back_with_yes(tx: _Transcript, commit: int, national: str) -> bo
     return False
 
 
-def _named_branch_or_service(text: str, branch: Optional[str], service: Optional[str]) -> bool:
-    """The caller named this appointment's branch or treatment (verification's third check, 25 Oct)."""
-    return bool((branch and branch in lines.branches_in(text)) or (service and service in lines.services_in(text)))
-
-
 def _verification_gaps(tx: _Transcript, commit: int, appt: dict) -> list[str]:
     national = (appt.get("phone") or "")[-10:]
-    start = datetime.fromisoformat(appt.get("from") or appt["start"])
-    phone_ok = name_ok = date_ok = False
+    # Verification is the registered number and the patient's name (owner, 25 Oct); the
+    # appointment is then read back for a yes, so its date is no longer a check.
+    phone_ok = name_ok = False
     for j in range(1, commit + 1):
         r = tx.readings.get(j)
         text = tx.caller(j)
@@ -281,17 +277,11 @@ def _verification_gaps(tx: _Transcript, commit: int, appt: dict) -> list[str]:
             phone_ok = True
         if lines.mentions_name(text, appt.get("patient") or ""):
             name_ok = True
-        if (r is not None and r.date == start.date()) or start.date() in lines.dates_in(text, tx.today):
-            date_ok = True
-        if _named_branch_or_service(text, appt.get("branch"), appt.get("service")):
-            date_ok = True           # the branch or treatment stands in for a date they don't remember (25 Oct)
     gaps = []
     if not phone_ok:
         gaps.append("phone not verified")
     if not name_ok:
         gaps.append("name not verified")
-    if not date_ok:
-        gaps.append("appointment date not verified")
     return gaps
 
 
@@ -541,8 +531,6 @@ def _z7(record, tx: _Transcript) -> list[dict]:
         card_day = date.fromisoformat(card["date"])
         if r.date == card_day or card_day in lines.dates_in(text, tx.today):
             date_ok = True
-        if _named_branch_or_service(text, card.get("branch"), card.get("service")):
-            date_ok = True           # the branch or treatment stands in for the date (owner, 25 Oct)
         card_time = time.fromisoformat(card["time"])
         details = []
         if len(lines.services_in(line)) >= 3 or len(lines.branches_in(line)) >= 3:
@@ -565,8 +553,8 @@ def _z7(record, tx: _Transcript) -> list[dict]:
             details = []
         if details:
             revealed = True
-            if not (phone_ok and name_ok and date_ok):
-                missing = [k for k, ok in (("phone", phone_ok), ("name", name_ok), ("date", date_ok)) if not ok]
+            if not (phone_ok and name_ok):          # number + name verify (owner, 25 Oct)
+                missing = [k for k, ok in (("phone", phone_ok), ("name", name_ok)) if not ok]
                 out.append(_finding("Z7", i, f"revealed {', '.join(details)} before verifying {', '.join(missing)}",
                                     "Z7 revealed before verification", degraded=tx.degraded(i)))
     return out

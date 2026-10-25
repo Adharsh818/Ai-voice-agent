@@ -71,9 +71,9 @@ _DATE_TIME_WORDS_RE = re.compile(
     r"january|february|march|april|may|june|july|august|september|october|november|december|"
     r"a\.?m\.?|p\.?m\.?|o'?clock|morning|afternoon|evening|night)\b|\b\d{1,2}:\d{2}\b")
 # "I don't know the number", "I only know the name".
-_NO_DATE_RE = re.compile(r"\b(?:(?:don'?t|do not|didn'?t|can'?t|cannot) (?:know|remember|recall)|not sure|"
-                         r"no idea|forgot|forget)\b")
-_NO_NUMBER_RE = re.compile(r"\b(?:(?:don'?t|do not|didn'?t) (?:know|have|remember)(?: (?:the|my|that|which))?"
+_NO_NUMBER_RE = re.compile(r"\b(?:(?:rather not|don'?t want to|do not want to|prefer not to) (?:give|share|say)|"
+                           r"why do you need (?:my|the) (?:number|phone)|"
+                           r"(?:don'?t|do not|didn'?t) (?:know|have|remember)(?: (?:the|my|that|which))?"
                            r"(?: phone)? number|only (?:know|have|remember) the name|forgot (?:the|my) number|"
                            r"not sure (?:of|about|which) (?:the )?number)\b")
 # Answers to "another one, or change that one?" (Goal.DUPLICATE_CHECK).
@@ -131,6 +131,15 @@ _REPEAT_RE = re.compile(
     r"(?:\s+(?:please|again|sorry|ma'?am|madam))*$"
 )
 _UNIT = r"(?:sec|second|seconds|minute|minutes|moment|min)"
+_LEAD_SENTENCE_RE = re.compile(r"^\s*(hi|hello|hey|okay|ok|yeah|yes)(?: there)?\s*[.?!]\s+(?=\S)", re.I)
+_NOT_NOW_RE = re.compile(r"^(?:no,? )?(?:not (?:right )?now|not at the moment|not today|maybe later)"
+                         r"(?:,? (?:thanks|thank you|thanks a lot))?$")
+# "One second, I'm parking the car" / "hold on, let me get a pen": a wait with its reason, not a
+# question about parking (review, 25 Oct).
+_WAIT_WHY_RE = re.compile(
+    r"^(?:(?:ok|okay|yes|yeah|sorry|just)\s+)*(?:hold on|hang on|one (?:sec|second|minute|moment)|"
+    r"just a (?:sec|second|minute|moment)|give me a (?:sec|second|minute|moment))\s*,?\s+"
+    r"(?:i'?m|i am|let me|i'?ll|i need to|my )")
 _WAIT_RE = re.compile(
     r"^(?:(?:ok|okay|yes|yeah|sure|sorry|just|um+|uh+|wait)\s+)*"
     rf"(?:hold on|hang on|wait|one {_UNIT}|a {_UNIT}|just a {_UNIT}|give me (?:a|one|a few) {_UNIT}|"
@@ -570,8 +579,11 @@ def _globals(t: str, raw: str, words: list, view: Tier0View, source: str):
         return _u(raw, source, [Act.REPEAT])
     if match.BARE_HELLO_RE.match(t) and view.pending not in (None, Goal.GREET, Goal.ASK_INTENT):
         return _u(raw, source, [Act.REPEAT])
-    if _WAIT_RE.match(t):
+    if _WAIT_RE.match(t) or (_WAIT_WHY_RE.match(t) and not re.search(r"\d", t)):
         return _u(raw, source, [Act.WAIT])
+    if _NOT_NOW_RE.match(t) and view.pending in _CLOSING_QUESTION_GOALS | {Goal.ASK_INTENT, Goal.GREET}:
+        # "Not right now, thanks" to "Anything else?": a polite no, not "right now" as a time (25 Oct).
+        return _u(raw, source, [Act.END], confirmation="no")
     if len(words) <= 12 and _ROBOT_RE.search(t) and not _HUMAN_RE.search(t):
         if all(w in _ROBOT_FILLER for w in _tokens(_ROBOT_RE.sub(" ", t))):
             return _u(raw, source, [Act.ROBOT_QUESTION])
@@ -881,6 +893,12 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
     words = _tokens(t)
     if not words and not _NON_LATIN_RE.search(raw):
         return None
+    # "Hi. I'd like a cleaning on Monday." / "Okay. Can I book a check-up?": the greeting or "okay" said
+    # first is its own sentence; the request after it is the turn (owner's calls, 25 Oct: to the model).
+    lead = _LEAD_SENTENCE_RE.match(raw)
+    if lead and len(_tokens(_clean(raw[lead.end():]))) >= 2 \
+            and not (lead.group(1).lower() in ("okay", "ok", "yeah", "yes") and _expect(view) == "yes_no"):
+        return understand(raw[lead.end():], view)
 
     emergency = _emergency(t)
     if emergency == Emergency.RED_FLAG:
@@ -1301,12 +1319,6 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         # "I've been really busy lately" to "When's good for you?": not a day, so Emma offers this week
         # or next (no-model scenarios, 22 Oct: she asked the same thing again in other words).
         u.acts.append(Act.NON_ANSWER.value)
-    if view.pending in (Goal.ASK_APPT_DATE, Goal.VERIFY_FAILED) and not (u.date_phrase or u.appt_date_phrase) \
-            and _NO_DATE_RE.search(t):
-        # "I don't remember which day" to "Which day is the appointment on?" (owner's call, 25 Oct):
-        # not a question for Emma; she asks for the branch or the treatment instead.
-        u.acts.append(Act.NON_ANSWER.value)
-        u.acts = [a for a in u.acts if a != Act.QUESTION.value]
 
     if filled_expected:
         u.acts.insert(0, Act.ANSWER.value)

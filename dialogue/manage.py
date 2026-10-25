@@ -117,8 +117,9 @@ def phone_plan(ctx: CallContext, first_line: str) -> Optional[GoalPlan]:
     if c.phone_overflow:
         return plan(Goal.ASK_PHONE, "phone.too_many", use_model_say=False)
     if c.phone_buffer:
-        # Say back what's held and what's missing; a bare "Mm-hmm." left the caller guessing (owner, 25 Oct).
-        line = "phone.more.so_far"
+        # A short "Yes, go on." at the first pause (they're mid-number: a long sentence would talk over
+        # them); still short after that, what she holds and what's missing (owner's calls, 25 Oct).
+        line = "phone.more.so_far" if ctx.pending == Goal.PHONE_MORE else "phone.more"
         return plan(Goal.PHONE_MORE, line, prompts.phone_so_far(c.phone_buffer), use_model_say=False)
     if c.phone_misses and ctx.stats(Goal.ASK_PHONE).misses == 0:
         return plan(Goal.ASK_PHONE, "confirm.phone.retry")
@@ -155,11 +156,6 @@ def _pick_options(matches: list) -> str:
 
 
 # ---------------------------------------------------------------- verification
-
-
-def third_check(m: ManageDraft) -> bool:
-    """The detail that stands beside the phone and the name: the date, or the branch or treatment."""
-    return m.appt_date is not None or bool(m.appt_branch) or bool(m.appt_service)
 
 
 def _names(ctx: CallContext) -> list:
@@ -202,28 +198,31 @@ def _verified(row: dict) -> VerifiedAppointment:
 async def verify(ctx: CallContext, rt: Runtime) -> bool:
     """
     Look up and filter; fills ctx.manage.matches only on success. Counts
-    attempts. Needs a confirmed phone, a name, and the appointment's date or,
-    when the caller doesn't remember it, its branch or treatment (owner, 25 Oct).
+    attempts. Needs a confirmed phone and a matching name (owner, 25 Oct: the
+    registered number and the patient's name, then the appointment is read back
+    for a yes). A date, branch or treatment the caller gave only narrows the
+    matches; when it matches none of them it is set aside (misremembered).
     """
     m = ctx.manage
     phone = ctx.caller.phone_e164 if ctx.caller.phone_state == FieldState.CONFIRMED else None
     names = _names(ctx)
-    if not phone or not names or not third_check(m):
+    if not phone or not names:
         return False
     m.verify_attempts += 1
     rows = await rt.run(scheduling.future_appointments, phone)
+    named = [r for r in rows if any(_name_matches(n, r["patient_name"]) for n in names)]
     days = set(m.appt_date.dates()) if m.appt_date is not None else None
 
-    def fits(r) -> bool:
+    def narrows(r) -> bool:
         if days is not None and _start(r).date() not in days:
             return False
         if m.appt_branch and (r["branch"] or "").lower() != m.appt_branch.lower():
             return False
         if m.appt_service and (r["service"] or "").lower() != m.appt_service.lower():
             return False
-        return any(_name_matches(n, r["patient_name"]) for n in names)
+        return True
 
-    hits = [r for r in rows if fits(r)]
+    hits = [r for r in named if narrows(r)] or named
     if not hits:
         return False                 # the rows die here: nothing about them is kept (Z7)
     m.verified = True
@@ -317,19 +316,11 @@ def _absorb(ctx: CallContext, u: Understanding) -> _Heard:
                 m.appt_date = when.date
                 heard.verify_detail = True
             date_was_appt = date_was_appt or iso is not None
-        # "It's at Indiranagar" / "it's a cleaning", said to the date question: stands in for a
-        # date they don't remember. Only then: "it's for my son" earlier is not "a children's visit".
-        alt = False
-        if asked_date and u.branch and u.branch != m.appt_branch:
-            m.appt_branch, alt = u.branch, True
-        if asked_date and u.service and u.service != m.appt_service:
-            m.appt_service, alt = u.service, True
-        if alt:
-            heard.verify_detail = True
-            if ctx.pending == Goal.VERIFY_FAILED and not (phrase or iso):
-                m.appt_date = None   # the date they gave didn't match: look by the branch or treatment instead
-        if asked_date and u.has(Act.NON_ANSWER) and not (phrase or iso):
-            m.date_unknown = True    # "I don't remember which day"
+        # "My cleaning at Indiranagar": narrows several bookings (verify() sets it aside if it matches none).
+        if u.branch:
+            m.appt_branch = u.branch
+        if u.service:
+            m.appt_service = u.service
         if heard.verify_detail and m.done:
             m.done = False           # they want another go after the callback offer was declined
         if not m.patient_name and ctx.caller.name:
@@ -478,7 +469,7 @@ async def advance(ctx: CallContext, u: Understanding, confirmation: Optional[str
     if not (ctx.caller.phone_state == FieldState.CONFIRMED and ctx.caller.phone_e164):
         return result
     if not m.verified:
-        if _names(ctx) and third_check(m) and (m.verify_attempts == 0 or heard.verify_detail):
+        if _names(ctx) and (m.verify_attempts == 0 or heard.verify_detail):
             await verify(ctx, rt)
         if not m.verified:
             return result
@@ -887,16 +878,10 @@ def _verify_plan(ctx: CallContext) -> Optional[GoalPlan]:
         if ctx.pending == Goal.CALLBACK_OFFER:
             return None
         return plan(Goal.CALLBACK_OFFER, "verify.failed.final", critical=True)
-    alt_given = bool(m.appt_branch or m.appt_service)
     if fails == 1:
-        if alt_given:
-            return laddered(ctx, Goal.VERIFY_FAILED, ("verify.failed", "ask.appt_date.rephrase"))
-        return plan(Goal.VERIFY_FAILED, "verify.failed.alt")
-    if not _names(ctx):
-        return laddered(ctx, Goal.ASK_NAME, ("ask.name.manage", "ask.name.manage.rephrase"))
-    if m.date_unknown and not alt_given:
-        return plan(Goal.ASK_APPT_DATE, "ask.appt_alt")     # no date: the branch or the treatment instead
-    return laddered(ctx, Goal.ASK_APPT_DATE, ("ask.appt_date", "ask.appt_date.rephrase"))
+        # Nothing under that name on this number: maybe a family member's name (reveals nothing, Z7).
+        return plan(Goal.VERIFY_FAILED, "verify.failed")
+    return laddered(ctx, Goal.ASK_NAME, ("ask.name.manage", "ask.name.manage.rephrase"))
 
 
 def _offer_plan(ctx: CallContext, t: VerifiedAppointment) -> GoalPlan:
@@ -945,4 +930,7 @@ def _reschedule_plan(ctx: CallContext, t: VerifiedAppointment) -> Optional[GoalP
         return plan(Goal.NO_SLOTS, "no_slots", {"branch": t.branch, "until": until})
     if m.offer_rounds and ctx.stats(Goal.ASK_NEW_WHEN).misses == 0:
         return plan(Goal.ASK_NEW_WHEN, "ask.when.after_reject")
+    if not ctx.stats(Goal.ASK_NEW_WHEN).asked and m.appt_date is None:
+        # Found by number and name: say which appointment before moving it (owner, 25 Oct).
+        return plan(Goal.ASK_NEW_WHEN, "ask.new_when.found", {"appt": t.spoken or appointment_words(t)})
     return laddered(ctx, Goal.ASK_NEW_WHEN, ("ask.new_when", "ask.when.rephrase", "ask.when.choices"))

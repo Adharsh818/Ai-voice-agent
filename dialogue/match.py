@@ -359,7 +359,7 @@ _NAME_LEADS = re.compile(
     r"(?:his|her|their)(?: name is| name's)|(?:she|he)(?:'s| is) called|"
     r"(?:my )?(?:daughter|son|child|kid|wife|husband|mother|mom|mum|father|dad|brother|sister)'?s name(?: is|'s))[ ,]+)?"
 )
-_NAME_TAILS = re.compile(r"(?:[ ,]+(?:here|speaking|please|thanks|thank you|only))+$")
+_NAME_TAILS = re.compile(r"(?:[ ,]+(?:is my name|is the name|here|speaking|please|thanks|thank you|only))+$")
 
 
 def clean_name(text: str) -> Optional[str]:
@@ -752,6 +752,8 @@ _LONE_FRAGMENTS = {
     "uhh", "er", "like", "the", "my", "i'm", "it's", "tell", "let", "when", "where", "why",
     "which", "who", "maybe",
 }
+_FRAGMENT_LEADS = {"sorry", "okay", "ok", "yeah", "yes", "no", "um", "uh", "hmm", "so", "and", "but", "well",
+                   "wait", "actually"}
 # Short real words that can end a sentence after "the" / "my" ("cancel the one").
 _SHORT_WORDS = {
     "one", "day", "all", "kid", "son", "job", "gum", "gums", "jaw", "fee", "way", "end", "bit",
@@ -784,6 +786,8 @@ def is_fragment(text: str, expect: str) -> bool:
         if last in _LONE_FRAGMENTS:
             return True
         return False
+    if last in _LONE_FRAGMENTS and all(w in _FRAGMENT_LEADS for w in words[:-1]):
+        return True                         # "Sorry. Actually," / "Okay, so" (owner's call 2, 25 Oct)
     if is_backchannel(text):
         return False
     if (text or "").rstrip().endswith("?"):
