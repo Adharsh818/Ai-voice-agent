@@ -258,7 +258,9 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         # "This Sunday?" already hears "We're closed on Sundays": not the weekly hours as well (sim, 11 Oct).
         hours_again = answer.line == "answer.fact" and answer.params.get("text") == rt.kb.hours \
             and any(isinstance(n, Notice) and n.line == "date.sunday" for n in notices)
-        if not (answer.line == "unknown" and asks_about_booking) and not hours_again:
+        # "I don't remember which day" is a non-answer, not a question to be "not sure" about (25 Oct).
+        not_a_question = answer.line == "unknown" and u.has(Act.NON_ANSWER)
+        if not (answer.line == "unknown" and asks_about_booking) and not hours_again and not not_a_question:
             notices.insert(0, answer)
             if answer.line == "unknown" and plan.goal == Goal.ANSWER_ONLY and not ctx.workflow_active() \
                     and ctx.outcome is None:

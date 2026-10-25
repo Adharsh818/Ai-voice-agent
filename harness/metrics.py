@@ -265,6 +265,11 @@ def _phone_read_back_with_yes(tx: _Transcript, commit: int, national: str) -> bo
     return False
 
 
+def _named_branch_or_service(text: str, branch: Optional[str], service: Optional[str]) -> bool:
+    """The caller named this appointment's branch or treatment (verification's third check, 25 Oct)."""
+    return bool((branch and branch in lines.branches_in(text)) or (service and service in lines.services_in(text)))
+
+
 def _verification_gaps(tx: _Transcript, commit: int, appt: dict) -> list[str]:
     national = (appt.get("phone") or "")[-10:]
     start = datetime.fromisoformat(appt.get("from") or appt["start"])
@@ -278,6 +283,8 @@ def _verification_gaps(tx: _Transcript, commit: int, appt: dict) -> list[str]:
             name_ok = True
         if (r is not None and r.date == start.date()) or start.date() in lines.dates_in(text, tx.today):
             date_ok = True
+        if _named_branch_or_service(text, appt.get("branch"), appt.get("service")):
+            date_ok = True           # the branch or treatment stands in for a date they don't remember (25 Oct)
     gaps = []
     if not phone_ok:
         gaps.append("phone not verified")
@@ -534,6 +541,8 @@ def _z7(record, tx: _Transcript) -> list[dict]:
         card_day = date.fromisoformat(card["date"])
         if r.date == card_day or card_day in lines.dates_in(text, tx.today):
             date_ok = True
+        if _named_branch_or_service(text, card.get("branch"), card.get("service")):
+            date_ok = True           # the branch or treatment stands in for the date (owner, 25 Oct)
         card_time = time.fromisoformat(card["time"])
         details = []
         if len(lines.services_in(line)) >= 3 or len(lines.branches_in(line)) >= 3:

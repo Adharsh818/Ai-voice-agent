@@ -49,7 +49,7 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(self.kind("0 98450 12345", "phone"), "complete")          # 11 with the 0
         self.assertEqual(self.kind("098450 1234", "phone"), "digits")
         self.assertEqual(self.kind("my mobile number is 98450"), "digits")         # announced, any step
-        self.assertEqual(classify("98450", {"expect": "phone"}).silence_ms, 2000)
+        self.assertEqual(classify("98450", {"expect": "phone"}).silence_ms, 2600)
 
     def test_open_answers_get_a_short_natural_pause(self):
         self.assertEqual(self.kind("I'd like a cleaning"), "likely")

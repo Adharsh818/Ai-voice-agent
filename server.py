@@ -900,6 +900,7 @@ async def client_config(request: Request):
             "event_db": config.AMBIENCE_EVENT_DB,
         },
         "typing": config.TYPING_SFX,
+        "typed_calls": config.TYPED_CALLS,
     }
 
 

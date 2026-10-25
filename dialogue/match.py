@@ -231,6 +231,8 @@ def accumulate_phone(buffer: str, run: DigitRun) -> tuple[str, Optional[str]]:
     combined = _strip_prefix(combined)
     if _whole(combined):
         return combined, phones.to_e164(combined)
+    if len(combined) > 10 and combined[0] in "6789":
+        return "", None                    # more digits than a mobile has: ask for it once more
     return combined, None
 
 

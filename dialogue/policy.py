@@ -85,7 +85,7 @@ GOAL_LINES = {
 RUNG_LINES = {
     Goal.ASK_NAME: ("ask.name", "ask.name.rephrase", "ask.name.spell"),
     Goal.SPELL_NAME: ("ask.name.spell", "ask.name.spell", "ask.name.spell"),
-    Goal.PHONE_MORE: ("phone.more", "ask.phone.choices", "ask.phone.choices"),
+    Goal.PHONE_MORE: ("phone.more", "phone.more.so_far", "phone.more.so_far"),
     Goal.ASK_TIME: ("ask.time", "ask.time.choices", "ask.time.choices"),
     Goal.ASK_APPT_DATE: ("ask.appt_date", "ask.appt_date.rephrase", "ask.appt_date.rephrase"),
     Goal.ASK_INTENT: ("ask.intent", "ask.intent", "capability"),
@@ -261,12 +261,17 @@ def _identity_plan(ctx: CallContext, goal: Goal, u, catalog) -> GoalPlan:
         return GoalPlan(Goal.CLOSE, "phone.failed", critical=True, use_model_say=False,
                         closes_call=True, expect=Expect.OPEN)
     plan = _plan(ctx, goal, catalog, u=u)
+    if goal == Goal.PHONE_MORE and plan.line == "phone.more":
+        plan.line = "phone.more.so_far"         # what she holds and what's missing, not a bare "Mm-hmm."
     manage_flow = ctx.intent in MANAGE_INTENTS
     if goal == Goal.ASK_PHONE and manage_flow and u is not None and u.has(Act.NON_ANSWER) \
             and ctx.pending in (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE):
         # "I don't know the number, I only know the name" (8 Oct): say why it's needed
         # rather than "a few digits at a time" on a loop.
         plan.line = "ask.phone.why"
+        return plan
+    if goal == Goal.ASK_PHONE and c.phone_overflow:
+        plan.line = "phone.too_many"            # one sentence that asks again, not "too many" + a second ask
         return plan
     if goal == Goal.ASK_PHONE and plan.rung == RUNG_ASK:
         if ctx.pending == Goal.CONFIRM_PHONE:
@@ -330,6 +335,8 @@ def _params(ctx: CallContext, goal: Goal, catalog) -> dict:
     b, c = ctx.book, ctx.caller
     if goal == Goal.CONFIRM_PHONE:
         return {"phone": speak_phone(c.phone_e164, c.phone_landline)}
+    if goal == Goal.PHONE_MORE:
+        return prompts.phone_so_far(c.phone_buffer)
     if goal == Goal.CONFIRM_CHANGE:
         p = ctx.change_proposal
         return {"field": _FIELD_WORDS.get(p.get("field"), p.get("field", "details")),

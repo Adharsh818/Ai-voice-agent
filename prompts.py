@@ -167,6 +167,9 @@ LINES: dict[str, LineSpec] = {
     "ask.phone.why": _l("They don't know the number. 'No problem. I find bookings by the number they were "
                         "made with. Could it be this number, or one you've used with us before?'"),
     "phone.more": _l("Partial number heard. 'Mm-hmm.'", critical=True, cache=True),
+    "phone.more.so_far": _l("Still part of a number, a second time (or 'hello?'): say back what's held and what's "
+                            "missing. 'I've got 9 8 4 5 0, 3 3 so far. Just the last 3 digits, please.'",
+                            "so_far", "need", critical=True),
     "phone.too_many": _l("'Sorry, I got a few too many digits there. Could you say it once more?'",
                          critical=True),
     "confirm.phone": _l("Grouped read-back. 'So that's {phone}, right?'", "phone", critical=True),
@@ -305,6 +308,10 @@ LINES: dict[str, LineSpec] = {
     # MANAGE
     "ask.appt_date": _l("'And what date is the appointment?'", cache=True),
     "ask.appt_date.rephrase": _l("'Do you remember roughly which day it's on?'"),
+    "ask.appt_alt": _l("They don't remember the date. 'No problem. Which branch is it at, or what's it for?'",
+                       critical=True),
+    "verify.failed.alt": _l("Reveal nothing; no branch or treatment given yet. 'Hmm, I can't find one with those details. "
+                            "Which branch is it at, or what's it for?'", critical=True),
     "verify.failed": _l("Reveal nothing. 'Hmm, I can't find one matching those details. Could you check the "
                         "date for me?'", critical=True),
     "verify.failed.final": _l("Second failure: offer a callback. 'I'm still not finding it. I can have the "
@@ -487,6 +494,7 @@ VARIANTS: dict[str, tuple] = {
                       "That's okay. Bookings are kept under a phone number, so I'll need that one. "
                       "Might it be a family member's number, or an older one of yours?"),
     "phone.more": ("Mm-hmm.", "Yes, go on.", "Okay, go on."),
+    "phone.more.so_far": ("I've got {so_far} so far. {need}", "So far I have {so_far}. {need}"),
     "phone.too_many": ("Sorry, I got a few too many digits there. Could you say it once more?",
                        "Hmm, that's more digits than a phone number. Could you say it again for me?"),
     "confirm.phone": ("So that's {phone}, right?", "Let me read that back: {phone}. Is that right?",
@@ -654,6 +662,10 @@ VARIANTS: dict[str, tuple] = {
     # MANAGE
     "ask.appt_date": ("And what date is the appointment?", "And which day is the appointment on?"),
     "ask.appt_date.rephrase": ("Do you remember roughly which day it's on?", "Roughly when is it, do you remember?"),
+    "ask.appt_alt": ("No problem. Which branch is it at, or what's it for?",
+                     "That's okay. Do you know which branch it's at, or what treatment it's for?"),
+    "verify.failed.alt": ("Hmm, I can't find one with those details. Which branch is it at, or what's it for?",
+                          "I'm not finding it with those details. Do you know the branch, or what it's for?"),
     "verify.failed": ("Hmm, I can't find one matching those details. Could you check the date for me?",
                       "I'm not finding it with those details. Could you double-check the date?"),
     "verify.failed.final": ("I'm still not finding it. I can have the team call you to sort it out, would that "
@@ -982,6 +994,26 @@ def speak_when(date_c, time_c, today=None) -> str:
     if re.fullmatch(r"(early |late )?(morning|afternoon|evening)", part):
         return f"{day}, in the {part}"
     return f"{day}, {part}" if part == "any time" else f"{day} {part}"
+
+
+def phone_so_far(buffer: str) -> dict:
+    """
+    Params for "phone.more.so_far": the digits held, in groups of five as the caller
+    checks them ("9 8 4 5 0, 3 3"), and what's still missing ("Just the last 3 digits, please.").
+    A mobile has 10 digits; a number said with a leading 0 has 11.
+    """
+    digits = "".join(ch for ch in buffer or "" if ch.isdigit())
+    groups = [digits[i:i + 5] for i in range(0, len(digits), 5)]
+    so_far = ", ".join(" ".join(g) for g in groups)
+    whole = 11 if digits.startswith("0") else 10 if digits[:1] in tuple("6789") else None
+    left = whole - len(digits) if whole else 0
+    if left == 1:
+        need = "Just the last digit, please."
+    elif left > 1:
+        need = f"Just the last {left} digits, please."
+    else:
+        need = "What's the rest of the number?"
+    return {"so_far": so_far, "need": need}
 
 
 def speak_phone(e164: str, landline: bool = False) -> str:

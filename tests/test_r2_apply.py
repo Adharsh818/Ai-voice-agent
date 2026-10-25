@@ -137,8 +137,15 @@ class Phone(ApplyCase):
 
     def test_too_many_digits_resets(self):
         ctx = self.ctx(Goal.ASK_PHONE)
-        notices = self.apply(ctx, "98450123456789", phone_digits="98450123456789")
-        self.assertIn("phone.too_many", self.lines(notices))
+        self.apply(ctx, "98450123456789", phone_digits="98450123456789")
+        self.assertTrue(ctx.caller.phone_overflow)          # the re-ask says why, in one sentence (policy)
+        self.assertEqual(ctx.caller.phone_buffer, "")
+
+    def test_one_digit_past_a_mobile_is_too_many(self):
+        ctx = self.ctx(Goal.PHONE_MORE)
+        ctx.caller.phone_buffer = "984503322"
+        self.apply(ctx, "three three", phone_digits="three three")
+        self.assertTrue(ctx.caller.phone_overflow)
         self.assertEqual(ctx.caller.phone_buffer, "")
 
 
