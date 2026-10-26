@@ -2,7 +2,27 @@
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
-## Latest (26 Oct, ~14:10): pushed and deployed
+## Latest (26 Oct, ~16:15): 1890d68 pushed; the website is one commit behind
+
+- **Full live run** (real Gemini, 53 scenarios): 52 passed; the free quota refused 9 requests mid-run.
+- **The one failure was fixed:** "have someone call me back" during the callback number got "I can't set up a callback" from the model, and the callback was lost.
+- **Also fixed:** "Sunday at 10?" now keeps the 10; no "Sure," before bad news; no bare "10.".
+- **Checks:** 1121 tests (three runs), 53/53 scenarios both ways, sims seed 7 and 11 clean, GitHub green.
+- **Deploy pending:** the website runs f99f0ff. Deploying 1890d68 waits for the owner's OK (`bash tools/deploy_remote.sh`).
+
+**What's left to finish completely:**
+1. **The owner says go:** deploy 1890d68 to the website.
+2. **A website call (T4):** a phone or browser call on https://pearl-emma.duckdns.org, then `bash tools/call_report_remote.sh`.
+3. **"Are you still there?" after 8 s:** needs one recorded call where it happens.
+4. **The jitter buffer:** optional, now that 5 GHz helps. It needs the installer run as root and a test call.
+5. **Owner's checks:** the microphone on the talk page; Reject on a recovery call after 9 am.
+6. **The demo video:** the script is in `docs/DEMO_VIDEO.md`; the owner records it.
+7. **The deploy button:** add `EMMA_SSH_KEY` and `EMMA_KNOWN_HOSTS` as GitHub secrets.
+8. **Quotas to watch:**
+   - ElevenLabs: 10,000 characters a month, shared by the PC and the site.
+   - Gemini: the free daily quota resets about 12:30 IST.
+
+## Earlier (26 Oct, ~14:10): pushed and deployed
 
 **After the owner's good test call (a7e2b542, all by rules, booked first time):**
 - `main` on GitHub = f99f0ff; the tests run is green.
