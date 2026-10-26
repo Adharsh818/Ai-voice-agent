@@ -2,7 +2,40 @@
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
-## Latest (26 Oct, ~12:45): two voices fixed with Opus; still PC only
+## Latest (26 Oct, ~13:45): PC only, not pushed, not deployed
+
+**Afternoon commits (bd12605, 2129be6), on `integrate-25oct` = `A:\Voice-Agent`:**
+- **Second voice, round two:** the ElevenLabs credits ran out mid-call. New sentences came in Piper's voice, stored ones in ElevenLabs'.
+  - Now, once a call moves to the backup voice, every sentence uses it.
+  - The owner added a new ElevenLabs key: free plan, 10,000 characters a month.
+  - The **website still has the old, empty key**; the owner said not yet.
+- **Branches heard badly:**
+  - Outside the branch question, a sound-alike match ("Nagar file") is asked about ("Did you want to change the branch to Nagarbhavi?").
+  - A near-match at the branch question is said back ("Indiranagar, sure.").
+  - A branch from the model that the caller's words don't support is dropped (`nlu._branch_said`).
+- **Read-backs** in the summary and "you're booked" say the part of the day ("5 in the evening").
+- **The same time again after a no to another branch:** Emma says the branch can't do it and names the others.
+- **More by rules:**
+  - openers "with you" and "a meeting";
+  - "Pickup." for a check-up (at the service question only);
+  - "Tomorrow?" with a rising tone, and "Friday works for me";
+  - "I used this number";
+  - with the model down, a treatment in the opening line is a booking.
+- **Dr Sharma:** "We don't have a Dr Sharma" is said once. Before a branch is chosen, she names two doctors and "any of our other dentists".
+- **NLU log:** "missed its 2.2s deadline" at 0.8 s was the short head start the rules give when they already understood the turn. The log now says so; Gemini was not failing.
+- **Checks:** 1118 tests, 53/53 scenarios both ways, sims seed 7 and 11 (200 calls each) clean. The live Dr Sharma scenario passes. A full live run was skipped to save the day's Gemini quota.
+
+**Left, for Claude:**
+- "Are you still there?" after 8 s: twice in 80a7f0f8 right before the caller's reply. It needs a call recording to tell a pause from lost audio.
+- The jitter buffer: raise `JITTERBUFFER(adaptive)` so late packets aren't dropped. It needs the owner to run the installer as root and make a test call; the owner chose 5 GHz first, which helped.
+- A full `--live` scenario run on a day with quota to spare.
+
+**Left, for the owner:**
+- A test call on the PC (new key and today's fixes).
+- Then the new ElevenLabs key on the website, the push to GitHub and the deploy.
+- T4 calls on the website, the microphone check on the talk page, the demo-video script and the deploy-button secret.
+
+## Earlier (26 Oct, ~12:45): two voices fixed with Opus; still PC only
 
 - **Two voices: gone (owner, test call 80a7f0f8).** The owner's screen recording showed no echo and no second stream. Lost packets on the hotspot blended Emma's sentences ("Lovely, that's free. Just to check" reached the phone as "Luckily, that's just a check").
 - **The fix:** the phone line now allows **Opus first** (`telephony/asterisk/pjsip.conf`, `modules.conf`). Its in-band FEC rebuilds lost packets.
