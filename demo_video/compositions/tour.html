@@ -1,0 +1,129 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; font-family: "Inter"; color: #1d1d1f; background: #f5f5f7; overflow: hidden; }
+
+    .shotwrap { position: absolute; inset: 0; }
+    .cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+    .shot { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    .ring { position: absolute; opacity: 0; border: 5px solid #0071e3; border-radius: 22px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.24), 0 0 0 10px rgba(0, 113, 227, 0.18); }
+    .chipbar { position: absolute; left: 0; right: 0; top: 30px; text-align: center; }
+    .chip { display: inline-flex; align-items: center; gap: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+            font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: #fff; background: #1d1d1f;
+            padding: 12px 26px 12px 16px; border-radius: 999px; }
+    .chip .n { font-size: 28px; font-weight: 700; color: #1d1d1f; background: #fff; border-radius: 999px; padding: 4px 12px; }
+    .tab { position: absolute; inset: 0; }
+
+  </style>
+  <div id="root" data-composition-id="tour" data-width="1920" data-height="1080" data-duration="61.687">
+    <div id="t0" class="tab clip" data-start="0.0" data-duration="15.289" data-track-index="6"><div id="t0-wrap" class="shotwrap" data-layout-allow-overflow><div id="t0-cam" class="cam"><img class="shot" src="assets/screens/05_today.png" /><div id="t0-r0" class="ring" style="left: 340px; top: 155px; width: 740px; height: 437px"></div><div id="t0-r1" class="ring" style="left: 1080px; top: 155px; width: 740px; height: 437px"></div><div id="t0-r2" class="ring" style="left: 340px; top: 592px; width: 370px; height: 324px"></div><div id="t0-r3" class="ring" style="left: 710px; top: 592px; width: 370px; height: 324px"></div><div id="t0-r4" class="ring" style="left: 1080px; top: 592px; width: 370px; height: 324px"></div><div id="t0-r5" class="ring" style="left: 1450px; top: 592px; width: 370px; height: 324px"></div></div></div><div id="t0-chip" class="chipbar"><span class="chip"><span class="n">1 / 6</span>Today</span></div></div>
+    <div id="t1" class="tab clip" data-start="15.289" data-duration="8.323" data-track-index="6"><div id="t1-wrap" class="shotwrap" data-layout-allow-overflow><div id="t1-cam" class="cam"><img class="shot" src="assets/screens/06_appointments.png" /><div id="t1-r0" class="ring" style="left: 408px; top: 186px; width: 1484px; height: 82px"></div><div id="t1-r1" class="ring" style="left: 1386px; top: 542px; width: 260px; height: 66px"></div><div id="t1-r2" class="ring" style="left: 1384px; top: 186px; width: 266px; height: 880px"></div></div></div><div id="t1-chip" class="chipbar"><span class="chip"><span class="n">2 / 6</span>Appointments</span></div></div>
+    <div id="t2" class="tab clip" data-start="23.612" data-duration="8.184" data-track-index="6"><div id="t2-wrap" class="shotwrap" data-layout-allow-overflow><div id="t2-cam" class="cam"><img class="shot" src="assets/screens/07_tasks.png" /><div id="t2-r0" class="ring" style="left: 340px; top: 155px; width: 1100px; height: 212px"></div><div id="t2-r1" class="ring" style="left: 340px; top: 235px; width: 1100px; height: 132px"></div></div></div><div id="t2-chip" class="chipbar"><span class="chip"><span class="n">3 / 6</span>Tasks</span></div></div>
+    <div id="t3" class="tab clip" data-start="31.796" data-duration="6.465" data-track-index="6"><div id="t3-wrap" class="shotwrap" data-layout-allow-overflow><div id="t3-cam" class="cam"><img class="shot" src="assets/screens/08_calls.png" /><div id="t3-r0" class="ring" style="left: 340px; top: 230px; width: 476px; height: 126px"></div><div id="t3-r1" class="ring" style="left: 828px; top: 610px; width: 1032px; height: 440px"></div><div id="t3-r2" class="ring" style="left: 828px; top: 362px; width: 1032px; height: 248px"></div><div id="t3-r3" class="ring" style="left: 838px; top: 546px; width: 660px; height: 54px"></div></div></div><div id="t3-chip" class="chipbar"><span class="chip"><span class="n">4 / 6</span>Calls</span></div></div>
+    <div id="t4" class="tab clip" data-start="38.261" data-duration="9.948" data-track-index="6"><div id="t4-wrap" class="shotwrap" data-layout-allow-overflow><div id="t4-cam" class="cam"><img class="shot" src="assets/screens/11_recovery_preview.png" /><div id="t4-r0" class="ring" style="left: 372px; top: 256px; width: 326px; height: 88px"></div><div id="t4-r1" class="ring" style="left: 372px; top: 457px; width: 1277px; height: 90px"></div><div id="t4-r2" class="ring" style="left: 390px; top: 575px; width: 1240px; height: 162px"></div><div id="t4-r3" class="ring" style="left: 1346px; top: 730px; width: 286px; height: 76px"></div></div></div><div id="t4-chip" class="chipbar"><span class="chip"><span class="n">5 / 6</span>Recovery</span></div></div>
+    <div id="t5" class="tab clip" data-start="48.209" data-duration="13.478" data-track-index="6"><div id="t5-wrap" class="shotwrap" data-layout-allow-overflow><div id="t5-cam" class="cam"><img class="shot" src="assets/screens/10_system.png" /><div id="t5-r0" class="ring" style="left: 687px; top: 127px; width: 1113px; height: 645px"></div><div id="t5-r1" class="ring" style="left: 340px; top: 183px; width: 332px; height: 133px"></div><div id="t5-r2" class="ring" style="left: 340px; top: 372px; width: 332px; height: 76px"></div><div id="t5-r3" class="ring" style="left: 340px; top: 428px; width: 332px; height: 78px"></div><div id="t5-r4" class="ring" style="left: 340px; top: 486px; width: 332px; height: 76px"></div><div id="t5-r5" class="ring" style="left: 340px; top: 600px; width: 332px; height: 76px"></div></div></div><div id="t5-chip" class="chipbar"><span class="chip"><span class="n">6 / 6</span>System</span></div></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.set("#t0-cam", { x: 0, y: 0, scale: 1 }, 0);
+    tl.to("#t0-cam", { x: -140.5, y: -71.325, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 5.63);
+    tl.fromTo("#t0-r0", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 5.78);
+    tl.to("#t0-r0", { opacity: 0, duration: 0.2, ease: "power2.in" }, 7.36);
+    tl.to("#t0-cam", { x: -1056.0, y: -71.325, scale: 1.55, duration: 0.67, ease: "power2.inOut" }, 7.31);
+    tl.fromTo("#t0-r1", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 7.46);
+    tl.to("#t0-r1", { opacity: 0, duration: 0.2, ease: "power2.in" }, 8.08);
+    tl.to("#t0-cam", { x: 0.0, y: -594.0, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 8.03);
+    tl.fromTo("#t0-r2", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 8.18);
+    tl.to("#t0-r2", { opacity: 0, duration: 0.2, ease: "power2.in" }, 9.2);
+    tl.to("#t0-cam", { x: -427.25, y: -594.0, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 9.15);
+    tl.fromTo("#t0-r3", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 9.3);
+    tl.to("#t0-r3", { opacity: 0, duration: 0.2, ease: "power2.in" }, 10.48);
+    tl.to("#t0-cam", { x: -1000.75, y: -594.0, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 10.43);
+    tl.fromTo("#t0-r4", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 10.58);
+    tl.to("#t0-r4", { opacity: 0, duration: 0.2, ease: "power2.in" }, 12.16);
+    tl.to("#t0-cam", { x: -1056.0, y: -594.0, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 12.11);
+    tl.fromTo("#t0-r5", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 12.26);
+    tl.to("#t0-r5", { opacity: 0, duration: 0.2, ease: "power2.in" }, 15.189);
+    tl.fromTo("#t0-wrap", { opacity: 0, scale: 1.03, filter: "blur(8px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.4, ease: "expo.out" }, 0.0);
+    tl.fromTo("#t0-chip", { opacity: 0, y: -16 }, { opacity: 1, y: 0, duration: 0.45, ease: "expo.out" }, 0.2);
+    tl.to("#t0-cam", { x: 0, y: 0, scale: 1, duration: 0.6, ease: "power2.inOut" }, 14.539);
+    tl.set("#t1-cam", { x: 0, y: 0, scale: 1 }, 0);
+    tl.to("#t1-cam", { x: -44.066, y: 0.0, scale: 1.023, duration: 0.75, ease: "power2.inOut" }, 17.159);
+    tl.fromTo("#t1-r0", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 17.309);
+    tl.to("#t1-r0", { opacity: 0, duration: 0.2, ease: "power2.in" }, 18.329);
+    tl.to("#t1-cam", { x: -1056.0, y: -383.65, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 18.279);
+    tl.fromTo("#t1-r1", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 18.429);
+    tl.to("#t1-r1", { opacity: 0, duration: 0.2, ease: "power2.in" }, 21.769);
+    tl.to("#t1-cam", { x: 0.0, y: 0.0, scale: 1.0, duration: 0.75, ease: "power2.inOut" }, 21.719);
+    tl.fromTo("#t1-r2", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 21.869);
+    tl.to("#t1-r2", { opacity: 0, duration: 0.2, ease: "power2.in" }, 23.512);
+    tl.fromTo("#t1-wrap", { opacity: 0, scale: 1.03, filter: "blur(8px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.4, ease: "expo.out" }, 15.289);
+    tl.fromTo("#t1-chip", { opacity: 0, y: -16 }, { opacity: 1, y: 0, duration: 0.45, ease: "expo.out" }, 15.489);
+    tl.to("#t1-cam", { x: 0, y: 0, scale: 1, duration: 0.6, ease: "power2.inOut" }, 22.862);
+    tl.set("#t2-cam", { x: 0, y: 0, scale: 1 }, 0);
+    tl.to("#t2-cam", { x: -274.133, y: 0.0, scale: 1.387, duration: 0.75, ease: "power2.inOut" }, 26.682);
+    tl.fromTo("#t2-r0", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 26.832);
+    tl.to("#t2-r0", { opacity: 0, duration: 0.2, ease: "power2.in" }, 28.652);
+    tl.to("#t2-cam", { x: -274.133, y: 0.0, scale: 1.387, duration: 0.75, ease: "power2.inOut" }, 28.602);
+    tl.fromTo("#t2-r1", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 28.752);
+    tl.to("#t2-r1", { opacity: 0, duration: 0.2, ease: "power2.in" }, 31.696);
+    tl.fromTo("#t2-wrap", { opacity: 0, scale: 1.03, filter: "blur(8px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.4, ease: "expo.out" }, 23.612);
+    tl.fromTo("#t2-chip", { opacity: 0, y: -16 }, { opacity: 1, y: 0, duration: 0.45, ease: "expo.out" }, 23.812);
+    tl.to("#t2-cam", { x: 0, y: 0, scale: 1, duration: 0.6, ease: "power2.inOut" }, 31.046);
+    tl.set("#t3-cam", { x: 0, y: 0, scale: 1 }, 0);
+    tl.to("#t3-cam", { x: 0.0, y: 0.0, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 32.546);
+    tl.fromTo("#t3-r0", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 32.696);
+    tl.to("#t3-r0", { opacity: 0, duration: 0.2, ease: "power2.in" }, 33.876);
+    tl.to("#t3-cam", { x: -921.296, y: -518.229, scale: 1.48, duration: 0.75, ease: "power2.inOut" }, 33.826);
+    tl.fromTo("#t3-r1", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 33.976);
+    tl.to("#t3-r1", { opacity: 0, duration: 0.2, ease: "power2.in" }, 35.156);
+    tl.to("#t3-cam", { x: -921.296, y: -211.603, scale: 1.48, duration: 0.67, ease: "power2.inOut" }, 35.106);
+    tl.fromTo("#t3-r2", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 35.256);
+    tl.to("#t3-r2", { opacity: 0, duration: 0.2, ease: "power2.in" }, 35.876);
+    tl.to("#t3-cam", { x: -850.4, y: -380.55, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 35.826);
+    tl.fromTo("#t3-r3", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 35.976);
+    tl.to("#t3-r3", { opacity: 0, duration: 0.2, ease: "power2.in" }, 38.161);
+    tl.fromTo("#t3-wrap", { opacity: 0, scale: 1.03, filter: "blur(8px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.4, ease: "expo.out" }, 31.796);
+    tl.fromTo("#t3-chip", { opacity: 0, y: -16 }, { opacity: 1, y: 0, duration: 0.45, ease: "expo.out" }, 31.996);
+    tl.to("#t3-cam", { x: 0, y: 0, scale: 1, duration: 0.6, ease: "power2.inOut" }, 37.511);
+    tl.set("#t4-cam", { x: 0, y: 0, scale: 1 }, 0);
+    tl.to("#t4-cam", { x: 0.0, y: 0.0, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 39.411);
+    tl.fromTo("#t4-r0", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 39.561);
+    tl.to("#t4-r0", { opacity: 0, duration: 0.2, ease: "power2.in" }, 41.141);
+    tl.to("#t4-cam", { x: -243.918, y: -90.487, scale: 1.191, duration: 0.75, ease: "power2.inOut" }, 41.091);
+    tl.fromTo("#t4-r1", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 41.241);
+    tl.to("#t4-r1", { opacity: 0, duration: 0.2, ease: "power2.in" }, 43.541);
+    tl.to("#t4-cam", { x: -279.816, y: -245.744, scale: 1.228, duration: 0.75, ease: "power2.inOut" }, 43.491);
+    tl.fromTo("#t4-r2", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 43.641);
+    tl.to("#t4-r2", { opacity: 0, duration: 0.2, ease: "power2.in" }, 44.501);
+    tl.to("#t4-cam", { x: -1056.0, y: -594.0, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 44.451);
+    tl.fromTo("#t4-r3", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 44.601);
+    tl.to("#t4-r3", { opacity: 0, duration: 0.2, ease: "power2.in" }, 48.109);
+    tl.fromTo("#t4-wrap", { opacity: 0, scale: 1.03, filter: "blur(8px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.4, ease: "expo.out" }, 38.261);
+    tl.fromTo("#t4-chip", { opacity: 0, y: -16 }, { opacity: 1, y: 0, duration: 0.45, ease: "expo.out" }, 38.461);
+    tl.to("#t4-cam", { x: 0, y: 0, scale: 1, duration: 0.6, ease: "power2.inOut" }, 47.459);
+    tl.set("#t5-cam", { x: 0, y: 0, scale: 1 }, 0);
+    tl.to("#t5-cam", { x: -137.011, y: 0.0, scale: 1.071, duration: 0.75, ease: "power2.inOut" }, 51.279);
+    tl.fromTo("#t5-r0", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 51.429);
+    tl.to("#t5-r0", { opacity: 0, duration: 0.2, ease: "power2.in" }, 52.929);
+    tl.to("#t5-cam", { x: 0.0, y: 0.0, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 52.879);
+    tl.fromTo("#t5-r1", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 53.029);
+    tl.to("#t5-r1", { opacity: 0, duration: 0.2, ease: "power2.in" }, 54.929);
+    tl.to("#t5-cam", { x: 0.0, y: -127.9, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 54.879);
+    tl.fromTo("#t5-r2", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 55.029);
+    tl.to("#t5-r2", { opacity: 0, duration: 0.2, ease: "power2.in" }, 56.609);
+    tl.to("#t5-cam", { x: 0.0, y: -216.25, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 56.559);
+    tl.fromTo("#t5-r3", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 56.709);
+    tl.to("#t5-r3", { opacity: 0, duration: 0.2, ease: "power2.in" }, 57.489);
+    tl.to("#t5-cam", { x: 0.0, y: -304.6, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 57.439);
+    tl.fromTo("#t5-r4", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 57.589);
+    tl.to("#t5-r4", { opacity: 0, duration: 0.2, ease: "power2.in" }, 58.929);
+    tl.to("#t5-cam", { x: 0.0, y: -481.3, scale: 1.55, duration: 0.75, ease: "power2.inOut" }, 58.879);
+    tl.fromTo("#t5-r5", { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 59.029);
+    tl.to("#t5-r5", { opacity: 0, duration: 0.2, ease: "power2.in" }, 61.587);
+    tl.fromTo("#t5-wrap", { opacity: 0, scale: 1.03, filter: "blur(8px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.4, ease: "expo.out" }, 48.209);
+    tl.fromTo("#t5-chip", { opacity: 0, y: -16 }, { opacity: 1, y: 0, duration: 0.45, ease: "expo.out" }, 48.409);
+    tl.to("#t5-cam", { x: 0, y: 0, scale: 1, duration: 0.6, ease: "power2.inOut" }, 60.937);
+    window.__timelines["tour"] = tl;
+  </script>
+</template>
