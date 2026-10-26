@@ -340,6 +340,14 @@ NON_NAME_WORDS = {
     "i'm", "im", "i'll", "i've", "i'd", "dr", "stuck", "sick", "unwell", "running", "traffic", "coming",
     "outside", "ready", "worried", "scared", "nervous", "pregnant", "diabetic", "available", "afraid",
     "really", "very", "just", "also", "still", "already",
+    # Owner's calls, 26 Oct: "Thor" heard as "Start", "Peter" as "Pizza". Everyday words a bad line
+    # makes of a short name: asked again (and then spelled) rather than "Start, thank you".
+    "start", "started", "stop", "pizza", "star", "store", "part", "call", "line", "voice", "sound",
+    "hear", "listen", "food", "water", "coffee", "tea", "car", "bus", "train", "house", "room", "door",
+    "table", "chair", "paper", "money", "shop", "market", "office", "school", "work", "job", "end",
+    "game", "music", "movie", "computer", "mobile", "network", "signal", "problem", "issue",
+    "question", "answer", "test", "testing", "demo", "thing", "things", "something",
+    "nice", "great", "bad", "better", "damn",
 }
 # Titles said before a name ("this is Mr Sharma"): dropped, the name kept.
 _TITLES = re.compile(r"^(?:mr|mrs|ms|miss|shri|sri|smt|master)\.?\s+")
@@ -583,12 +591,37 @@ def _close(a: str, b: str, threshold: float) -> bool:
     return sm.real_quick_ratio() >= threshold and sm.quick_ratio() >= threshold and sm.ratio() >= threshold
 
 
-def match_branch(text: str, branches: list) -> CatalogMatch:
+def _nearest_branch(words: list, branches: list) -> Optional[str]:
+    """
+    The one branch a mis-heard answer to "which branch?" is clearly closest to
+    ("Indiranjani" -> Indiranagar, owner's call 26 Oct): same first letter,
+    ratio >= 0.7 and well ahead of the next branch.
+    """
+    scores = {}
+    for br in branches:
+        key = _compact(br.name)
+        best = 0.0
+        for n in (1, 2):
+            for i in range(len(words) - n + 1):
+                window = "".join(words[i:i + n])
+                if len(window) >= 6 and window[0] == key[0]:
+                    best = max(best, SequenceMatcher(None, window, key).ratio())
+        scores[br.name] = best
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    if not ranked or ranked[0][1] < 0.7:
+        return None
+    if len(ranked) > 1 and ranked[0][1] - ranked[1][1] < 0.12:
+        return None
+    return ranked[0][0]
+
+
+def match_branch(text: str, branches: list, *, asked: bool = False) -> CatalogMatch:
     """
     Match a phrase against facts.Branch names and areas ("near the metro" is
     not a match). Spacing slips ("indira nagar", "white field") and small STT
     misspellings ("nagarabhavi") still match; "<word> branch" naming an
-    unknown place comes back as unknown_phrase.
+    unknown place comes back as unknown_phrase. `asked` (an answer to "which
+    branch?") also takes a word clearly nearest one branch.
     """
     words = re.findall(r"[a-z]+", _norm(text))
     if not words or not branches:
@@ -606,7 +639,7 @@ def match_branch(text: str, branches: list) -> CatalogMatch:
                 if len(window) < 4:
                     continue
                 for key in keys:
-                    if window == key or (len(key) >= 6 and _close(window, key, 0.86)):
+                    if window == key or (len(key) >= 6 and _close(window, key, 0.85)):
                         found = True
                         break
                 if found:
@@ -619,6 +652,10 @@ def match_branch(text: str, branches: list) -> CatalogMatch:
         return CatalogMatch(hits[0])
     if len(hits) > 1:
         return CatalogMatch(None, tuple(hits))
+    if asked:
+        near = _nearest_branch(words, branches)
+        if near:
+            return CatalogMatch(near)
     m = _BRANCH_WORD_RE.search(_norm(text))
     if m and m.group(1) not in _NOT_A_PLACE and len(m.group(1)) >= 4:
         return CatalogMatch(None, unknown_phrase=m.group(1).title())

@@ -230,6 +230,8 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         if plan.rung >= RUNG_EXIT:
             exit_plan = policy.take_exit(ctx, plan)
             if exit_plan is None:
+                if plan.goal == Goal.ASK_BRANCH:
+                    notices.append(Notice("branch.any.taken"))
                 # A default was taken (branch: earliest, when: earliest...): let the
                 # workflow act on it now, so the caller hears the result this turn.
                 await _release_if_requested(ctx, rt)

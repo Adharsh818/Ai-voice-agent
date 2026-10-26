@@ -318,7 +318,7 @@ _BARE_TIME_PICK_RE = re.compile(
     # "Do ten." / "I want ten." / "Uh-huh, 10." (phone check, 13 Oct: three tries, then a callback offer)
     r"^(?:(?:uh[- ]?huh|mm[- ]?hmm|yes|yeah|yep|ok|okay|so|um+|uh+|do|i want|i wanted|i'?ll take|i will take|i'?d like|"
     r"let'?s do|lets do|make it|go with|book|take)\s+)*"
-    r"(?:the |at |around |about )?(\d{1,2}(?:[:.]\d{2}|\s+[0-5]\d)?)"
+    r"(?:the |at |that |around |about )?(\d{1,2}(?:[:.]\d{2}|\s+[0-5]\d)?)"
     r"(?:\s+(?:1|slot|oclock|please|then|works|is fine|is good|is ok|is okay|is perfect|sounds good|"
     r"would be (?:good|great|fine|perfect)))*$"
 )
@@ -326,7 +326,7 @@ _BARE_TIME_PICK_RE = re.compile(
 _PICK_LEAD_WORDS = frozenset({"uh", "huh", "uhhuh", "mm", "hmm", "mmhmm", "yes", "yeah", "yep", "ok", "okay", "so",
                               "um", "do", "i", "want", "ll", "i'll", "will", "take", "d", "i'd", "like", "let",
                               "s", "let's", "lets", "make", "it", "go", "with", "book", "at", "around", "about", "wanted",
-                              "ten", "o'clock", "oclock", "then"})
+                              "ten", "o'clock", "oclock", "then", "that"})
 _EITHER_RE = re.compile(r"\b(either|any of them|any one|anyone|whichever|both are fine|both work|anything is fine)\b")
 _REJECT_RE = re.compile(
     r"\b(none|neither|nothing)\b|\b(?:something|anything|some) else\b|"
@@ -766,7 +766,7 @@ def _option_pick(t: str, raw: str, view: Tier0View, source: str):
         if svc.value and (not options or svc.value in options or pending == Goal.CLARIFY_SERVICE):
             return _u(raw, source, [Act.ANSWER], service=svc.value, service_phrase=_service_phrase(raw))
     if pending == Goal.ASK_BRANCH or set(options) & {b.name for b in branches}:
-        br = match.match_branch(raw, branches)
+        br = match.match_branch(raw, branches, asked=pending == Goal.ASK_BRANCH)
         if br.value:
             return _u(raw, source, [Act.ANSWER], branch=br.value)
     idx = _pick_index(t, len(options)) if options else None
@@ -806,11 +806,33 @@ def _name_fields(name: str, view: Tier0View) -> dict:
     return {"patient_name": name} if view.pending == Goal.ASK_PATIENT else {"name": name}
 
 
+_PART_FIX_GOALS = frozenset({Goal.SUMMARY, Goal.SUMMARY_AGAIN, Goal.WHAT_TO_CHANGE})
+_PART_WORDS = {"am": "morning", "morning": "morning", "pm": "evening", "evening": "evening", "night": "evening"}
+_PART_FILLER = frozenset({"no", "not", "nope", "yeah", "yes", "it's", "its", "it", "is", "i", "said", "make",
+                          "in", "the", "sorry", "please", "only", "meant", "mean", "oh"})
+
+
+def _part_of_day_fix(raw: str) -> str | None:
+    """ "AM." / "No, morning." / "Not evening, morning": the one part of day meant, or None."""
+    words = _tokens(dateparse.normalize(raw))
+    if not words or len(words) > 6 or not all(w in _PART_WORDS or w in _PART_FILLER for w in words):
+        return None
+    meant = {_PART_WORDS[w] for i, w in enumerate(words) if w in _PART_WORDS and not (i and words[i - 1] == "not")}
+    return meant.pop() if len(meant) == 1 else None
+
+
 def _strict_answer(t: str, raw: str, words: list, view: Tier0View):
     """A short, unambiguous answer to what Emma asked, or None."""
     exp = _expect(view)
     pending = view.pending
     src = "tier0"
+
+    if pending in _PART_FIX_GOALS and view.intent == Intent.BOOK:
+        part = _part_of_day_fix(raw)
+        if part:
+            # "AM." when the summary said 8 in the evening (owner's call, 26 Oct: the
+            # booking stayed at 8 pm): the same time on the other side of noon.
+            return _u(raw, src, [Act.ANSWER], time_phrase=part, correction=True)
 
     if exp == "yes_no":
         bare = _BARE_TIME_PICK_RE.match(dateparse.normalize(raw))
