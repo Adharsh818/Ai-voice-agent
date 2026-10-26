@@ -135,7 +135,7 @@ Done by Claude on 26 Oct, on `main`:
 
 ## Suggested order
 
-1. Part A, items A1-A3.
+1. Part A (done 27 Oct; what's still left is in [WHATS_LEFT.md](WHATS_LEFT.md)).
 2. Paid services: B1.2.
 3. A real number at one friendly clinic in Bengaluru (B1.1, B2).
 4. Four weeks of consented recorded calls, fixes from them, and the weekly report.
