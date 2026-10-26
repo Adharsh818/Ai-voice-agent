@@ -1451,6 +1451,11 @@ class CallSession:
         now = now or time.perf_counter()
         if self._last_voice is not None and now - self._last_voice < CALLER_ACTIVE_S:
             return True
+        if self.vad.quiet_for(now) < CALLER_ACTIVE_S:
+            # The caller's own sound, not only Deepgram's words: on a lossy phone line the words can
+            # come late or not at all, and "Are you still there?" landed on the caller mid-answer
+            # (owner's calls, 26 Oct, twice in 80a7f0f8).
+            return True
         return bool(self._user_speaking and self._speech_started_at is not None
                     and now - self._speech_started_at < 3.0)
 
