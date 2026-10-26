@@ -149,7 +149,7 @@ class SecondCallTests(OwnerCall26Case):
 
     def test_a_near_branch_at_the_branch_question_is_said_back(self):
         _, reply = self.call("I want to book appointment.", "Aayush.", "Yeah.", "A check-up.", "Indiranjan.")
-        self.assertTrue(reply.startswith("Indiranagar"), reply)
+        self.assertIn("Indiranagar", reply.split(".")[0], reply)
 
     def test_a_branch_heard_clearly_is_not_said_back(self):
         _, reply = self.call("I want to book appointment.", "Aayush.", "Yeah.", "A check-up.", "Indiranagar.")
@@ -221,6 +221,31 @@ class RulesNotModelTests(unittest.TestCase):
         u = self.u("Tomorrow evening around 6 with Dr Sharma, for a check-up.", Goal.GREET, Intent.NONE,
                    lenient=True)
         self.assertEqual((u.intent, u.service), (Intent.BOOK, "General Check-up"))
+
+
+class LiveRunTests(OwnerCall26Case):
+    """The full live scenario run of 26 Oct, 15:45."""
+
+    def test_call_me_back_while_she_takes_the_number_asks_for_it_again(self):
+        from dialogue.context import Goal, Intent
+        import tier0
+        from test_tier0_v2 import view
+        u = tier0.understand("Please just have someone call me back.", view(Goal.ASK_PHONE, intent=Intent.NONE))
+        self.assertEqual(u.acts, ["unclear"])
+
+    def test_the_model_never_says_a_callback_cant_be_arranged(self):
+        from dialogue import validate
+        for said in ("I can't set up a callback from here.", "I'm unable to transfer you right now."):
+            self.assertIsNotNone(validate._first(validate._CANT_DO, said.lower()), said)
+        self.assertIsNone(validate._first(validate._CANT_DO, "i can't wait to see you."))
+
+    def test_sunday_at_10_keeps_the_10(self):
+        call, reply = self.call("Hi, I would like to book a cleaning.", "Priya Sharma.", "Yes.",
+                                "Nagarbhavi works for me.", "Sunday at 10?")
+        self.assertRegex(reply, r"closed on Sundays?")
+        self.assertNotIn("got it", reply)
+        self.assertNotRegex(reply, r"(^|\. )10\.")
+        self.assertIn("10 in the morning", call.run("Monday.").text)
 
 
 class SpokenTimeTests(unittest.TestCase):

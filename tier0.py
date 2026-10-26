@@ -300,6 +300,7 @@ _WHEN_VOCAB |= set(dateparse.WEEKDAYS) | set(dateparse.MONTHS)
 _WHEN_VOCAB |= {"tmrw", "tomorow", "tommorow", "tommorrow", "want", "wanna", "need", "actually", "i'll", "ill"}
 # "Friday works for me." / "Monday suits me." (owner's call, 26 Oct: to the model).
 _WHEN_VOCAB |= {"me", "suits", "suit", "better", "best"}
+_CALL_ME_RE = re.compile(r"\b(?:call|ring|phone)\s+(?:me|us)\b|\bcall\s*back\b|\bcallback\b")
 _SAME_NUMBER_RE = re.compile(
     r"^(?:(?:yes|yeah|yep|ok|okay|sure)\s+)*(?:(?:i|we)\s+)?(?:use|used|using|take|keep)\s+"
     r"(?:this|the same|the|my|this same|that)\s+(?:number|one|mobile|phone)(?:\s+(?:only|itself|please))*$|"
@@ -1042,6 +1043,12 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
                 and not _other_slots(raw, view, service=False):
             return _u(raw, "tier0", [Act.INFO], service=svc.value, service_phrase=said)
 
+    # "Please just have someone call me back." while Emma asks for the number to call (live run, 26 Oct:
+    # the model said "I can't set up a callback from here" and the callback was lost): the number again.
+    if view.pending in (Goal.ASK_PHONE, Goal.PHONE_MORE) and _CALL_ME_RE.search(t) \
+            and not match.extract_digits(raw).digits and len(words) <= 12:
+        return _u(raw, "tier0", [Act.UNCLEAR])
+
     # At the number read-back (21 Oct, all went to the model): "No. (789) 937-7567." is the corrected
     # number, as the lenient reading takes it; "No, it's another number" / "No, I'll tell you the number"
     # is a plain no, so Emma asks for it.
@@ -1117,15 +1124,19 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
         # A plain clinic question the verified facts answer ("What are your timings on Saturday?",
         # "Where is the Jayanagar branch?"): Emma says the fact herself, no model (owner, 25 Oct:
         # "most replies without the LLM"). Anything mixed with booking details still goes to the model.
-        if _fact_question(raw, t, words, view):
-            return _u(raw, "tier0", [Act.QUESTION], intent=Intent.INFO, question=raw.strip())
+        rising = None
         if len(words) <= 3 and not _ASKING_WORD_RE.match(t):
             # "Tomorrow?" to "what day works?": an answer said with a rising tone (owner's call,
-            # 26 Oct: to the model), not a question.
-            answer = _strict_answer(t, raw, words, view)
-            if answer is not None and answer.has(Act.ANSWER):
-                return answer
-        return None
+            # 26 Oct: to the model), not a question. "Sunday at 10?" there is a time on offer, not a
+            # question about the hours (live run, 26 Oct: the hours, and the 10 was lost).
+            rising = _strict_answer(t, raw, words, view)
+            if rising is not None and not rising.has(Act.ANSWER):
+                rising = None
+        if rising is not None and exp in ("date", "time"):
+            return rising
+        if _fact_question(raw, t, words, view):
+            return _u(raw, "tier0", [Act.QUESTION], intent=Intent.INFO, question=raw.strip())
+        return rising
     if len(words) > STRICT_MAX_WORDS and exp not in ("phone", "spelling"):
         return None
 
