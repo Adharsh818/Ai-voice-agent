@@ -874,7 +874,8 @@ def no_double_opener(sentences: list, keep: int = 0) -> list:
         ack = _MID_ACK.match(out[i] or "")
         if ack:
             rest = out[i][ack.end():].strip()
-            if not rest or not re.search(r"[A-Za-z0-9]", rest):
+            if not rest or not re.search(r"[A-Za-z0-9]", rest) or len(rest.split()) <= 2:
+                # "Sure, 10." mid-reply would be left as a bare "10." (live run, 26 Oct): dropped whole.
                 del out[i]
                 continue
             out[i] = rest[0].upper() + rest[1:]
@@ -883,6 +884,9 @@ def no_double_opener(sentences: list, keep: int = 0) -> list:
 
 
 _MID_ACK = re.compile(r"^(?:okay|ok|sure|right|alright|all right)[,.!]\s*", re.I)
+
+
+_BAD_NEWS = re.compile(r"\b(isn'?t possible|can'?t|cannot|closed|full|sorry|afraid|unfortunately|no longer)\b", re.I)
 
 
 def with_opener(text: str, memory, rng=None) -> str:
@@ -894,6 +898,8 @@ def with_opener(text: str, memory, rng=None) -> str:
     """
     if not text or _starts_with_opener(text) or re.match(r"^\s*(so )?that's\b", text, re.I):
         return text
+    if re.match(r"^\s*\d", text) or _BAD_NEWS.search(re.split(r"(?<=[.?!])\s", text, maxsplit=1)[0]):
+        return text              # "Sure, 5 in the evening isn't possible..." contradicts itself (26 Oct)
     choices = [o for o in OPENERS if o != memory.last_opener]
     opener = (rng or random).choice(choices)
     memory.last_opener = opener

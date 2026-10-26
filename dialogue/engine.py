@@ -247,6 +247,11 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         # "5 in the evening isn't possible at Indiranagar..." says the time itself: no "Sure, 5." first.
         notices = [n for n in notices if getattr(n, "line", "") not in ("ack.when", "correction.ack")]
     notices = _one_unknown_doctor(notices)
+    if any(getattr(n, "line", "").startswith(("date.sunday", "date.past", "date.horizon", "date.closure"))
+           for n in notices):
+        # "We're closed on Sunday... 10, got it." acknowledges a time on a day that can't be booked
+        # (live run, 26 Oct). The time is kept all the same, and said with the next day.
+        notices = [n for n in notices if getattr(n, "line", "") != "ack.when"]
 
     allowed = _allowed(brief, ctx, result.action, u)
     say, dropped, streamed = [], [], []

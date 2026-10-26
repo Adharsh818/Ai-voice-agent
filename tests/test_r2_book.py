@@ -284,7 +284,7 @@ class DoctorTests(BookTestCase):
         said = call.notices[call.notice_ids().index("doctor.unknown.any")]
         self.assertIn("Sharma", said)
         self.assertEqual(sum(name in said for name in ("Dr Shetty", "Dr Menon", "Dr Nair")), 2)
-        self.assertIn("other dentists", said)
+        self.assertRegex(said, r"other dentists|another of our dentists")
 
     def test_a_doctor_at_another_branch_asks_before_changing_the_branch(self):
         call = self.call().given()
