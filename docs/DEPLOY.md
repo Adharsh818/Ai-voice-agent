@@ -98,7 +98,7 @@ bash tools/deploy_remote.sh
 It deploys the committed code (HEAD), keeps the server's `.env`, models, database, logs and backups, restarts Emma and prints the live status code. It refuses to run with uncommitted changes.
 
 **Or from GitHub, with no PC needed** (`.github/workflows/deploy.yml`): Actions → **deploy** → Run workflow, on `main`. It runs the tests and both scenario runs first, then the same `tools/deploy_remote.sh`. It never runs by itself. One-time setup by the owner, under Settings → Secrets and variables → Actions:
-- `EMMA_SSH_KEY`: the contents of `~/.ssh/emma_oracle`;
+- `EMMA_SSH_KEY`: a deploy-only key, not `~/.ssh/emma_oracle`. `bash tools/setup_deploy_secrets.sh` makes it, allows it on the server and sets both secrets;
 - `EMMA_KNOWN_HOSTS`: the output of `ssh-keyscan -t ed25519 3.27.254.11`. Update it if the IP changes.
 
 Until both are set, the job stops at "Check secrets". Adding the key lets GitHub's runners log in to the server, so keep the repository's write access to the owner only.
