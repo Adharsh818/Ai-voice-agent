@@ -550,6 +550,32 @@ class SilenceAndLengthTests(unittest.TestCase):
         self.assertIn(captions[2], call_session.SILENCE_GOODBYE_LINES)
         self.assertEqual((outcome, closed), ("silence", True))
 
+    def test_the_callers_sound_holds_the_ladder_when_no_words_come(self):
+        # Owner's calls, 26 Oct: on a lossy line Deepgram's words came late or not at all, and
+        # "Are you still there?" landed while the caller was answering. Their sound counts too.
+        import array
+        loud = array.array("h", [3000, -3000] * 160).tobytes()       # 20 ms of a voice-level tone
+
+        async def run():
+            s, t = make_session()
+            s.stt = None
+            for _ in range(5):
+                await s.on_audio(bytes(640))          # the quiet line before they speak
+            watcher = asyncio.ensure_future(s._watch())
+            for _ in range(15):                       # 0.6 s of sound, no transcript at all
+                await s.on_audio(loud)
+                await asyncio.sleep(0.04)
+            while_sounding = list(t.emma_captions())
+            await wait_until(lambda: t.emma_captions(), timeout=2)
+            watcher.cancel()
+            await s.close()
+            return while_sounding, t.emma_captions()
+
+        with patched(call_session, SILENCE_STEP_S=0.15, WATCH_INTERVAL_S=0.02, CALLER_ACTIVE_S=0.3):
+            while_sounding, after = asyncio.run(run())
+        self.assertEqual(while_sounding, [])
+        self.assertTrue(after)                        # once the sound stops, the ladder carries on
+
     def test_the_ladder_pauses_while_the_caller_talks_and_hold_on_stretches_it(self):
         async def run():
             s, t = make_session()
