@@ -595,7 +595,8 @@ class NLUStream:
         self.brief = brief
         self.parser = StreamParser()
         self.started = time.monotonic()
-        self.head_deadline = self.started + (HEAD_DEADLINE_S if head_deadline_s is None else head_deadline_s)
+        self.head_budget = HEAD_DEADLINE_S if head_deadline_s is None else head_deadline_s
+        self.head_deadline = self.started + self.head_budget
         self.deadline = self.started + (_total_budget() if total_s is None else total_s)
         self.head_deadline = min(self.head_deadline, self.deadline)
         self.error: Optional[str] = None            # why the stream ended early, for logs
@@ -672,7 +673,11 @@ class NLUStream:
         self._head_done = True
         if not data:
             if not self._ended:
-                logger.info("NLU head missed its %.1fs deadline; using the fallback", HEAD_DEADLINE_S)
+                # The short head start (the rules already understood the turn) is the usual case: the
+                # log said "2.2s" for it, which read as a slow model (26 Oct).
+                logger.info("NLU head not in %.1fs (%s); using the fallback", self.head_budget,
+                            "short head start, the rules understood the turn"
+                            if self.head_budget < HEAD_DEADLINE_S else "full deadline")
                 await self.aclose()
             return None
         raw = caller_words(getattr(self.brief, "contents", "") or "")

@@ -246,6 +246,7 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
     if plan.line == "ask.branch.for_time":
         # "5 in the evening isn't possible at Indiranagar..." says the time itself: no "Sure, 5." first.
         notices = [n for n in notices if getattr(n, "line", "") not in ("ack.when", "correction.ack")]
+    notices = _one_unknown_doctor(notices)
 
     allowed = _allowed(brief, ctx, result.action, u)
     say, dropped, streamed = [], [], []
@@ -786,7 +787,29 @@ def _caller_id_line(ctx: CallContext, plan) -> None:
 # Notices that already say something about the request itself ("Our Nagarbhavi
 # branch doesn't do braces"): saying it back first would contradict them.
 _REFUSED_TIME_LINES = {"time.taken", "time.doctor_off", "time.lunch.at", "time.outside_hours"}
-_REQUEST_CONFLICTS = {"service.unknown", "branch.no_service", "branch.only", "doctor.unknown",
+def _one_unknown_doctor(notices: list) -> list:
+    """
+    "We don't have a Dr Sharma" once: apply.py and book.py can each note it in one turn (live run,
+    26 Oct). The short "any of our dentists" form wins before a branch is chosen, and the caller's
+    day and time are acknowledged first ("Sure, tomorrow around 6.").
+    """
+    lines = [getattr(n, "line", "") for n in notices]
+    if not any(line.startswith("doctor.unknown") for line in lines):
+        return notices
+    keep = "doctor.unknown.any" if "doctor.unknown.any" in lines else "doctor.unknown"
+    out, said = [], False
+    for n in notices:
+        line = getattr(n, "line", "")
+        if line.startswith("doctor.unknown"):
+            if line != keep or said:
+                continue
+            said = True
+        out.append(n)
+    acks = [n for n in out if getattr(n, "line", "") == "ack.when"]
+    return acks + [n for n in out if getattr(n, "line", "") != "ack.when"]
+
+
+_REQUEST_CONFLICTS = {"service.unknown", "branch.no_service", "branch.only", "doctor.unknown", "doctor.unknown.any",
                       "doctor.other_branch", "doctor.gender_none", "correction.ack", "confirm_change",
                       "urgent.ack", "answer.fact", "unknown", "clinical"}
 

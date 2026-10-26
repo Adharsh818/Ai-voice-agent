@@ -90,7 +90,7 @@ _DATE_ISSUES = frozenset({"PAST", "SUNDAY", "BEYOND_HORIZON", "INVALID_DAY"})
 _LEAD_RE = re.compile(
     r"^(?:(?:hi|hello|hey|yes|yeah|yep|ok|okay|sure|so|um+|uh+|good morning|good afternoon|"
     r"good evening|ma'?am|madam|sir|emma|actually|please|and|then|also|well|right|alright|"
-    r"see|listen)\s+)*"
+    r"see|listen|oh|ah)\s+)*"
 )
 _WANT = (r"(?:i'?d like to|i would like to|i want to|i wanna|i need to|i have to|i wish to|"
          r"i was hoping to|i'?m calling to|i am calling to|i called to|i'?m looking to|"
@@ -114,14 +114,15 @@ _CHECK_RE = re.compile(
 )
 _MOVE_FILLER = {"to", "another", "different", "other", "day", "date", "time", "some", "later", "need", "want",
                 "wanna", "like", "would", "can", "could", "you", "we", "just", "so", "actually", "sorry", "please"}
-_APPT_NOUN_RE = re.compile(r"\b(appointment|appointments|booking|bookings|visit)\b")
+# "I'd like to book a meeting with you" (owner's call, 25 Oct): a booking said in office words.
+_APPT_NOUN_RE = re.compile(r"\b(appointment|appointments|booking|bookings|visit|meeting)\b")
 # Words an opener may carry besides its verb and object.
 _OPENER_FILLER = {
     "an", "a", "my", "one", "another", "new", "the", "appointment", "appointments", "booking",
     "visit", "slot", "please", "for", "me", "with", "you", "to", "dentist", "dental", "doctor",
     "clinic", "at", "your", "pearl", "this", "that", "it", "existing", "upcoming", "booked",
     "i", "have", "had", "already", "just", "some", "kind", "of", "get", "done", "is", "there",
-    "um", "uh", "today", "actually", "quick", "small", "only",
+    "um", "uh", "today", "actually", "quick", "small", "only", "meeting",
 }
 
 _REPEAT_RE = re.compile(
@@ -297,6 +298,15 @@ _WHEN_VOCAB |= set(dateparse.WEEKDAYS) | set(dateparse.MONTHS)
 # 21 Oct: "I want tomorrow, actually." and "tommorow." went to the model (~2 s) though dateparse reads
 # them; the misspellings are the ones dateparse knows, the rest is filler a date answer can carry.
 _WHEN_VOCAB |= {"tmrw", "tomorow", "tommorow", "tommorrow", "want", "wanna", "need", "actually", "i'll", "ill"}
+# "Friday works for me." / "Monday suits me." (owner's call, 26 Oct: to the model).
+_WHEN_VOCAB |= {"me", "suits", "suit", "better", "best"}
+_SAME_NUMBER_RE = re.compile(
+    r"^(?:(?:yes|yeah|yep|ok|okay|sure)\s+)*(?:(?:i|we)\s+)?(?:use|used|using|take|keep)\s+"
+    r"(?:this|the same|the|my|this same|that)\s+(?:number|one|mobile|phone)(?:\s+(?:only|itself|please))*$|"
+    r"^(?:(?:yes|yeah|yep|ok|okay)\s+)*(?:this|the same|same|that)\s+(?:number|one)(?:\s+(?:is\s+)?"
+    r"(?:fine|good|okay|ok|is fine|please|only))*$")
+# A short reply that opens like a question is one ("Is Friday?", "What about Monday?").
+_ASKING_WORD_RE = re.compile(r"^(?:what|when|where|which|who|why|how|is|are|can|could|do|does|will|would|shall|any)\b")
 _ORDINAL_WORD_RE = re.compile(
     r"\d+(?:st|nd|rd|th)|(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|"
     r"twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|"
@@ -840,6 +850,10 @@ def _strict_answer(t: str, raw: str, words: list, view: Tier0View):
             # "I'll take 9" at the summary: another time, looked up and summarised again (owner's call 2,
             # 25 Oct: it kept the old time and asked "Shall I go ahead?").
             return _u(raw, src, [Act.ANSWER], time_phrase=bare.group(1), correction=True)
+        if pending == Goal.CONFIRM_PHONE and _SAME_NUMBER_RE.match(t):
+            # "I used this number." / "Use the same number." to "Is the number you're calling
+            # from the best one?" (owner's call, 25 Oct: to the model).
+            return _u(raw, src, [Act.ANSWER], confirmation="yes")
         if re.search(r"\d", t) or len(match.extract_digits(raw).digits) >= 3:
             return None                     # "no, it's 937": a correction for the model
         conf = match.parse_yes_no(raw)
@@ -1105,6 +1119,12 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
         # "most replies without the LLM"). Anything mixed with booking details still goes to the model.
         if _fact_question(raw, t, words, view):
             return _u(raw, "tier0", [Act.QUESTION], intent=Intent.INFO, question=raw.strip())
+        if len(words) <= 3 and not _ASKING_WORD_RE.match(t):
+            # "Tomorrow?" to "what day works?": an answer said with a rising tone (owner's call,
+            # 26 Oct: to the model), not a question.
+            answer = _strict_answer(t, raw, words, view)
+            if answer is not None and answer.has(Act.ANSWER):
+                return answer
         return None
     if len(words) > STRICT_MAX_WORDS and exp not in ("phone", "spelling"):
         return None
@@ -1455,6 +1475,12 @@ def _lenient(raw: str, view: Tier0View) -> Understanding:
         # or next (no-model scenarios, 22 Oct: she asked the same thing again in other words).
         u.acts.append(Act.NON_ANSWER.value)
 
+    if u.intent is None and u.service and view.intent in (None, Intent.NONE) and pending in _INTENT_GOALS \
+            and not question and not _CANCEL_HEAD_RE.match(_LEAD_RE.sub("", t)) \
+            and not _RESCHEDULE_HEAD_RE.match(_LEAD_RE.sub("", t)):
+        # "Tomorrow evening around 6 with Dr Sharma, for a check-up." as the opening line: a booking
+        # (live run, 26 Oct: with the model slow she asked "What can I do for you?").
+        u.intent = Intent.BOOK
     if filled_expected:
         u.acts.insert(0, Act.ANSWER.value)
     elif u.carries_details or u.intent is not None:

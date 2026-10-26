@@ -214,6 +214,9 @@ LINES: dict[str, LineSpec] = {
                       "service", "branch", critical=True),
     "branch.no_service": _l("Notice: 'Our {branch} branch doesn't do {service}, but {branches} do.'",
                             "branch", "service", "branches", critical=True),
+    "doctor.unknown.any": _l("Notice: a doctor the clinic doesn't have, before a branch is chosen. 'We don't "
+                             "have a {name} here, but Dr Rao or Dr Shetty can see you, or any of our other "
+                             "dentists.'", "name", "doctors", critical=True),
     "doctor.unknown": _l("Notice: 'We don't have a {name} here, but {doctors} {are_is} at {branch}.'",
                          "name", "doctors", "are_is", "branch", critical=True),
     "doctor.other_branch": _l("Notice: '{doctor} is at our {branch} branch.'", "doctor", "branch", critical=True),
@@ -556,6 +559,9 @@ VARIANTS: dict[str, tuple] = {
     # No verb agreement to get wrong: {branches} may be one branch or several.
     "branch.no_service": ("Our {branch} branch doesn't do {service}, but {branches} can.",
                           "We don't do {service} at {branch}, but {branches} can do that for you."),
+    "doctor.unknown.any": ("We don't have a {name} here, but {doctors} can see you, or any of our other dentists.",
+                           "There's no {name} with us, I'm afraid. {doctors} can see you, or another of our "
+                           "dentists."),
     "doctor.unknown": ("We don't have a {name} here, but {doctors} {are_is} at {branch}.",
                        "There's no {name} with us, but {doctors} {are_is} at our {branch} branch."),
     "doctor.other_branch": ("{doctor} is at our {branch} branch.", "{doctor} works at our {branch} branch."),
