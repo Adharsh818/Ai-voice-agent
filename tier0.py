@@ -1003,14 +1003,20 @@ def understand(text: str, view: Tier0View, *, lenient: bool = False) -> Understa
     # value; book._reopen clears that detail and asks it again (15 Oct). 21 Oct: these went to the model.
     if view.intent == Intent.BOOK and _CHANGE_FIELD_RE.match(t):
         return _u(raw, "tier0", [Act.CORRECTION], correction=True)
-    # A branch named on its own while Emma asks for the day or time ("I want Jayanagar."): the branch.
-    if view.intent == Intent.BOOK and view.pending in (Goal.ASK_WHEN, Goal.ASK_TIME) and len(words) <= 5:
-        br = match.match_branch(raw, _catalog_part(view, "branches"))
+    # A branch named on its own while Emma asks for the day or time, offers times or sums up
+    # ("I want Jayanagar."): the branch. Heard badly ("I want Nagar file.", owner's call, 26 Oct):
+    # a guess, which Emma checks ("Did you want to change the branch to Nagarbhavi?").
+    if view.intent == Intent.BOOK and view.pending in _BRANCH_ANYTIME_GOALS and len(words) <= 5:
+        branches = _catalog_part(view, "branches")
+        br = match.match_branch(raw, branches)
         rest = _BRANCH_LEAD_RE.sub("", t)
-        if br.value and not br.options and rest and match.match_branch(rest, _catalog_part(view, "branches")).value \
-                == br.value and len(_tokens(rest)) <= 2 and _parse_when(raw).empty \
-                and not _other_slots(raw, view, branch=False):
+        alone = bool(rest) and len(_tokens(rest)) <= 2 and _parse_when(raw).empty \
+            and not _other_slots(raw, view, branch=False)
+        if alone and br.value and not br.options and match.match_branch(rest, branches).value == br.value:
             return _u(raw, "tier0", [Act.CORRECTION], correction=True, branch=br.value)
+        guess = match.guess_branch(rest, branches) if alone and not br.value else None
+        if guess:
+            return _u(raw, "tier0", [Act.ANSWER], branch=guess, branch_guess=True)
 
     # "For cleaning." when Emma asked for the name (21 Oct, twice to the model): the service, given early;
     # nothing is taken as the name, so Emma notes the service and asks for the name again.
@@ -1165,6 +1171,8 @@ _CHANGE_FIELD_RE = re.compile(
     r"can you|could you|can we|let'?s)[\s,.]+)*(?:change|switch|swap)\s+(?:the\s+|my\s+|that\s+|this\s+)?"
     r"(?:branch|brand|location|clinic|centre|center|service|treatment|day|date|time|timing)(?:\s+please)?$")
 # Lead-in words before a branch named on its own ("I want Jayanagar", "No, make it Whitefield").
+_BRANCH_ANYTIME_GOALS = frozenset({Goal.ASK_WHEN, Goal.ASK_TIME, Goal.OFFER_SLOTS, Goal.SUMMARY,
+                                   Goal.SUMMARY_AGAIN, Goal.WHAT_TO_CHANGE, Goal.NO_SLOTS})
 _BRANCH_LEAD_RE = re.compile(r"^(?:(?:no|actually|um+|uh+|ok|okay|i want|i wanna|i'?d like|make it|at|the|"
                              r"please|in|branch)[\s,.]+)*")
 _MOVE_IT_RE = re.compile(r"\b(?:move|shift|change|make|push|bring) (?:it|that|this)\b|\binstead\b")

@@ -134,5 +134,64 @@ class BranchRunsOutTests(OwnerCall26Case):
         self.assertRegex(reply, r"all our branches")
 
 
+class SecondCallTests(OwnerCall26Case):
+    """The owner's calls at 12:47 and 12:50 on 26 Oct (5a08a0ff, 1a5ba1e2), over 5 GHz."""
+
+    TO_OFFER = ("Can I book an appointment?", "Adash.", "Yeah.", "A tooth cleaning.", "Indiranagar.",
+                "Tomorrow.", "I want morning.")
+
+    def test_a_branch_heard_badly_at_the_offer_is_checked_then_taken(self):
+        call, reply = self.call(*self.TO_OFFER, "I want Nagar file.")
+        self.assertIn("Nagarbhavi", reply)
+        self.assertIn("?", reply)
+        self.assertIn("Nagarbhavi", call.run("Yes.").text)
+        self.assertEqual(call.s.book.branch, "Nagarbhavi")
+
+    def test_a_near_branch_at_the_branch_question_is_said_back(self):
+        _, reply = self.call("I want to book appointment.", "Aayush.", "Yeah.", "A check-up.", "Indiranjan.")
+        self.assertTrue(reply.startswith("Indiranagar"), reply)
+
+    def test_a_branch_heard_clearly_is_not_said_back(self):
+        _, reply = self.call("I want to book appointment.", "Aayush.", "Yeah.", "A check-up.", "Indiranagar.")
+        self.assertNotIn("Indiranagar", reply)
+
+    def test_the_readback_says_the_part_of_the_day(self):
+        call, reply = self.call("I want to book appointment.", "Aayush.", "Yeah.", "A check-up.", "Nagarbhavi.",
+                                "Tomorrow.", "5PM.")
+        self.assertIn("tomorrow at 5 in the evening", reply)
+        self.assertIn("tomorrow at 5 in the evening", call.run("Yeah.").text)
+
+    def test_the_same_time_again_after_a_no_names_the_branches_that_could(self):
+        call, reply = self.call(*self.TO_OFFER, "I want in the evening, five, actually.")
+        self.assertIn("Jayanagar", reply)
+        call.run("No.")
+        reply = call.run("At five in the evening.").text
+        self.assertRegex(reply, r"isn't possible at Indiranagar|Indiranagar can't do")
+        self.assertNotIn("Jayanagar", reply)
+        self.assertNotRegex(reply, r"^(Sure|Okay|Got it), (at )?5")
+
+
+class ModelBranchTests(unittest.TestCase):
+    SCHEMA = {"properties": {"branch": {"enum": ["Nagarbhavi", "Indiranagar", "Jayanagar", "Whitefield"]}}}
+
+    def test_a_branch_the_caller_never_said_is_dropped(self):
+        # "Ananya, please." came back from the model as Indiranagar, and Emma went on to "When's good?".
+        self.assertIsNone(nlu.from_json({"branch": "Indiranagar"}, "Ananya, please.", self.SCHEMA).branch)
+
+    def test_a_branch_backed_by_the_callers_words_is_kept(self):
+        for raw in ("Indiranagar please", "Indiranjan", "the second one", "with Dr Rao", "the same branch"):
+            self.assertEqual(nlu.from_json({"branch": "Indiranagar"}, raw, self.SCHEMA).branch, "Indiranagar", raw)
+
+
+class SpokenTimeTests(unittest.TestCase):
+    def test_clear_times(self):
+        import prompts
+        from datetime import time
+        self.assertEqual(prompts.speak_time_clear(time(17, 0)), "5 in the evening")
+        self.assertEqual(prompts.speak_time_clear(time(13, 30)), "1:30 in the afternoon")
+        self.assertEqual(prompts.speak_time_clear(time(9, 0)), "9 in the morning")
+        self.assertEqual(prompts.speak_time_clear(time(12, 0)), "12 noon")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -591,28 +591,52 @@ def _close(a: str, b: str, threshold: float) -> bool:
     return sm.real_quick_ratio() >= threshold and sm.quick_ratio() >= threshold and sm.ratio() >= threshold
 
 
-def _nearest_branch(words: list, branches: list) -> Optional[str]:
+def _sound_key(word: str) -> str:
+    """_name_key plus the swaps a phone line makes of Bengaluru names ("Nagar file" for Nagarbhavi)."""
+    key = _name_key(word)
+    for a, b in (("f", "v"), ("p", "b")):
+        key = key.replace(a, b)
+    return key
+
+
+def _nearest_branch(words: list, branches: list, floor: float = 0.7) -> Optional[str]:
     """
-    The one branch a mis-heard answer to "which branch?" is clearly closest to
-    ("Indiranjani" -> Indiranagar, owner's call 26 Oct): same first letter,
-    ratio >= 0.7 and well ahead of the next branch.
+    The one branch a mis-heard name is clearly closest to ("Indiranjani" ->
+    Indiranagar, owner's call 26 Oct): same first sound, ratio >= floor (by
+    spelling or by sound) and well ahead of the next branch.
     """
     scores = {}
     for br in branches:
         key = _compact(br.name)
+        sound = _sound_key(key)
         best = 0.0
         for n in (1, 2):
             for i in range(len(words) - n + 1):
                 window = "".join(words[i:i + n])
-                if len(window) >= 6 and window[0] == key[0]:
-                    best = max(best, SequenceMatcher(None, window, key).ratio())
+                if len(window) < 6:
+                    continue
+                heard = _sound_key(window)
+                if window[0] == key[0] or heard[:1] == sound[:1]:
+                    best = max(best, SequenceMatcher(None, window, key).ratio(),
+                               SequenceMatcher(None, heard, sound).ratio())
         scores[br.name] = best
     ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
-    if not ranked or ranked[0][1] < 0.7:
+    if not ranked or ranked[0][1] < floor:
         return None
     if len(ranked) > 1 and ranked[0][1] - ranked[1][1] < 0.12:
         return None
     return ranked[0][0]
+
+
+def guess_branch(text: str, branches: list) -> Optional[str]:
+    """
+    A branch name heard badly outside the branch question ("I want Nagar file."):
+    a guess Emma checks with the caller, never one she takes silently.
+    """
+    words = re.findall(r"[a-z]+", _norm(text))
+    if not words or not branches or match_branch(text, branches).value:
+        return None
+    return _nearest_branch(words, branches, floor=0.72)
 
 
 def match_branch(text: str, branches: list, *, asked: bool = False) -> CatalogMatch:

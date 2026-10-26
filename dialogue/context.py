@@ -267,6 +267,7 @@ class Understanding:
     service_phrase: Optional[str] = None           # the words used ("route canal", "whitening")
     branch: Optional[str] = None                   # canonical branch name (schema enum)
     branch_any: bool = False                       # "whichever is earliest / closest"
+    branch_guess: bool = False                     # `branch` is a guess at a mis-heard name: asked, not taken
     doctor: Optional[str] = None                   # a catalog doctor's spoken name ("Dr Rao")
     doctor_phrase: Optional[str] = None            # a doctor named but not in the catalog ("Dr Sharma")
     doctor_gender: Optional[str] = None            # "female" | "male"

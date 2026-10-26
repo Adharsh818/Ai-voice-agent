@@ -25,6 +25,7 @@ Owner in Sprint 1b: E1.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import re
 from datetime import date, time
@@ -607,10 +608,18 @@ def _apply_branch(ctx: CallContext, u: Understanding, cued: bool, notices: list,
         b.branch = None
         notices += _set_field(ctx, "branch", name, rt)
         return
+    if u.branch_guess and ctx.pending != Goal.ASK_BRANCH:
+        # "I want Nagar file.": checked with the caller before anything changes (owner's call, 26 Oct).
+        ctx.change_proposal = {"field": "branch", "value": name, "spoken": name}
+        return
     if b.branch and not (cued or ctx.pending in (Goal.ASK_BRANCH, Goal.NO_SLOTS, *SUMMARY_GOALS)):
         notices += apply_correction(ctx, "branch", name, rt, cued=False)
         return
     notices += _set_field(ctx, "branch", name, rt)
+    heard = safe_call(match.match_branch, u.raw_text or "", list(getattr(catalog, "branches", ()) or ()), default=None)
+    if b.branch == name and u.raw_text and (heard is None or heard.value != name):
+        # "Indiranjan." taken as Indiranagar: said back, so a wrong guess is caught (owner's call, 26 Oct).
+        notices.append(Notice("ack.branch", {"branch": name}, covered_by=(name.lower(),)))
 
 
 def _apply_doctor(ctx: CallContext, u: Understanding, notices: list, rt: Runtime) -> None:
@@ -717,7 +726,9 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
     if time_c is not None and time_c.kind == "any":
         time_c = None
     new_date = date_c is not None and date_c != b.date_c
-    new_time = time_c is not None and time_c != b.time_c
+    # "evening 5" then "5 in the evening" is the same time in other words: no "Got it, at 5 then."
+    new_time = time_c is not None and (b.time_c is None or dataclasses.replace(time_c, label="")
+                                       != dataclasses.replace(b.time_c, label=""))
     if not (new_date or new_time or (any_time and not b.any_time)):
         return
     narrowing = (new_time and b.time_c is not None and b.time_c.kind == "window" and time_c.kind == "exact"

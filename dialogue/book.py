@@ -124,8 +124,8 @@ def _plan(goal: Goal, line: str, **params) -> GoalPlan:
 # ---------------------------------------------------------------- speakable forms (prompts.py owns the wording)
 
 
-def speak_slot(start: datetime, with_day: bool = True) -> str:
-    return prompts.speak_slot(start, with_day=with_day)
+def speak_slot(start: datetime, with_day: bool = True, clear: bool = False) -> str:
+    return prompts.speak_slot(start, with_day=with_day, clear=clear)
 
 
 def speak_hour(t: time) -> str:
@@ -413,6 +413,12 @@ def _reject_offers(ctx: CallContext):
     b = ctx.book
     offer = _notes(b).pop("offer", None) or {}
     b.offer_rounds = max(b.offer_rounds, offer.get("round", b.offer_rounds) + 1)
+    offered_at = set(offer.get("at") or ()) or {getattr(slot, "branch", None) for slot in b.offered or ()}
+    _notes(b)["rejected"] = {
+        "date": b.date_c.start.isoformat() if b.date_c is not None and b.date_c.exact else None,
+        "time": b.time_c.start.isoformat() if b.time_c is not None and b.time_c.kind == "exact" else None,
+        "elsewhere": next(iter(offered_at)) if len(offered_at) == 1 and b.branch not in offered_at else None,
+    }
     b.offered, b.chosen = [], None
     b.date_c, b.time_c, b.when_phrase, b.any_time = None, None, "", False
     b.touch()
@@ -575,6 +581,25 @@ def _take_when(ctx: CallContext, u: Understanding) -> list:
         changed = True
     if time_c is not None and time_c.kind == "any":
         b.any_time = True
+    rejected = _notes(b).get("rejected") or {}
+    if b.date_c is None and date_c is None and b.time_c is not None and b.time_c.kind == "exact"             and rejected.get("date") and rejected.get("time") == b.time_c.start.isoformat():
+        # "No." to 5 at Jayanagar, then "at five in the evening" again (owner's call, 26 Oct: "Sure, 5.
+        # No worries. What day or time?"): the time is what they want, so keep the day and look for
+        # that time on the next days at their branch.
+        day = date.fromisoformat(rejected["date"])
+        b.date_c = DateConstraint(day, day)
+        notes = _notes(b)
+        elsewhere = rejected.get("elsewhere")
+        options = [n for n in notes.get("branch_options") or [] if n not in (b.branch, elsewhere)]
+        if elsewhere and b.branch and options:
+            # The time was only free at another branch, and they said no to that one: their branch
+            # can't do it, so say so and ask which other branch (not the same offer again).
+            notes["reopened"] = {"field": "branch", "others": options, "from": b.branch,
+                                 "time": prompts.speak_time_clear(b.time_c.start)}
+            b.branch, b.branch_any, b.doctor_id, b.doctor = None, False, None, None
+        else:
+            notes["same_time_later"] = _search_key(b)
+        changed = True
     if changed:
         _changed(ctx, search=True)
     return notices
@@ -873,7 +898,7 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
 
     if b.appointment_id:
         if notes.get("booked_turn") == ctx.turn:
-            when = speak_slot(b.chosen.start) if b.chosen else ""
+            when = speak_slot(b.chosen.start, clear=True) if b.chosen else ""
             branch = b.chosen.branch if b.chosen else (b.branch or "")
             line = "booked.emergency" if b.emergency else "booked"
             return _plan(Goal.BOOKED, line, when=when, branch=branch)
@@ -918,6 +943,10 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
         return _plan(Goal.ASK_AGE, "ask.age", patient=_patient_name(ctx))
     if not b.branch and not b.branch_any:
         reopened = _reopened_line(b, "branch")
+        if reopened and reopened.get("time"):
+            return _plan(Goal.ASK_BRANCH, "ask.branch.for_time", service=_service_plural(b.service),
+                         time=reopened["time"], branch=reopened["from"],
+                         branches=prompts.speak_list(reopened["others"], "or"))
         if reopened:
             return _plan(Goal.ASK_BRANCH, "ask.branch.instead", service=_service_plural(b.service),
                          branches=prompts.speak_list(reopened["others"], "or"))
@@ -1038,7 +1067,8 @@ def summary_params(ctx: CallContext) -> dict:
         "service": _spoken_service(slot.service),
         "doctor": slot.doctor,
         "branch": slot.branch,
-        "when": slot.spoken or speak_slot(slot.start),
+        "when": speak_slot(slot.start, clear=True) if slot.spoken in (None, "", speak_slot(slot.start))
+        else slot.spoken,
         "patient": _patient_name(ctx) or "",
     }
 
@@ -1379,7 +1409,8 @@ async def _search(ctx: CallContext, rt: Runtime, notices: list):
             notices.append(Notice("window.full", {"when": when}))
     if held:
         notes.pop("no_slots", None)
-        notes["offer"] = {"key": _search_key(b), "round": b.offer_rounds}
+        notes["offer"] = {"key": _search_key(b), "round": b.offer_rounds,
+                          "at": sorted({getattr(s, "branch", None) or "" for s in held})}
         return
     until = found.searched_until or (b.date_c.end if b.date_c else clock.today())
     notes["no_slots"] = {"key": _search_key(b), "branch": prompts.speak_list(branches, "or"), "until": prompts.speak_day(until)}
@@ -1440,7 +1471,8 @@ async def _search_same_day_elsewhere(ctx: CallContext, rt: Runtime):
     if held:
         notes["other_branch"] = b.branch
         b.offered = _in_clock_order(held)
-        notes["offer"] = {"key": _search_key(b), "round": b.offer_rounds}
+        notes["offer"] = {"key": _search_key(b), "round": b.offer_rounds,
+                          "at": sorted({getattr(s, "branch", None) or "" for s in held})}
 
 
 async def _search_same_time_elsewhere(ctx: CallContext, rt: Runtime):

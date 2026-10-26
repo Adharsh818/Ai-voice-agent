@@ -203,6 +203,10 @@ LINES: dict[str, LineSpec] = {
     "branch.any.taken": _l("Notice: the branch question ran out with no clear answer; she says out loud that "
                            "she'll look at every branch, so a wrong one is never picked in silence. "
                            "'I'll look at all our branches for the earliest, then.'", critical=True),
+    "ask.branch.for_time": _l("The caller said no to {time} at another branch and asked for {time} again; "
+                              "{branch} can't do it. '{time} isn't possible at {branch} for {service}, I'm "
+                              "afraid. There's {branches}. Which would you like?'",
+                              "time", "branch", "service", "branches", critical=True),
     "ask.branch.instead": _l("The caller asked to change the branch without naming one; {branches} are the "
                              "others. 'Sure. We also do {service} at {branches}. Which would you like?'",
                              "service", "branches"),
@@ -222,6 +226,8 @@ LINES: dict[str, LineSpec] = {
     "ask.when.instead": _l("The caller asked to change the day without naming one. 'Sure, which day would you "
                            "like instead?'"),
     "ack.when": _l("Notice: 'Sure, {when}.'", "when", critical=True),
+    "ack.branch": _l("Notice: a branch name heard badly and matched to the nearest; said back so a wrong "
+                     "guess is caught. 'Indiranagar, sure.'", "branch", critical=True),
     "ack.request": _l("Notice: the opening request said back. 'Sure, a check-up for your daughter at "
                       "Jayanagar.'", "request", critical=True),
     "ask.time": _l("A day is known. 'Morning or evening?' / 'Any particular time for {day}?'", "day"),
@@ -541,6 +547,9 @@ VARIANTS: dict[str, tuple] = {
                            "Shall I just go with whichever branch has the earliest slot?"),
     "branch.any.taken": ("I'll look at all our branches for the earliest, then.",
                          "Okay, I'll check all our branches for the earliest one."),
+    "ask.branch.for_time": ("{time} isn't possible at {branch} for {service}, I'm afraid. There's {branches}. "
+                            "Which would you like?",
+                            "Sorry, {branch} can't do {service} at {time}. Would {branches} suit you?"),
     "ask.branch.instead": ("Sure. We also do {service} at {branches}. Which would you like?",
                            "Of course. For {service}, there's also {branches}. Which one suits you?"),
     "branch.only": ("We do {service} at our {branch} branch.", "{service} are done at our {branch} branch."),
@@ -561,6 +570,7 @@ VARIANTS: dict[str, tuple] = {
                               "Okay, no worries. What day or time would suit you better?"),
     "ask.when.instead": ("Sure, which day would you like instead?", "No problem. What day would suit you better?"),
     "ack.when": ("Sure, {when}.", "Okay, {when}.", "{when}, got it."),
+    "ack.branch": ("{branch}, sure.", "Okay, {branch}.", "{branch}, lovely."),
     "ack.request": ("Sure, {request}.", "Of course, {request}.", "Okay, {request}."),
     # No {day}: the day was just said back ("Okay, Saturday the 24th."), and naming it again in the same
     # breath sounded read out (21 Oct audit: "...Any particular time for Saturday the 24th?", 7 times).
@@ -963,11 +973,27 @@ def speak_span(start, end) -> str:
     return f"{a} to {b}"
 
 
-def speak_slot(start, today=None, with_day: bool = True) -> str:
-    """ "Monday the 5th at 5" (a datetime from scheduling / OfferedSlot.start)."""
+def speak_time_clear(t) -> str:
+    """
+    speak_time with the part of the day always said: "5 in the evening", "1:30 in the afternoon".
+    For the read-backs a booking hangs on (the summary, "you're booked"): on a bad line "at 5"
+    leaves the caller unsure it was heard right (owner's call, 26 Oct: "5PM" read back as "at 5").
+    """
+    t = t.time() if isinstance(t, datetime) else t
+    text = speak_time(t)
+    if text.endswith((" in the morning", " in the evening", " at night")):
+        return text
+    if t.hour == 12 and t.minute == 0:
+        return "12 noon"
+    return text + (" in the morning" if t.hour < 12 else " in the afternoon" if t.hour < 16 else " in the evening")
+
+
+def speak_slot(start, today=None, with_day: bool = True, clear: bool = False) -> str:
+    """ "Monday the 5th at 5" (a datetime from scheduling / OfferedSlot.start); clear: "at 5 in the evening"."""
+    said = speak_time_clear(start) if clear else speak_time(start)
     if not with_day:
-        return speak_time(start)
-    return f"{speak_day(start, today)} at {speak_time(start)}"
+        return said
+    return f"{speak_day(start, today)} at {said}"
 
 
 def _day_part(t: time) -> str:
