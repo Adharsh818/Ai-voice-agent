@@ -2,7 +2,13 @@
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
-## Latest (26 Oct, ~16:15): 1890d68 pushed; the website is one commit behind
+## Latest (26 Oct, ~16:45): 17763c0 on GitHub and the PC; the website is on 9922d67
+
+- **"Are you still there?"** now waits while the caller makes sound. It uses vad.py, not only Deepgram's words.
+- **Phone jitter buffer** raised to 500 ms. It's rendered in telephony/build; the owner runs the installer as root.
+- **The full finish list and the India / US product roadmap:** [PRODUCT_ROADMAP.md](PRODUCT_ROADMAP.md).
+
+## Earlier (26 Oct, ~16:15): 1890d68 pushed; the website is one commit behind
 
 - **Full live run** (real Gemini, 53 scenarios): 52 passed; the free quota refused 9 requests mid-run.
 - **The one failure was fixed:** "have someone call me back" during the callback number got "I can't set up a callback" from the model, and the callback was lost.
