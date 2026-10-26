@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date
+from datetime import date, time
 from typing import Optional
 
 import clock
@@ -702,6 +702,12 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
             time_c = TimeConstraint("exact", pick, label=f"{b.time_c.label} {time_c.label}".strip())
     if time_c is not None and time_c.kind == "ambiguous" and date_c is None:
         time_c = _ampm_from_context(b, time_c)
+    if time_c is not None and time_c.kind == "window" and date_c is None and b.time_c is not None             and b.time_c.kind == "exact" and not (time_c.start <= b.time_c.start < time_c.end)             and time_c.start <= _flip_noon(b.time_c.start) < time_c.end:
+        # "AM." after "tomorrow at 8 in the evening": 8 in the morning, not any morning time.
+        time_c = TimeConstraint("exact", _flip_noon(b.time_c.start), label=time_c.label)
+    checking = time_c is not None and date_c is None and _flips_part_of_day(b.time_c, time_c, phrase)
+    if checking:
+        time_c = _either_side_of_noon(time_c)
     if date_c is not None and date_c.kind == "earliest" and b.date_c is not None and b.date_c.kind != "earliest" \
             and _FLEXIBLE_RE.search(phrase) and not _SOONEST_RE.search(phrase):
         # "Tomorrow." ... "Whenever it's available. Morning only." keeps tomorrow (8 Oct: it became
@@ -720,12 +726,12 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
         (new_time and b.time_c is not None and b.time_c.kind != "ambiguous" and ctx.pending != Goal.RESOLVE_AMPM
          and not narrowing)
     value = (date_c if new_date else b.date_c, time_c if new_time else b.time_c, any_time or b.any_time)
-    if changing and not (cued or ctx.pending in WHEN_GOALS):
+    if changing and not (cued or checking or ctx.pending in WHEN_GOALS):
         notices += apply_correction(ctx, "date", value, rt, cued=False, spoken=phrase)
         return
     notices += _set_field(ctx, "date", value, rt)
     b.when_phrase = phrase
-    if changing:
+    if changing and not checking:              # "8 in the morning or the evening?" says it back itself
         said = safe_call(prompts.speak_when, date_c if new_date else None, time_c if new_time else None,
                          default="") or _strip_cue(phrase)
         notices.append(Notice("correction.ack", {"value": said}, covered_by=_cover_words(said)))
@@ -762,6 +768,31 @@ def _ampm_from_context(b, time_c: TimeConstraint) -> TimeConstraint:
         if len(hits) == 1:
             return TimeConstraint("exact", hits[0], label=f"{time_c.label} {window.label}".strip())
     return time_c
+
+
+_AMPM_RE = re.compile(r"(?<![a-z])[ap]\.?\s?m\b", re.I)    # "8PM", "8 p.m."
+
+
+def _flips_part_of_day(held: Optional[TimeConstraint], new: TimeConstraint, said: str) -> bool:
+    """
+    "Morning." ... "I want at 8PM": a short "AM"/"PM" is what a poor line garbles
+    most (owner's call, 26 Oct: "eight AM" was heard as "8PM" and booked for the
+    evening). A time on the other side of noon from the part of day the caller
+    already gave, said with only am/pm, is asked about rather than taken.
+    """
+    if held is None or held.kind != "window" or new.kind != "exact" or not _AMPM_RE.search(said or ""):
+        return False
+    flipped = _flip_noon(new.start)
+    return not (held.start <= new.start < held.end) and held.start <= flipped < held.end
+
+
+def _flip_noon(t: time) -> time:
+    return time((t.hour + 12) % 24, t.minute)
+
+
+def _either_side_of_noon(t: TimeConstraint) -> TimeConstraint:
+    return TimeConstraint("ambiguous", candidates=tuple(sorted((t.start, _flip_noon(t.start)))),
+                           label=_AMPM_RE.sub("", t.label).strip())
 
 
 def _apply_manage_when(ctx: CallContext, u: Understanding, notices: list, rt: Runtime) -> None:

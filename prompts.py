@@ -200,6 +200,9 @@ LINES: dict[str, LineSpec] = {
                      "service", "branches"),
     "ask.branch.rephrase": _l("'Which of those is closer for you, {branches}?'", "branches"),
     "ask.branch.choices": _l("'I can just book whichever has the earliest slot, if you like?'"),
+    "branch.any.taken": _l("Notice: the branch question ran out with no clear answer; she says out loud that "
+                           "she'll look at every branch, so a wrong one is never picked in silence. "
+                           "'I'll look at all our branches for the earliest, then.'", critical=True),
     "ask.branch.instead": _l("The caller asked to change the branch without naming one; {branches} are the "
                              "others. 'Sure. We also do {service} at {branches}. Which would you like?'",
                              "service", "branches"),
@@ -536,6 +539,8 @@ VARIANTS: dict[str, tuple] = {
                             "Which is more convenient for you, {branches}?"),
     "ask.branch.choices": ("I can just book whichever has the earliest slot, if you like?",
                            "Shall I just go with whichever branch has the earliest slot?"),
+    "branch.any.taken": ("I'll look at all our branches for the earliest, then.",
+                         "Okay, I'll check all our branches for the earliest one."),
     "ask.branch.instead": ("Sure. We also do {service} at {branches}. Which would you like?",
                            "Of course. For {service}, there's also {branches}. Which one suits you?"),
     "branch.only": ("We do {service} at our {branch} branch.", "{service} are done at our {branch} branch."),

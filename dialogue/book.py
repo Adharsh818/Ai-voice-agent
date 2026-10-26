@@ -540,6 +540,9 @@ def _take_when(ctx: CallContext, u: Understanding) -> list:
     if time_c is not None and time_c.kind == "ambiguous" and date_c is None:
         from dialogue.apply import _ampm_from_context
         time_c = _ampm_from_context(b, time_c)   # an offered time, or the part of day already asked for
+    from dialogue.apply import _AMPM_RE, _either_side_of_noon, _flips_part_of_day
+    if time_c is not None and date_c is None and _flips_part_of_day(b.time_c, time_c, u.time_phrase or u.date_phrase):
+        time_c = _either_side_of_noon(time_c)
     said = " ".join(p for p in (u.date_phrase, u.time_phrase) if p)
     if date_c is not None and date_c.kind == "earliest" and b.date_c is not None and b.date_c.kind != "earliest":
         from dialogue.apply import _FLEXIBLE_RE, _SOONEST_RE
@@ -561,6 +564,12 @@ def _take_when(ctx: CallContext, u: Understanding) -> list:
         b.date_c = date_c
         b.when_phrase = u.date_phrase or b.when_phrase
         changed = True                                     # a new day keeps the time of day already given
+    if time_c is not None and b.time_c is not None and b.time_c.kind == "ambiguous" and time_c.kind == "exact" \
+            and time_c.start in b.time_c.candidates and ctx.pending != Goal.RESOLVE_AMPM and _AMPM_RE.search(said):
+        time_c = None                  # apply.py already made this turn's "8PM" a question (_flips_part_of_day)
+    if time_c is not None and time_c.kind == "window" and ctx.pending == Goal.RESOLVE_AMPM and b.time_c is not None \
+            and b.time_c.kind == "exact" and time_c.start <= b.time_c.start < time_c.end:
+        time_c = None                  # "Morning." answering "8 in the morning or the evening?": apply.py took 8 am
     if time_c is not None and time_c != b.time_c:
         b.time_c = time_c
         changed = True
