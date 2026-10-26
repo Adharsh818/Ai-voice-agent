@@ -2,7 +2,14 @@
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
-## Latest (26 Oct, ~13:45): PC only, not pushed, not deployed
+## Latest (26 Oct, ~14:10): pushed and deployed
+
+**After the owner's good test call (a7e2b542, all by rules, booked first time):**
+- `main` on GitHub = f99f0ff; the tests run is green.
+- Deployed to https://pearl-emma.duckdns.org with `tools/deploy_remote.sh`. The server's health is ok: Gemini verified, ElevenLabs voice, cache 216/216, `TYPED_CALLS=false`.
+- The new ElevenLabs key is in `/opt/emma/.env` on the server. The PC and the site share its 10,000 characters a month.
+
+## Earlier (26 Oct, ~13:45): PC only, not pushed, not deployed
 
 **Afternoon commits (bd12605, 2129be6), on `integrate-25oct` = `A:\Voice-Agent`:**
 - **Second voice, round two:** the ElevenLabs credits ran out mid-call. New sentences came in Piper's voice, stored ones in ElevenLabs'.
