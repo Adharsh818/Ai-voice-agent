@@ -392,6 +392,8 @@ def clean_name(text: str) -> Optional[str]:
         return None
     if any(w in NON_NAME_WORDS or w.replace("-", "") in NON_NAME_WORDS for w in words):
         return None
+    if any(re.sub(r"'(?:s|re|ll|ve|d|m)$", "", w) in NON_NAME_WORDS for w in words if "'" in w):
+        return None                         # "Oh, there's..." (owner's call, 26 Oct: "Okay, There'S")
     if any(w in _GERUNDS for w in words):
         return None                         # "I'm talking", "I'm asking": doing, not a name
     if all(len(w) == 1 for w in words):
@@ -399,7 +401,14 @@ def clean_name(text: str) -> Optional[str]:
     half = len(words) // 2
     if len(words) % 2 == 0 and words[:half] == words[half:]:
         words = words[:half]                # "Jimmy. Jimmy." said twice to be heard
-    return " ".join(w.title() if len(w) > 1 else w.upper() for w in words)
+    # str.title() makes "D'Souza" right but "o'neil's" into "O'Neil'S"; only a letter after "'" that
+    # starts a name part (D'Souza, O'Brien) is capitalised.
+    return " ".join(_name_case(w) if len(w) > 1 else w.upper() for w in words)
+
+
+def _name_case(word: str) -> str:
+    return re.sub(r"(^|[-'])([a-z])(?=[a-z]{2})|^([a-z])",
+                  lambda m: (m.group(1) or "") + (m.group(2) or m.group(3)).upper(), word)
 
 
 def _name_key(name: str) -> str:

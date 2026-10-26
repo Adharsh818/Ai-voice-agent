@@ -272,9 +272,15 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         # "I don't remember which day" is a non-answer, not a question to be "not sure" about (25 Oct).
         # Nor "Can I talk to someone?", "Hello? I'm still here", or "What should I say now?" mid-number
         # (review, 25 Oct): a receptionist never answers those with "I don't know".
+        # Nor a few garbled words while she collects a detail ("My name?" to "what time?", "Aditya, how
+        # does it..." to "could you spell it?": owner's call, 26 Oct): the question again, no "not sure".
+        garbled = len((u.raw_text or "").split()) <= 4 or plan.goal in (
+            Goal.ASK_NAME, Goal.SPELL_NAME, Goal.ASK_PATIENT)
+        collecting = ctx.workflow_active() and plan.goal not in CLOSING_GOALS and u.source == "fallback"
         not_a_question = answer.line == "unknown" and (
             any(u.has(a) for a in (Act.NON_ANSWER, Act.WANTS_HUMAN, Act.REPEAT, Act.WAIT))
-            or plan.goal in (Goal.PHONE_MORE, Goal.HELP_FIRST, Goal.TRANSFER, Goal.CONFIRM_PHONE))
+            or plan.goal in (Goal.PHONE_MORE, Goal.HELP_FIRST, Goal.TRANSFER, Goal.CONFIRM_PHONE)
+            or (garbled and collecting))
         if not (answer.line == "unknown" and asks_about_booking) and not hours_again and not not_a_question:
             notices.insert(0, answer)
             if answer.line == "answer.fact" and plan.goal in (Goal.ASK_INTENT, Goal.ANSWER_ONLY) \

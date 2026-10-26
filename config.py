@@ -313,11 +313,13 @@ PIPER_VOICE = os.getenv("PIPER_VOICE", "en_GB-cori-medium").strip()
 TELEPHONY_ENABLED = os.getenv("TELEPHONY_ENABLED", "false").lower() == "true"
 # Phone playout (audiosocket.py): hold this much of a live line before it starts, and refill this much if
 # the stream runs dry mid-line (bursty mobile data). Cached lines arrive whole and don't wait.
-PHONE_PREBUFFER_MS = int(os.getenv("PHONE_PREBUFFER_MS", "250"))
+# 26 Oct: 250 ms still ran dry about once a call on the hotspot (a break mid-sentence the caller hears);
+# 400 ms costs a live line 0.15 s more before it starts.
+PHONE_PREBUFFER_MS = int(os.getenv("PHONE_PREBUFFER_MS", "400"))
 # Feed the speech recogniser silence in the caller's gaps: softphones send nothing while the caller is
 # quiet, so Deepgram couldn't hear the end of a turn (25 Oct phone calls: 2.5-4.5 s to answer).
 PHONE_FILL_SILENCE = os.getenv("PHONE_FILL_SILENCE", "true").lower() == "true"
-PHONE_REBUFFER_MS = int(os.getenv("PHONE_REBUFFER_MS", "150"))
+PHONE_REBUFFER_MS = int(os.getenv("PHONE_REBUFFER_MS", "250"))
 AUDIOSOCKET_HOST = os.getenv("AUDIOSOCKET_HOST", "127.0.0.1")
 AUDIOSOCKET_PORT = int(os.getenv("AUDIOSOCKET_PORT", "9092"))
 # Shared with the Asterisk dialplan (/telephony/register and /telephony/next); empty refuses them.
