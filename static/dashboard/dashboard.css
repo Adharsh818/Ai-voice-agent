@@ -849,6 +849,11 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 .grouped-list li .li-main { flex: 1; min-width: 0; }
 .grouped-list li .li-sub { display: block; font-size: 12px; color: var(--ink-2); }
 .grouped-list li.selected { background: rgba(0, 113, 227, 0.08); }
+/* Recovery: a block's Preview opens under its own row (owner, 26 Oct). */
+.grouped-list li.preview-inline { display: block; padding: 12px 16px 16px; background: rgba(0, 113, 227, 0.04); }
+.preview-inline #preview-summary { margin: 0 0 10px; }
+.preview-inline .grouped-list { margin: 0 0 12px; background: var(--tile); }
+.preview-inline-actions { display: flex; justify-content: flex-end; }
 .grouped-list li.muted { color: var(--ink-3); }
 .grouped-list .empty { justify-content: center; color: var(--ink-2); }
 .grouped-list.checklist input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--blue); }
