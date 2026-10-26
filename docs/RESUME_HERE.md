@@ -2,7 +2,24 @@
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
-## Latest (26 Oct, ~00:15): on the PC only, not pushed, not deployed
+## Latest (26 Oct, ~12:45): two voices fixed with Opus; still PC only
+
+- **Two voices: gone (owner, test call 80a7f0f8).** The owner's screen recording showed no echo and no second stream. Lost packets on the hotspot blended Emma's sentences ("Lovely, that's free. Just to check" reached the phone as "Luckily, that's just a check").
+- **The fix:** the phone line now allows **Opus first** (`telephony/asterisk/pjsip.conf`, `modules.conf`). Its in-band FEC rebuilds lost packets.
+  - Installed with `wsl -u root bash /mnt/a/Voice-Agent/telephony/install_asterisk.sh`. The owner has no sudo password; `-u root` needs none.
+  - Before/after: the caller's audio reaching Emma went from 54% to 76%; 7 of 12 turns now end on Deepgram's speech_final (was none); the call booked correctly first time.
+- **Bad-line checks (d22488d):**
+  - "8PM" after the caller asked for the morning gets "8 in the morning or the evening?"
+  - "AM." at the summary moves the time across noon.
+  - A misheard branch name nearest one branch counts as that branch ("Indiranjani").
+  - Everyday words ("Start", "Pizza") are asked again, not taken as names.
+  - "I want that eight" picks 8.
+  - When the branch question runs out, she says she'll look at every branch.
+- **Open:** in 80a7f0f8, "are you still there?" came twice after an 18–22 s wait. Unclear whether the caller paused or the start of the reply was lost.
+- **Gemini:** the free quota resets about 12:30 IST, and it's slow for a while after (two 2.2 s deadline misses).
+- **Test bookings to keep:** Peter (Jayanagar, 30 Oct, 9 am) and Thor/"Start" (6cb96ca2, 27 Oct, 8 pm, Nagarbhavi).
+
+## Earlier (26 Oct, ~00:15): on the PC only, not pushed, not deployed
 
 **Not on GitHub or the website (owner: "don't update the website until the changes are done"):** `main` on GitHub = 097c4d6. Local branch `integrate-25oct` (= `A:\Voice-Agent` HEAD) adds:
 - **Brain options:** NVIDIA (`NLU_PRIMARY=nvidia`, minimax-m3.1-flash) and Cerebras (`NLU_PRIMARY=cerebras`, gpt-oss-120b; waits for the owner's free key).
