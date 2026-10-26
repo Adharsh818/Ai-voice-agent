@@ -18,6 +18,7 @@ from types import SimpleNamespace
 
 import ai_engine
 import nlu
+import prompts
 from dialogue import match
 from dialogue.testing import DemoClinic
 from test_r2_engine import Call
@@ -246,6 +247,31 @@ class LiveRunTests(OwnerCall26Case):
         self.assertNotIn("got it", reply)
         self.assertNotRegex(reply, r"(^|\. )10\.")
         self.assertIn("10 in the morning", call.run("Monday.").text)
+
+
+class EveningCallTests(OwnerCall26Case):
+    """The owner's phone calls at 21:49-21:53 on 26 Oct (2161f569, 3babd623), Gemini too slow to help."""
+
+    def test_theres_is_not_a_name_and_names_are_cased_right(self):
+        self.assertIsNone(match.clean_name("Oh, there's"))
+        self.assertEqual(match.clean_name("d'souza"), "D'Souza")
+        self.assertEqual(match.clean_name("mary-anne"), "Mary-Anne")
+
+    def test_garbled_words_while_collecting_get_the_question_not_not_sure(self):
+        call, _ = self.call("I I want to book a appointment.", "Play others.", "Others.")
+        reply = call.run("Aditya, how does it...").text
+        self.assertNotIn("not sure", reply)
+        for line in ("Aditya. Aditya.", "Yes.", "A checkup.", "Indiran order.", "Tomorrow?"):
+            call.run(line)
+        reply = call.run("My name?").text
+        self.assertNotIn("not sure", reply)
+        self.assertRegex(reply, r"time|morning|evening")
+
+    def test_yes_to_anything_else_asks_what(self):
+        call, _ = self.call("I want to book a check-up.", "Peter.", "Yes.", "Indiranagar.", "Tomorrow.",
+                            "Morning.", "Seven in the morning.", "Yes.")
+        reply = call.run("Yeah.").text
+        self.assertIn(reply, prompts.VARIANTS["anything_else.yes"])
 
 
 class SpokenTimeTests(unittest.TestCase):

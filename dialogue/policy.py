@@ -170,11 +170,24 @@ def next_goal(ctx: CallContext, u: Optional[Understanding] = None, *, catalog=No
     if u is not None and u.has(Act.CAPABILITY) and u.pure_question:
         return _capability(ctx, u)
     if not ctx.workflow_active():
-        return _conversation(ctx, u, catalog)
+        return _yes_to_anything_else(ctx, u, _conversation(ctx, u, catalog))
 
     plan = _workflow_plan(ctx, u, catalog)
     if u is not None and u.pure_question and plan.goal not in OUTCOME_GOALS:
         plan.steer = should_steer(ctx, u)
+    return _yes_to_anything_else(ctx, u, plan)
+
+
+def _yes_to_anything_else(ctx: CallContext, u: Optional[Understanding], plan: GoalPlan) -> GoalPlan:
+    """
+    "Yeah." to "Anything else I can help with?" means there is something: ask what it is, not the
+    same question again (owner's call, 26 Oct: "Sure, anything else you need?").
+    """
+    if plan.goal == Goal.ANYTHING_ELSE and plan.line == "anything_else" and u is not None \
+            and u.confirmation == "yes" and u.intent in (None, Intent.NONE) \
+            and not (u.service or u.date_phrase or u.time_phrase or u.question) \
+            and ctx.pending in (Goal.ANYTHING_ELSE, Goal.BOOKED, Goal.CANCELLED, Goal.RESCHEDULED):
+        plan.line = "anything_else.yes"
     return plan
 
 

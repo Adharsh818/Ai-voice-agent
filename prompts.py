@@ -72,6 +72,7 @@ LINES: dict[str, LineSpec] = {
                          "claims to be human and never raises what she is unprompted."),
     "offer.help": _l("Occasional soft steer after answering. 'If you'd like, I can book that for you too.' "
                      "No question mark needed.", cache=True),
+    "anything_else.yes": _l("A yes to 'anything else?': ask what it is. 'Sure, what else can I help with?'"),
     "anything_else": _l("'Anything else I can help with?'", cache=True),
     "close": _l("Warm goodbye. 'Take care, bye!'", cache=True),
     "close.booked": _l("Goodbye after a booking. 'Great, see you then. Take care!'", cache=True),
@@ -387,6 +388,8 @@ VARIANTS: dict[str, tuple] = {
                    "Happy to set up an appointment too, whenever you're ready."),
     "anything_else": ("Anything else I can help with?", "Is there anything else I can do for you?",
                       "Anything else you need?"),
+    "anything_else.yes": ("Sure, what else can I help with?", "Of course, what can I do for you?",
+                          "Sure, go ahead."),
     "close": ("Take care, bye!", "Thanks for calling, take care!", "Alright, have a good day. Bye!"),
     "close.booked": ("Thank you, see you then. Take care!", "Okay, see you then. Bye!",
                      "Perfect, see you soon. Take care!"),
