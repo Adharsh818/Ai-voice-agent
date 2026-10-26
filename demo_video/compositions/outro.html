@@ -1,0 +1,29 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; font-family: "Inter"; color: #1d1d1f; background: #f5f5f7; overflow: hidden; }
+
+    #o-wrap { position: absolute; left: 160px; top: 360px; width: 1600px; }
+    .o-line { font-size: 100px; font-weight: 900; letter-spacing: -0.045em; line-height: 1.08; }
+    #o-l2 { color: #0071e3; }
+    .ow { display: inline-block; margin-right: 0.22em; }
+    #o-sign { position: absolute; left: 160px; top: 650px; font-size: 32px; color: #6e6e73; letter-spacing: -0.01em; }
+
+  </style>
+  <div id="root" data-composition-id="outro" data-width="1920" data-height="1080" data-duration="6.751">
+    <div id="o-wrap"><div id="o-l1" class="o-line"><span id="ow0" class="ow">The</span><span id="ow1" class="ow">model</span><span id="ow2" class="ow">only</span><span id="ow3" class="ow">talks.</span></div><div id="o-l2" class="o-line"><span id="ow4" class="ow">Python</span><span id="ow5" class="ow">decides</span><span id="ow6" class="ow">every</span><span id="ow7" class="ow">booking.</span></div></div>
+    <div id="o-sign">Emma · the voice receptionist for Pearl Dental</div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#ow0", { opacity: 0, y: 24, scale: 0.9, filter: "blur(8px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "back.out(1.6)" }, 0.5);
+    tl.fromTo("#ow1", { opacity: 0, y: 24, scale: 0.9, filter: "blur(8px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "back.out(1.6)" }, 0.74);
+    tl.fromTo("#ow2", { opacity: 0, y: 24, scale: 0.9, filter: "blur(8px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "back.out(1.6)" }, 1.06);
+    tl.fromTo("#ow3", { opacity: 0, y: 24, scale: 0.9, filter: "blur(8px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "back.out(1.6)" }, 1.38);
+    tl.fromTo("#ow4", { opacity: 0, y: 24, scale: 0.9, filter: "blur(8px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "back.out(1.6)" }, 1.94);
+    tl.fromTo("#ow5", { opacity: 0, y: 24, scale: 0.9, filter: "blur(8px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "back.out(1.6)" }, 2.26);
+    tl.fromTo("#ow6", { opacity: 0, y: 24, scale: 0.9, filter: "blur(8px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "back.out(1.6)" }, 2.74);
+    tl.fromTo("#ow7", { opacity: 0, y: 24, scale: 0.9, filter: "blur(8px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "back.out(1.6)" }, 3.06);
+    tl.fromTo("#o-sign", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power2.out" }, 3.86);
+    window.__timelines["outro"] = tl;
+  </script>
+</template>
