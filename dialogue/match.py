@@ -477,6 +477,8 @@ SERVICE_PHRASES = {
 # STT slips that are ordinary words: only read as a service when Emma just asked for one.
 ASKED_ONLY_PHRASES = {
     "chicken": "General Check-up", "check in": "General Check-up", "chick up": "General Check-up",
+    # The owner's phone calls, 25-26 Oct: "Pickup." / "At pickup." / "I wanted a pickup." four times.
+    "pickup": "General Check-up", "pick up": "General Check-up", "pick-up": "General Check-up",
     "clean up": "Teeth Cleaning", "cleanup": "Teeth Cleaning",
 }
 # "tooth" alone: which one? (CLARIFY_SERVICE)

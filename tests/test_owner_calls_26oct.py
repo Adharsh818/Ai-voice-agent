@@ -183,6 +183,46 @@ class ModelBranchTests(unittest.TestCase):
             self.assertEqual(nlu.from_json({"branch": "Indiranagar"}, raw, self.SCHEMA).branch, "Indiranagar", raw)
 
 
+class RulesNotModelTests(unittest.TestCase):
+    """Lines from the owner's 25-26 Oct calls that went to the model, now answered by rules."""
+
+    def u(self, text, goal, intent=None, lenient=False):
+        import tier0
+        from dialogue.context import Intent
+        from test_tier0_v2 import view
+        return tier0.understand(text, view(goal, intent=intent or Intent.BOOK), lenient=lenient)
+
+    def test_openers(self):
+        from dialogue.context import Goal, Intent
+        for said in ("Oh, I want to book appointment with you.", "Hey. I'd like to book a meeting with you."):
+            self.assertEqual(self.u(said, Goal.GREET, Intent.NONE).intent, Intent.BOOK, said)
+
+    def test_pickup_is_a_check_up_only_when_asked(self):
+        from dialogue.context import Goal
+        for said in ("Pickup.", "At pickup.", "I wanted a pickup."):
+            self.assertEqual(self.u(said, Goal.ASK_SERVICE).service, "General Check-up", said)
+        from dialogue import match
+        self.assertIsNone(match.match_service("I'll pick up my son", []).value)
+
+    def test_days_said_with_a_rising_tone_or_works_for_me(self):
+        from dialogue.context import Goal
+        self.assertEqual(self.u("Tomorrow?", Goal.ASK_WHEN).date_phrase, "Tomorrow")
+        self.assertTrue(self.u("Friday works for me.", Goal.ASK_WHEN).date_phrase)
+        self.assertIsNone(self.u("Is Friday?", Goal.ASK_WHEN))
+
+    def test_the_same_number(self):
+        from dialogue.context import Goal
+        for said in ("I used this number.", "Use the same number.", "This number is fine.", "Same number."):
+            self.assertEqual(self.u(said, Goal.CONFIRM_PHONE).confirmation, "yes", said)
+        self.assertIsNone(self.u("I use another number.", Goal.CONFIRM_PHONE))
+
+    def test_a_treatment_in_the_opening_line_is_a_booking_with_the_model_down(self):
+        from dialogue.context import Goal, Intent
+        u = self.u("Tomorrow evening around 6 with Dr Sharma, for a check-up.", Goal.GREET, Intent.NONE,
+                   lenient=True)
+        self.assertEqual((u.intent, u.service), (Intent.BOOK, "General Check-up"))
+
+
 class SpokenTimeTests(unittest.TestCase):
     def test_clear_times(self):
         import prompts

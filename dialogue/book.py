@@ -792,11 +792,18 @@ def _validate(ctx: CallContext, catalog) -> list:
             _changed(ctx, search=True)
 
     if b.unknown_doctor and (b.service or b.branch):
+        # The model may have said it already ("We don't have a Dr Sharma"): not twice.
+        said = (b.unknown_doctor.split()[-1].lower(),)
         names, where = _doctors_line(catalog, b.service, b.branch)
-        if names:
+        if names and not b.branch:
+            # No branch yet: every doctor at every branch is a list, not an answer (live run, 26 Oct).
+            notices.append(Notice("doctor.unknown.any", {"name": b.unknown_doctor,
+                                                         "doctors": prompts.speak_list(names[:2], "or")},
+                                  covered_by=said))
+        elif names:
             notices.append(Notice("doctor.unknown", {"name": b.unknown_doctor, "doctors": prompts.speak_list(names, "and"),
                                                      "are_is": "are" if len(names) > 1 else "is",
-                                                     "branch": where}))
+                                                     "branch": where}, covered_by=said))
         b.unknown_doctor = None                            # said once, then cleared
 
     if b.emergency or ctx.emergency == Emergency.URGENT:

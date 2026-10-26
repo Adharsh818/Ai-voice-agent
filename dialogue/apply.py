@@ -677,7 +677,8 @@ def _unknown_doctor(ctx: CallContext, phrase: str, catalog) -> Notice:
         name = f"Dr {name.title()}"
     return Notice("doctor.unknown", {"name": name, "doctors": _list(names) or "our doctors",
                                      "are_is": "is" if len(names) == 1 else "are",
-                                     "branch": branch or "our clinics"})
+                                     "branch": branch or "our clinics"},
+                  covered_by=(name.split()[-1].lower(),))
 
 
 # ---------------------------------------------------------------- when
