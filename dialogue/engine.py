@@ -243,6 +243,9 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
             else:
                 plan = exit_plan
     _caller_id_line(ctx, plan)
+    if plan.line == "ask.branch.for_time":
+        # "5 in the evening isn't possible at Indiranagar..." says the time itself: no "Sure, 5." first.
+        notices = [n for n in notices if getattr(n, "line", "") not in ("ack.when", "correction.ack")]
 
     allowed = _allowed(brief, ctx, result.action, u)
     say, dropped, streamed = [], [], []

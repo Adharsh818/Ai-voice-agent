@@ -231,7 +231,16 @@ class Speaker:
         # on_begin(turn, offset_ms, text): each spoken piece as it starts, for the Live tab (caption_pacer.py)
         self.on_begin: Optional[Callable] = None
 
+    def _one_voice_backup(self) -> bool:
+        """The call moved to the backup voice: every sentence is said in it from now on."""
+        return self.degraded and self.backup_tts is not None and getattr(self.backup_tts, "ready", True)
+
     def _cached(self, text: str) -> Optional[bytes]:
+        # The stored sentences are in the ElevenLabs voice: once the call is on the
+        # backup voice, they'd make one reply switch between two women (owner's call,
+        # 26 Oct: "where did the second voice come from", the credits had run out).
+        if self._one_voice_backup():
+            return None
         return self.cache.get(text) if self.cache else None
 
     def plan(self, text: str) -> list[_Segment]:
@@ -360,6 +369,8 @@ class Speaker:
             sent = False
             try:
                 for seg in segments:
+                    if seg.pcm is not None and self._one_voice_backup():
+                        seg.pcm, seg.stream = None, await self._open(seg.text)   # switched earlier in this reply
                     if seg.pcm is not None:
                         self._begin(turn_id, seg.text, kind)
                         await self._send(turn_id, seg.pcm, timer, "cache")

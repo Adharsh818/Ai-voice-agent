@@ -109,6 +109,26 @@ class FallbackTests(unittest.TestCase):
         self.assertEqual(backup.said, ["Sure, the 2nd."])
         self.assertEqual(transport.audio, 3200)
 
+    def test_after_the_switch_stored_sentences_are_said_in_the_backup_voice_too(self):
+        # Owner's call, 26 Oct: the credits ran out, new sentences came in the backup voice and stored
+        # ones in the ElevenLabs voice, so one reply sounded like two women. One voice per call now.
+        class Cache:
+            def get(self, text):
+                return bytes(1600) if text == "Which suits you?" else None
+
+        backup = BackupTTS()
+        transport = Transport()
+        speaker = Speaker(transport, Cache(), SilentTTS(), None, backup)
+
+        async def run():
+            await speaker.speak(1, "We do braces at Indiranagar. Which suits you?")
+            await speaker.speak(2, "Which suits you?")
+            self.assertFalse(await speaker.play_cached(3, "Which suits you?"))
+
+        asyncio.run(run())
+        self.assertEqual(backup.said, ["We do braces at Indiranagar.", "Which suits you?", "Which suits you?"])
+        self.assertEqual(transport.audio, 3200 * 3)
+
     def test_a_backup_still_loading_is_not_used(self):
         backup = BackupTTS()
         backup.ready = False
