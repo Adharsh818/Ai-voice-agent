@@ -278,7 +278,7 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
             Goal.ASK_NAME, Goal.SPELL_NAME, Goal.ASK_PATIENT)
         collecting = ctx.workflow_active() and plan.goal not in CLOSING_GOALS and u.source == "fallback"
         not_a_question = answer.line == "unknown" and (
-            any(u.has(a) for a in (Act.NON_ANSWER, Act.WANTS_HUMAN, Act.REPEAT, Act.WAIT))
+            any(u.has(a) for a in (Act.NON_ANSWER, Act.WANTS_HUMAN, Act.CALLBACK_REQUEST, Act.REPEAT, Act.WAIT))
             or plan.goal in (Goal.PHONE_MORE, Goal.HELP_FIRST, Goal.TRANSFER, Goal.CONFIRM_PHONE)
             or (garbled and collecting))
         if not (answer.line == "unknown" and asks_about_booking) and not hours_again and not not_a_question:

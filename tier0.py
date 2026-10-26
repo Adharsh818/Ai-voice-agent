@@ -186,6 +186,12 @@ _HUMAN_RE = re.compile(
     r"\b(?:person|human|someone|somebody|receptionist|staff|manager|operator|doctor|dentist|team|real person)\b|"
     r"\b(?:i want|i need|get me|give me)\s+(?:a |the )?(?:real |live )?(?:person|human|receptionist|manager|operator)\b"
 )
+_CALLBACK_ASK_RE = re.compile(
+    r"\b(?:call|ring|phone)\s+(?:me|us)\s+back\b|"
+    r"\b(?:get|have|ask)\s+(?:someone|somebody|the clinic|the team|the doctor|a doctor|the staff|staff|them)"
+    r"(?:\s+from the (?:clinic|team|branch))?\s+(?:to\s+)?(?:call|ring|phone)\s+(?:me|us)\b|"
+    r"\b(?:want|like|need|request|get|have|arrange)\s+(?:a\s+)?call\s*back\b|"
+    r"\bcan\s+(?:someone|somebody|the clinic|the team|they)\s+(?:please\s+)?(?:call|ring|phone)\s+(?:me|us)\b")
 _HUMAN_SHORT_RE = re.compile(
     r"^(?:(?:no|nope|nah|please|i said|just)[\s,.!]+)*(?:a |an |the )?(?:real |actual |live )?"
     r"(?:person|human|human being|someone|somebody|receptionist|staff|staff member)"
@@ -660,6 +666,13 @@ def _globals(t: str, raw: str, words: list, view: Tier0View, source: str):
         if s and _ROBOT_RE.search(s) and not _HUMAN_RE.search(s) \
                 and all(w in _ROBOT_FILLER for w in _tokens(_ROBOT_RE.sub(" ", s))):
             return _u(raw, source, [Act.ROBOT_QUESTION])
+    # "I'd like someone from the clinic to call me back about my bill." / "What's the Whitefield branch
+    # number?" (27 Oct: with the model down, the bill request got "What can I do for you?" again).
+    # Not while Emma takes a number: there the callback is already in hand (the rule further down).
+    if len(words) <= 25 and view.pending not in (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE) \
+            and (_CALLBACK_ASK_RE.search(t) or match.BRANCH_PHONE_RE.search(t)) \
+            and not match.extract_digits(raw).digits:
+        return _u(raw, source, [Act.CALLBACK_REQUEST])
     if len(words) <= 10 and _HUMAN_RE.search(t):
         return _u(raw, source, [Act.WANTS_HUMAN])
     # "No. A real person, please." (phone check, 14 Oct: three tries, never put through), or a plain

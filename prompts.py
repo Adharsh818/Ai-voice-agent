@@ -100,6 +100,8 @@ LINES: dict[str, LineSpec] = {
                      "What's it about?'"),
     "callback.offer": _l("Offer a callback. 'I can have someone from the team call you back about it. "
                          "Would that help?'"),
+    "callback.branch_phone": _l("Asked for a branch's own number (never read out). 'I don't have the "
+                                "branch's direct line to give out, but I can have them call you back.'"),
     "callback.done": _l("Task created. 'Done, someone from the clinic will call you back on {phone}.'",
                         "phone", critical=True),
     "transfer": _l("Phone calls: task created, then put through. 'Sure, I'm putting you through to the front "
@@ -418,6 +420,8 @@ VARIANTS: dict[str, tuple] = {
     "help_first": ("I can probably sort that out for you myself. What's it about?",
                    "I should be able to help with that. What do you need?",
                    "Let me see if I can help first. What's it regarding?"),
+    "callback.branch_phone": ("I don't have the branch's direct line to give out, but I can have them call you back.",
+                              "I can't give out the branch's own number, but I can have them call you back."),
     "callback.offer": ("I can have someone from the team call you about it. Would that help?",
                        "If you like, I'll ask the team to give you a call about it. Shall I?"),
     "transfer": ("Sure, I'm putting you through to the front desk now. If they can't pick up, "

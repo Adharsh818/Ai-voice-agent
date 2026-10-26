@@ -108,7 +108,8 @@ KEYS (omit an optional key when it has no value):
 - acts: what the turn did, one or more of: answer (answered what Emma asked), info (volunteered \
 details not asked for yet), question, capability ("how can you help", "what do you do", "who are \
 you"), chitchat, non_answer (replied without answering, e.g. "I've been really busy"), correction, \
-wants_human, robot_question (sincerely asks if Emma is a bot), repeat ("sorry?"), wait ("hold \
+wants_human, callback_request (asks to be called back, or for a branch's phone number), \
+robot_question (sincerely asks if Emma is a bot), repeat ("sorry?"), wait ("hold \
 on"), end ("that's all", "bye"), abuse, other_language, dont_keep (asks not to be recorded), \
 fragment (cut off mid-sentence), backchannel ("mm-hmm"), unclear.
 - intent: none (nothing new expressed), book, reschedule, cancel, check (when is my appointment), \

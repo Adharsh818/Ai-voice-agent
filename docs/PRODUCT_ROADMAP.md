@@ -13,13 +13,14 @@ Done by Claude on 26 Oct, on `main`:
 
 | # | Item | Who | How |
 |---|---|---|---|
-| A1 | Deploy 17763c0 (the "still there?" change) to the website | Owner's OK, then Claude | `bash tools/deploy_remote.sh` |
-| A2 | Load the 500 ms jitter buffer into Asterisk | Owner | `wsl -u root bash /mnt/a/Voice-Agent/telephony/install_asterisk.sh` (the configs are already rendered), then one phone call |
-| A3 | A call on the website, then the listening report | Owner, then Claude | A browser call on the site, then `bash tools/call_report_remote.sh` |
-| A4 | Microphone check on the talk page; Reject on a recovery call after 9 am | Owner | By hand, in the dashboard |
-| A5 | Demo video | Owner | Script in [DEMO_VIDEO.md](DEMO_VIDEO.md) |
-| A6 | One-click deploy from GitHub | Owner | Add the `EMMA_SSH_KEY` and `EMMA_KNOWN_HOSTS` secrets ([DEPLOY.md](DEPLOY.md)) |
-| A7 | Owner sign-off on clinic prices and facts (still marked demo) | Owner | `clinic_facts.json` |
+| A1 | **Done.** Deploy 17763c0 (the "still there?" change) to the website | Owner's OK, then Claude | `bash tools/deploy_remote.sh` |
+| A2 | **Done.** Load the 500 ms jitter buffer into Asterisk | Owner | `wsl -u root bash /mnt/a/Voice-Agent/telephony/install_asterisk.sh` (the configs are already rendered), then one phone call |
+| A3 | **Done.** A call on the website, then the listening report | Owner, then Claude | A browser call on the site, then `bash tools/call_report_remote.sh` |
+| A4 | **Done.** Microphone check on the talk page; Reject on a recovery call after 9 am | Owner | By hand, in the dashboard |
+| A5 | **Done (27 Oct).** Demo video, `demo_video/` (render with HyperFrames; the MP4 is not in git) | Owner | [demo_video/STORYLINES.md](../demo_video/STORYLINES.md) |
+| A6 | **Done.** One-click deploy from GitHub | Owner | Add the `EMMA_SSH_KEY` and `EMMA_KNOWN_HOSTS` secrets ([DEPLOY.md](DEPLOY.md)) |
+| A7 | **Done (27 Oct).** The owner signed off the prices, the clinic facts (hours, branches, doctors, languages) and the payment and visit policies. Branch phone numbers are never read out: Emma says so and arranges a call back | Owner | `owner_sign_off` in `clinic_facts.json` |
+| A9 | **Done (27 Oct).** With the model down, "call me back about my bill" wasn't understood by the rules, so Emma repeated "what can I do for you?". Now the rules catch a callback request (new act `callback_request`), and Emma takes the number and makes the task | Claude | `tests/test_callback_request.py` |
 | A8 | Watch the free quotas | Owner | Gemini: daily, resets about 12:30 IST. ElevenLabs: 10,000 characters a month, shared by the PC and the site |
 
 ## Part B: a product for real clinics

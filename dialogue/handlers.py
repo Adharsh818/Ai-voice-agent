@@ -83,6 +83,7 @@ URGENT_SERVICE = "Consultation"
 # Task notes (staff read them on the dashboard).
 LANGUAGE_NOTE = "Wants a call back in Kannada or Hindi"
 PERSON_NOTE = "Asked to speak to someone at the clinic"
+CALLBACK_NOTE = "Asked for a call back"
 # A run of fragments longer than this stops being stashed and goes through as
 # a turn, so a caller who trails off repeatedly is never stuck on "go on".
 FRAGMENT_MAX_WORDS = 14
@@ -376,7 +377,7 @@ def _bad_line(ctx: CallContext, u: Understanding, confirmation: Optional[str]) -
     """
     usable = (u.carries_details or confirmation is not None or u.intent not in (None, Intent.NONE)
               or any(u.has(a) for a in (Act.QUESTION, Act.END, Act.REPEAT, Act.WAIT, Act.ROBOT_QUESTION,
-                                        Act.WANTS_HUMAN, Act.CAPABILITY, Act.CHITCHAT)))
+                                        Act.WANTS_HUMAN, Act.CALLBACK_REQUEST, Act.CAPABILITY, Act.CHITCHAT)))
     run = 0 if usable else ctx.__dict__.get("_unusable_run", 0) + 1
     cut = 0 if usable else ctx.__dict__.get("_cut_in_run", 0) + int(u.has(Act.FRAGMENT))
     ctx.__dict__["_unusable_run"], ctx.__dict__["_cut_in_run"] = run, cut
@@ -485,6 +486,17 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
     if u.has(Act.DONT_KEEP):
         ctx.keep_transcript = False
         out.notices.append(Notice("dont_keep.ack", covered_by=("record",)))
+
+    # 5a. "Can someone call me back about my bill?" / "What's the Whitefield branch number?": the callback
+    # straight away, no help-first detour (27 Oct: with the model down, the bill request only got "What
+    # can I do for you?" again). The branch lines are never read out (owner, A7): Emma says so first.
+    if u.has(Act.CALLBACK_REQUEST) and not callback_in_progress(ctx):
+        if match.BRANCH_PHONE_RE.search((u.raw_text or "").lower()):
+            out.notices.append(Notice("callback.branch_phone"))
+        if ctx.tasks_created:
+            return await _callback_once(ctx, u, rt, out)
+        said = " ".join((u.raw_text or "").split())[:160]
+        return await _callback_accepted(ctx, u, rt, f'{CALLBACK_NOTE}: "{said}"' if said else CALLBACK_NOTE, out)
 
     # 5. a person: help first; if they insist, a real callback.
     if u.has(Act.WANTS_HUMAN):
