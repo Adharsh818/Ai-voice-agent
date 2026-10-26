@@ -2,9 +2,10 @@
 # Never runs by itself. The tests and both scenario runs must pass first, then
 # tools/deploy_remote.sh runs exactly as on the PC: it keeps the server's .env, database and backups.
 #
-# One-time setup by the owner (GitHub, Settings, Secrets and variables, Actions, New repository secret):
-#   EMMA_SSH_KEY      the whole private key file ~/.ssh/emma_oracle (it's on the owner's PC only)
-#   EMMA_KNOWN_HOSTS  the server's host key line, from: ssh-keyscan -t ed25519 3.27.254.11
+# One-time setup by the owner: `bash tools/setup_deploy_secrets.sh` in Git Bash. It makes a key used only
+# by these deploys (not the owner's emma_oracle), allows it on the server and sets the two secrets:
+#   EMMA_SSH_KEY      that deploy-only private key
+#   EMMA_KNOWN_HOSTS  the server's host key line (ssh-keyscan -t ed25519 3.27.254.11)
 # Without both secrets the job stops at "Check secrets" and changes nothing.
 name: deploy
 
