@@ -1,6 +1,14 @@
-# Resume here (updated 23 Oct 2026)
+# Resume here (updated 27 Oct 2026)
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
+
+## Latest (27 Oct): Part A is finished; the PC, GitHub and the website all run 688173e
+
+- **What's left, and the future plans:** [WHATS_LEFT.md](WHATS_LEFT.md).
+- **A5, the demo video:** it's in `demo_video/` (HyperFrames). The MP4 is rendered on the PC and isn't in git.
+- **A7, owner sign-off:** prices, clinic facts and policies are approved. Branch numbers are never read out; Emma arranges a call back.
+- **A9, a fix:** "call me back about my bill" now works without the model (new act `callback_request`).
+- **The PC's Python:** `.venv` had lost its base Python. It now uses a Python 3.12 managed by uv, and 1132 tests pass.
 
 ## Latest (26 Oct, ~16:45): 17763c0 on GitHub and the PC; the website is on 9922d67
 
