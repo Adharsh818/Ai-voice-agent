@@ -582,6 +582,16 @@ def match_service(text: str, services: list, *, asked: bool = False) -> CatalogM
 
 
 _CITY_WORDS = {"bengaluru", "bangalore", "blr", "city"}
+# Asking for a branch's own phone line ("what's the Whitefield branch number?", "can I call the clinic
+# directly?"). The lines are never read out (owner, A7, 27 Oct): Emma arranges a call back instead.
+_PLACE = r"(?:clinic|branch|office|reception|centre|center|front desk)"
+BRANCH_PHONE_RE = re.compile(
+    rf"\b{_PLACE}(?:'s)?\s+(?:phone |contact |landline |direct |telephone )?(?:number|line)\b|"
+    rf"\b(?:phone|contact|landline|telephone|direct)\s+(?:number|line)\s+(?:of|for)\s+"
+    rf"(?:the |your |that |this )?(?:[a-z]+\s+)?{_PLACE}\b|"
+    r"\b(?:your|the clinic'?s?)\s+(?:phone|contact|landline|telephone)\s+number\b|"
+    rf"\bcall\s+(?:the|that|your)\s+(?:[a-z]+\s+)?{_PLACE}\s+directly\b")
+
 _BRANCH_WORD_RE = re.compile(r"\b([a-z]+)\s+(?:branch|clinic|centre|center|side|location)\b")
 _NOT_A_PLACE = {
     "your", "the", "which", "nearest", "closest", "main", "any", "other", "that", "this",

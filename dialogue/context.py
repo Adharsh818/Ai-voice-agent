@@ -59,6 +59,7 @@ class Act(str, Enum):
     NON_ANSWER = "non_answer"            # replied without answering ("I've been really busy")
     CORRECTION = "correction"            # fixing something already given
     WANTS_HUMAN = "wants_human"          # asks for a person / receptionist / doctor on the line
+    CALLBACK_REQUEST = "callback_request"  # asks to be called back, or for a branch's own phone number
     ROBOT_QUESTION = "robot_question"    # sincerely asks if Emma is a bot or a real person
     REPEAT = "repeat"                    # "sorry?", "come again", "say that again"
     WAIT = "wait"                        # "hold on", "one second"

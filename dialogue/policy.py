@@ -121,8 +121,8 @@ _CLOSE_ON_EXIT = frozenset({
 
 # Acts that mean the caller did something other than ignore the question.
 _NOT_A_MISS = (
-    Act.QUESTION, Act.CAPABILITY, Act.CHITCHAT, Act.CORRECTION, Act.WANTS_HUMAN, Act.ROBOT_QUESTION,
-    Act.REPEAT, Act.WAIT, Act.END, Act.ABUSE, Act.OTHER_LANGUAGE, Act.DONT_KEEP, Act.FRAGMENT,
+    Act.QUESTION, Act.CAPABILITY, Act.CHITCHAT, Act.CORRECTION, Act.WANTS_HUMAN, Act.CALLBACK_REQUEST,
+    Act.ROBOT_QUESTION, Act.REPEAT, Act.WAIT, Act.END, Act.ABUSE, Act.OTHER_LANGUAGE, Act.DONT_KEEP, Act.FRAGMENT,
 )
 # Understanding attributes a goal's answer arrives in. Details outside this
 # set mean the caller volunteered something else: progress, not a miss.
