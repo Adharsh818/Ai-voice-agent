@@ -350,7 +350,8 @@ NON_NAME_WORDS = {
     "nice", "great", "bad", "better", "damn",
 }
 # Titles said before a name ("this is Mr Sharma"): dropped, the name kept.
-_TITLES = re.compile(r"^(?:mr|mrs|ms|miss|shri|sri|smt|master)\.?\s+")
+# "Mister Viha" said in full (website call, 26 Oct: "Okay, Mister.").
+_TITLES = re.compile(r"^(?:mr|mrs|ms|miss|mister|missus|misses|madam|shri|sri|smt|master)\.?\s+")
 # "I'm talking", "I'm asking": what the caller is doing. A list, not every "-ing" word:
 # Fleming, Manning and Harding are surnames.
 _GERUNDS = {
@@ -394,6 +395,7 @@ def clean_name(text: str) -> Optional[str]:
         return None
     if any(re.sub(r"'(?:s|re|ll|ve|d|m)$", "", w) in NON_NAME_WORDS for w in words if "'" in w):
         return None                         # "Oh, there's..." (owner's call, 26 Oct: "Okay, There'S")
+    words = [re.sub(r"'s$", "", w) if len(w) > 4 else w for w in words]   # "Viha's" heard for "Viha"
     if any(w in _GERUNDS for w in words):
         return None                         # "I'm talking", "I'm asking": doing, not a name
     if all(len(w) == 1 for w in words):

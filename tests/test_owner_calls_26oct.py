@@ -256,6 +256,7 @@ class EveningCallTests(OwnerCall26Case):
         self.assertIsNone(match.clean_name("Oh, there's"))
         self.assertEqual(match.clean_name("d'souza"), "D'Souza")
         self.assertEqual(match.clean_name("mary-anne"), "Mary-Anne")
+        self.assertEqual(match.clean_name("Mister Viha's"), "Viha")       # website call, 26 Oct: "Okay, Mister."
 
     def test_garbled_words_while_collecting_get_the_question_not_not_sure(self):
         call, _ = self.call("I I want to book a appointment.", "Play others.", "Others.")
