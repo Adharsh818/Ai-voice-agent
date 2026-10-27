@@ -126,11 +126,11 @@
           <div class="chat fit" id="live-chat">
             <div class="call-switcher" id="live-calls"><div class="call-switcher-in"></div></div>
             <div class="transcript" id="live-transcript" data-under="text" aria-live="polite"></div>
-            <div class="chat-empty" id="live-empty">
+            <div class="chat-empty e-card" id="live-empty">
               <span class="pearl big" aria-hidden="true"></span>
               <p class="t-section">No call right now</p>
               <p class="t-small ink-2">When someone calls, the conversation appears here as it happens.
-                Try one from the <a href="/" target="_blank" rel="noopener">talk page</a>.</p>
+                Try one from the <a class="stretch" href="/" target="_blank" rel="noopener">talk page</a>.</p>
             </div>
             <button class="jump glass-pill" id="live-jump" type="button" hidden>Jump to latest</button>
             <div class="compose-dock" id="compose-dock">
@@ -143,7 +143,7 @@
           </div>
 
           <aside class="inspector">
-            <div class="inspector-card">
+            <div class="inspector-card e-card still">
               <div class="inspector-head">
                 <span class="t-section">This call</span>
                 <span class="state-pill" id="live-state">Idle</span>
@@ -163,7 +163,7 @@
                 <button class="btn-pill block danger-text" type="button" id="op-end">End call…</button>
               </div>
             </div>
-            <div class="inspector-card disclosure" id="live-timings">
+            <div class="inspector-card e-card still disclosure" id="live-timings">
               <button class="e-acc-head" type="button" aria-expanded="false" aria-controls="live-timings-tray">
                 <span class="acc-label"><span class="t-body">Response times</span></span></button>
               <div class="e-acc-tray" id="live-timings-tray"><div>

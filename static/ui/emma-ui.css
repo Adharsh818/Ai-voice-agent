@@ -364,15 +364,20 @@ a:hover { text-decoration: underline; }
 }
 
 /* The Apple Store shelf card (apple.com/store "The latest.", measured 27 Oct): a white card on the
-   #f5f5f7 page that lifts 1% under the mouse while its shadow deepens; it grows from its centre and
-   its picture stays put. Only for a card that is one link: the lift says "this opens". Touch
-   screens get no lift (apple.com turns it off there too). */
+   #f5f5f7 page. Under the mouse Apple's card grows 1% from its centre (frame by frame in the
+   owner's recording: top edge up 6 px, bottom down 6 px, about 0.35 s) while its shadow deepens.
+   The owner asked for it to feel clearly rising, so it also lifts 4 px off the page and its
+   shadow falls further and softer below it, the way a raised card catches light from above.
+   Pressing settles it back (feedback on the press, not on release). Only for something you can
+   click: the rise says "this opens". Touch screens get no rise (apple.com turns it off there too). */
 :root {
   --card-r: 18px;
-  --card-shadow: 2px 4px 12px rgba(0, 0, 0, 0.08);
-  --card-shadow-lift: 2px 4px 16px rgba(0, 0, 0, 0.16);
-  --card-lift: scale3d(1.01, 1.01, 1.01);
-  --card-ease: 300ms cubic-bezier(0, 0, 0.5, 1);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 2px 4px 12px rgba(0, 0, 0, 0.08);
+  --card-shadow-lift: 0 2px 4px rgba(0, 0, 0, 0.04), 2px 6px 16px rgba(0, 0, 0, 0.1), 2px 18px 36px rgba(0, 0, 0, 0.12);
+  --card-shadow-press: 0 1px 2px rgba(0, 0, 0, 0.05), 2px 3px 10px rgba(0, 0, 0, 0.09);
+  --card-lift: translate3d(0, -4px, 0) scale3d(1.01, 1.01, 1);
+  --card-press: translate3d(0, -1px, 0) scale3d(0.995, 0.995, 1);
+  --card-ease: 350ms cubic-bezier(0, 0, 0.5, 1);
 }
 .e-card {
   position: relative;
@@ -384,15 +389,21 @@ a:hover { text-decoration: underline; }
 }
 @media (hover: hover) and (pointer: fine) {
   .e-card:hover { transform: var(--card-lift); box-shadow: var(--card-shadow-lift); }
+  .e-card:active { transform: var(--card-press); box-shadow: var(--card-shadow-press); transition-duration: 120ms; }
 }
 .e-card:focus-visible, .e-card:has(:focus-visible) {
   outline: none;
   transform: var(--card-lift);
   box-shadow: var(--card-shadow-lift), var(--focus-ring);
 }
+/* A card that rests still (it holds its own controls): the look without the rise. */
+.e-card.still:hover, .e-card.still:active, .e-card.still:has(:focus-visible) {
+  transform: none;
+  box-shadow: var(--card-shadow);
+}
 @media (prefers-reduced-motion: reduce) {
   .e-card { transition: box-shadow 200ms linear; }
-  .e-card:hover, .e-card:focus-visible, .e-card:has(:focus-visible) { transform: none; }
+  .e-card:hover, .e-card:active, .e-card:focus-visible, .e-card:has(:focus-visible) { transform: none; }
 }
 @media (prefers-contrast: more) {
   .e-card { box-shadow: 0 0 0 1px var(--ink-3); }
