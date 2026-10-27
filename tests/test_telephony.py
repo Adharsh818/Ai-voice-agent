@@ -262,6 +262,49 @@ class KeypadTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await wait_until(lambda: session.texts == ["123"], 1))
 
 
+class SilenceFillTests(unittest.IsolatedAsyncioTestCase):
+    """The phone sends nothing while the caller is quiet; the recogniser must still hear silence (25 Oct)."""
+
+    async def test_gaps_are_filled_with_silence_and_real_audio_stops_the_filling(self):
+        class Listening(_Session):
+            def __init__(self):
+                super().__init__()
+                self.audio = []
+
+            async def on_audio(self, pcm):
+                self.audio.append(pcm)
+
+        session = Listening()
+        reader = asyncio.StreamReader()
+        call = PhoneCall(reader, PhoneTransport(_Writer(), "t", "k"))
+        task = asyncio.create_task(call.run(session))
+        reader.feed_data(frame(KIND_SLIN, tone(20, 300, rate=8000)))      # one real frame, then the phone goes quiet
+        await asyncio.sleep(0.3)
+        silent = [a for a in session.audio if not any(a)]
+        self.assertGreaterEqual(len(silent), 5)                           # ~0.24 s of gap -> about 12 frames
+        self.assertTrue(all(len(a) == audiosocket.SILENCE_FRAME_BYTES for a in silent))
+        before = call.silence_filled
+        for _ in range(5):                                                # the caller talks again: real frames only
+            reader.feed_data(frame(KIND_SLIN, tone(20, 300, rate=8000)))
+            await asyncio.sleep(0.02)
+        self.assertLessEqual(call.silence_filled - before, 1)
+        reader.feed_data(frame(KIND_HANGUP))
+        await asyncio.wait_for(task, 2)
+
+    async def test_off_switch(self):
+        session = _Session()
+        session.on_audio = lambda pcm: asyncio.sleep(0)
+        reader = asyncio.StreamReader()
+        call = PhoneCall(reader, PhoneTransport(_Writer(), "t", "k"))
+        with patched(config, PHONE_FILL_SILENCE=False):
+            task = asyncio.create_task(call.run(session))
+            reader.feed_data(frame(KIND_SLIN, tone(20, 300, rate=8000)))
+            await asyncio.sleep(0.2)
+            reader.feed_data(frame(KIND_HANGUP))
+            await asyncio.wait_for(task, 2)
+        self.assertEqual(call.silence_filled, 0)
+
+
 class SimulatedAsterisk:
     """The Asterisk side of one AudioSocket call: UUID, 8 kHz audio, keys, hang-up."""
 

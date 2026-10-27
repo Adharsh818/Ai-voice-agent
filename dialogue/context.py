@@ -59,6 +59,7 @@ class Act(str, Enum):
     NON_ANSWER = "non_answer"            # replied without answering ("I've been really busy")
     CORRECTION = "correction"            # fixing something already given
     WANTS_HUMAN = "wants_human"          # asks for a person / receptionist / doctor on the line
+    CALLBACK_REQUEST = "callback_request"  # asks to be called back, or for a branch's own phone number
     ROBOT_QUESTION = "robot_question"    # sincerely asks if Emma is a bot or a real person
     REPEAT = "repeat"                    # "sorry?", "come again", "say that again"
     WAIT = "wait"                        # "hold on", "one second"
@@ -125,7 +126,6 @@ class Goal(str, Enum):
     BOOKED = "booked"                          # committed; confirmation + "anything else?"
     DROPPED = "dropped"                        # caller said cancel / don't book at the summary
     # MANAGE
-    ASK_APPT_DATE = "ask_appt_date"            # verification: the date of the appointment
     VERIFY_FAILED = "verify_failed"            # nothing matched; reveal nothing, ask which detail to check
     PICK_APPOINTMENT = "pick_appointment"      # several verified matches
     STATE_APPOINTMENT = "state_appointment"    # CHECK: the verified appointment
@@ -217,8 +217,7 @@ GOAL_SPECS: dict[Goal, GoalSpec] = {
     Goal.WHAT_TO_CHANGE: _spec(Expect.OPEN, False, Intent.BOOK),
     Goal.BOOKED: _spec(Expect.YES_NO, True, Intent.BOOK),
     Goal.DROPPED: _spec(Expect.YES_NO, True, Intent.BOOK),
-    Goal.ASK_APPT_DATE: _spec(Expect.DATE, False, *MANAGE_INTENTS),
-    Goal.VERIFY_FAILED: _spec(Expect.OPEN, True, *MANAGE_INTENTS),
+    Goal.VERIFY_FAILED: _spec(Expect.NAME, True, *MANAGE_INTENTS),   # "Could it be under another name?"
     Goal.PICK_APPOINTMENT: _spec(Expect.CHOICE, True, *MANAGE_INTENTS),
     Goal.STATE_APPOINTMENT: _spec(Expect.YES_NO, True, Intent.CHECK),
     Goal.CONFIRM_CANCEL: _spec(Expect.YES_NO, True, Intent.CANCEL),
@@ -269,6 +268,7 @@ class Understanding:
     service_phrase: Optional[str] = None           # the words used ("route canal", "whitening")
     branch: Optional[str] = None                   # canonical branch name (schema enum)
     branch_any: bool = False                       # "whichever is earliest / closest"
+    branch_guess: bool = False                     # `branch` is a guess at a mis-heard name: asked, not taken
     doctor: Optional[str] = None                   # a catalog doctor's spoken name ("Dr Rao")
     doctor_phrase: Optional[str] = None            # a doctor named but not in the catalog ("Dr Sharma")
     doctor_gender: Optional[str] = None            # "female" | "male"
@@ -343,6 +343,7 @@ class Caller:
     phone_buffer: str = ""                             # digits accumulated across turns
     phone_landline: bool = False                       # said as "080 2345 6789": read back as a landline
     phone_misses: int = 0                             # read-backs rejected
+    phone_overflow: bool = False                       # this turn's digits made too many: ask once more
     # "caller_id": phone_e164 came from the phone network, so it's confirmed by asking
     # "Is the number you're calling from the best one?" rather than read back;
     # "declined": the caller said no to that question (not a mishearing).
@@ -404,10 +405,12 @@ class VerifiedAppointment:
 
 @dataclass
 class ManageDraft:
-    """The MANAGE checklist: verify (phone + name + date), then check, cancel or reschedule."""
+    """The MANAGE checklist: verify (phone + name; a date, branch or treatment only narrows), then check, cancel or reschedule."""
     action: Optional[Intent] = None                    # RESCHEDULE | CANCEL | CHECK
     patient_name: Optional[str] = None                 # the name the appointment is under
     appt_date: Optional[DateConstraint] = None
+    appt_branch: Optional[str] = None                  # "my cleaning at Indiranagar": narrows several bookings
+    appt_service: Optional[str] = None
     booked_start: Optional[datetime] = None            # the appointment booked earlier on this call
     verify_attempts: int = 0
     verified: bool = False

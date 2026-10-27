@@ -29,7 +29,9 @@ def to_e164(text: str) -> Optional[str]:
     if len(digits) == 11 and digits.startswith("0"):
         rest = digits[1:]
         return "+91" + rest if rest[0] != "0" else None
-    if len(digits) == 10 and digits[0] in "6789":
+    if len(digits) == 10 and digits[0] != "0":
+        # Exactly 10 digits is a number (owner, 25 Oct): a mobile, or a landline said without its 0.
+        # A misheard first digit ("2" for "9") is caught by the read-back, not by refusing it.
         return "+91" + digits
     return None
 
@@ -72,6 +74,8 @@ def spoken(e164: str, landline: bool = False) -> str:
     digits = national(e164)
     if landline and len(digits) == 10 and (e164 or "").startswith("+91"):
         digits = "0" + digits
+    elif not landline and len(digits) == 11 and digits.startswith("0") and (e164 or "").startswith("+91"):
+        digits = digits[1:]                   # said as 10 digits: read back as said, no 0 added
     if len(digits) == 10:
         groups = [digits[:5], digits[5:]]
     elif len(digits) == 11 and digits.startswith("0"):

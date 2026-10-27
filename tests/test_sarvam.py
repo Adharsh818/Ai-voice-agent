@@ -126,3 +126,52 @@ class StreamTurnTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NvidiaTests(unittest.TestCase):
+    """NVIDIA's hosted models as the turn's first model (llm.NvidiaNLU; NLU_PRIMARY=nvidia, 25 Oct)."""
+
+    def test_bearer_key_no_sarvam_only_fields(self):
+        seen = {}
+
+        def handler(request):
+            seen["body"] = json.loads(request.content)
+            seen["auth"] = request.headers.get("authorization")
+            seen["sarvam_key"] = request.headers.get("api-subscription-key")
+            return httpx.Response(200, content=sse('{"intent":', '"book"}'))
+
+        client = llm.NvidiaNLU(key="nv-test", model="minimaxai/minimax-m3.1-flash", url="https://nvidia.test/v1/chat")
+        client._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        text = asyncio.run(collect(client.generate_json_stream(
+            "caller words", "system", schema=nlu.build_schema(), deadline=time.monotonic() + 5)))
+        self.assertEqual(json.loads(text), {"intent": "book"})
+        self.assertEqual(seen["auth"], "Bearer nv-test")
+        self.assertIsNone(seen["sarvam_key"])
+        self.assertNotIn("reasoning_effort", seen["body"])
+        self.assertEqual(seen["body"]["model"], "minimaxai/minimax-m3.1-flash")
+
+    def test_nvidia_first_when_it_is_the_primary_and_gemini_retries(self):
+        gemini, nvidia = FakeModel(['{"a":1}']), FakeModel([])
+        with mock.patch.object(llm, "get_nlu", lambda: gemini), mock.patch.object(llm, "get_nvidia", lambda: nvidia), \
+                mock.patch.object(config, "NLU_PRIMARY", "nvidia"), mock.patch.object(config, "NLU_BACKUP", ""):
+            text = asyncio.run(collect(llm.stream_turn("c", "s", deadline=time.monotonic() + 5)))
+        self.assertEqual(text, '{"a":1}')                             # NVIDIA gave nothing: Gemini's answer
+        self.assertEqual(nvidia.calls, [False])
+
+
+class CerebrasTests(unittest.TestCase):
+    def test_bearer_key_and_low_reasoning_for_gpt_oss(self):
+        seen = {}
+
+        def handler(request):
+            seen["body"] = json.loads(request.content)
+            seen["auth"] = request.headers.get("authorization")
+            return httpx.Response(200, content=sse('{"intent":"book"}'))
+
+        client = llm.CerebrasNLU(key="cb-test", model="gpt-oss-120b", url="https://cerebras.test/v1/chat")
+        client._client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        text = asyncio.run(collect(client.generate_json_stream("c", "s", schema=nlu.build_schema(),
+                                                               deadline=time.monotonic() + 5)))
+        self.assertEqual(json.loads(text), {"intent": "book"})
+        self.assertEqual(seen["auth"], "Bearer cb-test")
+        self.assertEqual(seen["body"]["reasoning_effort"], "low")

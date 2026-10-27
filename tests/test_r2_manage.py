@@ -1,6 +1,6 @@
 """
 MANAGE workflow (dialogue/manage.py) on the real DEMO catalog: verification
-(phone + name + appointment date, nothing revealed before it passes), check,
+(phone + name since 25 Oct, nothing revealed before it passes), check,
 cancel and reschedule, and the race codes scheduling can return at commit.
 
 Calls are driven turn by turn on a hand-built CallContext inside
@@ -103,11 +103,11 @@ class Call:
     def said(self) -> str:
         return " ".join(self.notices + [self.text])
 
-    def verified(self, date_phrase="Monday"):
-        """Phone confirmed, name known: give the appointment's date."""
-        self.turn()
-        assert self.goal == Goal.ASK_APPT_DATE, self.goal
-        return self.turn(U(appt_date_phrase=date_phrase, raw_text=date_phrase))
+    def verified(self, date_phrase=None):
+        """Phone confirmed, name known: the lookup runs (owner, 25 Oct); a date only narrows several bookings."""
+        if date_phrase:
+            return self.turn(U(appt_date_phrase=date_phrase, raw_text=date_phrase))
+        return self.turn()
 
 
 def status(clinic, appointment_id: str) -> dict:
@@ -116,15 +116,14 @@ def status(clinic, appointment_id: str) -> dict:
 
 class Verification(unittest.TestCase):
 
-    def test_phone_then_name_then_date(self):
+    def test_phone_then_name_then_the_read_back(self):
         with DemoClinic(now=NOW, appointments=True) as clinic:
             appt = book_appointment(clinic)
             call = Call(clinic, Intent.CANCEL)
             self.assertEqual(call.turn().goal, Goal.ASK_PHONE)
             call.given(name=None)
             self.assertEqual(call.turn().goal, Goal.ASK_NAME)
-            self.assertEqual(call.turn(U(name="Priya", raw_text="Priya")).goal, Goal.ASK_APPT_DATE)
-            call.turn(U(appt_date_phrase="Monday", raw_text="it's on Monday"))
+            call.turn(U(name="Priya", raw_text="Priya"))
             self.assertTrue(call.ctx.manage.verified)
             self.assertEqual(call.ctx.manage.target.appointment_id, appt["id"])
             self.assertEqual(call.goal, Goal.CONFIRM_CANCEL)
@@ -133,7 +132,7 @@ class Verification(unittest.TestCase):
         with DemoClinic(now=NOW, appointments=True) as clinic:
             book_appointment(clinic)
             call = Call(clinic, Intent.CHECK).given(name="Priya")
-            self.assertEqual(call.turn().goal, Goal.ASK_APPT_DATE)
+            self.assertEqual(call.turn().goal, Goal.STATE_APPOINTMENT)    # number + name: read it back
 
     def test_first_name_and_stt_spelling_match(self):
         with DemoClinic(now=NOW, appointments=True) as clinic:
@@ -175,17 +174,17 @@ class Verification(unittest.TestCase):
             call = Call(clinic, Intent.CANCEL).given(name="Rahul")
             call.verified("Monday")
             self.assertEqual(call.goal, Goal.VERIFY_FAILED)
-            self.assertEqual(call.plan.line, "verify.failed")
+            self.assertEqual(call.plan.line, "verify.failed")      # "...under someone else's name?"
             self._assert_reveals_nothing(call, appt)
 
-    def test_wrong_date_reveals_nothing(self):
+    def test_a_misremembered_date_still_finds_it_by_number_and_name(self):
+        # Owner, 25 Oct: the number and the name verify; a wrong day only fails to narrow.
         with DemoClinic(now=NOW, appointments=True) as clinic:
             appt = book_appointment(clinic)
             call = Call(clinic, Intent.RESCHEDULE).given(name="Priya")
             call.verified("Tuesday")
-            self.assertEqual(call.goal, Goal.VERIFY_FAILED)
-            self._assert_reveals_nothing(call, appt)
-            self.assertEqual(call.result.notices, [])
+            self.assertTrue(call.ctx.manage.verified)
+            self.assertEqual(call.ctx.manage.target.appointment_id, appt["id"])
             self.assertIsNone(call.result.action)
 
     def test_failed_wording_is_the_same_with_or_without_appointments(self):

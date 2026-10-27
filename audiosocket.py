@@ -66,6 +66,11 @@ VOICE_FRAME_BYTES = phone_audio.FRAME * 2          # 20 ms at 16 kHz
 PREBUFFER_BYTES = int(config.PHONE_PREBUFFER_MS / 1000 * phone_audio.RATE) * 2
 REBUFFER_BYTES = int(config.PHONE_REBUFFER_MS / 1000 * phone_audio.RATE) * 2
 LATE_RESET_S = 0.1                                  # the clock fell this far behind: don't burst to catch up
+# The caller's silent gaps (a softphone sends nothing while they're quiet) are fed to the recogniser
+# as 20 ms silence frames once nothing has come for this long (config.PHONE_FILL_SILENCE).
+GAP_FILL_AFTER_S = 0.06
+SILENCE_FRAME_S = FRAME_S
+SILENCE_FRAME_BYTES = VOICE_FRAME_BYTES                 # 16 kHz, what session.on_audio takes
 HANGUP_TAIL_S = 0.3                                 # let the last syllable reach the caller before hanging up
 MIRRORED_EVENTS = {"caption", "state", "turn", "metrics", "error", "bye"}
 
@@ -361,6 +366,8 @@ class PhoneCall:
         self.frames_in = 0
         self.gaps_in = 0                         # caller audio that arrived over 60 ms after the previous frame
         self.max_gap_ms = 0.0
+        self._last_in: Optional[float] = None    # loop time of the caller's last audio frame
+        self.silence_filled = 0                  # 20 ms silence frames fed in the phone's gaps
 
     async def run(self, session):
         try:
@@ -368,16 +375,45 @@ class PhoneCall:
         finally:
             # Where a breaking-up line comes from (phone check, 12 Oct): Emma's clock or the network.
             logger.info("[%s] line timing: sent %d frames, %d late (worst %.0f ms); received %d, %d gaps "
-                        "(worst %.0f ms)", self.t.call_id, self.t.frames_sent, self.t.late_frames,
-                        self.t.max_late_ms, self.frames_in, self.gaps_in, self.max_gap_ms)
+                        "(worst %.0f ms), %d silence frames filled in", self.t.call_id, self.t.frames_sent,
+                        self.t.late_frames, self.t.max_late_ms, self.frames_in, self.gaps_in, self.max_gap_ms,
+                        self.silence_filled)
 
     async def _run(self, session, loop):
         last = None
+        filler = asyncio.create_task(self._fill_silence(session, loop)) if config.PHONE_FILL_SILENCE else None
+        try:
+            await self._read_loop(session, loop, last)
+        finally:
+            if filler is not None:
+                filler.cancel()
+
+    async def _fill_silence(self, session, loop):
+        """
+        Softphones stop sending audio while the caller is quiet (Linphone, 25 Oct: a third to two
+        thirds of the frames never came). Deepgram then hears no silence and can't end the turn,
+        so a reply took 2.5-4.5 s. While no frame has come for GAP_FILL_AFTER_S, Emma feeds the
+        recogniser silence at the line's own pace, as a real line would carry it.
+        """
+        silence = b"\x00" * SILENCE_FRAME_BYTES
+        try:
+            while not session.closed:
+                await asyncio.sleep(SILENCE_FRAME_S)
+                if self._last_in is not None and loop.time() - self._last_in > GAP_FILL_AFTER_S:
+                    self.silence_filled += 1
+                    await session.on_audio(silence)
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:                 # noqa: BLE001 - filling is a help, never a reason to drop the call
+            logger.debug("[%s] silence filler stopped: %s", self.t.call_id, exc)
+
+    async def _read_loop(self, session, loop, last):
         while not session.closed:
             kind, payload = await read_frame(self.reader)
             now = loop.time()
             if kind in (KIND_SLIN, KIND_SLIN16):
                 self.frames_in += 1
+                self._last_in = now
                 if last is not None and (now - last) * 1000 > 60:
                     self.gaps_in += 1
                     self.max_gap_ms = max(self.max_gap_ms, (now - last) * 1000)

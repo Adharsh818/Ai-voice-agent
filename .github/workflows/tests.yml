@@ -1,0 +1,32 @@
+# The full test suite and the 53 scenarios (offline and with the model down) on every push
+# and pull request. No API keys: nothing here touches Gemini, Deepgram or ElevenLabs.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            constraints.txt
+      - name: Install
+        run: pip install -c constraints.txt -r requirements.txt
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+      - name: Scenarios (offline and model down)
+        run: |
+          for mode in --offline --nlu-down; do
+            python -m harness run scenarios --engine r2 "$mode" --quiet | tee out.txt
+            # Every scenario must pass, not only the safety checks the exit code covers.
+            grep -qE '^  scenarios: pass [0-9]+$' out.txt || { echo "::error::a scenario did not pass ($mode)"; exit 1; }
+          done

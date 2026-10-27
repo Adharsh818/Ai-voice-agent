@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 _meter: ContextVar[Optional[dict]] = ContextVar("call_usage", default=None)
 
 KINDS = ("gemini_requests", "gemini_in_tokens", "gemini_out_tokens", "tts_chars",
-         "sarvam_requests", "sarvam_in_tokens", "sarvam_out_tokens", "sarvam_tts_chars")
+         "sarvam_requests", "sarvam_in_tokens", "sarvam_out_tokens", "sarvam_tts_chars",
+         "nvidia_requests", "nvidia_in_tokens", "nvidia_out_tokens",      # NVIDIA and Cerebras: free tiers,
+         "cerebras_requests", "cerebras_in_tokens", "cerebras_out_tokens")  # counted only
 
 
 def begin(call_id: str) -> dict:

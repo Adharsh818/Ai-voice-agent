@@ -648,6 +648,36 @@ def _keyword_answer(t: str, kb: Knowledge, catalog: Catalog) -> Optional[str]:
     return top[0].text
 
 
+_QUESTION_FILLER = frozenset("""
+    a an the is are was were do does did can could would will should shall i you we my your our it its of to for
+    in on at and or what whats what's how when where which who whom why there here any some this that be have has
+    please tell me about much many get go come just also clinic dental pearl branch branches
+""".split())
+
+
+def confident(text: str, kb: Knowledge, catalog: Catalog) -> bool:
+    """
+    True when lookup() answers `text` without guessing, so Tier-0 may say it with no model:
+    a price question, a catalog question (hours, branches, doctors), or one fact whose
+    keywords and text cover every meaningful word asked ("What should I bring for my first
+    visit?" is not the first-visit duration fact: "bring" isn't in it; sim, 25 Oct).
+    """
+    t = _norm(text)
+    if not t.strip() or lookup(text, kb, catalog) is None:
+        return False
+    if _PRICE_CUE.search(t) or _catalog_answer(t, catalog, kb):
+        return True
+    scored = _scored_facts(t, kb)
+    best = max((s for s, _, _ in scored), default=0)
+    top = [(f, m) for s, f, m in scored if s == best]
+    if len(top) != 1:
+        return False
+    fact, matched = top[0]
+    covered = _norm(fact.text + " " + " ".join(fact.keywords))
+    words = [w for w in re.findall(r"[a-z]+", t) if w not in _QUESTION_FILLER and len(w) > 2]
+    return all(w in covered or w.rstrip("s") in covered for w in words)
+
+
 def lookup(text: str, kb: Knowledge, catalog: Catalog, faq_ids: tuple = ()) -> Optional[str]:
     """
     A verified answer without the model (Gemini down, or the model's answer

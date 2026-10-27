@@ -108,7 +108,8 @@ KEYS (omit an optional key when it has no value):
 - acts: what the turn did, one or more of: answer (answered what Emma asked), info (volunteered \
 details not asked for yet), question, capability ("how can you help", "what do you do", "who are \
 you"), chitchat, non_answer (replied without answering, e.g. "I've been really busy"), correction, \
-wants_human, robot_question (sincerely asks if Emma is a bot), repeat ("sorry?"), wait ("hold \
+wants_human, callback_request (asks to be called back, or for a branch's phone number), \
+robot_question (sincerely asks if Emma is a bot), repeat ("sorry?"), wait ("hold \
 on"), end ("that's all", "bye"), abuse, other_language, dont_keep (asks not to be recorded), \
 fragment (cut off mid-sentence), backchannel ("mm-hmm"), unclear.
 - intent: none (nothing new expressed), book, reschedule, cancel, check (when is my appointment), \
@@ -126,7 +127,7 @@ branch_any: "whichever is closest / earliest". doctor_gender: "lady doctor" is f
 - date_phrase, time_phrase: the caller's own words for when ("next Monday", "evening", "around \
 6"). date_iso_hint: YYYY-MM-DD only if you're sure. Time alone is never a date.
 - choice_index: which of the ON OFFER options they picked (1-based). reject_options: none of them work.
-- appt_date_phrase: the date of an EXISTING appointment, said for verification. cancel_reason.
+- appt_date_phrase: the date of an EXISTING appointment, if they say it (never ask for it: the number and the name find it). cancel_reason.
 - question: the caller's question in a few words. faq_ids: KNOWLEDGE fact ids that answer it. \
 clinical: see rule 4. wants_callback: their answer to a call-back offer.
 - next_goal: the goal your ask pursues. Normally GOAL; capability, answer_only or offer_help when \
@@ -431,8 +432,7 @@ def state_summary(ctx: CallContext) -> str:
                 known.append(f"reason: {m.cancel_reason}")
         else:
             # Z7: nothing about any appointment exists for the model before verification.
-            gave_date = "given" if m.appt_date is not None else "not given yet"
-            known.append(f"not verified yet (appointment date {gave_date}); you know nothing about "
+            known.append("not verified yet (Python checks the number and the name); you know nothing about "
                          "their appointments, so never mention a date, time or doctor for one")
             if m.verify_attempts:
                 known.append(f"verification attempts {m.verify_attempts}")
@@ -549,8 +549,6 @@ def _plain_missing(ctx: CallContext) -> list:
             out.append(Goal.CONFIRM_PHONE if c.phone_state == FieldState.PENDING else Goal.ASK_PHONE)
         if not m.patient_name and not c.name:
             out.append(Goal.ASK_NAME)
-        if m.appt_date is None and not m.verified:
-            out.append(Goal.ASK_APPT_DATE)
         if ctx.intent == Intent.RESCHEDULE and m.new_date_c is None:
             out.append(Goal.ASK_NEW_WHEN)
     return out

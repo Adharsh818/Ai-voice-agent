@@ -218,3 +218,19 @@ class NumbersInTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AvailabilityV10Tests(unittest.TestCase):
+    """What's free or taken is Python's alone (25 Oct: "we don't have any slots at 10", never checked)."""
+
+    def test_model_availability_claims_are_dropped(self):
+        for sentence in ("I'm sorry, we don't have any slots at 10 in the morning this Saturday.",
+                         "10 isn't available.", "That time's already taken.", "Saturday is fully booked.",
+                         "9 is free."):
+            verdict = check_sentence(sentence, allowed(numbers=frozenset({"10", "9"})), part="say")
+            self.assertFalse(verdict.ok, sentence)
+            self.assertEqual(verdict.rule, "V10")
+
+    def test_other_talk_about_bookings_stays(self):
+        for sentence in ("Saturday slots get booked up quickly.", "Sure, let me look for you."):
+            self.assertTrue(check_sentence(sentence, allowed(), part="say").ok, sentence)

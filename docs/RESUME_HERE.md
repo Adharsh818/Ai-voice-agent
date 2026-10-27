@@ -1,8 +1,158 @@
-# Resume here (updated 23 Oct 2026)
+# Resume here (updated 27 Oct 2026)
 
 When the owner says **"continue your work"**, start from this file. The full plan is [FINISH_PLAN.md](FINISH_PLAN.md); project history is in [HANDOFF.md](HANDOFF.md).
 
-## STATUS NOW (written 23 Oct): start here
+## Latest (27 Oct): Part A is finished; the PC, GitHub and the website all run 688173e
+
+- **What's left, and the future plans:** [WHATS_LEFT.md](WHATS_LEFT.md).
+- **A5, the demo video:** it's in `demo_video/` (HyperFrames). The MP4 is rendered on the PC and isn't in git.
+- **A7, owner sign-off:** prices, clinic facts and policies are approved. Branch numbers are never read out; Emma arranges a call back.
+- **A9, a fix:** "call me back about my bill" now works without the model (new act `callback_request`).
+- **The PC's Python:** `.venv` had lost its base Python. It now uses a Python 3.12 managed by uv, and 1132 tests pass.
+
+## Latest (26 Oct, ~16:45): 17763c0 on GitHub and the PC; the website is on 9922d67
+
+- **"Are you still there?"** now waits while the caller makes sound. It uses vad.py, not only Deepgram's words.
+- **Phone jitter buffer** raised to 500 ms. It's rendered in telephony/build; the owner runs the installer as root.
+- **The full finish list and the India / US product roadmap:** [PRODUCT_ROADMAP.md](PRODUCT_ROADMAP.md).
+
+## Earlier (26 Oct, ~16:15): 1890d68 pushed; the website is one commit behind
+
+- **Full live run** (real Gemini, 53 scenarios): 52 passed; the free quota refused 9 requests mid-run.
+- **The one failure was fixed:** "have someone call me back" during the callback number got "I can't set up a callback" from the model, and the callback was lost.
+- **Also fixed:** "Sunday at 10?" now keeps the 10; no "Sure," before bad news; no bare "10.".
+- **Checks:** 1121 tests (three runs), 53/53 scenarios both ways, sims seed 7 and 11 clean, GitHub green.
+- **Deploy pending:** the website runs f99f0ff. Deploying 1890d68 waits for the owner's OK (`bash tools/deploy_remote.sh`).
+
+**What's left to finish completely:**
+1. **The owner says go:** deploy 1890d68 to the website.
+2. **A website call (T4):** a phone or browser call on https://pearl-emma.duckdns.org, then `bash tools/call_report_remote.sh`.
+3. **"Are you still there?" after 8 s:** needs one recorded call where it happens.
+4. **The jitter buffer:** optional, now that 5 GHz helps. It needs the installer run as root and a test call.
+5. **Owner's checks:** the microphone on the talk page; Reject on a recovery call after 9 am.
+6. **The demo video:** the script is in `docs/DEMO_VIDEO.md`; the owner records it.
+7. **The deploy button:** add `EMMA_SSH_KEY` and `EMMA_KNOWN_HOSTS` as GitHub secrets.
+8. **Quotas to watch:**
+   - ElevenLabs: 10,000 characters a month, shared by the PC and the site.
+   - Gemini: the free daily quota resets about 12:30 IST.
+
+## Earlier (26 Oct, ~14:10): pushed and deployed
+
+**After the owner's good test call (a7e2b542, all by rules, booked first time):**
+- `main` on GitHub = f99f0ff; the tests run is green.
+- Deployed to https://pearl-emma.duckdns.org with `tools/deploy_remote.sh`. The server's health is ok: Gemini verified, ElevenLabs voice, cache 216/216, `TYPED_CALLS=false`.
+- The new ElevenLabs key is in `/opt/emma/.env` on the server. The PC and the site share its 10,000 characters a month.
+
+## Earlier (26 Oct, ~13:45): PC only, not pushed, not deployed
+
+**Afternoon commits (bd12605, 2129be6), on `integrate-25oct` = `A:\Voice-Agent`:**
+- **Second voice, round two:** the ElevenLabs credits ran out mid-call. New sentences came in Piper's voice, stored ones in ElevenLabs'.
+  - Now, once a call moves to the backup voice, every sentence uses it.
+  - The owner added a new ElevenLabs key: free plan, 10,000 characters a month.
+  - The **website still has the old, empty key**; the owner said not yet.
+- **Branches heard badly:**
+  - Outside the branch question, a sound-alike match ("Nagar file") is asked about ("Did you want to change the branch to Nagarbhavi?").
+  - A near-match at the branch question is said back ("Indiranagar, sure.").
+  - A branch from the model that the caller's words don't support is dropped (`nlu._branch_said`).
+- **Read-backs** in the summary and "you're booked" say the part of the day ("5 in the evening").
+- **The same time again after a no to another branch:** Emma says the branch can't do it and names the others.
+- **More by rules:**
+  - openers "with you" and "a meeting";
+  - "Pickup." for a check-up (at the service question only);
+  - "Tomorrow?" with a rising tone, and "Friday works for me";
+  - "I used this number";
+  - with the model down, a treatment in the opening line is a booking.
+- **Dr Sharma:** "We don't have a Dr Sharma" is said once. Before a branch is chosen, she names two doctors and "any of our other dentists".
+- **NLU log:** "missed its 2.2s deadline" at 0.8 s was the short head start the rules give when they already understood the turn. The log now says so; Gemini was not failing.
+- **Checks:** 1118 tests, 53/53 scenarios both ways, sims seed 7 and 11 (200 calls each) clean. The live Dr Sharma scenario passes. A full live run was skipped to save the day's Gemini quota.
+
+**Left, for Claude:**
+- "Are you still there?" after 8 s: twice in 80a7f0f8 right before the caller's reply. It needs a call recording to tell a pause from lost audio.
+- The jitter buffer: raise `JITTERBUFFER(adaptive)` so late packets aren't dropped. It needs the owner to run the installer as root and make a test call; the owner chose 5 GHz first, which helped.
+- A full `--live` scenario run on a day with quota to spare.
+
+**Left, for the owner:**
+- A test call on the PC (new key and today's fixes).
+- Then the new ElevenLabs key on the website, the push to GitHub and the deploy.
+- T4 calls on the website, the microphone check on the talk page, the demo-video script and the deploy-button secret.
+
+## Earlier (26 Oct, ~12:45): two voices fixed with Opus; still PC only
+
+- **Two voices: gone (owner, test call 80a7f0f8).** The owner's screen recording showed no echo and no second stream. Lost packets on the hotspot blended Emma's sentences ("Lovely, that's free. Just to check" reached the phone as "Luckily, that's just a check").
+- **The fix:** the phone line now allows **Opus first** (`telephony/asterisk/pjsip.conf`, `modules.conf`). Its in-band FEC rebuilds lost packets.
+  - Installed with `wsl -u root bash /mnt/a/Voice-Agent/telephony/install_asterisk.sh`. The owner has no sudo password; `-u root` needs none.
+  - Before/after: the caller's audio reaching Emma went from 54% to 76%; 7 of 12 turns now end on Deepgram's speech_final (was none); the call booked correctly first time.
+- **Bad-line checks (d22488d):**
+  - "8PM" after the caller asked for the morning gets "8 in the morning or the evening?"
+  - "AM." at the summary moves the time across noon.
+  - A misheard branch name nearest one branch counts as that branch ("Indiranjani").
+  - Everyday words ("Start", "Pizza") are asked again, not taken as names.
+  - "I want that eight" picks 8.
+  - When the branch question runs out, she says she'll look at every branch.
+- **Open:** in 80a7f0f8, "are you still there?" came twice after an 18–22 s wait. Unclear whether the caller paused or the start of the reply was lost.
+- **Gemini:** the free quota resets about 12:30 IST, and it's slow for a while after (two 2.2 s deadline misses).
+- **Test bookings to keep:** Peter (Jayanagar, 30 Oct, 9 am) and Thor/"Start" (6cb96ca2, 27 Oct, 8 pm, Nagarbhavi).
+
+## Earlier (26 Oct, ~00:15): on the PC only, not pushed, not deployed
+
+**Not on GitHub or the website (owner: "don't update the website until the changes are done"):** `main` on GitHub = 097c4d6. Local branch `integrate-25oct` (= `A:\Voice-Agent` HEAD) adds:
+- **Brain options:** NVIDIA (`NLU_PRIMARY=nvidia`, minimax-m3.1-flash) and Cerebras (`NLU_PRIMARY=cerebras`, gpt-oss-120b; waits for the owner's free key).
+  - Measured on the 53 live scenarios: NVIDIA was no faster than Gemini (2.15 s p50), and Gemma 4 via the Gemini key hit its quota.
+  - Sarvam ran out of credits. The PC and the site are on **Gemini**; the owner can't spend money.
+- **Phone silence filler:** softphones send nothing while the caller is quiet, and Emma now feeds Deepgram silence in those gaps.
+- **More rules:** "yes, cancel it", "change my appointment", old→new day, the service given at the name question, small talk, and time picks with lead-ins. Model turns fell to 10% of scenario turns and 17% of sim turns.
+- **A number is any 10 digits** (owner), read back as said.
+
+**Phone-call findings (25 Oct night):**
+- **Listening:** about 1 s typical on a clean MicroSIP call, 2.4–4.5 s over the phone hotspot, where only 27–45% of the caller's audio arrived.
+- **"Two people talking at once":** a recording of one test call (owner's OK; deleted after) showed Emma sent **one voice only**, and Asterisk had no second call. The second voice is added on the hotspot / phone side: loss concealment on a very lossy line.
+- **Next:** the owner tests on a proper Wi-Fi network, with Linphone's adaptive jitter on and opus first.
+- **Speaker echo:** on the PC speakers Emma hears her own voice. Use a headset.
+
+## STATUS NOW (written 25 Oct, evening)
+
+**Done after the owner's three test calls (25 Oct 17:19-17:25):**
+- **The owner's decisions (MCQ):**
+  - Cancel / move / check is verified by **the registered number and the patient's name**; the appointment is read back for a yes. A date, branch or treatment only narrows several bookings.
+  - **Open greetings** ("Pearl Dental, Emma speaking. How can I help?").
+  - **"Please come about 10 minutes early"** after a booking.
+- **Number flow:** "Yes, go on." at the first pause. At the second pause, or on "hello?" / "what should I say?", she reads back the digits she has and what's missing. One digit too many is said plainly. She waits 2.6 s mid-number.
+- **The receptionist review** (13 sources: dental front-desk scripts, turn-taking research):
+  - one acknowledgement per reply, first names only;
+  - "8 or 8:30 in the morning";
+  - no "Like I said";
+  - a kind close when no number was given;
+  - "Not right now, thanks" and "One second, I'm parking the car" are understood;
+  - a refused number gets the reason it's needed;
+  - the model may never say what's free or taken (validator V10);
+  - a one-word answer stops her mid-sentence;
+  - "tomorrow or the day after" covers both days.
+- **More replies by rules (owner: "most of it under tier 0"):**
+  - a booking with its day and time;
+  - clinic questions a verified fact answers (questions that point back with "it" / "that" still go to the model);
+  - a "Hi." / "Okay." said first;
+  - "X is my name";
+  - "Sorry. Actually," and "I'll take 9" at the summary.
+
+  Replaying the owner's three calls with the model off: 5 of 38 lines need the model, against about 22 before. Offline scenarios: 372 of 427 turns by rules (87%). Rule answers to clinic questions need a confident fact (`facts.confident`: every meaningful word of the question is in the fact).
+- **`TYPED_CALLS=false`** hides "Type instead" (set on the hosted site).
+- **Dead code removed:** the appointment-date question and two unused lines.
+
+**The running briefing is [LOCAL_CLAUDE_START.md](LOCAL_CLAUDE_START.md); its section 6 "Status, 25 Oct" is the latest.** In short:
+- **Code:** `main` (GitHub) holds everything: the 23 Oct cloud work, the Apple redesign (Liquid Glass, sign-in, dashboard, patient phone page) and the 22 Oct fixes. Checks before the push: 1068 tests, 53/53 scenarios both ways, all four sims on target; GitHub's run is green.
+- **Hosted site:** deployed 25 Oct. Its brain is **Gemma 4 via Sarvam** (Gemini as the retry), the same as the PC. It uses the PC's ElevenLabs key (they share one allowance until 12 Nov), and the cache is 219/219.
+- **PC:** `A:\Voice-Agent` is on `main`, and the Emma tab is running. Server backups are copied every 3 days by Task Scheduler ("Emma server backups").
+- **The PC `.env` still has two `SARVAM_API_KEY` lines** (the 23 Oct note below says they were removed; they weren't). The last one wins.
+
+**Left, needs the owner:**
+- **T4:** 2-3 test calls on the site, then `bash tools/call_report_remote.sh` to find why listening takes 1.1 s or more.
+- **Live checks:** a microphone call on the redesigned talk page; Reject on a recovery call after 9 am.
+- **O2:** the design-change list.
+- **Picks from "Future" below.** Ready to be started: the demo-video script (`docs/DEMO_VIDEO.md`), and the manual deploy button (`.github/workflows/deploy.yml`), which needs the owner to add the SSH key as a GitHub secret.
+
+## Earlier status (written 23 Oct)
+
+**A Claude on the owner's PC: read [LOCAL_CLAUDE_START.md](LOCAL_CLAUDE_START.md) first** (25 Oct). It has the full briefing and the task list (T1-T9).
 
 **Code:** `main` = `claude/optimistic-edison-kbglfn` (merged 23 Oct, owner's go-ahead), on top of the Liquid Glass redesign (91a4982). The PC Emma picks it up after `git pull` and a restart; the hosted site after `bash tools/deploy_remote.sh`.
 
@@ -10,6 +160,7 @@ When the owner says **"continue your work"**, start from this file. The full pla
 
 **Owner's decisions (23 Oct):**
 - **Dropped from the list (owner, 23 Oct):** the Wi-Fi router (O4), and deciding where Emma moves after the AWS Free plan ends (17 Apr 2027).
+- **Voice (later on 23 Oct):** the owner changed `ELEVENLABS_API_KEY` to a key with about 9,800 characters, so Rachel can speak live again. It must be set in both the PC `.env` and the server's `/opt/emma/.env`, followed by a restart. They share one allowance, so the PC Emma spends it too.
 - **Voice:** the default stays (ElevenLabs Rachel). When the free 10,000 characters run out before the 12 Nov reset, live sentences fall back to Piper until then. Cached sentences are unaffected.
 - **Redesign:** still ongoing (the owner's O2 design-change list is still to come).
 - **Real Indian number:** moved to the future (see "Future" below).
@@ -31,6 +182,22 @@ When the owner says **"continue your work"**, start from this file. The full pla
    - "Ok bye" after the greeting's question is a goodbye, not a yes.
 5. **docs/NOTIFICATIONS.md "Is it free?"**: WhatsApp and SMS costs (answer below).
 6. **HANDOFF START HERE** rewritten as the final "state at the end"; FINISH_PLAN Phase 7 ticked off except the two live calls.
+
+**Later on 23 Oct (owner's test calls on the updated hosted site: "it is switching between 2 voices"):**
+- **Cause:** the second voice is Piper, the backup. A call switches to Piper for every live sentence once ElevenLabs fails or answers with silence. Cached sentences stay Rachel, so the two alternate. There are two triggers:
+  - (a) the free ElevenLabs characters ran out. The 12 Nov reset or Starter ($5/month) fixes it; code can't.
+  - (b) one sentence answered with silence switched the whole call.
+- **Fix for (b)** (`speech.Speaker.play`): a silent sentence is tried again over ElevenLabs HTTP, in the same Rachel voice, before Piper. The call only moves to Piper when both paths are silent.
+- **Which one it was:** the owner runs `bash tools/call_report_remote.sh` on the PC. Its last part lists the server's ElevenLabs errors: "quota" means (a).
+- **Slow parts:** `tools/call_report.py` (same command) splits every reply's wait into its parts and names the slowest: hearing (Deepgram), Emma's hold, the model, the typing beat, the voice, and the line. It prints no caller words.
+
+**The owner's 3 hosted test calls (23 Oct 17:55-18:05), from `tools/call_report_remote.sh`:**
+- **Voice:** trigger (a). The server log shows ElevenLabs `quota_exceeded` ("0 credits remaining") from 17:53. Every live sentence went to Piper while cached ones stayed Rachel. No code can bring Rachel back before the 12 Nov reset; the owner chooses (Starter $5/month, wait, or one voice for the whole call). The PC Emma shares the key.
+- **Waits:** heard after a median of 2.18 s (90th percentile 3.68 s); 19 of 32 turns took 2 s or more.
+  - **Listening was the main cause** (Deepgram noticing the end of speech): median 1.12 s, 90th percentile 2.70 s, and the biggest part in 16 of the 19 slow turns. That's well above the 0.8-1.0 s measured on the PC on 6 Oct.
+  - **The model** caused 3 slow turns. Each stopped at 2.21 s (the server's `NLU_HEAD_DEADLINE_S` of 2.2), so Gemini, from Sydney on the free tier, didn't answer in time and Emma used her own line. The PC runs Gemma via Sarvam (0.72 s first words).
+  - **The rest is small:** the voice 0.20 s, the line 0.40 s (India to Sydney plus the browser), and the typing beat 0.20 s (on purpose).
+- **The report now shows** which signal ended each turn (`final` = the 300 ms silence, `utt` = the 1 s fallback), and labels Piper sentences `backup` (before, they read `live` after a switch). The next run shows why listening was slow before anything is tuned.
 
 **New sentences to render** (they cost ElevenLabs characters once, then they're cached): the new greeting (~70 characters), the two Sunday lines (~120), and the no-number staff goodbye (~100). Rendered live on first use, about 300 characters in all.
 
@@ -59,6 +226,33 @@ When the owner says **"continue your work"**, start from this file. The full pla
   - Neither is fully free. WhatsApp can be tried at no cost on a test number. Meta's per-message charge for an Indian utility message is about ₹0.12-0.15.
   - SMS in India needs DLT registration (a one-time fee of several thousand rupees) plus a per-message charge.
 - Sarvam's WebSocket voice (faster first audio); tuning the brief for Gemma; several clinics in one database (`clinic_id`).
+- **Improvement ideas (23 Oct, owner: "add all these to future"), in the suggested order:**
+  1. **Speed.** Replies are heard a median of 2.2 s after the caller stops; a person answers in about 1 s.
+     - Listening (1.1 s typical, 2.7 s worst 10%): find the cause with the report's `end` column. Then let Emma end the turn herself when the words already make a complete answer (`turn_detector.py`), or test Deepgram's model built for conversations, which detects end of turn better.
+     - The model: Gemma via Sarvam on the server, as on the PC (removes the 2.2 s Gemini timeouts).
+     - Server location: Sydney adds about 0.4 s from India. A Mumbai server (a paid AWS plan or another provider) cuts most of it.
+  2. **Voice:**
+     - one voice for every call (paid ElevenLabs, or Sarvam for everything);
+     - an Indian English voice (ElevenLabs library voices need a paid plan);
+     - Sarvam's streaming voice for a faster first word.
+  3. **Understanding:**
+     - name hearing ("Adharsh"): better hints, or a second recognizer just for the name;
+     - fewer turns per booking (about 9 now): ask for two details at once, aiming for 6-7;
+     - real Kannada and Hindi support (today Emma offers a callback).
+  4. **Reliability (cheap or free):**
+     - an Elastic IP, so the address and DuckDNS never change after a restart;
+     - uptime monitoring (UptimeRobot, free) that texts or emails the owner;
+     - ~~GitHub Actions running the tests on every push~~ (done 23 Oct: `.github/workflows/tests.yml`);
+     - a one-click deploy of `main` to AWS from a GitHub Action, so no PC is needed.
+  5. **Clinic features:**
+     - the real number and WhatsApp (above);
+     - online booking through the same Python rules;
+     - Calendar sync on the hosted site;
+     - a weekly report for the clinic (calls, bookings, missed calls, cost);
+     - several clinics on one system.
+  6. **Resume and portfolio:**
+     - a 1-2 minute demo video of a real call and the dashboard (recruiters may not sign in, and it works when the credits are out);
+     - ~~a README with an architecture diagram and the numbers, "the model talks, Python decides" as the headline~~ (done 23 Oct).
 
 The sections below are older history; where they disagree with this section, this section wins.
 

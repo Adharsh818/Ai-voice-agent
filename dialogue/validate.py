@@ -25,6 +25,8 @@ Checks (each has unit tests, positive and negative):
   V7  repeat    not >= 0.85 similar to any of Emma's recent sentences, and
                 not repeating a notice Python is about to say
   V8  language  English (Latin script) only; no markup, URLs, JSON
+  V10 slots     no "that's free" / "no slots": availability is scheduling's
+  V11 can't     no "I can't set up a callback / transfer you": Python decides
 
 The patterns are deliberately phrase-shaped rather than single words: the
 model explains dental treatments in plain words ("the X-ray machine", "a
@@ -121,6 +123,20 @@ CLAIMS = {
         r"\bi (have|just) (booked|cancell?ed|moved|reserved|scheduled)\b",
     ),
 }
+# V10: what's free or taken (Python's scheduling says it, never the model).
+_AVAILABILITY = (
+    r"\bno (free )?(slots?|times?|appointments?|availability|openings?)\b",
+    r"\b(don'?t|do not|doesn'?t) have (any )?(slots?|times?|appointments?|availability|openings?)\b",
+    r"\b(isn'?t|is not|aren'?t|are not|not) (free|available|open)\b",
+    r"\b(fully|all) booked\b", r"\b(is|are|it'?s|that'?s|we'?re|they'?re) (all )?booked up\b",
+    r"\b(already )?(taken|gone)\b",
+    r"\b(is|are|it'?s|that'?s|'s) (free|available)\b", r"\bnothing (free|available|open)\b",
+)
+# V11: what Emma can and can't do (Python decides; a callback, a transfer, a message are always possible).
+_CANT_DO = (
+    r"\b(can'?t|cannot|can not|unable to|not able to)\b[^.?!]{0,40}\b(callback|call ?back|call you|"
+    r"transfer|put you through|pass (it|this|that) on|take a message|leave a message)\b",
+)
 # V6
 MEDICAL = (
     r"\b\d+\s?(mg|ml|milligrams?)\b", r"\btablets?\b", r"\bcapsules?\b", r"\bparacetamol\b", r"\bibuprofen\b",
@@ -254,6 +270,18 @@ def check_sentence(sentence: str, allowed: Allowed, *, part: str) -> Verdict:
         hit = _first(patterns, low)
         if hit:
             return Verdict(False, "V3", f"claims {action} {hit!r}")
+
+    # V10: availability is Python's alone. 25 Oct: the model told the owner "we don't have any slots at
+    # 10" that Python never checked; the offers and "that's free" / "that's taken" come from scheduling.
+    hit = _first(_AVAILABILITY, low)
+    if hit:
+        return Verdict(False, "V10", f"availability claim {hit!r}")
+
+    # V11: the model said "I can't set up a callback from here" while Python was taking the number
+    # for one (live run, 26 Oct). What Emma can do is Python's to say.
+    hit = _first(_CANT_DO, low)
+    if hit:
+        return Verdict(False, "V11", f"capability claim {hit!r}")
 
     # V6: medical advice.
     hit = _first(MEDICAL, low)

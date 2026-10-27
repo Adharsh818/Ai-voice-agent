@@ -58,7 +58,7 @@ OnSentence = Callable[[str], Awaitable[None]]
 # model said nothing first. Never a summary, read-back, offer or outcome.
 OPENER_GOALS = frozenset({
     Goal.ASK_NAME, Goal.ASK_PHONE, Goal.ASK_PATIENT, Goal.ASK_AGE, Goal.ASK_SERVICE, Goal.ASK_BRANCH,
-    Goal.ASK_WHEN, Goal.ASK_TIME, Goal.ASK_APPT_DATE, Goal.ASK_NEW_WHEN, Goal.WHAT_TO_CHANGE,
+    Goal.ASK_WHEN, Goal.ASK_TIME, Goal.ASK_NEW_WHEN, Goal.WHAT_TO_CHANGE,
     Goal.ANYTHING_ELSE, Goal.ASK_INTENT,
 })
 _ENDS_SENTENCE = re.compile(r"[.!?][\"')\]]*$")
@@ -230,6 +230,8 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         if plan.rung >= RUNG_EXIT:
             exit_plan = policy.take_exit(ctx, plan)
             if exit_plan is None:
+                if plan.goal == Goal.ASK_BRANCH:
+                    notices.append(Notice("branch.any.taken"))
                 # A default was taken (branch: earliest, when: earliest...): let the
                 # workflow act on it now, so the caller hears the result this turn.
                 await _release_if_requested(ctx, rt)
@@ -241,6 +243,15 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
             else:
                 plan = exit_plan
     _caller_id_line(ctx, plan)
+    if plan.line == "ask.branch.for_time":
+        # "5 in the evening isn't possible at Indiranagar..." says the time itself: no "Sure, 5." first.
+        notices = [n for n in notices if getattr(n, "line", "") not in ("ack.when", "correction.ack")]
+    notices = _one_unknown_doctor(notices)
+    if any(getattr(n, "line", "").startswith(("date.sunday", "date.past", "date.horizon", "date.closure"))
+           for n in notices):
+        # "We're closed on Sunday... 10, got it." acknowledges a time on a day that can't be booked
+        # (live run, 26 Oct). The time is kept all the same, and said with the next day.
+        notices = [n for n in notices if getattr(n, "line", "") != "ack.when"]
 
     allowed = _allowed(brief, ctx, result.action, u)
     say, dropped, streamed = [], [], []
@@ -258,8 +269,28 @@ async def _complete(ctx: CallContext, u: Understanding, rt: Runtime, *, stream, 
         # "This Sunday?" already hears "We're closed on Sundays": not the weekly hours as well (sim, 11 Oct).
         hours_again = answer.line == "answer.fact" and answer.params.get("text") == rt.kb.hours \
             and any(isinstance(n, Notice) and n.line == "date.sunday" for n in notices)
-        if not (answer.line == "unknown" and asks_about_booking) and not hours_again:
+        # "I don't remember which day" is a non-answer, not a question to be "not sure" about (25 Oct).
+        # Nor "Can I talk to someone?", "Hello? I'm still here", or "What should I say now?" mid-number
+        # (review, 25 Oct): a receptionist never answers those with "I don't know".
+        # Nor a few garbled words while she collects a detail ("My name?" to "what time?", "Aditya, how
+        # does it..." to "could you spell it?": owner's call, 26 Oct): the question again, no "not sure".
+        garbled = len((u.raw_text or "").split()) <= 4 or plan.goal in (
+            Goal.ASK_NAME, Goal.SPELL_NAME, Goal.ASK_PATIENT)
+        collecting = ctx.workflow_active() and plan.goal not in CLOSING_GOALS and u.source == "fallback"
+        not_a_question = answer.line == "unknown" and (
+            any(u.has(a) for a in (Act.NON_ANSWER, Act.WANTS_HUMAN, Act.CALLBACK_REQUEST, Act.REPEAT, Act.WAIT))
+            or plan.goal in (Goal.PHONE_MORE, Goal.HELP_FIRST, Goal.TRANSFER, Goal.CONFIRM_PHONE)
+            or (garbled and collecting))
+        if not (answer.line == "unknown" and asks_about_booking) and not hours_again and not not_a_question:
             notices.insert(0, answer)
+            if answer.line == "answer.fact" and plan.goal in (Goal.ASK_INTENT, Goal.ANSWER_ONLY) \
+                    and not ctx.workflow_active() and ctx.pending != Goal.ANYTHING_ELSE:
+                # Not again right after one (sim: "Anything else you need?" three times in a row).
+                # "A cleaning is 1,000 to 1,500 rupees. What can I do for you?" sounded like the call
+                # had just started, and a bare answer left the caller waiting; after an answer a
+                # receptionist asks "Anything else?" (25 Oct).
+                plan = policy._plan(ctx, Goal.ANYTHING_ELSE, rt.catalog)
+                ctx.pending, ctx.pending_params = Goal.ANYTHING_ELSE, {"_line": plan.line, "_rung": plan.rung}
             if answer.line == "unknown" and plan.goal == Goal.ANSWER_ONLY and not ctx.workflow_active() \
                     and ctx.outcome is None:
                 # "How may I help you out?" -> "I'm not sure about that, sorry." and nothing more (phone
@@ -650,8 +681,13 @@ _ABOUT_CLINIC = re.compile(r"\b(?:clinic|doctors?|dr|appointments?|open|wait(?:i
 
 def _view(ctx: CallContext, rt: Runtime) -> Tier0View:
     hint = policy.listening_hint(ctx)
+    pending = ctx.pending
+    if pending in (Goal.GO_ON, Goal.HOLD_ON) and ctx.__dict__.get("_open_question"):
+        # After "Sorry, go on." the question still open is what an answer answers: "I want
+        # Whitefield" to the branch question (owner's call 2, 25 Oct: it went to the model).
+        pending = ctx.__dict__["_open_question"][0]
     return Tier0View(
-        expect=Expect(hint["expect"]), pending=ctx.pending, intent=ctx.intent,
+        expect=Expect(hint["expect"]), pending=pending, intent=ctx.intent,
         digits_so_far=ctx.caller.phone_buffer, offered=tuple(ctx.offers()),
         options=tuple(ctx.book.service_options), names_heard=tuple(ctx.caller.names_heard),
         catalog=rt.catalog)
@@ -762,7 +798,29 @@ def _caller_id_line(ctx: CallContext, plan) -> None:
 # Notices that already say something about the request itself ("Our Nagarbhavi
 # branch doesn't do braces"): saying it back first would contradict them.
 _REFUSED_TIME_LINES = {"time.taken", "time.doctor_off", "time.lunch.at", "time.outside_hours"}
-_REQUEST_CONFLICTS = {"service.unknown", "branch.no_service", "branch.only", "doctor.unknown",
+def _one_unknown_doctor(notices: list) -> list:
+    """
+    "We don't have a Dr Sharma" once: apply.py and book.py can each note it in one turn (live run,
+    26 Oct). The short "any of our dentists" form wins before a branch is chosen, and the caller's
+    day and time are acknowledged first ("Sure, tomorrow around 6.").
+    """
+    lines = [getattr(n, "line", "") for n in notices]
+    if not any(line.startswith("doctor.unknown") for line in lines):
+        return notices
+    keep = "doctor.unknown.any" if "doctor.unknown.any" in lines else "doctor.unknown"
+    out, said = [], False
+    for n in notices:
+        line = getattr(n, "line", "")
+        if line.startswith("doctor.unknown"):
+            if line != keep or said:
+                continue
+            said = True
+        out.append(n)
+    acks = [n for n in out if getattr(n, "line", "") == "ack.when"]
+    return acks + [n for n in out if getattr(n, "line", "") != "ack.when"]
+
+
+_REQUEST_CONFLICTS = {"service.unknown", "branch.no_service", "branch.only", "doctor.unknown", "doctor.unknown.any",
                       "doctor.other_branch", "doctor.gender_none", "correction.ack", "confirm_change",
                       "urgent.ack", "answer.fact", "unknown", "clinical"}
 

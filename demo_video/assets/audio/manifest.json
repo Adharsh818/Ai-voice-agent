@@ -1,0 +1,2119 @@
+{
+ "call": [
+  {
+   "file": "assets/audio/call_00_emma.wav",
+   "who": "emma",
+   "text": "Pearl Dental, this is Emma. How can I help you?",
+   "seconds": 2.415,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Pearl",
+     "s": 0.0,
+     "e": 0.32
+    },
+    {
+     "w": "Dental,",
+     "s": 0.32,
+     "e": 0.8
+    },
+    {
+     "w": "this",
+     "s": 0.8,
+     "e": 0.96
+    },
+    {
+     "w": "is",
+     "s": 0.96,
+     "e": 1.12
+    },
+    {
+     "w": "Emma.",
+     "s": 1.12,
+     "e": 1.52
+    },
+    {
+     "w": "How",
+     "s": 1.52,
+     "e": 1.68
+    },
+    {
+     "w": "can",
+     "s": 1.68,
+     "e": 1.76
+    },
+    {
+     "w": "I",
+     "s": 1.76,
+     "e": 1.92
+    },
+    {
+     "w": "help",
+     "s": 1.92,
+     "e": 2.08
+    },
+    {
+     "w": "you?",
+     "s": 2.08,
+     "e": 2.24
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_01_caller.wav",
+   "who": "caller",
+   "text": "Hi.",
+   "seconds": 0.604,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Hi.",
+     "s": 0.0,
+     "e": 0.4
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_02_emma.wav",
+   "who": "emma",
+   "text": "Hello! How can I help?",
+   "seconds": 1.254,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Hello!",
+     "s": 0.0,
+     "e": 0.4
+    },
+    {
+     "w": "How",
+     "s": 0.4,
+     "e": 0.64
+    },
+    {
+     "w": "can",
+     "s": 0.64,
+     "e": 0.8
+    },
+    {
+     "w": "I",
+     "s": 0.8,
+     "e": 0.88
+    },
+    {
+     "w": "help?",
+     "s": 0.88,
+     "e": 1.12
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_03_caller.wav",
+   "who": "caller",
+   "text": "I want to book an appointment.",
+   "seconds": 1.393,
+   "source": "kept",
+   "words": [
+    {
+     "w": "I",
+     "s": 0.0,
+     "e": 0.0
+    },
+    {
+     "w": "want",
+     "s": 0.0,
+     "e": 0.32
+    },
+    {
+     "w": "to",
+     "s": 0.32,
+     "e": 0.4
+    },
+    {
+     "w": "book",
+     "s": 0.4,
+     "e": 0.56
+    },
+    {
+     "w": "an",
+     "s": 0.56,
+     "e": 0.72
+    },
+    {
+     "w": "appointment.",
+     "s": 0.72,
+     "e": 1.12
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_04_emma.wav",
+   "who": "emma",
+   "text": "Right, and your name, please?",
+   "seconds": 1.3,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Right,",
+     "s": 0.0,
+     "e": 0.32
+    },
+    {
+     "w": "and",
+     "s": 0.32,
+     "e": 0.48
+    },
+    {
+     "w": "your",
+     "s": 0.48,
+     "e": 0.64
+    },
+    {
+     "w": "name,",
+     "s": 0.64,
+     "e": 0.88
+    },
+    {
+     "w": "please?",
+     "s": 0.88,
+     "e": 1.12
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_05_caller.wav",
+   "who": "caller",
+   "text": "Adharsh.",
+   "seconds": 0.975,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Adharsh.",
+     "s": 0.0,
+     "e": 0.72
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_06_emma.wav",
+   "who": "emma",
+   "text": "Thank you, Adharsh. And your phone number, please?",
+   "seconds": 2.415,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Thank",
+     "s": 0.0,
+     "e": 0.24
+    },
+    {
+     "w": "you,",
+     "s": 0.24,
+     "e": 0.56
+    },
+    {
+     "w": "Adharsh.",
+     "s": 0.56,
+     "e": 1.04
+    },
+    {
+     "w": "And",
+     "s": 1.04,
+     "e": 1.28
+    },
+    {
+     "w": "your",
+     "s": 1.28,
+     "e": 1.44
+    },
+    {
+     "w": "phone",
+     "s": 1.44,
+     "e": 1.68
+    },
+    {
+     "w": "number,",
+     "s": 1.68,
+     "e": 2.08
+    },
+    {
+     "w": "please?",
+     "s": 2.08,
+     "e": 2.24
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_07_caller.wav",
+   "who": "caller",
+   "text": "Nine, eight, four, five, zero... one, two, three, four, five.",
+   "seconds": 3.994,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Nine,",
+     "s": 0.0,
+     "e": 0.56
+    },
+    {
+     "w": "eight,",
+     "s": 0.56,
+     "e": 1.04
+    },
+    {
+     "w": "four,",
+     "s": 1.04,
+     "e": 1.44
+    },
+    {
+     "w": "five,",
+     "s": 1.44,
+     "e": 1.84
+    },
+    {
+     "w": "zero...",
+     "s": 1.84,
+     "e": 2.08
+    },
+    {
+     "w": "one,",
+     "s": 2.08,
+     "e": 2.64
+    },
+    {
+     "w": "two,",
+     "s": 2.64,
+     "e": 2.88
+    },
+    {
+     "w": "three,",
+     "s": 2.88,
+     "e": 3.2
+    },
+    {
+     "w": "four,",
+     "s": 3.2,
+     "e": 3.52
+    },
+    {
+     "w": "five.",
+     "s": 3.52,
+     "e": 4.0
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_08_emma.wav",
+   "who": "emma",
+   "text": "So that's 9 8 4 5 0, 1 2 3 4 5, right?",
+   "seconds": 2.926,
+   "source": "kept",
+   "words": [
+    {
+     "w": "So",
+     "s": 0.0,
+     "e": 0.16
+    },
+    {
+     "w": "that's",
+     "s": 0.16,
+     "e": 0.4
+    },
+    {
+     "w": "9",
+     "s": 0.4,
+     "e": 0.64
+    },
+    {
+     "w": "8",
+     "s": 0.64,
+     "e": 0.88
+    },
+    {
+     "w": "4",
+     "s": 0.88,
+     "e": 1.04
+    },
+    {
+     "w": "5",
+     "s": 1.04,
+     "e": 1.28
+    },
+    {
+     "w": "0,",
+     "s": 1.28,
+     "e": 1.52
+    },
+    {
+     "w": "1",
+     "s": 1.52,
+     "e": 1.76
+    },
+    {
+     "w": "2",
+     "s": 1.76,
+     "e": 1.92
+    },
+    {
+     "w": "3",
+     "s": 1.92,
+     "e": 2.08
+    },
+    {
+     "w": "4",
+     "s": 2.08,
+     "e": 2.24
+    },
+    {
+     "w": "5,",
+     "s": 2.24,
+     "e": 2.56
+    },
+    {
+     "w": "right?",
+     "s": 2.56,
+     "e": 2.72
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_09_caller.wav",
+   "who": "caller",
+   "text": "Yeah.",
+   "seconds": 0.557,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Yeah.",
+     "s": 0.0,
+     "e": 0.4
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_10_emma.wav",
+   "who": "emma",
+   "text": "Sure, what would you like to come in for?",
+   "seconds": 1.858,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Sure,",
+     "s": 0.0,
+     "e": 0.4
+    },
+    {
+     "w": "what",
+     "s": 0.4,
+     "e": 0.56
+    },
+    {
+     "w": "would",
+     "s": 0.56,
+     "e": 0.72
+    },
+    {
+     "w": "you",
+     "s": 0.72,
+     "e": 0.8
+    },
+    {
+     "w": "like",
+     "s": 0.8,
+     "e": 0.96
+    },
+    {
+     "w": "to",
+     "s": 0.96,
+     "e": 1.04
+    },
+    {
+     "w": "come",
+     "s": 1.04,
+     "e": 1.2
+    },
+    {
+     "w": "in",
+     "s": 1.2,
+     "e": 1.44
+    },
+    {
+     "w": "for?",
+     "s": 1.44,
+     "e": 1.68
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_11_caller.wav",
+   "who": "caller",
+   "text": "Checkup.",
+   "seconds": 0.789,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Checkup.",
+     "s": 0.08,
+     "e": 0.56
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_12_emma.wav",
+   "who": "emma",
+   "text": "Alright, for check-ups, it's Nagarbhavi, Indiranagar, Jayanagar or Whitefield. Which one's easier for you?",
+   "seconds": 6.594,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Alright,",
+     "s": 0.0,
+     "e": 0.48
+    },
+    {
+     "w": "for",
+     "s": 0.48,
+     "e": 0.64
+    },
+    {
+     "w": "check-ups,",
+     "s": 0.64,
+     "e": 1.04
+    },
+    {
+     "w": "it's",
+     "s": 1.04,
+     "e": 1.36
+    },
+    {
+     "w": "Nagarbhavi,",
+     "s": 1.36,
+     "e": 2.32
+    },
+    {
+     "w": "Indiranagar,",
+     "s": 2.32,
+     "e": 3.28
+    },
+    {
+     "w": "Jayanagar",
+     "s": 3.28,
+     "e": 4.08
+    },
+    {
+     "w": "or",
+     "s": 4.08,
+     "e": 4.24
+    },
+    {
+     "w": "Whitefield.",
+     "s": 4.24,
+     "e": 5.04
+    },
+    {
+     "w": "Which",
+     "s": 5.04,
+     "e": 5.36
+    },
+    {
+     "w": "one's",
+     "s": 5.36,
+     "e": 5.6
+    },
+    {
+     "w": "easier",
+     "s": 5.6,
+     "e": 5.92
+    },
+    {
+     "w": "for",
+     "s": 5.92,
+     "e": 6.16
+    },
+    {
+     "w": "you?",
+     "s": 6.16,
+     "e": 6.32
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_13_caller.wav",
+   "who": "caller",
+   "text": "Whitefield.",
+   "seconds": 0.975,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Whitefield.",
+     "s": 0.08,
+     "e": 0.72
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_14_emma.wav",
+   "who": "emma",
+   "text": "Okay, what day works for you?",
+   "seconds": 1.393,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Okay,",
+     "s": 0.0,
+     "e": 0.32
+    },
+    {
+     "w": "what",
+     "s": 0.32,
+     "e": 0.48
+    },
+    {
+     "w": "day",
+     "s": 0.48,
+     "e": 0.64
+    },
+    {
+     "w": "works",
+     "s": 0.64,
+     "e": 0.88
+    },
+    {
+     "w": "for",
+     "s": 0.88,
+     "e": 1.04
+    },
+    {
+     "w": "you?",
+     "s": 1.04,
+     "e": 1.2
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_15_caller.wav",
+   "who": "caller",
+   "text": "Twenty eight.",
+   "seconds": 0.882,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Twenty",
+     "s": 0.0,
+     "e": 0.4
+    },
+    {
+     "w": "eight.",
+     "s": 0.4,
+     "e": 0.64
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_16_emma.wav",
+   "who": "emma",
+   "text": "Okay, Wednesday the 28th. Would morning or evening suit you better?",
+   "seconds": 3.901,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Okay,",
+     "s": 0.0,
+     "e": 0.48
+    },
+    {
+     "w": "Wednesday",
+     "s": 0.48,
+     "e": 1.04
+    },
+    {
+     "w": "the",
+     "s": 1.04,
+     "e": 1.12
+    },
+    {
+     "w": "28th.",
+     "s": 1.12,
+     "e": 1.92
+    },
+    {
+     "w": "Would",
+     "s": 1.92,
+     "e": 2.16
+    },
+    {
+     "w": "morning",
+     "s": 2.16,
+     "e": 2.48
+    },
+    {
+     "w": "or",
+     "s": 2.48,
+     "e": 2.64
+    },
+    {
+     "w": "evening",
+     "s": 2.64,
+     "e": 2.96
+    },
+    {
+     "w": "suit",
+     "s": 2.96,
+     "e": 3.28
+    },
+    {
+     "w": "you",
+     "s": 3.28,
+     "e": 3.44
+    },
+    {
+     "w": "better?",
+     "s": 3.44,
+     "e": 3.68
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_17_caller.wav",
+   "who": "caller",
+   "text": "I'd like afternoon.",
+   "seconds": 1.115,
+   "source": "kept",
+   "words": [
+    {
+     "w": "I'd",
+     "s": 0.0,
+     "e": 0.24
+    },
+    {
+     "w": "like",
+     "s": 0.24,
+     "e": 0.4
+    },
+    {
+     "w": "afternoon.",
+     "s": 0.4,
+     "e": 0.88
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_18_emma.wav",
+   "who": "emma",
+   "text": "Wednesday the 28th at 12 or 12:30 are free, with Dr Reddy. Which one works?",
+   "seconds": 5.108,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Wednesday",
+     "s": 0.0,
+     "e": 0.56
+    },
+    {
+     "w": "the",
+     "s": 0.56,
+     "e": 0.72
+    },
+    {
+     "w": "28th",
+     "s": 0.72,
+     "e": 1.2
+    },
+    {
+     "w": "at",
+     "s": 1.2,
+     "e": 1.44
+    },
+    {
+     "w": "12",
+     "s": 1.44,
+     "e": 1.68
+    },
+    {
+     "w": "or",
+     "s": 1.68,
+     "e": 1.92
+    },
+    {
+     "w": "12:30",
+     "s": 1.92,
+     "e": 2.48
+    },
+    {
+     "w": "are",
+     "s": 2.48,
+     "e": 2.72
+    },
+    {
+     "w": "free,",
+     "s": 2.72,
+     "e": 2.96
+    },
+    {
+     "w": "with",
+     "s": 2.96,
+     "e": 3.2
+    },
+    {
+     "w": "Dr",
+     "s": 3.2,
+     "e": 3.52
+    },
+    {
+     "w": "Reddy.",
+     "s": 3.52,
+     "e": 4.08
+    },
+    {
+     "w": "Which",
+     "s": 4.08,
+     "e": 4.32
+    },
+    {
+     "w": "one",
+     "s": 4.32,
+     "e": 4.56
+    },
+    {
+     "w": "works?",
+     "s": 4.56,
+     "e": 4.88
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_19_caller.wav",
+   "who": "caller",
+   "text": "Twelve.",
+   "seconds": 0.743,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Twelve.",
+     "s": 0.0,
+     "e": 0.48
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_20_emma.wav",
+   "who": "emma",
+   "text": "So that's a check-up with Dr Reddy at Whitefield, Wednesday the 28th at 12 noon, for Adharsh. Shall I book it?",
+   "seconds": 6.502,
+   "source": "kept",
+   "words": [
+    {
+     "w": "So",
+     "s": 0.0,
+     "e": 0.16
+    },
+    {
+     "w": "that's",
+     "s": 0.16,
+     "e": 0.4
+    },
+    {
+     "w": "a",
+     "s": 0.4,
+     "e": 0.56
+    },
+    {
+     "w": "check-up",
+     "s": 0.56,
+     "e": 0.8
+    },
+    {
+     "w": "with",
+     "s": 0.8,
+     "e": 1.12
+    },
+    {
+     "w": "Dr",
+     "s": 1.12,
+     "e": 1.36
+    },
+    {
+     "w": "Reddy",
+     "s": 1.36,
+     "e": 1.68
+    },
+    {
+     "w": "at",
+     "s": 1.68,
+     "e": 1.84
+    },
+    {
+     "w": "Whitefield,",
+     "s": 1.84,
+     "e": 2.64
+    },
+    {
+     "w": "Wednesday",
+     "s": 2.72,
+     "e": 3.2
+    },
+    {
+     "w": "the",
+     "s": 3.2,
+     "e": 3.36
+    },
+    {
+     "w": "28th",
+     "s": 3.36,
+     "e": 3.84
+    },
+    {
+     "w": "at",
+     "s": 3.84,
+     "e": 4.08
+    },
+    {
+     "w": "12",
+     "s": 4.08,
+     "e": 4.32
+    },
+    {
+     "w": "noon,",
+     "s": 4.32,
+     "e": 4.56
+    },
+    {
+     "w": "for",
+     "s": 4.56,
+     "e": 4.8
+    },
+    {
+     "w": "Adharsh.",
+     "s": 4.8,
+     "e": 5.52
+    },
+    {
+     "w": "Shall",
+     "s": 5.52,
+     "e": 5.76
+    },
+    {
+     "w": "I",
+     "s": 5.76,
+     "e": 5.92
+    },
+    {
+     "w": "book",
+     "s": 5.92,
+     "e": 6.08
+    },
+    {
+     "w": "it?",
+     "s": 6.08,
+     "e": 6.32
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_21_caller.wav",
+   "who": "caller",
+   "text": "Yeah.",
+   "seconds": 0.65,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Yeah.",
+     "s": 0.0,
+     "e": 0.4
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_22_emma.wav",
+   "who": "emma",
+   "text": "All done, you're booked in for Wednesday the 28th at 12 noon at our Whitefield branch. Do come about 10 minutes early. Anything else?",
+   "seconds": 7.709,
+   "source": "kept",
+   "words": [
+    {
+     "w": "All",
+     "s": 0.0,
+     "e": 0.32
+    },
+    {
+     "w": "done,",
+     "s": 0.32,
+     "e": 0.72
+    },
+    {
+     "w": "you're",
+     "s": 0.72,
+     "e": 1.04
+    },
+    {
+     "w": "booked",
+     "s": 1.04,
+     "e": 1.28
+    },
+    {
+     "w": "in",
+     "s": 1.28,
+     "e": 1.44
+    },
+    {
+     "w": "for",
+     "s": 1.44,
+     "e": 1.68
+    },
+    {
+     "w": "Wednesday",
+     "s": 1.68,
+     "e": 2.16
+    },
+    {
+     "w": "the",
+     "s": 2.16,
+     "e": 2.24
+    },
+    {
+     "w": "28th",
+     "s": 2.24,
+     "e": 2.72
+    },
+    {
+     "w": "at",
+     "s": 2.72,
+     "e": 2.96
+    },
+    {
+     "w": "12",
+     "s": 2.96,
+     "e": 3.2
+    },
+    {
+     "w": "noon",
+     "s": 3.2,
+     "e": 3.52
+    },
+    {
+     "w": "at",
+     "s": 3.52,
+     "e": 3.68
+    },
+    {
+     "w": "our",
+     "s": 3.68,
+     "e": 3.84
+    },
+    {
+     "w": "Whitefield",
+     "s": 3.84,
+     "e": 4.32
+    },
+    {
+     "w": "branch.",
+     "s": 4.32,
+     "e": 5.04
+    },
+    {
+     "w": "Do",
+     "s": 5.04,
+     "e": 5.28
+    },
+    {
+     "w": "come",
+     "s": 5.28,
+     "e": 5.52
+    },
+    {
+     "w": "about",
+     "s": 5.52,
+     "e": 5.76
+    },
+    {
+     "w": "10",
+     "s": 5.76,
+     "e": 5.92
+    },
+    {
+     "w": "minutes",
+     "s": 5.92,
+     "e": 6.24
+    },
+    {
+     "w": "early.",
+     "s": 6.24,
+     "e": 6.8
+    },
+    {
+     "w": "Anything",
+     "s": 6.8,
+     "e": 7.2
+    },
+    {
+     "w": "else?",
+     "s": 7.2,
+     "e": 7.44
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_23_caller.wav",
+   "who": "caller",
+   "text": "Nothing else. Thank you. Bye.",
+   "seconds": 1.811,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Nothing",
+     "s": 0.0,
+     "e": 0.32
+    },
+    {
+     "w": "else.",
+     "s": 0.32,
+     "e": 0.8
+    },
+    {
+     "w": "Thank",
+     "s": 0.8,
+     "e": 1.04
+    },
+    {
+     "w": "you.",
+     "s": 1.04,
+     "e": 1.36
+    },
+    {
+     "w": "Bye.",
+     "s": 1.36,
+     "e": 1.68
+    }
+   ]
+  },
+  {
+   "file": "assets/audio/call_24_emma.wav",
+   "who": "emma",
+   "text": "Okay, see you then. Bye!",
+   "seconds": 1.486,
+   "source": "kept",
+   "words": [
+    {
+     "w": "Okay,",
+     "s": 0.05,
+     "e": 0.35
+    },
+    {
+     "w": "see",
+     "s": 0.35,
+     "e": 0.65
+    },
+    {
+     "w": "you",
+     "s": 0.65,
+     "e": 0.95
+    },
+    {
+     "w": "then.",
+     "s": 0.95,
+     "e": 1.25
+    },
+    {
+     "w": "Bye!",
+     "s": 1.25,
+     "e": 1.55
+    }
+   ]
+  }
+ ],
+ "narration": {
+  "n_intro": {
+   "file": "assets/audio/n_intro.wav",
+   "text": "This is Emma, the voice receptionist for Pearl Dental. Here's a real booking call, re-enacted with her real voice.",
+   "seconds": 6.734,
+   "words": [
+    {
+     "w": "This",
+     "s": 0.0,
+     "e": 0.24
+    },
+    {
+     "w": "is",
+     "s": 0.24,
+     "e": 0.4
+    },
+    {
+     "w": "Emma,",
+     "s": 0.4,
+     "e": 0.88
+    },
+    {
+     "w": "the",
+     "s": 0.88,
+     "e": 0.96
+    },
+    {
+     "w": "voice",
+     "s": 0.96,
+     "e": 1.2
+    },
+    {
+     "w": "receptionist",
+     "s": 1.2,
+     "e": 1.76
+    },
+    {
+     "w": "for",
+     "s": 1.76,
+     "e": 2.0
+    },
+    {
+     "w": "Pearl",
+     "s": 2.0,
+     "e": 2.24
+    },
+    {
+     "w": "Dental.",
+     "s": 2.24,
+     "e": 2.88
+    },
+    {
+     "w": "Here's",
+     "s": 2.96,
+     "e": 3.28
+    },
+    {
+     "w": "a",
+     "s": 3.28,
+     "e": 3.44
+    },
+    {
+     "w": "real",
+     "s": 3.44,
+     "e": 3.68
+    },
+    {
+     "w": "booking",
+     "s": 3.68,
+     "e": 4.08
+    },
+    {
+     "w": "call,",
+     "s": 4.08,
+     "e": 4.56
+    },
+    {
+     "w": "re-enacted",
+     "s": 4.56,
+     "e": 5.28
+    },
+    {
+     "w": "with",
+     "s": 5.28,
+     "e": 5.52
+    },
+    {
+     "w": "her",
+     "s": 5.52,
+     "e": 5.68
+    },
+    {
+     "w": "real",
+     "s": 5.68,
+     "e": 6.0
+    },
+    {
+     "w": "voice.",
+     "s": 6.0,
+     "e": 6.32
+    }
+   ]
+  },
+  "n_live": {
+   "file": "assets/audio/n_live.wav",
+   "text": "While she talks, the front desk can watch the call live, with every detail she has understood so far.",
+   "seconds": 5.851,
+   "words": [
+    {
+     "w": "While",
+     "s": 0.0,
+     "e": 0.24
+    },
+    {
+     "w": "she",
+     "s": 0.24,
+     "e": 0.48
+    },
+    {
+     "w": "talks,",
+     "s": 0.48,
+     "e": 0.88
+    },
+    {
+     "w": "the",
+     "s": 0.88,
+     "e": 0.96
+    },
+    {
+     "w": "front",
+     "s": 0.96,
+     "e": 1.2
+    },
+    {
+     "w": "desk",
+     "s": 1.2,
+     "e": 1.52
+    },
+    {
+     "w": "can",
+     "s": 1.52,
+     "e": 1.68
+    },
+    {
+     "w": "watch",
+     "s": 1.68,
+     "e": 1.92
+    },
+    {
+     "w": "the",
+     "s": 1.92,
+     "e": 2.08
+    },
+    {
+     "w": "call",
+     "s": 2.08,
+     "e": 2.32
+    },
+    {
+     "w": "live,",
+     "s": 2.32,
+     "e": 2.96
+    },
+    {
+     "w": "with",
+     "s": 3.04,
+     "e": 3.44
+    },
+    {
+     "w": "every",
+     "s": 3.44,
+     "e": 3.76
+    },
+    {
+     "w": "detail",
+     "s": 3.76,
+     "e": 4.08
+    },
+    {
+     "w": "she",
+     "s": 4.08,
+     "e": 4.4
+    },
+    {
+     "w": "has",
+     "s": 4.4,
+     "e": 4.56
+    },
+    {
+     "w": "understood",
+     "s": 4.56,
+     "e": 4.96
+    },
+    {
+     "w": "so",
+     "s": 4.96,
+     "e": 5.28
+    },
+    {
+     "w": "far.",
+     "s": 5.28,
+     "e": 5.52
+    }
+   ]
+  },
+  "n_today": {
+   "file": "assets/audio/n_today.wav",
+   "text": "After the call, here's the dashboard. Today is the whole day at a glance: the live call, today's appointments, open tasks, recent calls, doctors who are away, and whether every service is healthy.",
+   "seconds": 13.189,
+   "words": [
+    {
+     "w": "After",
+     "s": 0.0,
+     "e": 0.32
+    },
+    {
+     "w": "the",
+     "s": 0.32,
+     "e": 0.56
+    },
+    {
+     "w": "call,",
+     "s": 0.56,
+     "e": 1.04
+    },
+    {
+     "w": "here's",
+     "s": 1.04,
+     "e": 1.36
+    },
+    {
+     "w": "the",
+     "s": 1.36,
+     "e": 1.52
+    },
+    {
+     "w": "dashboard.",
+     "s": 1.52,
+     "e": 2.32
+    },
+    {
+     "w": "Today",
+     "s": 2.56,
+     "e": 2.88
+    },
+    {
+     "w": "is",
+     "s": 2.88,
+     "e": 3.12
+    },
+    {
+     "w": "the",
+     "s": 3.12,
+     "e": 3.28
+    },
+    {
+     "w": "whole",
+     "s": 3.28,
+     "e": 3.44
+    },
+    {
+     "w": "day",
+     "s": 3.44,
+     "e": 3.6
+    },
+    {
+     "w": "at",
+     "s": 3.6,
+     "e": 3.76
+    },
+    {
+     "w": "a",
+     "s": 3.76,
+     "e": 3.92
+    },
+    {
+     "w": "glance:",
+     "s": 3.92,
+     "e": 4.56
+    },
+    {
+     "w": "the",
+     "s": 4.72,
+     "e": 4.88
+    },
+    {
+     "w": "live",
+     "s": 4.88,
+     "e": 5.2
+    },
+    {
+     "w": "call,",
+     "s": 5.2,
+     "e": 5.92
+    },
+    {
+     "w": "today's",
+     "s": 6.16,
+     "e": 6.56
+    },
+    {
+     "w": "appointments,",
+     "s": 6.56,
+     "e": 7.28
+    },
+    {
+     "w": "open",
+     "s": 7.28,
+     "e": 7.68
+    },
+    {
+     "w": "tasks,",
+     "s": 7.68,
+     "e": 8.4
+    },
+    {
+     "w": "recent",
+     "s": 8.4,
+     "e": 8.88
+    },
+    {
+     "w": "calls,",
+     "s": 8.88,
+     "e": 9.52
+    },
+    {
+     "w": "doctors",
+     "s": 9.68,
+     "e": 10.16
+    },
+    {
+     "w": "who",
+     "s": 10.16,
+     "e": 10.4
+    },
+    {
+     "w": "are",
+     "s": 10.4,
+     "e": 10.56
+    },
+    {
+     "w": "away,",
+     "s": 10.56,
+     "e": 11.2
+    },
+    {
+     "w": "and",
+     "s": 11.28,
+     "e": 11.36
+    },
+    {
+     "w": "whether",
+     "s": 11.36,
+     "e": 11.68
+    },
+    {
+     "w": "every",
+     "s": 11.68,
+     "e": 12.08
+    },
+    {
+     "w": "service",
+     "s": 12.08,
+     "e": 12.4
+    },
+    {
+     "w": "is",
+     "s": 12.4,
+     "e": 12.56
+    },
+    {
+     "w": "healthy.",
+     "s": 12.56,
+     "e": 12.96
+    }
+   ]
+  },
+  "n_calendar": {
+   "file": "assets/audio/n_calendar.wav",
+   "text": "The calendar shows each doctor's day. The booking Emma just made is already there: Wednesday at noon, with Doctor Reddy.",
+   "seconds": 6.223,
+   "words": [
+    {
+     "w": "The",
+     "s": 0.0,
+     "e": 0.16
+    },
+    {
+     "w": "calendar",
+     "s": 0.16,
+     "e": 0.48
+    },
+    {
+     "w": "shows",
+     "s": 0.48,
+     "e": 0.88
+    },
+    {
+     "w": "each",
+     "s": 0.88,
+     "e": 1.12
+    },
+    {
+     "w": "doctor's",
+     "s": 1.12,
+     "e": 1.52
+    },
+    {
+     "w": "day.",
+     "s": 1.52,
+     "e": 2.0
+    },
+    {
+     "w": "The",
+     "s": 2.08,
+     "e": 2.24
+    },
+    {
+     "w": "booking",
+     "s": 2.24,
+     "e": 2.56
+    },
+    {
+     "w": "Emma",
+     "s": 2.56,
+     "e": 2.88
+    },
+    {
+     "w": "just",
+     "s": 2.88,
+     "e": 3.04
+    },
+    {
+     "w": "made",
+     "s": 3.04,
+     "e": 3.28
+    },
+    {
+     "w": "is",
+     "s": 3.28,
+     "e": 3.44
+    },
+    {
+     "w": "already",
+     "s": 3.44,
+     "e": 3.68
+    },
+    {
+     "w": "there:",
+     "s": 3.68,
+     "e": 4.24
+    },
+    {
+     "w": "Wednesday",
+     "s": 4.32,
+     "e": 4.72
+    },
+    {
+     "w": "at",
+     "s": 4.72,
+     "e": 4.96
+    },
+    {
+     "w": "noon,",
+     "s": 4.96,
+     "e": 5.12
+    },
+    {
+     "w": "with",
+     "s": 5.12,
+     "e": 5.36
+    },
+    {
+     "w": "Doctor",
+     "s": 5.36,
+     "e": 5.68
+    },
+    {
+     "w": "Reddy.",
+     "s": 5.68,
+     "e": 6.0
+    }
+   ]
+  },
+  "n_tasks": {
+   "file": "assets/audio/n_tasks.wav",
+   "text": "Anything Emma can't finish on the call becomes a task for the staff, like this callback a caller asked for.",
+   "seconds": 6.084,
+   "words": [
+    {
+     "w": "Anything",
+     "s": 0.0,
+     "e": 0.32
+    },
+    {
+     "w": "Emma",
+     "s": 0.32,
+     "e": 0.72
+    },
+    {
+     "w": "can't",
+     "s": 0.72,
+     "e": 1.04
+    },
+    {
+     "w": "finish",
+     "s": 1.04,
+     "e": 1.28
+    },
+    {
+     "w": "on",
+     "s": 1.28,
+     "e": 1.44
+    },
+    {
+     "w": "the",
+     "s": 1.44,
+     "e": 1.52
+    },
+    {
+     "w": "call",
+     "s": 1.52,
+     "e": 1.76
+    },
+    {
+     "w": "becomes",
+     "s": 1.76,
+     "e": 2.16
+    },
+    {
+     "w": "a",
+     "s": 2.16,
+     "e": 2.32
+    },
+    {
+     "w": "task",
+     "s": 2.32,
+     "e": 2.56
+    },
+    {
+     "w": "for",
+     "s": 2.56,
+     "e": 2.8
+    },
+    {
+     "w": "the",
+     "s": 2.8,
+     "e": 2.96
+    },
+    {
+     "w": "staff,",
+     "s": 2.96,
+     "e": 3.6
+    },
+    {
+     "w": "like",
+     "s": 3.84,
+     "e": 4.0
+    },
+    {
+     "w": "this",
+     "s": 4.0,
+     "e": 4.24
+    },
+    {
+     "w": "callback",
+     "s": 4.24,
+     "e": 4.64
+    },
+    {
+     "w": "a",
+     "s": 4.64,
+     "e": 4.96
+    },
+    {
+     "w": "caller",
+     "s": 4.96,
+     "e": 5.2
+    },
+    {
+     "w": "asked",
+     "s": 5.2,
+     "e": 5.52
+    },
+    {
+     "w": "for.",
+     "s": 5.52,
+     "e": 5.76
+    }
+   ]
+  },
+  "n_calls": {
+   "file": "assets/audio/n_calls.wav",
+   "text": "Every call is kept as a transcript, with its outcome and the appointment it made.",
+   "seconds": 4.365,
+   "words": [
+    {
+     "w": "Every",
+     "s": 0.0,
+     "e": 0.32
+    },
+    {
+     "w": "call",
+     "s": 0.32,
+     "e": 0.56
+    },
+    {
+     "w": "is",
+     "s": 0.56,
+     "e": 0.8
+    },
+    {
+     "w": "kept",
+     "s": 0.8,
+     "e": 0.96
+    },
+    {
+     "w": "as",
+     "s": 0.96,
+     "e": 1.2
+    },
+    {
+     "w": "a",
+     "s": 1.2,
+     "e": 1.28
+    },
+    {
+     "w": "transcript,",
+     "s": 1.28,
+     "e": 2.0
+    },
+    {
+     "w": "with",
+     "s": 2.0,
+     "e": 2.32
+    },
+    {
+     "w": "its",
+     "s": 2.32,
+     "e": 2.56
+    },
+    {
+     "w": "outcome",
+     "s": 2.56,
+     "e": 2.88
+    },
+    {
+     "w": "and",
+     "s": 2.88,
+     "e": 3.12
+    },
+    {
+     "w": "the",
+     "s": 3.12,
+     "e": 3.28
+    },
+    {
+     "w": "appointment",
+     "s": 3.28,
+     "e": 3.6
+    },
+    {
+     "w": "it",
+     "s": 3.6,
+     "e": 3.84
+    },
+    {
+     "w": "made.",
+     "s": 3.84,
+     "e": 4.08
+    }
+   ]
+  },
+  "n_recovery": {
+   "file": "assets/audio/n_recovery.wav",
+   "text": "If a doctor calls in sick, staff block that day, see exactly who is affected, and Emma calls those patients to find a new time.",
+   "seconds": 7.848,
+   "words": [
+    {
+     "w": "If",
+     "s": 0.0,
+     "e": 0.24
+    },
+    {
+     "w": "a",
+     "s": 0.24,
+     "e": 0.4
+    },
+    {
+     "w": "doctor",
+     "s": 0.4,
+     "e": 0.72
+    },
+    {
+     "w": "calls",
+     "s": 0.72,
+     "e": 1.04
+    },
+    {
+     "w": "in",
+     "s": 1.04,
+     "e": 1.2
+    },
+    {
+     "w": "sick,",
+     "s": 1.2,
+     "e": 1.84
+    },
+    {
+     "w": "staff",
+     "s": 1.84,
+     "e": 2.08
+    },
+    {
+     "w": "block",
+     "s": 2.08,
+     "e": 2.4
+    },
+    {
+     "w": "that",
+     "s": 2.4,
+     "e": 2.64
+    },
+    {
+     "w": "day,",
+     "s": 2.64,
+     "e": 3.2
+    },
+    {
+     "w": "see",
+     "s": 3.28,
+     "e": 3.52
+    },
+    {
+     "w": "exactly",
+     "s": 3.52,
+     "e": 4.08
+    },
+    {
+     "w": "who",
+     "s": 4.08,
+     "e": 4.32
+    },
+    {
+     "w": "is",
+     "s": 4.32,
+     "e": 4.48
+    },
+    {
+     "w": "affected,",
+     "s": 4.48,
+     "e": 5.2
+    },
+    {
+     "w": "and",
+     "s": 5.36,
+     "e": 5.44
+    },
+    {
+     "w": "Emma",
+     "s": 5.44,
+     "e": 5.76
+    },
+    {
+     "w": "calls",
+     "s": 5.76,
+     "e": 6.08
+    },
+    {
+     "w": "those",
+     "s": 6.08,
+     "e": 6.32
+    },
+    {
+     "w": "patients",
+     "s": 6.32,
+     "e": 6.56
+    },
+    {
+     "w": "to",
+     "s": 6.56,
+     "e": 6.8
+    },
+    {
+     "w": "find",
+     "s": 6.8,
+     "e": 6.96
+    },
+    {
+     "w": "a",
+     "s": 6.96,
+     "e": 7.12
+    },
+    {
+     "w": "new",
+     "s": 7.12,
+     "e": 7.28
+    },
+    {
+     "w": "time.",
+     "s": 7.28,
+     "e": 7.52
+    }
+   ]
+  },
+  "n_system": {
+   "file": "assets/audio/n_system.wav",
+   "text": "And System is the clinic's control room: how Emma is doing, her voice and calendar connections, doctors and opening hours, holidays, staff logins, and patient data requests.",
+   "seconds": 11.378,
+   "words": [
+    {
+     "w": "And",
+     "s": 0.0,
+     "e": 0.16
+    },
+    {
+     "w": "System",
+     "s": 0.16,
+     "e": 0.56
+    },
+    {
+     "w": "is",
+     "s": 0.56,
+     "e": 0.72
+    },
+    {
+     "w": "the",
+     "s": 0.72,
+     "e": 0.88
+    },
+    {
+     "w": "clinic's",
+     "s": 0.88,
+     "e": 1.36
+    },
+    {
+     "w": "control",
+     "s": 1.36,
+     "e": 1.68
+    },
+    {
+     "w": "room:",
+     "s": 1.68,
+     "e": 2.24
+    },
+    {
+     "w": "how",
+     "s": 2.32,
+     "e": 2.56
+    },
+    {
+     "w": "Emma",
+     "s": 2.56,
+     "e": 2.88
+    },
+    {
+     "w": "is",
+     "s": 2.88,
+     "e": 3.12
+    },
+    {
+     "w": "doing,",
+     "s": 3.12,
+     "e": 3.68
+    },
+    {
+     "w": "her",
+     "s": 3.76,
+     "e": 3.92
+    },
+    {
+     "w": "voice",
+     "s": 3.92,
+     "e": 4.24
+    },
+    {
+     "w": "and",
+     "s": 4.24,
+     "e": 4.4
+    },
+    {
+     "w": "calendar",
+     "s": 4.4,
+     "e": 4.8
+    },
+    {
+     "w": "connections,",
+     "s": 4.8,
+     "e": 5.6
+    },
+    {
+     "w": "doctors",
+     "s": 5.92,
+     "e": 6.32
+    },
+    {
+     "w": "and",
+     "s": 6.32,
+     "e": 6.56
+    },
+    {
+     "w": "opening",
+     "s": 6.56,
+     "e": 6.96
+    },
+    {
+     "w": "hours,",
+     "s": 6.96,
+     "e": 7.6
+    },
+    {
+     "w": "holidays,",
+     "s": 7.6,
+     "e": 8.48
+    },
+    {
+     "w": "staff",
+     "s": 8.48,
+     "e": 8.8
+    },
+    {
+     "w": "logins,",
+     "s": 8.8,
+     "e": 9.76
+    },
+    {
+     "w": "and",
+     "s": 9.76,
+     "e": 9.92
+    },
+    {
+     "w": "patient",
+     "s": 9.92,
+     "e": 10.24
+    },
+    {
+     "w": "data",
+     "s": 10.24,
+     "e": 10.56
+    },
+    {
+     "w": "requests.",
+     "s": 10.56,
+     "e": 11.04
+    }
+   ]
+  },
+  "n_outro": {
+   "file": "assets/audio/n_outro.wav",
+   "text": "The model only talks. Python decides every booking.",
+   "seconds": 3.251,
+   "words": [
+    {
+     "w": "The",
+     "s": 0.0,
+     "e": 0.24
+    },
+    {
+     "w": "model",
+     "s": 0.24,
+     "e": 0.56
+    },
+    {
+     "w": "only",
+     "s": 0.56,
+     "e": 0.88
+    },
+    {
+     "w": "talks.",
+     "s": 0.88,
+     "e": 1.44
+    },
+    {
+     "w": "Python",
+     "s": 1.44,
+     "e": 1.76
+    },
+    {
+     "w": "decides",
+     "s": 1.76,
+     "e": 2.24
+    },
+    {
+     "w": "every",
+     "s": 2.24,
+     "e": 2.56
+    },
+    {
+     "w": "booking.",
+     "s": 2.56,
+     "e": 2.96
+    }
+   ]
+  }
+ }
+}

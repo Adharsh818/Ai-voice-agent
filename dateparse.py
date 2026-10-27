@@ -674,6 +674,24 @@ def _clock_hm(m: re.Match):
 _SELF_CORRECTION = re.compile(r"\b(?:i mean|no wait|wait no|sorry,? no|no,? sorry|or rather|make that|make it)\b")
 
 
+def _either_day(t: str, today: date, expecting: Optional[str]):
+    """
+    "Tomorrow or day after tomorrow" -> both days, not only the second (owner's call 3, 25 Oct).
+    Returns (_find_date's triple) for two single days joined by "or", else None.
+    """
+    m = re.search(r"\s+or\s+(?:the\s+)?", t)
+    if not m:
+        return None
+    left, right = t[:m.start()], t[m.end():]
+    a, a_issue, a_span = _find_date(left, today, expecting)
+    b, b_issue, b_span = _find_date(right, today, expecting)
+    if a is None or b is None or not (a.exact and b.exact) or a_issue or b_issue or a.start == b.start:
+        return None
+    first, second = sorted((a.start, b.start))
+    span = t[t.index(a_span):t.index(b_span, m.end()) + len(b_span)] if a_span and b_span else ""
+    return DateConstraint(first, second, kind="set", only=(first, second)), None, span
+
+
 def _self_corrected(t: str, today: date, expecting: Optional[str]) -> Optional[When]:
     """
     "Tuesday, sorry, no, I mean coming Monday": the words after the last
@@ -708,7 +726,7 @@ def parse_when(text: str, *, today: Optional[date] = None, expecting: Optional[s
     fixed = _self_corrected(t, today, expecting)
     if fixed is not None:
         return fixed
-    dc, date_issue, span = _find_date(t, today, expecting)
+    dc, date_issue, span = _either_day(t, today, expecting) or _find_date(t, today, expecting)
     issues = [date_issue] if date_issue else []
     if dc is not None:
         dc, more = _check_date(dc, today)

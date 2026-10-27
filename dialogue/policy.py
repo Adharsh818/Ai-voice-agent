@@ -52,7 +52,7 @@ from dateparse import DateConstraint
 from dialogue import book, manage, match
 from dialogue.context import (
     Act, CallContext, CLOSING_GOALS, Expect, FieldState, GOAL_SPECS, Goal, GoalPlan, Intent,
-    MANAGE_INTENTS, RUNG_ASK, RUNG_CHOICES, RUNG_EXIT, Understanding,
+    MANAGE_INTENTS, RUNG_ASK, RUNG_CHOICES, RUNG_EXIT, RUNG_REPHRASE, Understanding,
 )
 from dialogue.runtime import safe_call
 
@@ -72,7 +72,7 @@ GOAL_LINES = {
     Goal.ASK_TIME: "ask.time", Goal.RESOLVE_AMPM: "resolve.ampm", Goal.OFFER_SLOTS: "offer.two",
     Goal.NO_SLOTS: "no_slots", Goal.MAX_REACHED: "max_reached", Goal.DUPLICATE_CHECK: "duplicate",
     Goal.SUMMARY: "summary", Goal.SUMMARY_AGAIN: "summary.again", Goal.WHAT_TO_CHANGE: "what_to_change",
-    Goal.BOOKED: "booked", Goal.DROPPED: "dropped", Goal.ASK_APPT_DATE: "ask.appt_date",
+    Goal.BOOKED: "booked", Goal.DROPPED: "dropped",
     Goal.VERIFY_FAILED: "verify.failed", Goal.PICK_APPOINTMENT: "pick.appointment",
     Goal.STATE_APPOINTMENT: "state.appointment", Goal.CONFIRM_CANCEL: "confirm.cancel",
     Goal.ASK_CANCEL_REASON: "ask.cancel_reason", Goal.CANCELLED: "cancelled", Goal.OFFER_REBOOK: "offer.rebook",
@@ -85,9 +85,8 @@ GOAL_LINES = {
 RUNG_LINES = {
     Goal.ASK_NAME: ("ask.name", "ask.name.rephrase", "ask.name.spell"),
     Goal.SPELL_NAME: ("ask.name.spell", "ask.name.spell", "ask.name.spell"),
-    Goal.PHONE_MORE: ("phone.more", "ask.phone.choices", "ask.phone.choices"),
+    Goal.PHONE_MORE: ("phone.more", "phone.more.so_far", "phone.more.so_far"),
     Goal.ASK_TIME: ("ask.time", "ask.time.choices", "ask.time.choices"),
-    Goal.ASK_APPT_DATE: ("ask.appt_date", "ask.appt_date.rephrase", "ask.appt_date.rephrase"),
     Goal.ASK_INTENT: ("ask.intent", "ask.intent", "capability"),
     Goal.SUMMARY: ("summary", "summary.again", "summary.again"),
 }
@@ -95,7 +94,7 @@ RUNG_LINES = {
 # Goals that ask the caller for a detail, and the detail they fill (M2).
 ASK_GOALS = frozenset({
     Goal.ASK_NAME, Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE, Goal.ASK_PATIENT, Goal.ASK_AGE,
-    Goal.ASK_SERVICE, Goal.ASK_BRANCH, Goal.ASK_WHEN, Goal.ASK_TIME, Goal.ASK_APPT_DATE, Goal.ASK_NEW_WHEN,
+    Goal.ASK_SERVICE, Goal.ASK_BRANCH, Goal.ASK_WHEN, Goal.ASK_TIME, Goal.ASK_NEW_WHEN,
     Goal.ASK_CANCEL_REASON,
 })
 # Workflow goals that go ahead of the name and phone questions: they react
@@ -122,8 +121,8 @@ _CLOSE_ON_EXIT = frozenset({
 
 # Acts that mean the caller did something other than ignore the question.
 _NOT_A_MISS = (
-    Act.QUESTION, Act.CAPABILITY, Act.CHITCHAT, Act.CORRECTION, Act.WANTS_HUMAN, Act.ROBOT_QUESTION,
-    Act.REPEAT, Act.WAIT, Act.END, Act.ABUSE, Act.OTHER_LANGUAGE, Act.DONT_KEEP, Act.FRAGMENT,
+    Act.QUESTION, Act.CAPABILITY, Act.CHITCHAT, Act.CORRECTION, Act.WANTS_HUMAN, Act.CALLBACK_REQUEST,
+    Act.ROBOT_QUESTION, Act.REPEAT, Act.WAIT, Act.END, Act.ABUSE, Act.OTHER_LANGUAGE, Act.DONT_KEEP, Act.FRAGMENT,
 )
 # Understanding attributes a goal's answer arrives in. Details outside this
 # set mean the caller volunteered something else: progress, not a miss.
@@ -134,7 +133,7 @@ _GOAL_FIELDS = {
     Goal.ASK_SERVICE: ("service", "service_phrase"), Goal.CLARIFY_SERVICE: ("service", "service_phrase"),
     Goal.ASK_BRANCH: ("branch", "branch_any"), Goal.ASK_WHEN: ("date_phrase", "time_phrase"),
     Goal.ASK_TIME: ("time_phrase",), Goal.RESOLVE_AMPM: ("time_phrase",),
-    Goal.ASK_APPT_DATE: ("appt_date_phrase", "date_phrase"), Goal.ASK_NEW_WHEN: ("date_phrase", "time_phrase"),
+    Goal.ASK_NEW_WHEN: ("date_phrase", "time_phrase"),
     Goal.OFFER_SLOTS: ("choice_index", "reject_options", "time_phrase", "date_phrase"),
     Goal.OFFER_NEW_SLOTS: ("choice_index", "reject_options", "time_phrase", "date_phrase"),
 }
@@ -171,11 +170,24 @@ def next_goal(ctx: CallContext, u: Optional[Understanding] = None, *, catalog=No
     if u is not None and u.has(Act.CAPABILITY) and u.pure_question:
         return _capability(ctx, u)
     if not ctx.workflow_active():
-        return _conversation(ctx, u, catalog)
+        return _yes_to_anything_else(ctx, u, _conversation(ctx, u, catalog))
 
     plan = _workflow_plan(ctx, u, catalog)
     if u is not None and u.pure_question and plan.goal not in OUTCOME_GOALS:
         plan.steer = should_steer(ctx, u)
+    return _yes_to_anything_else(ctx, u, plan)
+
+
+def _yes_to_anything_else(ctx: CallContext, u: Optional[Understanding], plan: GoalPlan) -> GoalPlan:
+    """
+    "Yeah." to "Anything else I can help with?" means there is something: ask what it is, not the
+    same question again (owner's call, 26 Oct: "Sure, anything else you need?").
+    """
+    if plan.goal == Goal.ANYTHING_ELSE and plan.line == "anything_else" and u is not None \
+            and u.confirmation == "yes" and u.intent in (None, Intent.NONE) \
+            and not (u.service or u.date_phrase or u.time_phrase or u.question) \
+            and ctx.pending in (Goal.ANYTHING_ELSE, Goal.BOOKED, Goal.CANCELLED, Goal.RESCHEDULED):
+        plan.line = "anything_else.yes"
     return plan
 
 
@@ -261,12 +273,17 @@ def _identity_plan(ctx: CallContext, goal: Goal, u, catalog) -> GoalPlan:
         return GoalPlan(Goal.CLOSE, "phone.failed", critical=True, use_model_say=False,
                         closes_call=True, expect=Expect.OPEN)
     plan = _plan(ctx, goal, catalog, u=u)
+    if goal == Goal.PHONE_MORE and ctx.pending == Goal.PHONE_MORE and plan.line == "phone.more":
+        plan.line = "phone.more.so_far"         # "Yes, go on." once, then what she holds and what's missing
     manage_flow = ctx.intent in MANAGE_INTENTS
-    if goal == Goal.ASK_PHONE and manage_flow and u is not None and u.has(Act.NON_ANSWER) \
+    if goal == Goal.ASK_PHONE and u is not None and u.has(Act.NON_ANSWER) \
             and ctx.pending in (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE):
-        # "I don't know the number, I only know the name" (8 Oct): say why it's needed
-        # rather than "a few digits at a time" on a loop.
-        plan.line = "ask.phone.why"
+        # "I don't know the number, I only know the name" (8 Oct), "I'd rather not give my number"
+        # (review, 25 Oct): say why it's needed rather than "could you say it once more?".
+        plan.line = "ask.phone.why" if manage_flow else "ask.phone.why.book"
+        return plan
+    if goal == Goal.ASK_PHONE and c.phone_overflow:
+        plan.line = "phone.too_many"            # one sentence that asks again, not "too many" + a second ask
         return plan
     if goal == Goal.ASK_PHONE and plan.rung == RUNG_ASK:
         if ctx.pending == Goal.CONFIRM_PHONE:
@@ -330,6 +347,8 @@ def _params(ctx: CallContext, goal: Goal, catalog) -> dict:
     b, c = ctx.book, ctx.caller
     if goal == Goal.CONFIRM_PHONE:
         return {"phone": speak_phone(c.phone_e164, c.phone_landline)}
+    if goal == Goal.PHONE_MORE:
+        return prompts.phone_so_far(c.phone_buffer)
     if goal == Goal.CONFIRM_CHANGE:
         p = ctx.change_proposal
         return {"field": _FIELD_WORDS.get(p.get("field"), p.get("field", "details")),
@@ -409,8 +428,6 @@ def holds(ctx: CallContext, goal: Goal) -> bool:
         return b.date_c is not None
     if goal == Goal.ASK_TIME:
         return b.any_time or (b.time_c is not None and b.time_c.kind != "ambiguous")
-    if goal == Goal.ASK_APPT_DATE:
-        return m.appt_date is not None
     if goal == Goal.ASK_NEW_WHEN:
         return m.new_date_c is not None
     if goal == Goal.ASK_CANCEL_REASON:
@@ -458,8 +475,6 @@ def missing(ctx: CallContext) -> list:
             todo.append(phone)
         if not m.patient_name:
             todo.append(Goal.ASK_NAME)
-        if m.appt_date is None:
-            todo.append(Goal.ASK_APPT_DATE)
         if not m.done and not m.verified:
             if m.verify_attempts:
                 todo.append(Goal.VERIFY_FAILED)         # verification itself is an action, not a question
@@ -578,6 +593,10 @@ def rung_for(ctx: CallContext, goal: Goal, u: Optional[Understanding] = None) ->
         rung = max(rung, RUNG_CHOICES)               # a non-answer to this question, not to an earlier one
     if asks_for_options(ctx, goal, u):
         rung = RUNG_CHOICES                          # read the options out, never jump past them to an exit
+        if goal == Goal.ASK_BRANCH:
+            # The branch "choices" rung proposes "whichever is earliest"; asked where, she names them
+            # all ("Which is more convenient for you, Nagarbhavi, ...?", owner's call 2, 25 Oct).
+            rung = RUNG_REPHRASE
     return rung
 
 
@@ -616,9 +635,22 @@ def take_exit(ctx: CallContext, plan: GoalPlan) -> Optional[GoalPlan]:
     if goal == Goal.ASK_CANCEL_REASON:
         ctx.manage.reason_asked = True
         return None
+    if goal == Goal.OFFER_SLOTS and ctx.intent == Intent.BOOK and b.offer_rounds == 0:
+        # Once: a caller who keeps asking for a time the clinic can't do gets the callback offer
+        # below, not a loop of "What would work better?" (sim, 25 Oct).
+        # The offers didn't land: ask what would work, as a receptionist would, not a callback
+        # (owner's call 2, 25 Oct: "I'll take 9" went to "I can have someone call you").
+        b.offer_rounds += 1
+        b.time_c = None
+        b.touch()
+        return GoalPlan(Goal.ASK_WHEN, "ask.when.after_reject", rung=RUNG_ASK, critical=False,
+                        use_model_say=False, expect=Expect.DATE)
     if goal in (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE) and not (
             ctx.intent in MANAGE_INTENTS and ctx.line_e164 and ctx.caller.phone_misses < 3):
-        return GoalPlan(Goal.CLOSE, "phone.failed", rung=RUNG_EXIT, critical=True, use_model_say=False,
+        # The line is blamed only after real read-backs failed; a caller who never gave a number
+        # hears a kind close instead (review, 25 Oct).
+        line = "phone.failed" if ctx.caller.phone_misses else "close.no_number"
+        return GoalPlan(Goal.CLOSE, line, rung=RUNG_EXIT, critical=True, use_model_say=False,
                         closes_call=True, expect=Expect.OPEN)
     # A phone call where they can't give the number the booking is under (8 Oct: "I only
     # know the name"): the team can find it by name and call back, rather than hanging up.
