@@ -8,7 +8,7 @@ The project's own finish list (Part A of [PRODUCT_ROADMAP.md](PRODUCT_ROADMAP.md
 |---|---|---|---|
 | 1 | **Done (27 Oct).** Restart Emma on the PC | She now runs the latest code on the repaired `.venv`, in the "Emma (PC)" terminal tab. | To restart again: `.venv\Scripts\python.exe server.py` in `A:\Voice-Agent`. |
 | 2 | Mark the two test tasks done | Tasks 11 and 12 on the PC dashboard came from tests. | Dashboard, Tasks tab. |
-| 3 | Delete the old `.env` backups when you're sure | `.env.bak-20261025-brain` and `.env.bak-20261025-nvidia` hold keys and sit untracked in `A:\Voice-Agent`. | Delete them by hand; they are never committed. |
+| 3 | **Done (27 Oct).** Delete the old `.env` backups | `.env.bak-20261025-brain` and `.env.bak-20261025-nvidia` held keys. | Deleted on the PC, with the review copy's test passwords and database; none are left on the server. |
 | 4 | Watch the free quotas (A8, ongoing) | Gemini's free daily quota runs out on busy days, and Emma then answers from rules alone. ElevenLabs has 10,000 characters a month, shared by the PC and the site. | `/health` on the site shows the day's model requests and failures. |
 
 **Done on 27 Oct for the PC:** the Python that `A:\Voice-Agent\.venv` was built on had been moved by another tool's update. The environment now points at a Python 3.12 that `uv` manages (`%APPDATA%\uv\python`), and the old config is kept as `.venv\pyvenv.cfg.bak-20261027`. All 1132 tests pass with it.
