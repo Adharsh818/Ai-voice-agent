@@ -231,7 +231,16 @@ class Speaker:
         # on_begin(turn, offset_ms, text): each spoken piece as it starts, for the Live tab (caption_pacer.py)
         self.on_begin: Optional[Callable] = None
 
+    def _one_voice_backup(self) -> bool:
+        """The call moved to the backup voice: every sentence is said in it from now on."""
+        return self.degraded and self.backup_tts is not None and getattr(self.backup_tts, "ready", True)
+
     def _cached(self, text: str) -> Optional[bytes]:
+        # The stored sentences are in the ElevenLabs voice: once the call is on the
+        # backup voice, they'd make one reply switch between two women (owner's call,
+        # 26 Oct: "where did the second voice come from", the credits had run out).
+        if self._one_voice_backup():
+            return None
         return self.cache.get(text) if self.cache else None
 
     def plan(self, text: str) -> list[_Segment]:
@@ -256,19 +265,24 @@ class Speaker:
 
     async def _open(self, text: str):
         for engine in self._engines():
-            if engine is None:
-                continue
-            try:
-                stream = await asyncio.wait_for(engine.open_stream(text), timeout=3.0)
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:
-                logger.warning("TTS stream open failed on %s: %s", type(engine).__name__, exc)
-                continue
-            stream._engine = engine
-            self._live.append(stream)
-            return stream
+            stream = await self._open_on(engine, text)
+            if stream is not None:
+                return stream
         return None
+
+    async def _open_on(self, engine, text: str):
+        if engine is None:
+            return None
+        try:
+            stream = await asyncio.wait_for(engine.open_stream(text), timeout=3.0)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("TTS stream open failed on %s: %s", type(engine).__name__, exc)
+            return None
+        stream._engine = engine
+        self._live.append(stream)
+        return stream
 
     def prepare(self, text: str) -> list[_Segment]:
         """
@@ -355,6 +369,8 @@ class Speaker:
             sent = False
             try:
                 for seg in segments:
+                    if seg.pcm is not None and self._one_voice_backup():
+                        seg.pcm, seg.stream = None, await self._open(seg.text)   # switched earlier in this reply
                     if seg.pcm is not None:
                         self._begin(turn_id, seg.text, kind)
                         await self._send(turn_id, seg.pcm, timer, "cache")
@@ -376,13 +392,28 @@ class Speaker:
                         await self._send(turn_id, random.choice(BREATHS), timer, "breath")
                     self._begin(turn_id, seg.text, kind)
                     got = False
+                    # "backup" when the call already moved to Piper, so the turn log says which voice spoke.
+                    source = "backup" if getattr(seg.stream, "_engine", None) is self.backup_tts else "live"
                     async for chunk in seg.stream:
-                        await self._send(turn_id, chunk, timer, "live")
+                        await self._send(turn_id, chunk, timer, source)
                         sent = got = True
+                    engine = getattr(seg.stream, "_engine", None)
+                    if (not got and not seg.stream.cancelled and self.fallback_tts is not None
+                            and engine is not self.fallback_tts and engine is not self.backup_tts):
+                        # One silent answer from the live socket ("Hmm." on a busy moment) is not a
+                        # dead voice: the same sentence over HTTP first, in the same voice, so the call
+                        # doesn't change voice mid-way (owner, 23 Oct: "it is switching between 2 voices").
+                        logger.warning("Live TTS returned no audio; trying the same voice over HTTP")
+                        retry = await self._open_on(self.fallback_tts, seg.text)
+                        if retry is not None:
+                            seg.stream = retry
+                            async for chunk in retry:
+                                await self._send(turn_id, chunk, timer, "live")
+                                sent = got = True
                     if (not got and not seg.stream.cancelled and self.backup_tts is not None
                             and getattr(seg.stream, "_engine", None) is not self.backup_tts
                             and getattr(self.backup_tts, "ready", False)):
-                        # ElevenLabs answered with silence (its quota ran out on
+                        # ElevenLabs answered with silence on both paths (its quota ran out on
                         # 1 Oct with no error): say it with the backup voice, and
                         # use the backup for the rest of the call.
                         logger.warning("Live TTS returned no audio; switching this call to the backup voice")

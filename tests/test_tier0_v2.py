@@ -142,11 +142,6 @@ class StrictAnswers(Tier0Case):
         self.assertIsNone(u.date_phrase)
         self.assertEqual(self.u("November 22, at", view(Goal.ASK_WHEN)).acts, ["fragment"])
 
-    def test_verification_date(self):
-        u = self.u("the 5th", view(Goal.ASK_APPT_DATE, intent=Intent.CANCEL))
-        self.assertEqual(u.appt_date_phrase, "the 5th")
-        self.assertIsNone(u.date_phrase)
-
     def test_date_refusals_go_to_the_model(self):
         for text in ("Monday doesn't work", "not Monday", "Monday is my son's exam"):
             self.assertIsNone(self.u(text, view(Goal.ASK_WHEN)), text)
@@ -259,7 +254,6 @@ class StrictNoneWhenUnsure(Tier0Case):
             ("I've been really busy lately", view(Goal.ASK_WHEN)),
             ("My name is Priya and my number is 98765 43210", view(Goal.ASK_NAME)),
             ("a cleaning tomorrow at Whitefield", view(Goal.ASK_SERVICE)),
-            ("I want to book a cleaning for tomorrow morning", view(Goal.GREET, intent=Intent.NONE)),
             ("is parking available", view(Goal.ASK_BRANCH)),
             ("yes, but can we make it Tuesday instead", view(Goal.SUMMARY)),
             ("Which one is earlier?", OFFER),
@@ -385,3 +379,12 @@ class CoverageAndSpeed(Tier0Case):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OpenerWithWhenTests(Tier0Case):
+    """Owner, 25 Oct: "most replies without the model". A booking with its day and time is Tier-0."""
+
+    def test_a_booking_with_its_day_and_time(self):
+        u = self.u("I want to book a cleaning for tomorrow morning", view(Goal.GREET, intent=Intent.NONE))
+        self.assertEqual((u.intent, u.service, u.date_phrase, u.time_phrase),
+                         (Intent.BOOK, "Teeth Cleaning", "tomorrow", "morning"))

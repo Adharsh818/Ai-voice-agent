@@ -231,6 +231,8 @@ def accumulate_phone(buffer: str, run: DigitRun) -> tuple[str, Optional[str]]:
     combined = _strip_prefix(combined)
     if _whole(combined):
         return combined, phones.to_e164(combined)
+    if len(combined) > 10 and combined[0] != "0":
+        return "", None                    # more digits than a mobile has: ask for it once more
     return combined, None
 
 
@@ -338,9 +340,18 @@ NON_NAME_WORDS = {
     "i'm", "im", "i'll", "i've", "i'd", "dr", "stuck", "sick", "unwell", "running", "traffic", "coming",
     "outside", "ready", "worried", "scared", "nervous", "pregnant", "diabetic", "available", "afraid",
     "really", "very", "just", "also", "still", "already",
+    # Owner's calls, 26 Oct: "Thor" heard as "Start", "Peter" as "Pizza". Everyday words a bad line
+    # makes of a short name: asked again (and then spelled) rather than "Start, thank you".
+    "start", "started", "stop", "pizza", "star", "store", "part", "call", "line", "voice", "sound",
+    "hear", "listen", "food", "water", "coffee", "tea", "car", "bus", "train", "house", "room", "door",
+    "table", "chair", "paper", "money", "shop", "market", "office", "school", "work", "job", "end",
+    "game", "music", "movie", "computer", "mobile", "network", "signal", "problem", "issue",
+    "question", "answer", "test", "testing", "demo", "thing", "things", "something",
+    "nice", "great", "bad", "better", "damn",
 }
 # Titles said before a name ("this is Mr Sharma"): dropped, the name kept.
-_TITLES = re.compile(r"^(?:mr|mrs|ms|miss|shri|sri|smt|master)\.?\s+")
+# "Mister Viha" said in full (website call, 26 Oct: "Okay, Mister.").
+_TITLES = re.compile(r"^(?:mr|mrs|ms|miss|mister|missus|misses|madam|shri|sri|smt|master)\.?\s+")
 # "I'm talking", "I'm asking": what the caller is doing. A list, not every "-ing" word:
 # Fleming, Manning and Harding are surnames.
 _GERUNDS = {
@@ -357,7 +368,7 @@ _NAME_LEADS = re.compile(
     r"(?:his|her|their)(?: name is| name's)|(?:she|he)(?:'s| is) called|"
     r"(?:my )?(?:daughter|son|child|kid|wife|husband|mother|mom|mum|father|dad|brother|sister)'?s name(?: is|'s))[ ,]+)?"
 )
-_NAME_TAILS = re.compile(r"(?:[ ,]+(?:here|speaking|please|thanks|thank you|only))+$")
+_NAME_TAILS = re.compile(r"(?:[ ,]+(?:is my name|is the name|here|speaking|please|thanks|thank you|only))+$")
 
 
 def clean_name(text: str) -> Optional[str]:
@@ -382,6 +393,9 @@ def clean_name(text: str) -> Optional[str]:
         return None
     if any(w in NON_NAME_WORDS or w.replace("-", "") in NON_NAME_WORDS for w in words):
         return None
+    if any(re.sub(r"'(?:s|re|ll|ve|d|m)$", "", w) in NON_NAME_WORDS for w in words if "'" in w):
+        return None                         # "Oh, there's..." (owner's call, 26 Oct: "Okay, There'S")
+    words = [re.sub(r"'s$", "", w) if len(w) > 4 else w for w in words]   # "Viha's" heard for "Viha"
     if any(w in _GERUNDS for w in words):
         return None                         # "I'm talking", "I'm asking": doing, not a name
     if all(len(w) == 1 for w in words):
@@ -389,7 +403,14 @@ def clean_name(text: str) -> Optional[str]:
     half = len(words) // 2
     if len(words) % 2 == 0 and words[:half] == words[half:]:
         words = words[:half]                # "Jimmy. Jimmy." said twice to be heard
-    return " ".join(w.title() if len(w) > 1 else w.upper() for w in words)
+    # str.title() makes "D'Souza" right but "o'neil's" into "O'Neil'S"; only a letter after "'" that
+    # starts a name part (D'Souza, O'Brien) is capitalised.
+    return " ".join(_name_case(w) if len(w) > 1 else w.upper() for w in words)
+
+
+def _name_case(word: str) -> str:
+    return re.sub(r"(^|[-'])([a-z])(?=[a-z]{2})|^([a-z])",
+                  lambda m: (m.group(1) or "") + (m.group(2) or m.group(3)).upper(), word)
 
 
 def _name_key(name: str) -> str:
@@ -467,6 +488,8 @@ SERVICE_PHRASES = {
 # STT slips that are ordinary words: only read as a service when Emma just asked for one.
 ASKED_ONLY_PHRASES = {
     "chicken": "General Check-up", "check in": "General Check-up", "chick up": "General Check-up",
+    # The owner's phone calls, 25-26 Oct: "Pickup." / "At pickup." / "I wanted a pickup." four times.
+    "pickup": "General Check-up", "pick up": "General Check-up", "pick-up": "General Check-up",
     "clean up": "Teeth Cleaning", "cleanup": "Teeth Cleaning",
 }
 # "tooth" alone: which one? (CLARIFY_SERVICE)
@@ -559,6 +582,16 @@ def match_service(text: str, services: list, *, asked: bool = False) -> CatalogM
 
 
 _CITY_WORDS = {"bengaluru", "bangalore", "blr", "city"}
+# Asking for a branch's own phone line ("what's the Whitefield branch number?", "can I call the clinic
+# directly?"). The lines are never read out (owner, A7, 27 Oct): Emma arranges a call back instead.
+_PLACE = r"(?:clinic|branch|office|reception|centre|center|front desk)"
+BRANCH_PHONE_RE = re.compile(
+    rf"\b{_PLACE}(?:'s)?\s+(?:phone |contact |landline |direct |telephone )?(?:number|line)\b|"
+    rf"\b(?:phone|contact|landline|telephone|direct)\s+(?:number|line)\s+(?:of|for)\s+"
+    rf"(?:the |your |that |this )?(?:[a-z]+\s+)?{_PLACE}\b|"
+    r"\b(?:your|the clinic'?s?)\s+(?:phone|contact|landline|telephone)\s+number\b|"
+    rf"\bcall\s+(?:the|that|your)\s+(?:[a-z]+\s+)?{_PLACE}\s+directly\b")
+
 _BRANCH_WORD_RE = re.compile(r"\b([a-z]+)\s+(?:branch|clinic|centre|center|side|location)\b")
 _NOT_A_PLACE = {
     "your", "the", "which", "nearest", "closest", "main", "any", "other", "that", "this",
@@ -581,12 +614,61 @@ def _close(a: str, b: str, threshold: float) -> bool:
     return sm.real_quick_ratio() >= threshold and sm.quick_ratio() >= threshold and sm.ratio() >= threshold
 
 
-def match_branch(text: str, branches: list) -> CatalogMatch:
+def _sound_key(word: str) -> str:
+    """_name_key plus the swaps a phone line makes of Bengaluru names ("Nagar file" for Nagarbhavi)."""
+    key = _name_key(word)
+    for a, b in (("f", "v"), ("p", "b")):
+        key = key.replace(a, b)
+    return key
+
+
+def _nearest_branch(words: list, branches: list, floor: float = 0.7) -> Optional[str]:
+    """
+    The one branch a mis-heard name is clearly closest to ("Indiranjani" ->
+    Indiranagar, owner's call 26 Oct): same first sound, ratio >= floor (by
+    spelling or by sound) and well ahead of the next branch.
+    """
+    scores = {}
+    for br in branches:
+        key = _compact(br.name)
+        sound = _sound_key(key)
+        best = 0.0
+        for n in (1, 2):
+            for i in range(len(words) - n + 1):
+                window = "".join(words[i:i + n])
+                if len(window) < 6:
+                    continue
+                heard = _sound_key(window)
+                if window[0] == key[0] or heard[:1] == sound[:1]:
+                    best = max(best, SequenceMatcher(None, window, key).ratio(),
+                               SequenceMatcher(None, heard, sound).ratio())
+        scores[br.name] = best
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    if not ranked or ranked[0][1] < floor:
+        return None
+    if len(ranked) > 1 and ranked[0][1] - ranked[1][1] < 0.12:
+        return None
+    return ranked[0][0]
+
+
+def guess_branch(text: str, branches: list) -> Optional[str]:
+    """
+    A branch name heard badly outside the branch question ("I want Nagar file."):
+    a guess Emma checks with the caller, never one she takes silently.
+    """
+    words = re.findall(r"[a-z]+", _norm(text))
+    if not words or not branches or match_branch(text, branches).value:
+        return None
+    return _nearest_branch(words, branches, floor=0.72)
+
+
+def match_branch(text: str, branches: list, *, asked: bool = False) -> CatalogMatch:
     """
     Match a phrase against facts.Branch names and areas ("near the metro" is
     not a match). Spacing slips ("indira nagar", "white field") and small STT
     misspellings ("nagarabhavi") still match; "<word> branch" naming an
-    unknown place comes back as unknown_phrase.
+    unknown place comes back as unknown_phrase. `asked` (an answer to "which
+    branch?") also takes a word clearly nearest one branch.
     """
     words = re.findall(r"[a-z]+", _norm(text))
     if not words or not branches:
@@ -604,7 +686,7 @@ def match_branch(text: str, branches: list) -> CatalogMatch:
                 if len(window) < 4:
                     continue
                 for key in keys:
-                    if window == key or (len(key) >= 6 and _close(window, key, 0.86)):
+                    if window == key or (len(key) >= 6 and _close(window, key, 0.85)):
                         found = True
                         break
                 if found:
@@ -617,6 +699,10 @@ def match_branch(text: str, branches: list) -> CatalogMatch:
         return CatalogMatch(hits[0])
     if len(hits) > 1:
         return CatalogMatch(None, tuple(hits))
+    if asked:
+        near = _nearest_branch(words, branches)
+        if near:
+            return CatalogMatch(near)
     m = _BRANCH_WORD_RE.search(_norm(text))
     if m and m.group(1) not in _NOT_A_PLACE and len(m.group(1)) >= 4:
         return CatalogMatch(None, unknown_phrase=m.group(1).title())
@@ -750,6 +836,8 @@ _LONE_FRAGMENTS = {
     "uhh", "er", "like", "the", "my", "i'm", "it's", "tell", "let", "when", "where", "why",
     "which", "who", "maybe",
 }
+_FRAGMENT_LEADS = {"sorry", "okay", "ok", "yeah", "yes", "no", "um", "uh", "hmm", "so", "and", "but", "well",
+                   "wait", "actually"}
 # Short real words that can end a sentence after "the" / "my" ("cancel the one").
 _SHORT_WORDS = {
     "one", "day", "all", "kid", "son", "job", "gum", "gums", "jaw", "fee", "way", "end", "bit",
@@ -782,6 +870,8 @@ def is_fragment(text: str, expect: str) -> bool:
         if last in _LONE_FRAGMENTS:
             return True
         return False
+    if last in _LONE_FRAGMENTS and all(w in _FRAGMENT_LEADS for w in words[:-1]):
+        return True                         # "Sorry. Actually," / "Okay, so" (owner's call 2, 25 Oct)
     if is_backchannel(text):
         return False
     if (text or "").rstrip().endswith("?"):
@@ -860,7 +950,9 @@ ASKS_OPTIONS_RE = re.compile(
     r"\b(?:what|which|tell me|list|say|read|name|go through)\b.{0,30}?"
     r"\b(?:services?|treatments?|options?|choices?|branches|branch|locations?|times|slots)\b"
     r"|\bwhat (?:do|can) you (?:do|offer|have)\b|\bwhat (?:are|is) (?:there|available)\b"
-    r"|\b(?:services?|treatments?|branches|locations?)\s+(?:available|offered|you (?:have|do|offer))\b",
+    r"|\b(?:services?|treatments?|branches|locations?)\s+(?:available|offered|you (?:have|do|offer))\b"
+    # "Tell me where it is available" at the branch question (owner's call 2, 25 Oct).
+    r"|\bwhere (?:is it|it is|it's|can i get it|do you do it|all)\b",
     re.IGNORECASE)
 # "Hello? Yes, I'm still here." answers "are you still there?"; the "?" is the line, not a question.
 _HELLO_RE = re.compile(r"^\s*(hello|hi|hey|hallo)\s*\?+\s*")

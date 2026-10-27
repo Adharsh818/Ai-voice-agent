@@ -25,9 +25,10 @@ Owner in Sprint 1b: E1.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import re
-from datetime import date
+from datetime import date, time
 from typing import Optional
 
 import clock
@@ -270,8 +271,7 @@ def _retry_verification(ctx: CallContext):
     """
     m = ctx.manage
     m.done, m.verify_attempts, m.appt_date = False, 0, None
-    for goal in (Goal.VERIFY_FAILED, Goal.ASK_APPT_DATE):
-        ctx.goal_stats.pop(goal.value, None)
+    ctx.goal_stats.pop(Goal.VERIFY_FAILED.value, None)
 
 
 def switch_intent(ctx: CallContext, new: Intent, rt: Runtime) -> list:
@@ -430,23 +430,27 @@ def _name_notice(name: str, spelled: Optional[str], manage: bool = False) -> Not
         return Notice("ack.spelled", {"letters": " ".join(spelled.replace(" ", "").upper())},
                       covered_by=(name,))
     # A cancel or change names an existing booking: never "Nice to meet you, Sharon" (8 Oct).
-    return Notice("ack.name.manage" if manage else "ack.name", {"name": name}, covered_by=(name,))
+    # The model's "Got it, Neha." already acknowledges "Neha Kapur": not "Thanks, Neha Kapur." on top (25 Oct).
+    first = name.split()[0] if name.split() else name
+    covered = (name, first) if len(first) >= 3 else (name,)
+    return Notice("ack.name.manage" if manage else "ack.name", {"name": name, "first": first}, covered_by=covered)
 
 
 def _apply_phone(ctx: CallContext, u: Understanding, conf: Optional[str], cued: bool, notices: list) -> None:
     c = ctx.caller
+    c.phone_overflow = False                            # set again below only when this turn overflowed
     if u.phone_digits:
         digits, too_many = _digit_run(u.phone_digits)
         if too_many:
             c.phone_buffer = ""
-            notices.append(Notice("phone.too_many"))
+            c.phone_overflow = True
             return
         # As said, before the 0 / +91 prefix is stripped ("080 2345 6789" is read back as a landline).
         said = c.phone_buffer + (safe_call(match._read_digits, u.raw_text or "", default="") or digits)
         buffer, e164 = _accumulate(c.phone_buffer, u.phone_digits, digits)
         if e164 is None:
-            if not buffer and len(c.phone_buffer) + len(digits) > 12:
-                notices.append(Notice("phone.too_many"))
+            if not buffer and digits:
+                c.phone_overflow = True
             c.phone_buffer = buffer
             return
         c.phone_buffer = ""
@@ -604,10 +608,18 @@ def _apply_branch(ctx: CallContext, u: Understanding, cued: bool, notices: list,
         b.branch = None
         notices += _set_field(ctx, "branch", name, rt)
         return
+    if u.branch_guess and ctx.pending != Goal.ASK_BRANCH:
+        # "I want Nagar file.": checked with the caller before anything changes (owner's call, 26 Oct).
+        ctx.change_proposal = {"field": "branch", "value": name, "spoken": name}
+        return
     if b.branch and not (cued or ctx.pending in (Goal.ASK_BRANCH, Goal.NO_SLOTS, *SUMMARY_GOALS)):
         notices += apply_correction(ctx, "branch", name, rt, cued=False)
         return
     notices += _set_field(ctx, "branch", name, rt)
+    heard = safe_call(match.match_branch, u.raw_text or "", list(getattr(catalog, "branches", ()) or ()), default=None)
+    if b.branch == name and u.raw_text and (heard is None or heard.value != name):
+        # "Indiranjan." taken as Indiranagar: said back, so a wrong guess is caught (owner's call, 26 Oct).
+        notices.append(Notice("ack.branch", {"branch": name}, covered_by=(name.lower(),)))
 
 
 def _apply_doctor(ctx: CallContext, u: Understanding, notices: list, rt: Runtime) -> None:
@@ -665,7 +677,8 @@ def _unknown_doctor(ctx: CallContext, phrase: str, catalog) -> Notice:
         name = f"Dr {name.title()}"
     return Notice("doctor.unknown", {"name": name, "doctors": _list(names) or "our doctors",
                                      "are_is": "is" if len(names) == 1 else "are",
-                                     "branch": branch or "our clinics"})
+                                     "branch": branch or "our clinics"},
+                  covered_by=(name.split()[-1].lower(),))
 
 
 # ---------------------------------------------------------------- when
@@ -699,6 +712,12 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
             time_c = TimeConstraint("exact", pick, label=f"{b.time_c.label} {time_c.label}".strip())
     if time_c is not None and time_c.kind == "ambiguous" and date_c is None:
         time_c = _ampm_from_context(b, time_c)
+    if time_c is not None and time_c.kind == "window" and date_c is None and b.time_c is not None             and b.time_c.kind == "exact" and not (time_c.start <= b.time_c.start < time_c.end)             and time_c.start <= _flip_noon(b.time_c.start) < time_c.end:
+        # "AM." after "tomorrow at 8 in the evening": 8 in the morning, not any morning time.
+        time_c = TimeConstraint("exact", _flip_noon(b.time_c.start), label=time_c.label)
+    checking = time_c is not None and date_c is None and _flips_part_of_day(b.time_c, time_c, phrase)
+    if checking:
+        time_c = _either_side_of_noon(time_c)
     if date_c is not None and date_c.kind == "earliest" and b.date_c is not None and b.date_c.kind != "earliest" \
             and _FLEXIBLE_RE.search(phrase) and not _SOONEST_RE.search(phrase):
         # "Tomorrow." ... "Whenever it's available. Morning only." keeps tomorrow (8 Oct: it became
@@ -708,7 +727,9 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
     if time_c is not None and time_c.kind == "any":
         time_c = None
     new_date = date_c is not None and date_c != b.date_c
-    new_time = time_c is not None and time_c != b.time_c
+    # "evening 5" then "5 in the evening" is the same time in other words: no "Got it, at 5 then."
+    new_time = time_c is not None and (b.time_c is None or dataclasses.replace(time_c, label="")
+                                       != dataclasses.replace(b.time_c, label=""))
     if not (new_date or new_time or (any_time and not b.any_time)):
         return
     narrowing = (new_time and b.time_c is not None and b.time_c.kind == "window" and time_c.kind == "exact"
@@ -717,12 +738,12 @@ def _apply_when(ctx: CallContext, u: Understanding, cued: bool, notices: list, r
         (new_time and b.time_c is not None and b.time_c.kind != "ambiguous" and ctx.pending != Goal.RESOLVE_AMPM
          and not narrowing)
     value = (date_c if new_date else b.date_c, time_c if new_time else b.time_c, any_time or b.any_time)
-    if changing and not (cued or ctx.pending in WHEN_GOALS):
+    if changing and not (cued or checking or ctx.pending in WHEN_GOALS):
         notices += apply_correction(ctx, "date", value, rt, cued=False, spoken=phrase)
         return
     notices += _set_field(ctx, "date", value, rt)
     b.when_phrase = phrase
-    if changing:
+    if changing and not checking:              # "8 in the morning or the evening?" says it back itself
         said = safe_call(prompts.speak_when, date_c if new_date else None, time_c if new_time else None,
                          default="") or _strip_cue(phrase)
         notices.append(Notice("correction.ack", {"value": said}, covered_by=_cover_words(said)))
@@ -759,6 +780,31 @@ def _ampm_from_context(b, time_c: TimeConstraint) -> TimeConstraint:
         if len(hits) == 1:
             return TimeConstraint("exact", hits[0], label=f"{time_c.label} {window.label}".strip())
     return time_c
+
+
+_AMPM_RE = re.compile(r"(?<![a-z])[ap]\.?\s?m\b", re.I)    # "8PM", "8 p.m."
+
+
+def _flips_part_of_day(held: Optional[TimeConstraint], new: TimeConstraint, said: str) -> bool:
+    """
+    "Morning." ... "I want at 8PM": a short "AM"/"PM" is what a poor line garbles
+    most (owner's call, 26 Oct: "eight AM" was heard as "8PM" and booked for the
+    evening). A time on the other side of noon from the part of day the caller
+    already gave, said with only am/pm, is asked about rather than taken.
+    """
+    if held is None or held.kind != "window" or new.kind != "exact" or not _AMPM_RE.search(said or ""):
+        return False
+    flipped = _flip_noon(new.start)
+    return not (held.start <= new.start < held.end) and held.start <= flipped < held.end
+
+
+def _flip_noon(t: time) -> time:
+    return time((t.hour + 12) % 24, t.minute)
+
+
+def _either_side_of_noon(t: TimeConstraint) -> TimeConstraint:
+    return TimeConstraint("ambiguous", candidates=tuple(sorted((t.start, _flip_noon(t.start)))),
+                           label=_AMPM_RE.sub("", t.label).strip())
 
 
 def _apply_manage_when(ctx: CallContext, u: Understanding, notices: list, rt: Runtime) -> None:

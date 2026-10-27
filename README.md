@@ -1,13 +1,64 @@
 # Emma — Pearl Dental voice receptionist
 
-Emma answers calls for a four-branch dental clinic in Bengaluru. She talks in real time, books appointments and answers basic clinic questions. Every appointment decision is made by Python, never by the language model. The browser talk page is the supported way to call her today; phone calls through Asterisk come after the 8 October 2026 demo.
+Emma answers the phone for a four-branch dental clinic in Bengaluru. Callers talk to her like a real receptionist. She books, moves and cancels appointments, answers questions about the clinic, handles emergencies and urgent pain, and calls patients back when a doctor drops out. She does this in the browser, on a real softphone through Asterisk, and online.
 
-- **Speech-to-text:** Deepgram Nova-3 (streaming)
-- **Language understanding:** Gemini Flash-Lite, with a deterministic fast path (`tier0.py`) for short answers
-- **Text-to-speech:** ElevenLabs Flash v2.5 (streaming PCM), with pre-rendered prompts
-- **Server:** FastAPI + WebSocket
+**Live:** https://pearl-emma.duckdns.org (a staff sign-in is needed, because every call spends API credit; a view-only demo login is available on request).
 
-The build plan, decisions and edge cases are in [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). How it fits together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Running the demo: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) (`tools/demo_reset.py` with Emma stopped, then `tools/preflight.py` with her running). The phone path is described in [docs/TELEPHONY.md](docs/TELEPHONY.md).
+## The idea: the model talks, Python decides
+
+A language model is good at conversation and bad at guarantees, so Emma splits the two:
+
+- **The model carries the conversation.** It handles callers who jump ahead, change their minds, ask questions mid-booking or wander off topic.
+- **Python decides every action and every fact.**
+  - Every required detail is collected, in whatever order it arrives.
+  - Every scheduling rule is enforced: hours, lunch, doctor rotas, closures, notice, travel time between branches.
+  - Nothing is booked, moved or cancelled without a clear yes to a summary the caller actually heard.
+  - Only real, verified slots, prices and facts are ever spoken.
+- **When the model is slow or down, Emma keeps working** on her own rules (`tier0.py`, `dialogue/`). The guarantees don't depend on the model at all.
+
+She is built to sound like a person:
+- short, varied greetings and wording;
+- typing sounds while she "checks the system", and clinic sounds only while her line is open;
+- listening tuned for Indian-accented English (numbers like "double nine", Indian names);
+- she solves problems on the call rather than handing them off.
+
+She never claims to be human: asked sincerely, she says she's the clinic's virtual receptionist and carries on helping.
+
+```mermaid
+flowchart LR
+    caller((Caller)) -- audio --> stt[Deepgram Nova-3<br/>streaming speech-to-text]
+    stt --> turn[Turn detection<br/>vad.py, turn_detector.py]
+    turn --> nlu[Understanding<br/>Gemini Flash-Lite / Gemma 4,<br/>rules when slow or down]
+    nlu --> engine[Dialogue engine<br/>dialogue/: goals, checks]
+    engine <--> sched[(scheduling.py<br/>SQLite: slots, claims,<br/>idempotent actions)]
+    engine --> tts[Voice<br/>ElevenLabs streaming,<br/>pre-rendered cache, Piper backup]
+    tts -- audio --> caller
+    sched --> dash[Staff dashboard<br/>live call, takeover,<br/>calendar, tasks, recovery]
+    sched --> cal[Google Calendar mirror]
+```
+
+## How it's checked
+
+| Check | Result (23 Oct 2026) |
+|---|---|
+| Unit and integration tests (`tests/`, every external service faked) | 1,061 pass |
+| Scripted conversations (`harness`, 53 scenarios) | 53/53 with the model, 53/53 with the model down |
+| Simulated callers (4 runs of 200 calls) | 0 safety failures: no unconfirmed action, no claimed action that didn't happen, no invented doctor or price, no details before verification. 99-100% of intended bookings completed |
+| Crash drill (`tools/crash_drill.py`): the writer killed at random moments | No lost or half-written booking |
+| Real calls | Per-turn timing for every call (`logs/turns.jsonl`, `tools/call_report.py`), split into listening, model, voice and network |
+
+The tests and both scenario runs also run on GitHub for every push (`.github/workflows/tests.yml`).
+
+**Stack:** Python, FastAPI and WebSockets, Deepgram Nova-3, Gemini Flash-Lite or Gemma 4 (via Sarvam), ElevenLabs Flash v2.5 with Piper as the backup voice, SQLite, Asterisk (AudioSocket), Google Calendar, and Caddy and systemd on AWS.
+
+**Docs:**
+- [docs/NORTH_STAR.md](docs/NORTH_STAR.md): what "sounds like a real receptionist" means, and the checklist every change meets.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how it fits together.
+- [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md): decisions and edge cases.
+- [docs/EVALUATION.md](docs/EVALUATION.md): measurements.
+- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md): security.
+- [docs/TELEPHONY.md](docs/TELEPHONY.md): phone calls.
+- [docs/DEPLOY.md](docs/DEPLOY.md): hosting.
 
 ## Quick start (Windows, Python 3.12)
 

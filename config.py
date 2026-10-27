@@ -15,13 +15,14 @@ CLINIC_TIMEZONE = os.getenv("CLINIC_TIMEZONE", "Asia/Kolkata")
 # she is automated, and never claims to be human: if a caller sincerely asks,
 # she says HONEST_LINE and carries straight on helping.
 # Every greeting names Emma and the clinic and asks one question (owner, 6 Oct:
-# "it should always mention its name Emma"); at most 12 words (R1). A yes to the
-# appointment or clinic question is understood as that request (dialogue/engine.py).
+# "it should always mention its name Emma"); at most 12 words (R1). An open offer of help, as
+# real front-desk scripts do (owner, 25 Oct): "Would you like to book?" had cancelling callers
+# start with "No...".
 GREETINGS = [
     f"Hi, this is Emma at {CLINIC_SHORT_NAME}. How can I help?",
-    f"Hello, Emma at {CLINIC_SHORT_NAME}. What can I do for you?",
-    f"{CLINIC_SHORT_NAME}, Emma speaking. Would you like to book an appointment?",
-    f"Hi, Emma at {CLINIC_SHORT_NAME}. Any questions about the clinic?",
+    f"{CLINIC_SHORT_NAME}, Emma speaking. How can I help?",
+    f"Hi, this is Emma at {CLINIC_SHORT_NAME}. How may I help you?",
+    f"{CLINIC_SHORT_NAME}, this is Emma. How can I help you?",
 ]
 # Said instead when it suits the clinic clock (4 am-12, before 4 pm, after 4 pm;
 # none between midnight and 4 am, phrases.next_greeting).
@@ -39,6 +40,9 @@ PHONE_LINE_EFFECT = os.getenv("PHONE_LINE_EFFECT", "true").lower() == "true"
 AMBIENCE_ENABLED = os.getenv("AMBIENCE_ENABLED", "true").lower() == "true"
 AMBIENCE_EVENT_DB = float(os.getenv("AMBIENCE_EVENT_DB", "-34"))    # door / chair / footsteps peak
 TYPING_SFX = os.getenv("TYPING_SFX", "true").lower() == "true"
+# "Type instead" on the talk page (a call typed instead of spoken). Off on the hosted site
+# (owner, 25 Oct): visitors talk to Emma; the PC keeps it as the demo backup.
+TYPED_CALLS = os.getenv("TYPED_CALLS", "true").lower() == "true"
 # After the caller gives something to write down (name, number, date...), Emma
 # types for a moment before answering, as a receptionist would. Min/max ms.
 # The beat overlaps the engine's work: the reply waits max(engine time, beat),
@@ -89,7 +93,15 @@ GEMINI_THINKING = os.getenv("GEMINI_THINKING", "MINIMAL").strip()
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
 SARVAM_MODEL = os.getenv("SARVAM_MODEL", "sarvam-105b-conversations")
 SARVAM_URL = os.getenv("SARVAM_URL", "https://api.sarvam.ai/v1/chat/completions")
-# Which model takes the turn first: "gemini" (default) or "sarvam". The other one, when it
+# NVIDIA's hosted models (build.nvidia.com), OpenAI-shaped: NLU_PRIMARY=nvidia. Free for development.
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "minimaxai/minimax-m3.1-flash")
+NVIDIA_URL = os.getenv("NVIDIA_URL", "https://integrate.api.nvidia.com/v1/chat/completions")
+# Cerebras's hosted models (cloud.cerebras.ai), OpenAI-shaped: NLU_PRIMARY=cerebras. A free trial tier.
+CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY", "")
+CEREBRAS_MODEL = os.getenv("CEREBRAS_MODEL", "gpt-oss-120b")
+CEREBRAS_URL = os.getenv("CEREBRAS_URL", "https://api.cerebras.ai/v1/chat/completions")
+# Which model takes the turn first: "gemini" (default), "sarvam", "nvidia" or "cerebras". Gemini, when it
 # has a key, is the turn's one retry (only before any token arrived; llm.py budget rules).
 NLU_PRIMARY = os.getenv("NLU_PRIMARY", "gemini").strip().lower()
 # Sarvam as Gemini's retry only when asked for ("sarvam"). Off by default: on the 53 scenarios
@@ -301,8 +313,13 @@ PIPER_VOICE = os.getenv("PIPER_VOICE", "en_GB-cori-medium").strip()
 TELEPHONY_ENABLED = os.getenv("TELEPHONY_ENABLED", "false").lower() == "true"
 # Phone playout (audiosocket.py): hold this much of a live line before it starts, and refill this much if
 # the stream runs dry mid-line (bursty mobile data). Cached lines arrive whole and don't wait.
-PHONE_PREBUFFER_MS = int(os.getenv("PHONE_PREBUFFER_MS", "250"))
-PHONE_REBUFFER_MS = int(os.getenv("PHONE_REBUFFER_MS", "150"))
+# 26 Oct: 250 ms still ran dry about once a call on the hotspot (a break mid-sentence the caller hears);
+# 400 ms costs a live line 0.15 s more before it starts.
+PHONE_PREBUFFER_MS = int(os.getenv("PHONE_PREBUFFER_MS", "400"))
+# Feed the speech recogniser silence in the caller's gaps: softphones send nothing while the caller is
+# quiet, so Deepgram couldn't hear the end of a turn (25 Oct phone calls: 2.5-4.5 s to answer).
+PHONE_FILL_SILENCE = os.getenv("PHONE_FILL_SILENCE", "true").lower() == "true"
+PHONE_REBUFFER_MS = int(os.getenv("PHONE_REBUFFER_MS", "250"))
 AUDIOSOCKET_HOST = os.getenv("AUDIOSOCKET_HOST", "127.0.0.1")
 AUDIOSOCKET_PORT = int(os.getenv("AUDIOSOCKET_PORT", "9092"))
 # Shared with the Asterisk dialplan (/telephony/register and /telephony/next); empty refuses them.

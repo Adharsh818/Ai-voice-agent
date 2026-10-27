@@ -83,6 +83,7 @@ URGENT_SERVICE = "Consultation"
 # Task notes (staff read them on the dashboard).
 LANGUAGE_NOTE = "Wants a call back in Kannada or Hindi"
 PERSON_NOTE = "Asked to speak to someone at the clinic"
+CALLBACK_NOTE = "Asked for a call back"
 # A run of fragments longer than this stops being stashed and goes through as
 # a turn, so a caller who trails off repeatedly is never stuck on "go on".
 FRAGMENT_MAX_WORDS = 14
@@ -240,6 +241,9 @@ async def _release_holds(rt: Runtime) -> None:
 ACCEPTED = "Callback: "
 # Goals that collect the callback number.
 _PHONE_GOALS = (Goal.ASK_PHONE, Goal.PHONE_MORE, Goal.CONFIRM_PHONE)
+# "What should I say now?", "sorry, what?", "what do you need?" (owner's call 2, 25 Oct).
+_WHAT_NOW = re.compile(r"\bwhat (?:should|do|shall|must) i (?:say|tell|do)\b|\bwhat do you (?:need|want)\b|"
+                       r"^(?:sorry,? )?what\??$|\bwhich digits?\b|\bwhat(?:'s| is) (?:left|missing|remaining)\b")
 
 
 def callback_in_progress(ctx: CallContext) -> bool:
@@ -373,7 +377,7 @@ def _bad_line(ctx: CallContext, u: Understanding, confirmation: Optional[str]) -
     """
     usable = (u.carries_details or confirmation is not None or u.intent not in (None, Intent.NONE)
               or any(u.has(a) for a in (Act.QUESTION, Act.END, Act.REPEAT, Act.WAIT, Act.ROBOT_QUESTION,
-                                        Act.WANTS_HUMAN, Act.CAPABILITY, Act.CHITCHAT)))
+                                        Act.WANTS_HUMAN, Act.CALLBACK_REQUEST, Act.CAPABILITY, Act.CHITCHAT)))
     run = 0 if usable else ctx.__dict__.get("_unusable_run", 0) + 1
     cut = 0 if usable else ctx.__dict__.get("_cut_in_run", 0) + int(u.has(Act.FRAGMENT))
     ctx.__dict__["_unusable_run"], ctx.__dict__["_cut_in_run"] = run, cut
@@ -443,12 +447,23 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
         ctx.outcome = ctx.outcome or "abuse"
         await _release_holds(rt)
         return _stop(out, _statement(Goal.ABUSE_CLOSE, "abuse.close", closes_call=True))
-    if (u.has(Act.END) or _SIGN_OFF.search(text)) and not (confirmation == "yes" and ctx.pending in _COMMIT_GOALS):
+    # "No, it's okay, thank you" to "Shall I find you another time?" opens the closing: say goodbye
+    # rather than "Anything else?" for one more turn (review, 25 Oct).
+    thanks_no = ctx.pending == Goal.OFFER_REBOOK and confirmation == "no" and "thank" in text.lower()
+    if (u.has(Act.END) or _SIGN_OFF.search(text) or thanks_no) \
+            and not (confirmation == "yes" and ctx.pending in _COMMIT_GOALS):
         # "Bye" never books (the 1 Oct "Bye -> booked" call); "yes, thanks, bye"
         # at a summary still commits and is told the outcome.
         await _release_holds(rt)
         return _stop(out, _statement(Goal.CLOSE, _closing_line(ctx), closes_call=True))
-    if u.has(Act.REPEAT) and ctx.last_emma and not u.carries_details:
+    # Mid-number, "Hello?" is answered by saying back the digits held and what's missing
+    # (the workflow's "phone.more.so_far"), not "I can hear you. Mm-hmm." (owner's call, 25 Oct).
+    mid_number = ctx.pending == Goal.PHONE_MORE and bool(ctx.caller.phone_buffer)
+    if mid_number and not u.phone_digits and _WHAT_NOW.search(text.lower()):
+        # "What should I say now?" mid-number: what she has and what's missing, plainly (repair).
+        return _stop(out, plan(Goal.PHONE_MORE, "phone.more.so_far", prompts.phone_so_far(ctx.caller.phone_buffer),
+                               use_model_say=False))
+    if u.has(Act.REPEAT) and ctx.last_emma and not u.carries_details and not mid_number:
         # The engine speaks repeat.prefix + ctx.last_emma (asked for, so not a loop).
         plain = " ".join(re.sub(r"[^a-z' ]+", " ", text.lower()).split())
         hearing = match.HEAR_CHECK_RE.match(plain) or match.BARE_HELLO_RE.match(plain)
@@ -471,6 +486,17 @@ async def handle(ctx: CallContext, u: Understanding, confirmation: Optional[str]
     if u.has(Act.DONT_KEEP):
         ctx.keep_transcript = False
         out.notices.append(Notice("dont_keep.ack", covered_by=("record",)))
+
+    # 5a. "Can someone call me back about my bill?" / "What's the Whitefield branch number?": the callback
+    # straight away, no help-first detour (27 Oct: with the model down, the bill request only got "What
+    # can I do for you?" again). The branch lines are never read out (owner, A7): Emma says so first.
+    if u.has(Act.CALLBACK_REQUEST) and not callback_in_progress(ctx):
+        if match.BRANCH_PHONE_RE.search((u.raw_text or "").lower()):
+            out.notices.append(Notice("callback.branch_phone"))
+        if ctx.tasks_created:
+            return await _callback_once(ctx, u, rt, out)
+        said = " ".join((u.raw_text or "").split())[:160]
+        return await _callback_accepted(ctx, u, rt, f'{CALLBACK_NOTE}: "{said}"' if said else CALLBACK_NOTE, out)
 
     # 5. a person: help first; if they insist, a real callback.
     if u.has(Act.WANTS_HUMAN):

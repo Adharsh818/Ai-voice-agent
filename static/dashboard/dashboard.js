@@ -2554,6 +2554,13 @@ function fillRecoveryForm(reasons) {
   $("block-end").value = `${day}T21:00`;
 }
 
+// A new "From" sets "To" to 9 pm that same day, when the clinic's day ends (owner, 26 Oct); a longer
+// block is still a change of "To" after.
+$("block-start").addEventListener("change", () => {
+  const from = $("block-start").value;
+  if (from) $("block-end").value = `${from.slice(0, 10)}T21:00`;
+});
+
 async function loadRecovery() {
   let data;
   try {
@@ -2578,14 +2585,18 @@ const reloadRecoverySoon = debounce(loadRecovery, 400);
 
 function renderBlocks(blocks) {
   const list = $("block-rows");
+  previewHome();                                   // the inline preview lives in a row about to be replaced
   if (!blocks.length) {
     list.replaceChildren(emptyItem("No doctor is blocked."));
     return;
   }
-  list.replaceChildren(...blocks.map((b) => el("li", { class: b.id === recovery.blockId ? "selected" : "" },
+  list.replaceChildren(...blocks.map((b) => el("li", { class: b.id === recovery.blockId ? "selected" : "", "data-block": b.id },
     el("span", { class: "li-main" }, el("span", { text: `${b.doctor} (${b.branch})` }),
       el("span", { class: "li-sub", text: `${fmtDateTime(b.start)} to ${fmtDateTime(b.end)} · ${b.reason_category}` })),
-    el("button", { class: "btn-pill small gray", type: "button", text: "Preview", onclick: () => showPreview(b.id) }),
+    el("button", {
+      class: "btn-pill small gray", type: "button", text: b.id === recovery.blockId ? "Hide" : "Preview",
+      onclick: () => (b.id === recovery.blockId ? hidePreview() : showPreview(b.id)),
+    }),
     el("button", {
       class: "btn-pill small danger-text", type: "button", text: "Lift",
       onclick: async () => {
@@ -2601,12 +2612,51 @@ function renderBlocks(blocks) {
 
 async function showPreview(blockId, keepTicks = false) {
   recovery.blockId = blockId;
-  document.querySelectorAll("#block-rows li").forEach((li) => li.classList.remove("selected"));
   try {
     renderPreview(await api(`/dashboard/api/recovery/blocks/${blockId}/preview`), keepTicks);
   } catch (err) {
     toast(err.message, "error");
   }
+}
+
+function hidePreview() {
+  recovery.blockId = null;
+  renderPreview(null);
+}
+
+// Preview opens under the block's own row (owner, 26 Oct: it showed in "Who is affected" further down,
+// so pressing it seemed to do nothing). The summary, the checklist and the Start button move there and
+// back, so starting calls works the same either way.
+function previewParts() {
+  return [$("preview-summary"), $("preview-rows"), $("campaign-start")];
+}
+
+function previewHome() {
+  const card = $("preview-card");
+  const [summary, rows, start] = previewParts();
+  card.querySelector(".step-head").append(start);
+  card.append(summary, rows);
+  $("preview-inline")?.remove();
+  $("preview-where").hidden = true;
+}
+
+function placePreview() {
+  const row = recovery.blockId && document.querySelector(`#block-rows li[data-block="${recovery.blockId}"]`);
+  document.querySelectorAll("#block-rows li[data-block]").forEach((li) => {
+    const open = li === row;
+    li.classList.toggle("selected", open);
+    const button = li.querySelector("button");
+    if (button) button.textContent = open ? "Hide" : "Preview";
+  });
+  if (!row) {
+    previewHome();
+    return;
+  }
+  const [summary, rows, start] = previewParts();
+  const box = $("preview-inline") || el("li", { id: "preview-inline", class: "preview-inline" });
+  box.replaceChildren(summary, rows, el("div", { class: "preview-inline-actions" }, start));
+  row.after(box);
+  $("preview-where").hidden = false;
 }
 
 function renderPreview(preview, keepTicks = false) {
@@ -2617,13 +2667,14 @@ function renderPreview(preview, keepTicks = false) {
     $("preview-summary").textContent = "Block a doctor or pick a block to see who is affected.";
     list.replaceChildren();
     updateCampaignButton();
+    placePreview();
     return;
   }
   const b = preview.block;
   const span = `${b.doctor}, ${fmtDateTime(b.start)} to ${fmtDateTime(b.end)}`;
   $("preview-summary").textContent = preview.count
     ? `${span}: ${preview.count} booked appointment(s) on ${preview.groups.length} phone number(s). No calls have been made yet.`
-    : `${span}: no booked appointments are affected.`;
+    : `${span}: no booked appointments in this time, so there's nobody to call.`;
   const rows = [];
   for (const g of preview.groups) {
     g.appointments.forEach((a, i) => {
@@ -2638,8 +2689,10 @@ function renderPreview(preview, keepTicks = false) {
         el("span", { class: "num ink-2 t-small", text: i === 0 ? g.phone_masked : "" })));
     });
   }
-  list.replaceChildren(...(rows.length ? rows : [emptyItem("Nobody to call.")]));
+  list.replaceChildren(...rows);
+  list.hidden = !rows.length;
   updateCampaignButton();
+  placePreview();
 }
 
 function updateCampaignButton() {

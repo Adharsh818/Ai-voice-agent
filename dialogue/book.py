@@ -124,8 +124,8 @@ def _plan(goal: Goal, line: str, **params) -> GoalPlan:
 # ---------------------------------------------------------------- speakable forms (prompts.py owns the wording)
 
 
-def speak_slot(start: datetime, with_day: bool = True) -> str:
-    return prompts.speak_slot(start, with_day=with_day)
+def speak_slot(start: datetime, with_day: bool = True, clear: bool = False) -> str:
+    return prompts.speak_slot(start, with_day=with_day, clear=clear)
 
 
 def speak_hour(t: time) -> str:
@@ -413,6 +413,12 @@ def _reject_offers(ctx: CallContext):
     b = ctx.book
     offer = _notes(b).pop("offer", None) or {}
     b.offer_rounds = max(b.offer_rounds, offer.get("round", b.offer_rounds) + 1)
+    offered_at = set(offer.get("at") or ()) or {getattr(slot, "branch", None) for slot in b.offered or ()}
+    _notes(b)["rejected"] = {
+        "date": b.date_c.start.isoformat() if b.date_c is not None and b.date_c.exact else None,
+        "time": b.time_c.start.isoformat() if b.time_c is not None and b.time_c.kind == "exact" else None,
+        "elsewhere": next(iter(offered_at)) if len(offered_at) == 1 and b.branch not in offered_at else None,
+    }
     b.offered, b.chosen = [], None
     b.date_c, b.time_c, b.when_phrase, b.any_time = None, None, "", False
     b.touch()
@@ -540,6 +546,9 @@ def _take_when(ctx: CallContext, u: Understanding) -> list:
     if time_c is not None and time_c.kind == "ambiguous" and date_c is None:
         from dialogue.apply import _ampm_from_context
         time_c = _ampm_from_context(b, time_c)   # an offered time, or the part of day already asked for
+    from dialogue.apply import _AMPM_RE, _either_side_of_noon, _flips_part_of_day
+    if time_c is not None and date_c is None and _flips_part_of_day(b.time_c, time_c, u.time_phrase or u.date_phrase):
+        time_c = _either_side_of_noon(time_c)
     said = " ".join(p for p in (u.date_phrase, u.time_phrase) if p)
     if date_c is not None and date_c.kind == "earliest" and b.date_c is not None and b.date_c.kind != "earliest":
         from dialogue.apply import _FLEXIBLE_RE, _SOONEST_RE
@@ -561,11 +570,36 @@ def _take_when(ctx: CallContext, u: Understanding) -> list:
         b.date_c = date_c
         b.when_phrase = u.date_phrase or b.when_phrase
         changed = True                                     # a new day keeps the time of day already given
+    if time_c is not None and b.time_c is not None and b.time_c.kind == "ambiguous" and time_c.kind == "exact" \
+            and time_c.start in b.time_c.candidates and ctx.pending != Goal.RESOLVE_AMPM and _AMPM_RE.search(said):
+        time_c = None                  # apply.py already made this turn's "8PM" a question (_flips_part_of_day)
+    if time_c is not None and time_c.kind == "window" and ctx.pending == Goal.RESOLVE_AMPM and b.time_c is not None \
+            and b.time_c.kind == "exact" and time_c.start <= b.time_c.start < time_c.end:
+        time_c = None                  # "Morning." answering "8 in the morning or the evening?": apply.py took 8 am
     if time_c is not None and time_c != b.time_c:
         b.time_c = time_c
         changed = True
     if time_c is not None and time_c.kind == "any":
         b.any_time = True
+    rejected = _notes(b).get("rejected") or {}
+    if b.date_c is None and date_c is None and b.time_c is not None and b.time_c.kind == "exact"             and rejected.get("date") and rejected.get("time") == b.time_c.start.isoformat():
+        # "No." to 5 at Jayanagar, then "at five in the evening" again (owner's call, 26 Oct: "Sure, 5.
+        # No worries. What day or time?"): the time is what they want, so keep the day and look for
+        # that time on the next days at their branch.
+        day = date.fromisoformat(rejected["date"])
+        b.date_c = DateConstraint(day, day)
+        notes = _notes(b)
+        elsewhere = rejected.get("elsewhere")
+        options = [n for n in notes.get("branch_options") or [] if n not in (b.branch, elsewhere)]
+        if elsewhere and b.branch and options:
+            # The time was only free at another branch, and they said no to that one: their branch
+            # can't do it, so say so and ask which other branch (not the same offer again).
+            notes["reopened"] = {"field": "branch", "others": options, "from": b.branch,
+                                 "time": prompts.speak_time_clear(b.time_c.start)}
+            b.branch, b.branch_any, b.doctor_id, b.doctor = None, False, None, None
+        else:
+            notes["same_time_later"] = _search_key(b)
+        changed = True
     if changed:
         _changed(ctx, search=True)
     return notices
@@ -758,11 +792,18 @@ def _validate(ctx: CallContext, catalog) -> list:
             _changed(ctx, search=True)
 
     if b.unknown_doctor and (b.service or b.branch):
+        # The model may have said it already ("We don't have a Dr Sharma"): not twice.
+        said = (b.unknown_doctor.split()[-1].lower(),)
         names, where = _doctors_line(catalog, b.service, b.branch)
-        if names:
+        if names and not b.branch:
+            # No branch yet: every doctor at every branch is a list, not an answer (live run, 26 Oct).
+            notices.append(Notice("doctor.unknown.any", {"name": b.unknown_doctor,
+                                                         "doctors": prompts.speak_list(names[:2], "or")},
+                                  covered_by=said))
+        elif names:
             notices.append(Notice("doctor.unknown", {"name": b.unknown_doctor, "doctors": prompts.speak_list(names, "and"),
                                                      "are_is": "are" if len(names) > 1 else "is",
-                                                     "branch": where}))
+                                                     "branch": where}, covered_by=said))
         b.unknown_doctor = None                            # said once, then cleared
 
     if b.emergency or ctx.emergency == Emergency.URGENT:
@@ -790,8 +831,13 @@ def _phone_plan(ctx: CallContext) -> Optional[GoalPlan]:
         return None
     if c.phone_state == FieldState.PENDING and c.phone_e164:
         return _plan(Goal.CONFIRM_PHONE, "confirm.phone", phone=prompts.speak_phone(c.phone_e164, c.phone_landline))
+    if c.phone_overflow:
+        return _plan(Goal.ASK_PHONE, "phone.too_many")
     if c.phone_buffer:
-        return _plan(Goal.PHONE_MORE, "phone.more")
+        # A short "Yes, go on." at the first pause (they're mid-number: a long sentence would talk over
+        # them); still short after that, what she holds and what's missing (owner's calls, 25 Oct).
+        line = "phone.more.so_far" if ctx.pending == Goal.PHONE_MORE else "phone.more"
+        return _plan(Goal.PHONE_MORE, line, **prompts.phone_so_far(c.phone_buffer))
     return _plan(Goal.ASK_PHONE, "ask.phone")
 
 
@@ -859,7 +905,7 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
 
     if b.appointment_id:
         if notes.get("booked_turn") == ctx.turn:
-            when = speak_slot(b.chosen.start) if b.chosen else ""
+            when = speak_slot(b.chosen.start, clear=True) if b.chosen else ""
             branch = b.chosen.branch if b.chosen else (b.branch or "")
             line = "booked.emergency" if b.emergency else "booked"
             return _plan(Goal.BOOKED, line, when=when, branch=branch)
@@ -904,6 +950,10 @@ def next_goal(ctx: CallContext) -> Optional[GoalPlan]:
         return _plan(Goal.ASK_AGE, "ask.age", patient=_patient_name(ctx))
     if not b.branch and not b.branch_any:
         reopened = _reopened_line(b, "branch")
+        if reopened and reopened.get("time"):
+            return _plan(Goal.ASK_BRANCH, "ask.branch.for_time", service=_service_plural(b.service),
+                         time=reopened["time"], branch=reopened["from"],
+                         branches=prompts.speak_list(reopened["others"], "or"))
         if reopened:
             return _plan(Goal.ASK_BRANCH, "ask.branch.instead", service=_service_plural(b.service),
                          branches=prompts.speak_list(reopened["others"], "or"))
@@ -1024,7 +1074,8 @@ def summary_params(ctx: CallContext) -> dict:
         "service": _spoken_service(slot.service),
         "doctor": slot.doctor,
         "branch": slot.branch,
-        "when": slot.spoken or speak_slot(slot.start),
+        "when": speak_slot(slot.start, clear=True) if slot.spoken in (None, "", speak_slot(slot.start))
+        else slot.spoken,
         "patient": _patient_name(ctx) or "",
     }
 
@@ -1365,7 +1416,8 @@ async def _search(ctx: CallContext, rt: Runtime, notices: list):
             notices.append(Notice("window.full", {"when": when}))
     if held:
         notes.pop("no_slots", None)
-        notes["offer"] = {"key": _search_key(b), "round": b.offer_rounds}
+        notes["offer"] = {"key": _search_key(b), "round": b.offer_rounds,
+                          "at": sorted({getattr(s, "branch", None) or "" for s in held})}
         return
     until = found.searched_until or (b.date_c.end if b.date_c else clock.today())
     notes["no_slots"] = {"key": _search_key(b), "branch": prompts.speak_list(branches, "or"), "until": prompts.speak_day(until)}
@@ -1426,7 +1478,8 @@ async def _search_same_day_elsewhere(ctx: CallContext, rt: Runtime):
     if held:
         notes["other_branch"] = b.branch
         b.offered = _in_clock_order(held)
-        notes["offer"] = {"key": _search_key(b), "round": b.offer_rounds}
+        notes["offer"] = {"key": _search_key(b), "round": b.offer_rounds,
+                          "at": sorted({getattr(s, "branch", None) or "" for s in held})}
 
 
 async def _search_same_time_elsewhere(ctx: CallContext, rt: Runtime):

@@ -231,6 +231,26 @@ def _schema_enum(schema: Optional[dict], key: str) -> Optional[list]:
     return list(values) if values else None
 
 
+_BRANCH_POINTERS_RE = re.compile(
+    r"\b(first|second|third|fourth|last|that one|this one|same|nearest|closest|near|either|other|"
+    r"dr|doctor|there|that branch|the one)\b", re.I)
+
+
+def _branch_said(raw_text: str, branch: str, names: Optional[list]) -> bool:
+    """
+    The model's branch is backed by the caller's words: the name, a name heard
+    badly but clearly nearest it, or a pointer ("the first one", "the same
+    branch", "with Dr Rao"). Python, not the model, decides what was said.
+    """
+    from types import SimpleNamespace
+
+    from dialogue import match
+    branches = [SimpleNamespace(name=n, area="") for n in (names or [branch])]
+    if match.match_branch(raw_text, branches, asked=True).value == branch:
+        return True
+    return bool(_BRANCH_POINTERS_RE.search(raw_text))
+
+
 def from_json(data: dict, raw_text: str = "", schema: Optional[dict] = None) -> Understanding:
     """
     A parsed model object -> Understanding. Unknown keys are dropped; enums,
@@ -277,6 +297,8 @@ def from_json(data: dict, raw_text: str = "", schema: Optional[dict] = None) -> 
     u.service, unknown_service = _catalog_value(data.get("service"), _schema_enum(schema, "service"))
     u.service_phrase = _text(data.get("service_phrase")) or unknown_service
     u.branch, _unknown_branch = _catalog_value(data.get("branch"), _schema_enum(schema, "branch"))
+    if u.branch and raw_text and not _branch_said(raw_text, u.branch, _schema_enum(schema, "branch")):
+        u.branch = None              # "Ananya, please." is no branch (owner's call, 26 Oct: Indiranagar, then "when?")
     u.branch_any = _flag(data.get("branch_any"))
     u.doctor, unknown_doctor = _catalog_value(data.get("doctor"), _schema_enum(schema, "doctor"))
     u.doctor_phrase = _text(data.get("doctor_phrase"), 60) or unknown_doctor
@@ -573,7 +595,8 @@ class NLUStream:
         self.brief = brief
         self.parser = StreamParser()
         self.started = time.monotonic()
-        self.head_deadline = self.started + (HEAD_DEADLINE_S if head_deadline_s is None else head_deadline_s)
+        self.head_budget = HEAD_DEADLINE_S if head_deadline_s is None else head_deadline_s
+        self.head_deadline = self.started + self.head_budget
         self.deadline = self.started + (_total_budget() if total_s is None else total_s)
         self.head_deadline = min(self.head_deadline, self.deadline)
         self.error: Optional[str] = None            # why the stream ended early, for logs
@@ -650,7 +673,11 @@ class NLUStream:
         self._head_done = True
         if not data:
             if not self._ended:
-                logger.info("NLU head missed its %.1fs deadline; using the fallback", HEAD_DEADLINE_S)
+                # The short head start (the rules already understood the turn) is the usual case: the
+                # log said "2.2s" for it, which read as a slow model (26 Oct).
+                logger.info("NLU head not in %.1fs (%s); using the fallback", self.head_budget,
+                            "short head start, the rules understood the turn"
+                            if self.head_budget < HEAD_DEADLINE_S else "full deadline")
                 await self.aclose()
             return None
         raw = caller_words(getattr(self.brief, "contents", "") or "")

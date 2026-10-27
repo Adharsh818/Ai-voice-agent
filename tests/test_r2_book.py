@@ -279,9 +279,12 @@ class DoctorTests(BookTestCase):
         call.turn(U(doctor_phrase="Dr Sharma"))
         self.assertNotIn("doctor.unknown", call.notice_ids())
         call.turn(U(service="Root Canal Treatment"))
-        said = call.notices[call.notice_ids().index("doctor.unknown")]
-        for name in ("Dr Shetty", "Dr Menon", "Dr Nair"):
-            self.assertIn(name, said)
+        # No branch yet: two doctors who do it and "our other dentists", not all of them at every
+        # branch (live run, 26 Oct: six doctors and four branches in one sentence).
+        said = call.notices[call.notice_ids().index("doctor.unknown.any")]
+        self.assertIn("Sharma", said)
+        self.assertEqual(sum(name in said for name in ("Dr Shetty", "Dr Menon", "Dr Nair")), 2)
+        self.assertRegex(said, r"other dentists|another of our dentists")
 
     def test_a_doctor_at_another_branch_asks_before_changing_the_branch(self):
         call = self.call().given()

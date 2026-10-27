@@ -259,7 +259,7 @@ class SoundRealismTests(unittest.TestCase):
         from starlette.testclient import TestClient
         import server
         body = TestClient(server.app).get("/client-config").json()
-        self.assertEqual(set(body), {"signin_required", "phone_line", "ambience", "typing"})
+        self.assertEqual(set(body), {"signin_required", "phone_line", "ambience", "typing", "typed_calls"})
         self.assertLess(body["ambience"]["event_db"], -30)         # subtle, never loud
         self.assertNotIn("murmur_db", body["ambience"])            # no background bed (owner, 1 Oct)
 

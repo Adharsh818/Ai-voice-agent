@@ -131,8 +131,8 @@ class FacadeContract(EngineCase):
 
         with ai_engine.install_test_nlu(reader):
             call = Call()
-            result = call.run("", "what are your timings?")
-        self.assertEqual(heard, [("what are your timings?", "open")])
+            result = call.run("", "how does that work?")      # timings are a fact Tier-0 answers (25 Oct)
+        self.assertEqual(heard, [("how does that work?", "open")])
         self.assertEqual(result.tier, 2)
         self.assertTrue(result.text)
 

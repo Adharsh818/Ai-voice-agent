@@ -428,3 +428,7 @@ body.no-retry #call-bar { display: none; }
   .typed[hidden].is-leaving { display: none !important; }
   .e-meter > i { width: 8px !important; }
 }
+
+/* TYPED_CALLS=false (the hosted site): no typing, only talking. */
+body.no-typed #type-instead,
+body.no-typed #typed { display: none !important; }

@@ -72,7 +72,7 @@ class NameTests(ClinicCallCase):
 
     def test_a_patient_introduction_still_works(self):
         reply = Call().run("", "Hi, this is Mr Arjun Sharma, I'd like to book a cleaning.").text
-        self.assertIn("Arjun Sharma", reply)
+        self.assertIn("Arjun", reply)                      # the first name in the acknowledgement (25 Oct)
         self.assertNotIn("Mr", reply)
 
 
@@ -130,7 +130,7 @@ class DoctorAwayTests(ClinicCallCase):
         call.run("", "I'd like a cleaning with Dr Rao at Nagarbhavi.", "Priya Sharma", "9845012345", "yes")
         call.say("Monday")
         reply = call.say("Morning, please.").text
-        self.assertRegex(reply, r"away|isn.t in")
+        self.assertRegex(reply, r"away|isn.t in|not in on")
         self.assertNotIn("fully booked", reply)
 
 
@@ -395,7 +395,7 @@ class MoveAgainTests(ClinicCallCase):
 
 
 class ShortNoticeMoveTests(ClinicCallCase):
-    VERIFY = ["", "Can I move my appointment?", "98450 12345", "Yes", "Priya Sharma", "It's today at 10."]
+    VERIFY = ["", "Can I move my appointment?", "98450 12345", "Yes", "Priya Sharma"]     # number + name verify
 
     def setUp(self):
         super().setUp()

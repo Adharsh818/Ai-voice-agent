@@ -22,6 +22,9 @@ tzdata>=2024.1
 # 3.13 removed. Python 3.12 is the supported version; this restores it on 3.13+.
 audioop-lts>=0.2.1; python_version >= "3.13"
 
+# Phone calls (Asterisk, phone_audio.py): stateful 8 <-> 16 kHz resampling.
+scipy>=1.11
+
 # Backup voice (plan 5.7): local Piper TTS when ElevenLabs fails or runs out.
 # Voices: python tools/fetch_piper_voice.py (models/ is git-ignored)
 piper-tts>=1.2

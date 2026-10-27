@@ -1,0 +1,69 @@
+# Deploy main to the hosted Emma (AWS) by hand: GitHub, Actions, "deploy", "Run workflow".
+# Never runs by itself. The tests and both scenario runs must pass first, then
+# tools/deploy_remote.sh runs exactly as on the PC: it keeps the server's .env, database and backups.
+#
+# One-time setup by the owner: `bash tools/setup_deploy_secrets.sh` in Git Bash. It makes a key used only
+# by these deploys (not the owner's emma_oracle), allows it on the server and sets the two secrets:
+#   EMMA_SSH_KEY      that deploy-only private key
+#   EMMA_KNOWN_HOSTS  the server's host key line (ssh-keyscan -t ed25519 3.27.254.11)
+# Without both secrets the job stops at "Check secrets" and changes nothing.
+name: deploy
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            constraints.txt
+      - name: Install
+        run: pip install -c constraints.txt -r requirements.txt
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+      - name: Scenarios (offline and model down)
+        run: |
+          for mode in --offline --nlu-down; do
+            python -m harness run scenarios --engine r2 "$mode" --quiet | tee out.txt
+            grep -qE '^  scenarios: pass [0-9]+$' out.txt || { echo "::error::a scenario did not pass ($mode)"; exit 1; }
+          done
+
+  deploy:
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: aws
+    steps:
+      - name: Check secrets
+        env:
+          KEY: ${{ secrets.EMMA_SSH_KEY }}
+          HOSTS: ${{ secrets.EMMA_KNOWN_HOSTS }}
+        run: |
+          [ -n "$KEY" ] && [ -n "$HOSTS" ] || { echo "::error::EMMA_SSH_KEY and EMMA_KNOWN_HOSTS must be set (see the top of deploy.yml)"; exit 1; }
+      - uses: actions/checkout@v4
+      - name: SSH key
+        env:
+          KEY: ${{ secrets.EMMA_SSH_KEY }}
+          HOSTS: ${{ secrets.EMMA_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/emma_oracle && chmod 600 ~/.ssh/emma_oracle
+          printf '%s\n' "$HOSTS" > ~/.ssh/known_hosts
+      - name: Deploy
+        run: bash tools/deploy_remote.sh
+      - name: Remove the key
+        if: always()
+        run: rm -f ~/.ssh/emma_oracle

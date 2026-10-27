@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #f5f5f7; }
+      #root { position: relative; width: 100%; height: 100%; font-family: "Inter"; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="159.888" data-width="1920" data-height="1080">
+      <div id="intro" class="clip" data-composition-id="intro" data-composition-src="compositions/intro.html" data-start="0" data-duration="8.0" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1"></div>
+      <div id="call" class="clip" data-composition-id="call" data-composition-src="compositions/call.html" data-start="8.0" data-duration="83.45" data-track-index="2" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 2"></div>
+      <div id="live" class="clip" data-composition-id="live" data-composition-src="compositions/live.html" data-start="44.549" data-duration="7.751" data-track-index="3" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 3"></div>
+      <div id="tour" class="clip" data-composition-id="tour" data-composition-src="compositions/tour.html" data-start="91.45" data-duration="61.687" data-track-index="4" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 4"></div>
+      <div id="outro" class="clip" data-composition-id="outro" data-composition-src="compositions/outro.html" data-start="153.137" data-duration="6.751" data-track-index="5" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 5"></div>
+      <div id="captions" class="clip" data-composition-id="captions" data-composition-src="compositions/captions.html" data-start="0" data-duration="159.888" data-track-index="8" data-track-kind="captions" data-width="1920" data-height="1080" style="z-index: 9"></div>
+      <audio id="a-call-00" class="clip" src="assets/audio/call_00_emma.wav" data-start="8.7" data-duration="2.415" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-01" class="clip" src="assets/audio/call_01_caller.wav" data-start="11.665" data-duration="0.604" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-02" class="clip" src="assets/audio/call_02_emma.wav" data-start="12.819" data-duration="1.254" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-03" class="clip" src="assets/audio/call_03_caller.wav" data-start="14.623" data-duration="1.393" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-04" class="clip" src="assets/audio/call_04_emma.wav" data-start="16.566" data-duration="1.3" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-05" class="clip" src="assets/audio/call_05_caller.wav" data-start="18.416" data-duration="0.975" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-06" class="clip" src="assets/audio/call_06_emma.wav" data-start="19.941" data-duration="2.415" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-07" class="clip" src="assets/audio/call_07_caller.wav" data-start="22.906" data-duration="3.994" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-08" class="clip" src="assets/audio/call_08_emma.wav" data-start="27.45" data-duration="2.926" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-09" class="clip" src="assets/audio/call_09_caller.wav" data-start="30.926" data-duration="0.557" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-10" class="clip" src="assets/audio/call_10_emma.wav" data-start="32.033" data-duration="1.858" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-11" class="clip" src="assets/audio/call_11_caller.wav" data-start="34.441" data-duration="0.789" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-12" class="clip" src="assets/audio/call_12_emma.wav" data-start="35.78" data-duration="6.594" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-13" class="clip" src="assets/audio/call_13_caller.wav" data-start="42.924" data-duration="0.975" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-14" class="clip" src="assets/audio/call_14_emma.wav" data-start="52.7" data-duration="1.393" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-15" class="clip" src="assets/audio/call_15_caller.wav" data-start="54.643" data-duration="0.882" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-16" class="clip" src="assets/audio/call_16_emma.wav" data-start="56.075" data-duration="3.901" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-17" class="clip" src="assets/audio/call_17_caller.wav" data-start="60.526" data-duration="1.115" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-18" class="clip" src="assets/audio/call_18_emma.wav" data-start="62.191" data-duration="5.108" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-19" class="clip" src="assets/audio/call_19_caller.wav" data-start="67.849" data-duration="0.743" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-20" class="clip" src="assets/audio/call_20_emma.wav" data-start="69.142" data-duration="6.502" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-21" class="clip" src="assets/audio/call_21_caller.wav" data-start="76.194" data-duration="0.65" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-22" class="clip" src="assets/audio/call_22_emma.wav" data-start="77.394" data-duration="7.709" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-call-23" class="clip" src="assets/audio/call_23_caller.wav" data-start="85.653" data-duration="1.811" data-track-index="11" data-volume="1"></audio>
+      <audio id="a-call-24" class="clip" src="assets/audio/call_24_emma.wav" data-start="88.014" data-duration="1.486" data-track-index="10" data-volume="1"></audio>
+      <audio id="a-n_intro" class="clip" src="assets/audio/n_intro.wav" data-start="0.6" data-duration="6.734" data-track-index="12" data-volume="1"></audio>
+      <audio id="a-n_live" class="clip" src="assets/audio/n_live.wav" data-start="45.449" data-duration="5.851" data-track-index="12" data-volume="1"></audio>
+      <audio id="a-n_today" class="clip" src="assets/audio/n_today.wav" data-start="92.35" data-duration="13.189" data-track-index="12" data-volume="1"></audio>
+      <audio id="a-n_calendar" class="clip" src="assets/audio/n_calendar.wav" data-start="107.639" data-duration="6.223" data-track-index="12" data-volume="1"></audio>
+      <audio id="a-n_tasks" class="clip" src="assets/audio/n_tasks.wav" data-start="115.962" data-duration="6.084" data-track-index="12" data-volume="1"></audio>
+      <audio id="a-n_calls" class="clip" src="assets/audio/n_calls.wav" data-start="124.146" data-duration="4.365" data-track-index="12" data-volume="1"></audio>
+      <audio id="a-n_recovery" class="clip" src="assets/audio/n_recovery.wav" data-start="130.611" data-duration="7.848" data-track-index="12" data-volume="1"></audio>
+      <audio id="a-n_system" class="clip" src="assets/audio/n_system.wav" data-start="140.559" data-duration="11.378" data-track-index="12" data-volume="1"></audio>
+      <audio id="a-n_outro" class="clip" src="assets/audio/n_outro.wav" data-start="153.637" data-duration="3.251" data-track-index="12" data-volume="1"></audio>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>
