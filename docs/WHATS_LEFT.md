@@ -6,7 +6,7 @@ The project's own finish list (Part A of [PRODUCT_ROADMAP.md](PRODUCT_ROADMAP.md
 
 | # | What | Why | How |
 |---|---|---|---|
-| 1 | Restart Emma on the PC | The running server still has the code from before 688173e (the A7 sign-off, callbacks, branch numbers). | Stop `server.py` and start it again with `.venv\Scripts\python.exe server.py`. |
+| 1 | **Done (27 Oct).** Restart Emma on the PC | She now runs the latest code on the repaired `.venv`, in the "Emma (PC)" terminal tab. | To restart again: `.venv\Scripts\python.exe server.py` in `A:\Voice-Agent`. |
 | 2 | Mark the two test tasks done | Tasks 11 and 12 on the PC dashboard came from tests. | Dashboard, Tasks tab. |
 | 3 | Delete the old `.env` backups when you're sure | `.env.bak-20261025-brain` and `.env.bak-20261025-nvidia` hold keys and sit untracked in `A:\Voice-Agent`. | Delete them by hand; they are never committed. |
 | 4 | Watch the free quotas (A8, ongoing) | Gemini's free daily quota runs out on busy days, and Emma then answers from rules alone. ElevenLabs has 10,000 characters a month, shared by the PC and the site. | `/health` on the site shows the day's model requests and failures. |
