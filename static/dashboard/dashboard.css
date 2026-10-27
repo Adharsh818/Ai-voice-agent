@@ -389,7 +389,10 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 .tile-foot::after { content: " ›"; }
 .tile-bubbles { display: grid; gap: 6px; margin-top: 4px; }
 .tile-bubbles .bubble { max-width: 92%; font-size: 14px; padding: 7px 12px; }
-.today-tile.live-on { background: linear-gradient(160deg, rgba(52, 199, 89, 0.14), var(--tile) 55%); }
+.today-tile.live-on { background: linear-gradient(160deg, rgba(52, 199, 89, 0.14), #fff 55%); }
+/* Today is an Apple Store shelf (27 Oct): white .e-card tiles on the light grey page. */
+body.dash:has(#view-today:not([hidden])) { background: var(--canvas-alt); }
+.today-tile.e-card { border-radius: var(--card-r); }
 .ring {
   --p: 0;
   width: 92px;
@@ -1095,8 +1098,7 @@ body.dash { background: var(--canvas); min-height: 100vh; }
 .call-switcher .chip:hover { background: var(--solid-rest); }
 .call-switcher .chip.active:hover { background: var(--blue-hover); }
 
-/* B9: Today tiles grow by 6px on hover (mouse) and on keyboard focus, with the B19 ring. */
-.today-tile:focus-visible { outline: none; transform: scale(var(--card-element-scale, 1.016)); box-shadow: var(--focus-ring); }
+/* Today tiles lift like Apple Store cards (.e-card in emma-ui.css), on hover and keyboard focus. */
 
 /* B7: round icon buttons (shared .e-round) for Calendar's arrows and the +. */
 .cal-nav .e-round .ico, .bar-actions .e-round .ico { width: 16px; height: 16px; stroke-width: 2; }
@@ -1172,7 +1174,6 @@ li.loading { list-style: none; padding: 40px 16px; }
   .ribbon { animation: none; }
   .dash .toast-pill, .dash .toast-pill.leaving { animation-name: e-fade-in; }
   .dash .toast-pill.leaving { animation-direction: reverse; }
-  .today-tile:focus-visible { transform: none; }
   .tab-item:active { transform: none; }
   .job-meter > i.is-current::after { animation: none; transform: scaleX(0.5); }
   .plus-rot .ico { transition: none; }
@@ -1256,7 +1257,6 @@ li.loading { list-style: none; padding: 40px 16px; }
 .tile-foot::before { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 1; }
 .tile-foot:hover { text-decoration: none; }
 .tile-foot:focus-visible { outline: none; box-shadow: none; }
-.today-tile:has(.tile-foot:focus-visible) { box-shadow: var(--focus-ring); transform: scale(var(--card-element-scale, 1.016)); }
 .tile-line { margin: 4px 0 0; font-size: 17px; line-height: 25px; letter-spacing: -0.022em; color: var(--ink);
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .tile-line-who { color: var(--ink-2); }
