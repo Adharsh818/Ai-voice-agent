@@ -692,7 +692,7 @@ class DemoLoginTests(DashboardTestCase):
         self.assertEqual(demo.get("/dashboard/api/tasks").status_code, 200)              # looking is fine
         refused = demo.post(f"/dashboard/api/appointments/{appointment}/cancel", json={"reason": "test"})
         self.assertEqual(refused.status_code, 403)
-        self.assertIn("demo login", refused.json()["detail"])
+        self.assertIn("view-only login", refused.json()["detail"])
         self.assertEqual(demo.post("/dashboard/api/privacy/erase", json={"phone": "9876543210"}).status_code, 403)
         self.assertEqual(self.rows("SELECT status FROM appointments WHERE id = ?", appointment)[0]["status"], "booked")
         with patch.object(config, "TALK_PAGE_PUBLIC", False):                           # and can talk to Emma

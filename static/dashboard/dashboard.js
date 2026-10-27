@@ -187,6 +187,7 @@ const KIND_LABEL = {
 };
 const ROLE_LABEL = { caller: "Caller", emma: "Emma", operator: "Staff" };
 const LIVE_ROLE_LABEL = { caller: "Caller", emma: "Emma", operator: "You" };
+const STAFF_ROLE_LABEL = { admin: "Admin", staff: "Staff", demo: "View only" };
 // How a reply was made, in front-desk words (shown only inside "Response times").
 const TIER_LABEL = { 0: "Quick reply", 1: "Thought it through", 2: "Backup reply" };
 // What Emma is doing on the call, by the step she is on. Never shown as the raw key.
@@ -2191,7 +2192,7 @@ async function loadStaff() {
   $("staff-rows").replaceChildren(...(data.staff.length ? data.staff.map((s) => el("li", { class: s.active ? "" : "muted" },
     el("span", { class: "li-main" }, el("span", { text: s.display_name || s.username }),
       el("span", { class: "li-sub" }, el("span", { class: "mono", text: s.username }),
-        ` · ${s.role} · last sign-in ${s.last_login_at ? fmtDateTime(s.last_login_at) : "never"}`)),
+        ` · ${STAFF_ROLE_LABEL[s.role] || s.role} · last sign-in ${s.last_login_at ? fmtDateTime(s.last_login_at) : "never"}`)),
     el("button", { class: `btn-pill small ${s.active ? "danger-text" : "gray"}`, type: "button",
       text: s.active ? "Switch off" : "Switch on",
       onclick: async () => {

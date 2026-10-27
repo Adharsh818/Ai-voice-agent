@@ -97,7 +97,7 @@ logger = logging.getLogger("voice-server")
 
 AUDIO_FRAME = 0x01
 BUSY_MESSAGE = "All our lines are busy right now. Please try again in a minute."
-DEMO_LIMIT_MESSAGE = "That's all the demo calls for today. Please try again tomorrow."
+DEMO_LIMIT_MESSAGE = "That's all the calls for today on this login. Please try again tomorrow."
 # Talk-page events the dashboard's live panel also shows (not audio, not sound effects).
 MIRRORED_EVENTS = {"caption", "state", "turn", "metrics", "error", "bye"}
 

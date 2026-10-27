@@ -1859,3 +1859,24 @@ li.loading { list-style: none; padding: 40px 16px; }
   .reminder { grid-template-columns: 26px minmax(0, 1fr); }
   .reminder .rem-side { grid-column: 2; justify-content: flex-start; margin-top: 4px; }
 }
+
+/* ------------------------------------------------------------------ Apple Store cards (27 Oct)
+   Today, Recovery and System are shelves of cards: the light grey page with white cards on it
+   (.e-card's fill, corner and soft shadow). Only a card that is one link lifts (Today's tiles);
+   these panels hold their own buttons and rows, so they rest still. A card inside a card stays
+   flat with a hairline (no card on card). Calendar, Live call, Tasks and Calls stay white, like
+   Apple's Calendar, Messages, Reminders and Mail. */
+body.dash:has(#view-recovery:not([hidden]), #view-system:not([hidden])) { background: var(--canvas-alt); }
+:is(#view-recovery, #view-system) :is(.step, .campaign, .settings-disclosure, .group-box, .grouped-list) {
+  background: #fff;
+  border-radius: var(--card-r);
+  box-shadow: var(--card-shadow);
+}
+:is(#view-recovery, #view-system) :is(.step, .campaign, .settings-disclosure, .group-box) :is(.grouped-list, .group-box, .campaign) {
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px var(--hairline-soft);
+}
+:is(#view-recovery, #view-system) .campaign-progress .ring::after { background: #fff; }
+@media (prefers-contrast: more) {
+  :is(#view-recovery, #view-system) :is(.step, .campaign, .settings-disclosure, .group-box, .grouped-list) { box-shadow: 0 0 0 1px var(--ink-3); }
+}
