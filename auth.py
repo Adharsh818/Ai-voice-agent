@@ -261,7 +261,7 @@ def require_staff(request: Request) -> str:
     if request.method not in _SAFE_METHODS and current_role(request) == "demo":
         # The demo login (on the owner's resume) may look and call, but every change is refused here,
         # in the one dependency all dashboard API routes share, so no route can forget it.
-        raise HTTPException(status_code=403, detail="This is a demo login: you can look around and talk to "
+        raise HTTPException(status_code=403, detail="This is a view-only login: you can look around and talk to "
                                                     "Emma, but not change anything.")
     return user
 
