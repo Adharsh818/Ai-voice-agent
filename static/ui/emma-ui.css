@@ -363,6 +363,41 @@ a:hover { text-decoration: underline; }
   .tile-hover:hover { transform: scale(var(--card-element-scale, 1.016)); }
 }
 
+/* The Apple Store shelf card (apple.com/store "The latest.", measured 27 Oct): a white card on the
+   #f5f5f7 page that lifts 1% under the mouse while its shadow deepens; it grows from its centre and
+   its picture stays put. Only for a card that is one link: the lift says "this opens". Touch
+   screens get no lift (apple.com turns it off there too). */
+:root {
+  --card-r: 18px;
+  --card-shadow: 2px 4px 12px rgba(0, 0, 0, 0.08);
+  --card-shadow-lift: 2px 4px 16px rgba(0, 0, 0, 0.16);
+  --card-lift: scale3d(1.01, 1.01, 1.01);
+  --card-ease: 300ms cubic-bezier(0, 0, 0.5, 1);
+}
+.e-card {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  border-radius: var(--card-r);
+  box-shadow: var(--card-shadow);
+  transition: transform var(--card-ease), box-shadow var(--card-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .e-card:hover { transform: var(--card-lift); box-shadow: var(--card-shadow-lift); }
+}
+.e-card:focus-visible, .e-card:has(:focus-visible) {
+  outline: none;
+  transform: var(--card-lift);
+  box-shadow: var(--card-shadow-lift), var(--focus-ring);
+}
+@media (prefers-reduced-motion: reduce) {
+  .e-card { transition: box-shadow 200ms linear; }
+  .e-card:hover, .e-card:focus-visible, .e-card:has(:focus-visible) { transform: none; }
+}
+@media (prefers-contrast: more) {
+  .e-card { box-shadow: 0 0 0 1px var(--ink-3); }
+}
+
 /* ------------------------------------------------------------------ staggered reveal (apple.com StaggeredFadeIn) */
 html.js [data-reveal] > *,
 html.js [data-reveal-self] {
