@@ -155,3 +155,9 @@ Every external service is faked in the tests (Google Calendar included), so they
 - **No audio recording.** Call transcripts (text only) are kept in the database for the dashboard and are never written to log files. Text older than `TRANSCRIPT_RETENTION_DAYS` (30) is blanked at startup and every 6 hours. A caller who asks not to be kept has their transcript blanked when the call ends, and staff can delete one call's data on request. Appointment records are business records and stay.
 - Phone numbers are masked in logs, and Calendar events show only the last 4 digits.
 - Use paid or no-training provider tiers before handling any real patient data.
+
+## Contributors
+
+- **Adharsh** ([@Adharsh818](https://github.com/Adharsh818))
+- **Bharath M** ([@bharathm282006](https://github.com/bharathm282006))
+
